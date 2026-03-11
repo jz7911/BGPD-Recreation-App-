@@ -1,0 +1,9 @@
+{
+  "name": "BGPD Recreation",
+  "short_name": "BGPD Rec",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1e3a5f",
+  "theme_color": "#1e3a5f",
+  "icons": []
+}
