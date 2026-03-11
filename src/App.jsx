@@ -970,6 +970,7 @@ export default function App() {
     } catch(e) { setError("Failed to duplicate. Please try again."); }
     setSaving(false);
   };
+  const handleSaveCR = async cr => {
     const exists = costRecords.find(r=>r.program_id===cr.program_id);
     if(exists){await supabase.from("cost_records").update(cr).eq("program_id",cr.program_id);}
     else{await supabase.from("cost_records").insert(cr);}
@@ -1056,4 +1057,3 @@ export default function App() {
     </div>
   );
 }
-
