@@ -962,7 +962,7 @@ export default function App() {
     setSaving(true); setError(null);
     const blank = { act_capacity:0, act_enrollment:0, act_revenue:0, act_personnel:0, act_commodities:0, act_contractuals:0, act_other1:0, act_other2:0, act_facility_hours:0, act_program_type:"", act_custom_workload:0 };
     const budgetFields = carryBudget ? {} : { ant_capacity:0, ant_enrollment:0, ant_revenue:0, ant_personnel:0, ant_commodities:0, ant_contractuals:0, ant_other1:0, ant_other2:0, ant_facility_hours:0, ant_program_type:"", ant_custom_workload:0 };
-    const { id, created_at, ...rest } = source;
+    const {id:_id, created_at:_ca, updated_at:_ua, ...rest} = source;
     const duped = { ...rest, ...blank, ...budgetFields, season, year };
     try {
       const { error:e } = await supabase.from("programs").insert(duped);
