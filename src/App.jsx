@@ -913,7 +913,7 @@ function Reference() {
 }
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
-const MANAGER_NAMES = ["admin","manager"];
+const MANAGER_NAMES = ["admin","manager","joe zimmermann"];
 
 export default function App() {
   const [tab, setTab]                   = useState("dashboard");
