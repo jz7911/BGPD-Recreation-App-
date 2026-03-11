@@ -931,7 +931,7 @@ export default function App() {
   const fetchAll = useCallback(async()=>{
     setLoading(true);
     const [{data:p},{data:c}] = await Promise.all([
-      supabase.from("programs").select("*").order("created_at",{ascending:false}),
+      supabase.from("programs").select("*").order("_at",{ascending:false}),
       supabase.from("cost_records").select("*")
     ]);
     setPrograms(p||[]); setCostRecords(c||[]); setLoading(false);
@@ -962,7 +962,7 @@ export default function App() {
     setSaving(true); setError(null);
     const blank = { act_capacity:0, act_enrollment:0, act_revenue:0, act_personnel:0, act_commodities:0, act_contractuals:0, act_other1:0, act_other2:0, act_facility_hours:0, act_program_type:"", act_custom_workload:0 };
     const budgetFields = carryBudget ? {} : { ant_capacity:0, ant_enrollment:0, ant_revenue:0, ant_personnel:0, ant_commodities:0, ant_contractuals:0, ant_other1:0, ant_other2:0, ant_facility_hours:0, ant_program_type:"", ant_custom_workload:0 };
-    const {id:_id, created_at:_ca, updated_at:_ua, ...rest} = source;
+    const {id:_id, created_at:_ca, updated_at:_ua, status:_s, action:_a, fillRate:_fr, costRecovery:_cr, profitLoss:_pl, totalCost:_tc, revenue:_rv, antFillRate:_afr, antCR:_acr, antProfit:_ap, antTotal:_at, antRevenue:_ar, varEnr:_ve, varRev:_vr, varCost:_vc, varFill:_vf, varCR:_vcr, varProfit:_vp, ...rest} = source;
     const duped = { ...rest, ...blank, ...budgetFields, season, year };
     try {
       const { error:e } = await supabase.from("programs").insert(duped);
