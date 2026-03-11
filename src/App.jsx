@@ -943,9 +943,10 @@ export default function App() {
 
   const handleSaveProgram = async p => {
     setSaving(true); setError(null);
+    const {status:_s, action:_a, fillRate:_fr, costRecovery:_cr, profitLoss:_pl, totalCost:_tc, antFillRate:_afr, antCR:_acr, antProfit:_ap, antTotal:_at, antRevenue:_ar, varEnr:_ve, varRev:_vr, varCost:_vc, varFill:_vf, varCR:_vcr, varProfit:_vp, ...clean} = p;
     try {
-      if(p.id){const{error:e}=await supabase.from("programs").update(p).eq("id",p.id);if(e)throw e;}
-      else{const{error:e}=await supabase.from("programs").insert(p);if(e)throw e;}
+      if(p.id){ const{error:e}=await supabase.from("programs").update(clean).eq("id",p.id); if(e) throw e; }
+      else    { const{error:e}=await supabase.from("programs").insert(clean);               if(e) throw e; }
       await fetchAll(); setEditingProgram(null); setAddingProgram(false); setTab("dashboard");
     } catch(e){ setError("Failed to save. Please try again."); }
     setSaving(false);
