@@ -558,7 +558,7 @@ function KPIReference() {
 }
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
-const MANAGER_NAMES = ["admin", "manager"]; // lowercase — add your name here after setup
+const MANAGER_NAMES = ["admin", "manager", "joe zimmermann"]; // lowercase — add your name here after setup
 
 export default function App() {
   const [tab, setTab] = useState("dashboard");
