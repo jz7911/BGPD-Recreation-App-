@@ -42,6 +42,7 @@ const DB_FIELDS = [
   "act_personnel","act_commodities","act_contractuals",
   "act_other1","act_other2","act_facility_hours",
   "act_program_type","act_custom_workload",
+  "other1_label","other2_label",
 ];
 
 function cleanForDB(p) {
@@ -115,6 +116,7 @@ function newProgram(staffName) {
     act_personnel:0, act_commodities:0, act_contractuals:0,
     act_other1:0, act_other2:0, act_facility_hours:0,
     act_program_type:"", act_custom_workload:0,
+    other1_label:"Other Direct Costs", other2_label:"Other Direct Costs 2",
   };
 }
 
@@ -169,11 +171,14 @@ function Badge({status}) {
   );
 }
 
-function KCard({label,value,sub,accent,onClick}) {
+function KCard({label,value,sub,accent,onClick,target}) {
   return (
     <div onClick={onClick} style={{borderTop:`3px solid ${accent||"#1e3a5f"}`}}
       className={`bg-white rounded-lg p-4 shadow-sm ${onClick?"cursor-pointer hover:shadow-md transition":""}`}>
-      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">{label}</div>
+      <div className="flex items-start justify-between gap-1 mb-1">
+        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{label}</div>
+        {target && <div className="text-xs text-slate-300 font-medium shrink-0">↗ {target}</div>}
+      </div>
       <div className="text-2xl font-bold text-slate-800">{value}</div>
       {sub && <div className="text-xs text-slate-400 mt-0.5">{sub}</div>}
     </div>
@@ -259,8 +264,32 @@ function CostPanel({px,p,set}) {
           <Inp label="Personnel ($)"            type="number" value={p[px+"personnel"]}      onChange={set(px+"personnel")}      min={0}/>
           <Inp label="Commodities ($)"          type="number" value={p[px+"commodities"]}    onChange={set(px+"commodities")}    min={0}/>
           <Inp label="Contractuals ($)"         type="number" value={p[px+"contractuals"]}   onChange={set(px+"contractuals")}   min={0}/>
-          <Inp label="Other Direct Costs ($)"   type="number" value={p[px+"other1"]}         onChange={set(px+"other1")}         min={0}/>
-          <Inp label="Other Direct Costs 2 ($)" type="number" value={p[px+"other2"]}         onChange={set(px+"other2")}         min={0}/>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1">
+              <input
+                className="text-xs font-semibold text-slate-500 uppercase tracking-wide bg-transparent border-b border-dashed border-slate-300 focus:border-blue-400 focus:outline-none w-full"
+                value={p.other1_label||"Other Direct Costs"}
+                onChange={e=>set("other1_label")(e.target.value)}
+                placeholder="Other Direct Costs"
+                title="Click to rename this cost line"
+              />
+              <span className="text-xs text-slate-400 shrink-0">($)</span>
+            </div>
+            <input type="number" min={0} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-300" value={p[px+"other1"]||""} onChange={e=>set(px+"other1")(e.target.value)} placeholder="0"/>
+          </div>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1">
+              <input
+                className="text-xs font-semibold text-slate-500 uppercase tracking-wide bg-transparent border-b border-dashed border-slate-300 focus:border-blue-400 focus:outline-none w-full"
+                value={p.other2_label||"Other Direct Costs 2"}
+                onChange={e=>set("other2_label")(e.target.value)}
+                placeholder="Other Direct Costs 2"
+                title="Click to rename this cost line"
+              />
+              <span className="text-xs text-slate-400 shrink-0">($)</span>
+            </div>
+            <input type="number" min={0} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-300" value={p[px+"other2"]||""} onChange={e=>set(px+"other2")(e.target.value)} placeholder="0"/>
+          </div>
           <Inp label="Facility Hours"           type="number" value={p[px+"facility_hours"]} onChange={set(px+"facility_hours")} min={0} hint={"$"+FACILITY_COST_PER_HR+"/hr allocated"}/>
         </div>
       </div>
@@ -455,7 +484,7 @@ function BulkDupModal({programs,onConfirm,onCancel}) {
 
 // ─── Dashboard (Staff View — unchanged from original) ─────────────────────────
 function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
-  const [sf,setSf] = useState(staffName);
+  const [sf,setSf] = useState("All");
   const [af,setAf] = useState("All");
   const [yf,setYf] = useState("All");
   const [dv,setDv] = useState("summary");
@@ -484,7 +513,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
   const redesign = kpis.filter(p=>p.status==="Needs Redesign").length;
   const low50    = kpis.filter(p=>p.costRecovery<0.5).length;
   const selCls = "rounded border border-slate-200 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:border-blue-400 min-w-[140px]";
-  const anyFilter = sf!==staffName||af!=="All"||yf!=="All";
+  const anyFilter = sf!=="All"||af!=="All"||yf!=="All";
 
   return (
     <div className="space-y-6">
@@ -507,7 +536,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
             {allYears.map(y=><option key={y} value={y}>{y}</option>)}
           </select>
         </div>
-        {anyFilter&&<button onClick={()=>{setSf(staffName);setAf("All");setYf("All");}} className="text-xs text-slate-400 hover:text-slate-600 pb-1.5 font-medium">Clear filters</button>}
+        {anyFilter&&<button onClick={()=>{setSf("All");setAf("All");setYf("All");}} className="text-xs text-slate-400 hover:text-slate-600 pb-1.5 font-medium">Clear filters</button>}
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <KCard label="Programs"                value={vis.length}      accent="#1e3a5f"/>
@@ -765,6 +794,40 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   // ── Subsidy burden ──
   const subsidyBurden = kpis.reduce((a,p)=>a+Math.max(0,-p.profitLoss),0);
 
+  // ── Prior season lookup (same name + area, year-1 or prev season ordering) ──
+  const SEASON_ORDER = ["Spring","Summer","Fall","Winter","All Year"];
+  const priorMap = useMemo(()=>{
+    const map={};
+    // Build lookup: for each program in full `programs` array, key = name|area
+    // Pick the most recent prior program that isn't itself
+    kpis.forEach(cur=>{
+      const candidates = programs.filter(p=>
+        p.id!==cur.id &&
+        p.name===cur.name &&
+        p.area===cur.area &&
+        (Number(p.year)<Number(cur.year) ||
+         (Number(p.year)===Number(cur.year) && SEASON_ORDER.indexOf(p.season)<SEASON_ORDER.indexOf(cur.season)))
+      );
+      if(!candidates.length) return;
+      // pick closest prior
+      const sorted = candidates.sort((a,b)=>{
+        const ay=Number(a.year),by2=Number(b.year),cy=Number(cur.year);
+        const as2=SEASON_ORDER.indexOf(a.season),bs=SEASON_ORDER.indexOf(b.season),cs=SEASON_ORDER.indexOf(cur.season);
+        const adiff = (cy-ay)*10+(cs-as2);
+        const bdiff = (cy-by2)*10+(cs-bs);
+        return adiff-bdiff;
+      });
+      const prior = sorted[0];
+      const pk = calcKPIs(prior);
+      map[cur.id]={
+        fillDelta: cur.fillRate - pk.fillRate,
+        crDelta:   cur.costRecovery - pk.costRecovery,
+        label:     `${prior.season} ${prior.year}`,
+      };
+    });
+    return map;
+  },[kpis,programs]);
+
   // ── Top/Bottom performers ──
   const byFill   = [...kpis].sort((a,b)=>b.fillRate-a.fillRate);
   const byCR     = [...kpis].sort((a,b)=>b.costRecovery-a.costRecovery);
@@ -850,39 +913,41 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
         </div>
       )}
 
-      {/* ── KPI Row 1 — with health score ── */}
+      {/* ── KPI Row 1 — headline metrics ── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <KCard label="Programs"          value={vis.length}      accent="#1e3a5f"/>
-        <KCard label="Avg Fill Rate"     value={pct(avgFill)}    accent="#d4a017"/>
-        <KCard label="Avg Cost Recovery" value={pct(avgCR)}      accent="#d4a017"/>
-        <KCard label="Total Net P/(L)"   value={dollar(surplus)} accent={surplus>=0?"#22c55e":"#ef4444"}/>
         <div style={{borderTop:`3px solid ${healthColor}`}} className="bg-white rounded-lg p-4 shadow-sm">
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Health Score</div>
+          <div className="flex items-start justify-between gap-1 mb-1">
+            <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Health Score</div>
+          </div>
           <div className="text-2xl font-bold" style={{color:healthColor}}>{healthScore}<span className="text-sm font-normal text-slate-400">/100</span></div>
           <div className="text-xs text-slate-400 mt-0.5">Fill · Recovery · Status</div>
         </div>
+        <KCard label="Avg Fill Rate"     value={pct(avgFill)}    accent="#d4a017" target="≥70%"/>
+        <KCard label="Avg Cost Recovery" value={pct(avgCR)}      accent="#d4a017" target="≥100%"/>
+        <KCard label="Total Net P/(L)"   value={dollar(surplus)} accent={surplus>=0?"#22c55e":"#ef4444"}
+          sub={`Subsidy burden: ${dollar(subsidyBurden)}`}/>
+        <KCard label="Programs"          value={vis.length}      accent="#1e3a5f"
+          sub={`${noActuals} missing actuals`}/>
       </div>
 
-      {/* ── KPI Row 2 ── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <KCard label="Healthy"          value={healthy}   sub="programs" accent="#22c55e"/>
-        <KCard label="Monitor"          value={monitor}   sub="programs" accent="#eab308"/>
-        <KCard label="Needs Redesign"   value={redesign}  sub="programs" accent="#ef4444"/>
-        <KCard label="Missing Actuals"  value={noActuals} sub="programs" accent="#f97316"/>
-        <KCard label="Rev / Participant" value={totalActEnr>0?dollar(revPerPart):"—"} sub="portfolio avg" accent="#1e3a5f"/>
-      </div>
-
-      {/* ── KPI Row 3 — financial ── */}
+      {/* ── KPI Row 2 — status distribution ── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <KCard label="Total Revenue"    value={dollar(actRev)}      accent="#22c55e"/>
-        <KCard label="Total Cost"       value={dollar(actCost)}     accent="#64748b"/>
-        <KCard label="Subsidy Burden"   value={dollar(subsidyBurden)} sub="tax $ supporting programs" accent="#ef4444"/>
-        <KCard label="Waitlist Demand"  value={pct(waitlistPct)}    sub={`${totalWaitlist} total on waitlists`} accent="#d4a017"/>
+        <KCard label="Healthy"          value={healthy}   sub={`${kpis.length>0?Math.round(healthy/kpis.length*100):0}% of programs`} accent="#22c55e"/>
+        <KCard label="Monitor"          value={monitor}   sub={`${kpis.length>0?Math.round(monitor/kpis.length*100):0}% of programs`} accent="#eab308"/>
+        <KCard label="Needs Redesign"   value={redesign}  sub={`${kpis.length>0?Math.round(redesign/kpis.length*100):0}% of programs`} accent="#ef4444"/>
+        <KCard label="Waitlist Demand"  value={pct(waitlistPct)} sub={`${totalWaitlist} on waitlists`} accent="#d4a017"/>
       </div>
 
       {/* ── Program Snapshot bars ── */}
       <div className="bg-white rounded-lg shadow-sm p-5 space-y-5">
-        <h3 className="font-bold text-slate-700 text-sm">Program Snapshot: Budgeted vs Actual</h3>
+        <div className="flex items-start justify-between flex-wrap gap-3">
+          <h3 className="font-bold text-slate-700 text-sm">Program Snapshot: Budgeted vs Actual</h3>
+          <div className="flex gap-6 text-xs font-mono text-slate-500">
+            <span>Revenue: <span className="font-bold text-slate-700">{dollar(actRev)}</span></span>
+            <span>Total Cost: <span className="font-bold text-slate-700">{dollar(actCost)}</span></span>
+            <span>Rev/Participant: <span className="font-bold text-slate-700">{totalActEnr>0?dollar(revPerPart):"—"}</span></span>
+          </div>
+        </div>
         <PBar label="Total Revenue"      actual={actRev}  budget={antRev}  ff={v=>dollar(v)}/>
         <PBar label="Total Enrollment"   actual={actEnr}  budget={antEnr}  ff={v=>v.toString()}/>
         <PBar label="Total Program Cost" actual={actCost} budget={antCost} ff={v=>dollar(v)} inv/>
@@ -923,25 +988,43 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-100">
             <h3 className="font-bold text-slate-700 text-sm">Staff Workload Distribution</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Estimated FT workload % allocated across programs</p>
+            <p className="text-xs text-slate-400 mt-0.5">Estimated FT workload % allocated across programs. Only counts programs with a Program Type selected.</p>
           </div>
           <div className="p-4 space-y-3">
             {workloadByStaff.map(s=>{
               const pctVal = Math.min(s.totalWL,100);
               const barColor = s.totalWL>80?"#ef4444":s.totalWL>60?"#eab308":"#22c55e";
+              // find programs for this staff member missing a program type
+              const missingType = kpis.filter(p=>p.staff_name===s.name&&!p.ant_program_type);
               return (
                 <div key={s.name}>
                   <div className="flex justify-between items-center mb-1">
-                    <span className="text-sm font-semibold text-slate-700">{s.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-slate-700">{s.name}</span>
+                      {missingType.length>0&&(
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                          ⚠ {missingType.length} missing program type
+                        </span>
+                      )}
+                    </div>
                     <span className="text-xs font-mono text-slate-500">{s.totalWL.toFixed(1)}% allocated · {s.count} program{s.count!==1?"s":""}</span>
                   </div>
                   <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full transition-all" style={{width:`${pctVal}%`,backgroundColor:barColor}}/>
+                    <div className="h-full rounded-full transition-all" style={{width:`${pctVal}%`,backgroundColor:s.totalWL===0?"#e2e8f0":barColor}}/>
                   </div>
+                  {missingType.length>0&&(
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {missingType.map(p=>(
+                        <span key={p.id} className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded truncate max-w-[200px]" title={p.name}>
+                          {p.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
-            <p className="text-xs text-slate-400 pt-1">Based on budgeted program type workload %. Green = under 60%, Yellow = 60–80%, Red = over 80%.</p>
+            <p className="text-xs text-slate-400 pt-1">Green = under 60%, Yellow = 60–80%, Red = over 80%. Programs without a program type selected contribute 0% and are flagged above.</p>
           </div>
         </div>
       )}
@@ -1130,14 +1213,16 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="bg-slate-50 text-xs text-slate-400 uppercase tracking-wider">
-                {[["name","Program"],["staff_name","Staff"],["area","Area"],["season","Season"],["fillRate","Fill Rate"],["costRecovery","Cost Recovery"],["profitLoss","Net P/(L)"],["totalCost","Total Cost"],["waitlist","Waitlist"],["trend","Trend"],["status","Status"],[null,""]].map(([col,h])=>(
-                  <th key={h} className={col?`px-3 py-2 text-left font-semibold cursor-pointer hover:text-slate-700 select-none ${sort.col===col?"text-slate-700":""}`:"px-3 py-2"}
+                {[["name","Program"],["staff_name","Staff"],["area","Area"],["season","Season"],["fillRate","Fill Rate"],["costRecovery","Cost Recovery"],["profitLoss","Net P/(L)"],["totalCost","Total Cost"],["waitlist","Waitlist"],["trend","Trend"],["status","Status"],[null,"vs Prior"],[null,""]].map(([col,h])=>(
+                  <th key={h} className={col?`px-3 py-2 text-left font-semibold cursor-pointer hover:text-slate-700 select-none ${sort.col===col?"text-slate-700":""}`:"px-3 py-2 text-left font-semibold"}
                     onClick={col?()=>toggleSort(col):undefined}>
                     {h}{col&&<span className="ml-1 text-slate-300">{sortIcon(col)}</span>}
                   </th>
                 ))}
               </tr></thead>
-              <tbody>{sortedKpis.map((p,i)=>(
+              <tbody>{sortedKpis.map((p,i)=>{
+                const prior = priorMap[p.id];
+                return (
                 <tr key={p.id} className={`border-t border-slate-50 hover:bg-slate-50 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
                   <td className="px-3 py-2.5 font-semibold text-slate-700">
                     <div className="flex items-center gap-1.5">
@@ -1155,9 +1240,25 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                   <td className="px-3 py-2.5 text-slate-500">{p.waitlist||0}</td>
                   <td className="px-3 py-2.5 text-slate-500">{p.trend}</td>
                   <td className="px-3 py-2.5"><Badge status={p.status}/></td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">
+                    {prior ? (
+                      <div className="text-xs space-y-0.5">
+                        <div className={`font-mono font-semibold ${prior.fillDelta>=0?"text-green-600":"text-red-500"}`}>
+                          Fill: {prior.fillDelta>=0?"+":""}{(prior.fillDelta*100).toFixed(1)}pp
+                        </div>
+                        <div className={`font-mono font-semibold ${prior.crDelta>=0?"text-green-600":"text-red-500"}`}>
+                          CR: {prior.crDelta>=0?"+":""}{(prior.crDelta*100).toFixed(1)}pp
+                        </div>
+                        <div className="text-slate-300">vs {prior.label}</div>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-300">—</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2.5"><button onClick={()=>onEdit(p)} className="text-xs text-slate-400 hover:text-slate-700 font-medium">Edit</button></td>
                 </tr>
-              ))}</tbody>
+                );
+              })}</tbody>
             </table>
           </div>
         ) : dv==="variances" ? (
@@ -1548,7 +1649,7 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
 }
 
 // ─── Reference Tab ────────────────────────────────────────────────────────────
-function Reference() {
+function Reference({isManager}) {
   const [sec,setSec] = useState("standards");
   const workload = [
     {activity:"Program planning & management", pct:"45-50%"},
@@ -1605,8 +1706,12 @@ function Reference() {
   ];
   return (
     <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-      <div className="flex border-b border-slate-100">
-        {[{id:"standards",label:"District Standards"},{id:"kpis",label:"KPI Menu"}].map(s=>(
+      <div className="flex border-b border-slate-100 overflow-x-auto">
+        {[
+          {id:"standards",label:"District Standards"},
+          {id:"kpis",label:"KPI Menu"},
+          ...(isManager?[{id:"guide",label:"Dashboard Guide"}]:[]),
+        ].map(s=>(
           <button key={s.id} onClick={()=>setSec(s.id)}
             className={`px-5 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition ${sec===s.id?"text-slate-800":"border-transparent text-slate-400 hover:text-slate-600"}`}
             style={sec===s.id?{borderColor:"#d4a017"}:{}}>{s.label}</button>
@@ -1691,6 +1796,221 @@ function Reference() {
           ))}
         </div>
       )}
+      {sec==="guide"&&isManager&&(
+        <div className="p-5 space-y-8">
+          <div>
+            <p className="text-sm text-slate-500">This guide explains exactly how every number on the manager dashboard is calculated. Use it to understand what the data is telling you and where to focus attention.</p>
+          </div>
+
+          {/* ── Program Cost ── */}
+          <GuideSection title="How Program Cost Is Calculated" accent="#1e3a5f">
+            <p className="text-sm text-slate-600 mb-4">Every program's total cost is built from four layers. Understanding these helps you know where cost is actually coming from.</p>
+            <div className="space-y-3">
+              {[
+                {step:"1",label:"Direct Costs",color:"#1e3a5f",desc:"Personnel + Commodities + Contractuals + two custom cost lines (labeled per program). These are costs you enter directly on the program form."},
+                {step:"2",label:"Admin Overhead (10%)",color:"#64748b",desc:"10% of direct costs is added automatically to account for district-level administrative support. You don't enter this — it's always applied."},
+                {step:"3",label:"Allocated FT Staff Cost",color:"#d4a017",desc:"$97,700 × the program's workload %. This represents the portion of a full-time staff salary attributed to managing this program. If no Program Type is selected, this is $0 — which understates the real cost."},
+                {step:"4",label:"Allocated Facility Cost",color:"#22c55e",desc:"$3/hr × the number of facility hours entered. This covers the shared cost of using district space."},
+              ].map(r=>(
+                <div key={r.step} className="flex gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100">
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0 mt-0.5" style={{backgroundColor:r.color}}>{r.step}</div>
+                  <div>
+                    <div className="text-sm font-bold text-slate-700">{r.label}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">{r.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 p-3 rounded-lg bg-slate-800 text-slate-100 font-mono text-xs">
+              Total Cost = Direct + (Direct × 10%) + ($97,700 × Workload%) + ($3 × Facility Hrs)
+            </div>
+          </GuideSection>
+
+          {/* ── Fill Rate & Cost Recovery ── */}
+          <GuideSection title="Fill Rate & Cost Recovery" accent="#d4a017">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="p-4 rounded-lg border border-slate-200 space-y-2">
+                <div className="text-sm font-bold text-slate-700">Fill Rate</div>
+                <div className="p-2 rounded bg-slate-800 text-slate-100 font-mono text-xs">Actual Enrollment ÷ Actual Capacity</div>
+                <p className="text-xs text-slate-500">How full the program was relative to available spots. A 70%+ fill rate is the district target for Healthy status. Below 60% triggers Needs Redesign.</p>
+                <div className="text-xs text-slate-400 italic">Example: 18 enrolled ÷ 25 spots = 72% fill rate → Healthy</div>
+              </div>
+              <div className="p-4 rounded-lg border border-slate-200 space-y-2">
+                <div className="text-sm font-bold text-slate-700">Cost Recovery</div>
+                <div className="p-2 rounded bg-slate-800 text-slate-100 font-mono text-xs">Actual Revenue ÷ Total Program Cost</div>
+                <p className="text-xs text-slate-500">What percentage of the program's total cost was covered by participant fees. 100% means break-even. Below 100% means the district subsidized the rest.</p>
+                <div className="text-xs text-slate-400 italic">Example: $1,200 revenue ÷ $1,500 total cost = 80% recovery → district covered $300</div>
+              </div>
+            </div>
+          </GuideSection>
+
+          {/* ── Program Status ── */}
+          <GuideSection title="Program Status Logic" accent="#1e3a5f">
+            <p className="text-sm text-slate-600 mb-3">Status is determined by fill rate and cost recovery together. It uses actual numbers when available, budgeted numbers when not.</p>
+            <div className="space-y-2">
+              {[
+                {status:"Healthy",   color:"#22c55e", rule:"Fill rate ≥ 70% AND cost recovery ≥ 100%",        detail:"Program is well-attended and covering its costs. No action needed."},
+                {status:"Monitor",   color:"#eab308", rule:"Fill rate 60–69.9%",                               detail:"Getting close to thresholds. Watch enrollment trends and consider light marketing or schedule adjustments."},
+                {status:"Needs Redesign", color:"#ef4444", rule:"Fill rate < 60% OR cost recovery < 50%",     detail:"Program is significantly underperforming on at least one dimension. Review pricing, format, timing, or consider discontinuing."},
+              ].map(r=>(
+                <div key={r.status} className="flex gap-3 p-3 rounded-lg border border-slate-100">
+                  <div className="px-2 py-0.5 rounded text-xs font-bold text-white h-fit mt-0.5 shrink-0 whitespace-nowrap" style={{backgroundColor:r.color}}>{r.status}</div>
+                  <div>
+                    <div className="text-xs font-bold text-slate-600">{r.rule}</div>
+                    <div className="text-xs text-slate-400 mt-0.5">{r.detail}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </GuideSection>
+
+          {/* ── Health Score ── */}
+          <GuideSection title="Health Score (0–100)" accent="#d4a017">
+            <p className="text-sm text-slate-600 mb-3">A single composite number summarizing overall program inventory performance. Weighted across three dimensions:</p>
+            <div className="space-y-2 mb-4">
+              {[
+                {weight:"40%", label:"Average Fill Rate",      desc:"Across all visible programs. Higher attendance = higher score."},
+                {weight:"40%", label:"Average Cost Recovery",  desc:"Capped at 200% so one exceptionally profitable program doesn't skew the whole score. At 100% recovery you get the full 40 points."},
+                {weight:"20%", label:"% of Programs Healthy",  desc:"What proportion of programs have Healthy status. Rewards a well-distributed inventory, not just a few standouts."},
+              ].map(r=>(
+                <div key={r.label} className="flex gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                  <div className="text-sm font-black text-slate-700 w-10 shrink-0">{r.weight}</div>
+                  <div>
+                    <div className="text-sm font-bold text-slate-700">{r.label}</div>
+                    <div className="text-xs text-slate-500">{r.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="p-3 rounded-lg bg-slate-800 text-slate-100 font-mono text-xs mb-3">
+              Score = (avgFill × 40) + (min(avgCR, 2)/2 × 40) + (healthyPct × 20)
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-xs text-center">
+              <div className="p-2 rounded-lg bg-green-50 border border-green-200"><span className="font-bold text-green-700">75–100</span><div className="text-slate-500 mt-0.5">Strong</div></div>
+              <div className="p-2 rounded-lg bg-yellow-50 border border-yellow-200"><span className="font-bold text-yellow-700">50–74</span><div className="text-slate-500 mt-0.5">Developing</div></div>
+              <div className="p-2 rounded-lg bg-red-50 border border-red-200"><span className="font-bold text-red-600">0–49</span><div className="text-slate-500 mt-0.5">Needs Attention</div></div>
+            </div>
+          </GuideSection>
+
+          {/* ── Subsidy Burden ── */}
+          <GuideSection title="Subsidy Burden ($)" accent="#ef4444">
+            <p className="text-sm text-slate-600 mb-3">The total dollar amount the district is subsidizing — i.e., the sum of all program deficits. Only programs that lost money contribute. Profitable programs do not offset losses here.</p>
+            <div className="p-3 rounded-lg bg-slate-800 text-slate-100 font-mono text-xs mb-3">
+              Subsidy Burden = Σ max(0, Total Cost − Revenue) for each program
+            </div>
+            <p className="text-sm text-slate-600 mb-2">This is intentional — it tells you the gross tax dollar commitment, not a net number. It answers the question: <span className="font-semibold italic">"How much are we spending beyond what participants pay?"</span></p>
+            <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
+              <span className="font-bold">NRPA benchmark:</span> The national average cost recovery for public parks & recreation is approximately 24.6%, meaning most agencies subsidize about 75 cents of every dollar of program cost. Your subsidy burden relative to total cost gives you your effective subsidy rate to compare against this benchmark.
+            </div>
+          </GuideSection>
+
+          {/* ── Staff Workload ── */}
+          <GuideSection title="Staff Workload Distribution" accent="#1e3a5f">
+            <p className="text-sm text-slate-600 mb-3">Shows how much of each staff member's estimated FT capacity is allocated to programs in the current view. It is based entirely on the <span className="font-semibold">Program Type</span> selected on each program's budget form.</p>
+            <div className="rounded-lg border border-slate-200 overflow-hidden mb-4">
+              <div className="px-4 py-2 bg-slate-800 text-slate-100 text-xs font-bold uppercase tracking-widest">Program Type Workload %</div>
+              <table className="w-full text-xs">
+                <thead><tr className="bg-slate-50 text-slate-400 uppercase tracking-wider">
+                  <th className="px-4 py-2 text-left font-semibold">Program Type</th>
+                  <th className="px-4 py-2 text-left font-semibold">FT Workload %</th>
+                  <th className="px-4 py-2 text-left font-semibold">FT $ Cost</th>
+                </tr></thead>
+                <tbody>{PROGRAM_TYPES.map((t,i)=>(
+                  <tr key={t.label} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
+                    <td className="px-4 py-2 font-semibold text-slate-700">{t.label}</td>
+                    <td className="px-4 py-2 text-slate-500 font-mono">{(t.pct*100).toFixed(1)}%</td>
+                    <td className="px-4 py-2 text-slate-500 font-mono">${(97700*t.pct).toLocaleString(undefined,{maximumFractionDigits:0})}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+            <div className="space-y-2 text-sm text-slate-600">
+              <p>A staff member managing 10 Small Programs (4% each) would show <span className="font-mono font-bold">40% allocated</span> — meaning 40% of their FT salary ($39,080) is attributed to programs. The remaining 60% covers non-program time: planning, meetings, marketing, admin.</p>
+              <p className="text-amber-700 font-medium">⚠ If a staff member shows 0% or unexpectedly low allocation, it almost always means their programs are missing a Program Type selection. Open each flagged program and select the appropriate type in the budgeted section.</p>
+            </div>
+          </GuideSection>
+
+          {/* ── Revenue per Participant ── */}
+          <GuideSection title="Revenue per Participant" accent="#d4a017">
+            <p className="text-sm text-slate-600 mb-3">The average revenue generated per enrolled participant. Useful for comparing pricing efficiency across areas.</p>
+            <div className="p-3 rounded-lg bg-slate-800 text-slate-100 font-mono text-xs mb-3">
+              Rev / Participant = Total Actual Revenue ÷ Total Actual Enrollment
+            </div>
+            <p className="text-sm text-slate-600">Areas significantly below the portfolio average may be underpriced for their service category. Areas well above average may be priced appropriately for higher-tier services (private lessons, specialized camps) — context matters. Use the Service Category Cost Recovery targets on the District Standards tab to validate.</p>
+          </GuideSection>
+
+          {/* ── Waitlist Demand ── */}
+          <GuideSection title="Waitlist Demand (%)" accent="#d4a017">
+            <p className="text-sm text-slate-600 mb-3">Shows unmet demand as a percentage of total budgeted capacity.</p>
+            <div className="p-3 rounded-lg bg-slate-800 text-slate-100 font-mono text-xs mb-3">
+              Waitlist Demand % = Total Waitlist ÷ Total Budgeted Capacity
+            </div>
+            <p className="text-sm text-slate-600">A waitlist demand of 10%+ across a program area suggests the district could expand capacity, add sections, or increase pricing. Individual programs with high waitlists relative to their size are prime candidates for additional sessions.</p>
+          </GuideSection>
+
+          {/* ── Classification Mix ── */}
+          <GuideSection title="Program Mix by Classification" accent="#1e3a5f">
+            <p className="text-sm text-slate-600 mb-3">Breaks down the inventory by how programs are classified and shows the financial profile of each group.</p>
+            <div className="space-y-2">
+              {[
+                {label:"Community Driven",color:"#1e3a5f", desc:"Programs offered primarily for public benefit regardless of revenue. These are expected to run at a subsidy. Monitor total subsidy cost relative to district mission priorities."},
+                {label:"Revenue Driven",  color:"#22c55e", desc:"Programs expected to generate surplus revenue that can offset community-driven program subsidies. If these are not hitting 100%+ cost recovery, investigate pricing or attendance."},
+                {label:"Both",            color:"#d4a017", desc:"Programs with mixed objectives. Review individually — the target depends on the specific program context."},
+              ].map(r=>(
+                <div key={r.label} className="flex gap-3 p-3 rounded-lg border border-slate-100 bg-slate-50">
+                  <div className="w-3 h-3 rounded-full mt-1 shrink-0" style={{backgroundColor:r.color}}/>
+                  <div>
+                    <div className="text-sm font-bold text-slate-700">{r.label}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">{r.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </GuideSection>
+
+          {/* ── NPS ── */}
+          <GuideSection title="NPS (Net Promoter Score)" accent="#d4a017">
+            <p className="text-sm text-slate-600 mb-3">NPS measures how likely participants are to recommend the program. Scores range from 0 to 100. It is entered manually on the program form — it is not calculated automatically.</p>
+            <div className="grid grid-cols-3 gap-2 text-xs text-center mb-3">
+              <div className="p-2 rounded-lg bg-green-50 border border-green-200"><span className="font-bold text-green-700">70–100</span><div className="text-slate-500 mt-0.5">Strong — promoters far outnumber detractors</div></div>
+              <div className="p-2 rounded-lg bg-yellow-50 border border-yellow-200"><span className="font-bold text-yellow-700">50–69</span><div className="text-slate-500 mt-0.5">Acceptable — room to improve</div></div>
+              <div className="p-2 rounded-lg bg-red-50 border border-red-200"><span className="font-bold text-red-600">0–49</span><div className="text-slate-500 mt-0.5">Needs Review — participant dissatisfaction likely</div></div>
+            </div>
+            <p className="text-sm text-slate-600">Programs with low NPS but healthy fill rates are worth investigating — participants may be returning out of convenience rather than satisfaction, and a competitor or format change could quickly erode enrollment.</p>
+          </GuideSection>
+
+          {/* ── Needs Attention ── */}
+          <GuideSection title="Needs Attention Queue" accent="#991b1b">
+            <p className="text-sm text-slate-600 mb-3">An automatically generated action list of programs that meet at least one of the following conditions, sorted by fill rate ascending (worst first):</p>
+            <div className="space-y-1.5">
+              {[
+                {flag:"Status = Needs Redesign", detail:"Fill rate below 60% or cost recovery below 50%"},
+                {flag:"Trend = Declining",       detail:"Staff has marked this program as declining over time"},
+                {flag:"Fill Rate < 50%",         detail:"Critically low attendance — fewer than half of spots filled"},
+              ].map(r=>(
+                <div key={r.flag} className="flex gap-2 text-sm">
+                  <span className="text-red-500 shrink-0">▸</span>
+                  <span><span className="font-semibold text-slate-700">{r.flag}</span> — <span className="text-slate-500">{r.detail}</span></span>
+                </div>
+              ))}
+            </div>
+            <p className="text-sm text-slate-600 mt-3">Use this queue as your weekly check-in list. Programs that appear here need a decision: redesign, remarket, adjust pricing, or sunset. The queue is capped at 8 programs — if more qualify, the 8 with the lowest fill rates are shown.</p>
+          </GuideSection>
+
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Guide Section helper ─────────────────────────────────────────────────────
+function GuideSection({title,accent,children}) {
+  return (
+    <div className="rounded-lg border border-slate-200 overflow-hidden">
+      <div className="px-4 py-3 border-b border-slate-100" style={{borderLeft:`4px solid ${accent}`}}>
+        <h3 className="font-bold text-slate-800 text-sm">{title}</h3>
+      </div>
+      <div className="p-4">{children}</div>
     </div>
   );
 }
@@ -1850,7 +2170,7 @@ export default function App() {
             {tab==="history"&&(
               <MultiSeasonView programs={programs} onEdit={p=>{setEditingProgram(p);setTab("programs");}}/>
             )}
-            {tab==="kpi"&&<Reference/>}
+            {tab==="kpi"&&<Reference isManager={isManager}/>}
           </>
         )}
       </main>
