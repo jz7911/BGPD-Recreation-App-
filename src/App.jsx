@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "./supabase.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const AREAS = ["Adult General","Adult Sports","Aquatics","Camps","Dance","Fitness","Golf Dome","Museum","Performing Arts","Seniors","Special Events","Youth General","Youth Sports","Other"];
+const AREAS = ["Adult General","Adult Sports","Aquatics","Camps","Clubhouse","Dance","Fitness","Golf Dome","Museum","Performing Arts","Seniors","Special Events","Youth General","Youth Sports","Other"];
 const SEASONS = ["Spring","Summer","Fall","Winter","All Year"];
 const YEARS = ["2025","2026","2027","2028","2029","2030"];
 const CLASSIFICATIONS = ["Community Driven","Revenue Driven","Both"];
