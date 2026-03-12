@@ -455,15 +455,17 @@ function BulkDupModal({programs,onConfirm,onCancel}) {
 
 // ─── Dashboard (Staff View — unchanged from original) ─────────────────────────
 function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
+  const [sf,setSf] = useState(staffName);
   const [af,setAf] = useState("All");
   const [yf,setYf] = useState("All");
   const [dv,setDv] = useState("summary");
 
+  const allStaff = ["All",...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
   const allAreas = ["All",...new Set(programs.map(p=>p.area))];
   const allYears = ["All",...YEARS];
 
   const vis  = programs
-    .filter(p=>p.staff_name===staffName)
+    .filter(p=>sf==="All"||p.staff_name===sf)
     .filter(p=>af==="All"||p.area===af)
     .filter(p=>yf==="All"||p.year===yf);
 
@@ -480,14 +482,19 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
   const healthy  = kpis.filter(p=>p.status==="Healthy").length;
   const monitor  = kpis.filter(p=>p.status==="Monitor").length;
   const redesign = kpis.filter(p=>p.status==="Needs Redesign").length;
-  const low60    = kpis.filter(p=>p.fillRate<0.6).length;
   const low50    = kpis.filter(p=>p.costRecovery<0.5).length;
   const selCls = "rounded border border-slate-200 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:border-blue-400 min-w-[140px]";
-  const anyFilter = af!=="All"||yf!=="All";
+  const anyFilter = sf!==staffName||af!=="All"||yf!=="All";
 
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-lg shadow-sm px-4 py-3 flex flex-wrap gap-4 items-end">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Staff</label>
+          <select value={sf} onChange={e=>setSf(e.target.value)} className={selCls}>
+            {allStaff.map(s=><option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Area</label>
           <select value={af} onChange={e=>setAf(e.target.value)} className={selCls}>
@@ -500,7 +507,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
             {allYears.map(y=><option key={y} value={y}>{y}</option>)}
           </select>
         </div>
-        {anyFilter&&<button onClick={()=>{setAf("All");setYf("All");}} className="text-xs text-slate-400 hover:text-slate-600 pb-1.5 font-medium">Clear filters</button>}
+        {anyFilter&&<button onClick={()=>{setSf(staffName);setAf("All");setYf("All");}} className="text-xs text-slate-400 hover:text-slate-600 pb-1.5 font-medium">Clear filters</button>}
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <KCard label="Programs"                value={vis.length}      accent="#1e3a5f"/>
@@ -537,13 +544,14 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="bg-slate-50 text-xs text-slate-400 uppercase tracking-wider">
-                {["Program","Area","Season","Fill Rate","Cost Recovery","Net P/(L)","Total Cost","Waitlist","Trend","Status",""].map(h=>(
+                {["Program","Staff","Area","Season","Fill Rate","Cost Recovery","Net P/(L)","Total Cost","Waitlist","Trend","Status",""].map(h=>(
                   <th key={h} className="px-3 py-2 text-left font-semibold">{h}</th>
                 ))}
               </tr></thead>
               <tbody>{kpis.map((p,i)=>(
                 <tr key={p.id} className={`border-t border-slate-50 hover:bg-slate-50 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
                   <td className="px-3 py-2.5 font-semibold text-slate-700"><button onClick={()=>onEdit(p)} className="hover:text-blue-600 hover:underline text-left">{p.name}</button></td>
+                  <td className="px-3 py-2.5 text-slate-400 text-xs">{p.staff_name}</td>
                   <td className="px-3 py-2.5 text-slate-500">{p.area}</td>
                   <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{p.season} {p.year}</td>
                   <td className="px-3 py-2.5 font-mono">{pct(p.fillRate)}</td>
