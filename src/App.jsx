@@ -453,125 +453,55 @@ function BulkDupModal({programs,onConfirm,onCancel}) {
   );
 }
 
-// ─── Dashboard ────────────────────────────────────────────────────────────────
-function Dashboard({programs,staffName,isManager,onEdit,onAddProgram}) {
-  const [sf,setSf]   = useState(isManager?"All":staffName);
-  const [af,setAf]   = useState("All");
-  const [yf,setYf]   = useState("All");
-  const [dv,setDv]   = useState("summary");
-  const [sort,setSort] = useState({col:"name",dir:1});
+// ─── Dashboard (Staff View — unchanged from original) ─────────────────────────
+function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
+  const [af,setAf] = useState("All");
+  const [yf,setYf] = useState("All");
+  const [dv,setDv] = useState("summary");
 
-  const allStaff = ["All",...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
   const allAreas = ["All",...new Set(programs.map(p=>p.area))];
   const allYears = ["All",...YEARS];
 
   const vis  = programs
-    .filter(p=>sf==="All"||p.staff_name===sf)
+    .filter(p=>p.staff_name===staffName)
     .filter(p=>af==="All"||p.area===af)
     .filter(p=>yf==="All"||p.year===yf);
 
-  const kpis = useMemo(()=>vis.map(p=>({...p,...calcKPIs(p)})),[vis]);
-
-  // Sorting for summary table
-  const sortedKpis = useMemo(()=>{
-    return [...kpis].sort((a,b)=>{
-      let av=a[sort.col], bv=b[sort.col];
-      if(typeof av==="string") av=av.toLowerCase();
-      if(typeof bv==="string") bv=bv.toLowerCase();
-      return av<bv?-sort.dir:av>bv?sort.dir:0;
-    });
-  },[kpis,sort]);
-
-  const toggleSort = col => setSort(s=>s.col===col?{col,dir:-s.dir}:{col,dir:1});
-  const sortIcon = col => sort.col===col?(sort.dir===1?"↑":"↓"):"";
-
-  const avgFill  = kpis.length ? kpis.reduce((a,p)=>a+p.fillRate,0)/kpis.length : 0;
-  const avgCR    = kpis.length ? kpis.reduce((a,p)=>a+p.costRecovery,0)/kpis.length : 0;
-  const surplus  = kpis.reduce((a,p)=>a+p.profitLoss,0);
-  const antRev   = kpis.reduce((a,p)=>a+p.antRevenue,0);
-  const actRev   = kpis.reduce((a,p)=>a+p.revenue,0);
-  const antEnr   = vis.reduce((a,p)=>a+(p.ant_enrollment||0),0);
-  const actEnr   = vis.reduce((a,p)=>a+(p.act_enrollment||0),0);
-  const antCost  = kpis.reduce((a,p)=>a+p.antTotal,0);
-  const actCost  = kpis.reduce((a,p)=>a+p.totalCost,0);
+  const kpis    = vis.map(p=>({...p,...calcKPIs(p)}));
+  const avgFill = kpis.length ? kpis.reduce((a,p)=>a+p.fillRate,0)/kpis.length : 0;
+  const avgCR   = kpis.length ? kpis.reduce((a,p)=>a+p.costRecovery,0)/kpis.length : 0;
+  const surplus = kpis.reduce((a,p)=>a+p.profitLoss,0);
+  const antRev  = kpis.reduce((a,p)=>a+p.antRevenue,0);
+  const actRev  = kpis.reduce((a,p)=>a+p.revenue,0);
+  const antEnr  = vis.reduce((a,p)=>a+(p.ant_enrollment||0),0);
+  const actEnr  = vis.reduce((a,p)=>a+(p.act_enrollment||0),0);
+  const antCost = kpis.reduce((a,p)=>a+p.antTotal,0);
+  const actCost = kpis.reduce((a,p)=>a+p.totalCost,0);
   const healthy  = kpis.filter(p=>p.status==="Healthy").length;
   const monitor  = kpis.filter(p=>p.status==="Monitor").length;
   const redesign = kpis.filter(p=>p.status==="Needs Redesign").length;
   const low60    = kpis.filter(p=>p.fillRate<0.6).length;
   const low50    = kpis.filter(p=>p.costRecovery<0.5).length;
-  const noActuals= kpis.filter(p=>!p.hasActuals).length;
-
-  // Top/bottom performers
-  const byFill = [...kpis].sort((a,b)=>b.fillRate-a.fillRate);
-  const byCR   = [...kpis].sort((a,b)=>b.costRecovery-a.costRecovery);
-  const top3Fill = byFill.slice(0,3);
-  const bot3Fill = byFill.slice(-3).reverse();
-  const top3CR   = byCR.slice(0,3);
-  const bot3CR   = byCR.slice(-3).reverse();
-
-  // Area rollup
-  const areaRollup = useMemo(()=>{
-    const map = {};
-    kpis.forEach(p=>{
-      if(!map[p.area]) map[p.area]={area:p.area,count:0,fillSum:0,crSum:0,profit:0};
-      map[p.area].count++;
-      map[p.area].fillSum+=p.fillRate;
-      map[p.area].crSum+=p.costRecovery;
-      map[p.area].profit+=p.profitLoss;
-    });
-    return Object.values(map).map(r=>({...r,avgFill:r.fillSum/r.count,avgCR:r.crSum/r.count}))
-      .sort((a,b)=>b.avgFill-a.avgFill);
-  },[kpis]);
-
-  const selCls   = "rounded border border-slate-200 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:border-blue-400 min-w-[140px]";
-  const anyFilter = sf!=="All"||af!=="All"||yf!=="All";
-  const thCls = col => `px-3 py-2 text-left font-semibold cursor-pointer hover:text-slate-700 select-none ${sort.col===col?"text-slate-700":""}`;
+  const selCls = "rounded border border-slate-200 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:border-blue-400 min-w-[140px]";
+  const anyFilter = af!=="All"||yf!=="All";
 
   return (
     <div className="space-y-6">
-      {/* Filters + Export */}
-      <div className="bg-white rounded-lg shadow-sm px-4 py-3 flex flex-wrap gap-4 items-end justify-between">
-        <div className="flex flex-wrap gap-4 items-end">
-          {isManager&&(
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Staff</label>
-              <select value={sf} onChange={e=>setSf(e.target.value)} className={selCls}>
-                {allStaff.map(s=><option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-          )}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Area</label>
-            <select value={af} onChange={e=>setAf(e.target.value)} className={selCls}>
-              {allAreas.map(a=><option key={a} value={a}>{a}</option>)}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Year</label>
-            <select value={yf} onChange={e=>setYf(e.target.value)} className={selCls}>
-              {allYears.map(y=><option key={y} value={y}>{y}</option>)}
-            </select>
-          </div>
-          {anyFilter&&(
-            <button onClick={()=>{setSf(isManager?"All":staffName);setAf("All");setYf("All");}}
-              className="text-xs text-slate-400 hover:text-slate-600 pb-1.5 font-medium">Clear filters</button>
-          )}
+      <div className="bg-white rounded-lg shadow-sm px-4 py-3 flex flex-wrap gap-4 items-end">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Area</label>
+          <select value={af} onChange={e=>setAf(e.target.value)} className={selCls}>
+            {allAreas.map(a=><option key={a} value={a}>{a}</option>)}
+          </select>
         </div>
-        <button onClick={()=>exportCSV(vis)}
-          className="text-xs font-semibold px-3 py-2 rounded border border-slate-200 text-slate-500 hover:bg-slate-50 transition whitespace-nowrap">
-          ↓ Export CSV
-        </button>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Year</label>
+          <select value={yf} onChange={e=>setYf(e.target.value)} className={selCls}>
+            {allYears.map(y=><option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+        {anyFilter&&<button onClick={()=>{setAf("All");setYf("All");}} className="text-xs text-slate-400 hover:text-slate-600 pb-1.5 font-medium">Clear filters</button>}
       </div>
-
-      {/* Alert strip — no actuals entered */}
-      {noActuals>0&&(
-        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-center gap-3">
-          <span className="text-amber-500 text-lg">⚠</span>
-          <span className="text-sm text-amber-700 font-medium">{noActuals} program{noActuals!==1?"s":""} with budgeted data but no actuals entered yet.</span>
-        </div>
-      )}
-
-      {/* KPI cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <KCard label="Programs"                value={vis.length}      accent="#1e3a5f"/>
         <KCard label="Avg Fill Rate"           value={pct(avgFill)}    accent="#d4a017"/>
@@ -582,80 +512,14 @@ function Dashboard({programs,staffName,isManager,onEdit,onAddProgram}) {
         <KCard label="Healthy"            value={healthy}  sub="programs" accent="#22c55e"/>
         <KCard label="Monitor"            value={monitor}  sub="programs" accent="#eab308"/>
         <KCard label="Needs Redesign"     value={redesign} sub="programs" accent="#ef4444"/>
-        <KCard label="Missing Actuals"    value={noActuals} sub="programs" accent="#f97316"/>
+        <KCard label="Below 50% Recovery" value={low50}    sub="programs" accent="#f97316"/>
       </div>
-
-      {/* Portfolio bars */}
       <div className="bg-white rounded-lg shadow-sm p-5 space-y-5">
-        <h3 className="font-bold text-slate-700 text-sm">Portfolio: Budgeted vs Actual</h3>
+        <h3 className="font-bold text-slate-700 text-sm">Program Snapshot: Budgeted vs Actual</h3>
         <PBar label="Total Revenue"      actual={actRev}  budget={antRev}  ff={v=>dollar(v)}/>
         <PBar label="Total Enrollment"   actual={actEnr}  budget={antEnr}  ff={v=>v.toString()}/>
         <PBar label="Total Program Cost" actual={actCost} budget={antCost} ff={v=>dollar(v)} inv/>
       </div>
-
-      {/* Top/Bottom Performers */}
-      {kpis.length>=3&&(
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {[
-            {title:"Top 3 — Fill Rate",    data:top3Fill, metric:p=>pct(p.fillRate),    good:true},
-            {title:"Bottom 3 — Fill Rate", data:bot3Fill, metric:p=>pct(p.fillRate),    good:false},
-            {title:"Top 3 — Cost Recovery",data:top3CR,   metric:p=>pct(p.costRecovery),good:true},
-            {title:"Bottom 3 — Cost Recovery",data:bot3CR,metric:p=>pct(p.costRecovery),good:false},
-          ].map(({title,data,metric,good})=>(
-            <div key={title} className="bg-white rounded-lg shadow-sm overflow-hidden">
-              <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white"
-                style={{backgroundColor:good?"#166534":"#991b1b"}}>{title}</div>
-              {data.map((p,i)=>(
-                <div key={p.id} className={`px-4 py-2.5 flex items-center justify-between ${i>0?"border-t border-slate-50":""}`}>
-                  <div>
-                    <div className="text-sm font-semibold text-slate-700">{p.name}</div>
-                    <div className="text-xs text-slate-400">{p.area} — {p.season} {p.year}</div>
-                  </div>
-                  <div className={`text-sm font-bold ${good?"text-green-700":"text-red-600"}`}>{metric(p)}</div>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Area Rollup */}
-      {areaRollup.length>1&&(
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100">
-            <h3 className="font-bold text-slate-700 text-sm">Capacity Utilization by Area</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="bg-slate-50 text-xs text-slate-400 uppercase tracking-wider">
-                <th className="px-4 py-2 text-left font-semibold">Area</th>
-                <th className="px-4 py-2 text-left font-semibold">Programs</th>
-                <th className="px-4 py-2 text-left font-semibold">Avg Fill Rate</th>
-                <th className="px-4 py-2 text-left font-semibold">Avg Cost Recovery</th>
-                <th className="px-4 py-2 text-left font-semibold">Net P/(L)</th>
-              </tr></thead>
-              <tbody>{areaRollup.map((r,i)=>(
-                <tr key={r.area} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
-                  <td className="px-4 py-2.5 font-semibold text-slate-700">{r.area}</td>
-                  <td className="px-4 py-2.5 text-slate-500">{r.count}</td>
-                  <td className="px-4 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <div className="h-1.5 w-16 bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full rounded-full" style={{width:`${Math.min(r.avgFill*100,100)}%`,backgroundColor:r.avgFill>=0.7?"#22c55e":r.avgFill>=0.6?"#eab308":"#ef4444"}}/>
-                      </div>
-                      <span className="font-mono text-xs">{pct(r.avgFill)}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-2.5 font-mono text-xs">{pct(r.avgCR)}</td>
-                  <td className={`px-4 py-2.5 font-mono text-xs font-semibold ${r.profit>=0?"text-green-700":"text-red-600"}`}>{dollar(r.profit)}</td>
-                </tr>
-              ))}</tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Program detail */}
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 flex-wrap gap-2">
           <h2 className="font-bold text-slate-700 text-sm">Program Detail</h2>
@@ -667,43 +531,19 @@ function Dashboard({programs,staffName,isManager,onEdit,onAddProgram}) {
             ))}
           </div>
         </div>
-
         {vis.length===0 ? (
-          <div className="p-8 text-center text-slate-400 text-sm">
-            No programs found. <button onClick={onAddProgram} className="text-amber-600 font-semibold underline">Add a program.</button>
-          </div>
+          <div className="p-8 text-center text-slate-400 text-sm">No programs yet. <button onClick={onAddProgram} className="text-amber-600 font-semibold underline">Add a program.</button></div>
         ) : dv==="summary" ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="bg-slate-50 text-xs text-slate-400 uppercase tracking-wider">
-                {[
-                  ["name","Program"],
-                  isManager?["staff_name","Staff"]:null,
-                  ["area","Area"],
-                  ["season","Season"],
-                  ["fillRate","Fill Rate"],
-                  ["costRecovery","Cost Recovery"],
-                  ["profitLoss","Net P/(L)"],
-                  ["totalCost","Total Cost"],
-                  ["waitlist","Waitlist"],
-                  ["trend","Trend"],
-                  ["status","Status"],
-                  [null,""],
-                ].filter(Boolean).map(([col,h])=>(
-                  <th key={h} className={col?thCls(col):"px-3 py-2"} onClick={col?()=>toggleSort(col):undefined}>
-                    {h}{col?<span className="ml-1 text-slate-300">{sortIcon(col)}</span>:null}
-                  </th>
+                {["Program","Area","Season","Fill Rate","Cost Recovery","Net P/(L)","Total Cost","Waitlist","Trend","Status",""].map(h=>(
+                  <th key={h} className="px-3 py-2 text-left font-semibold">{h}</th>
                 ))}
               </tr></thead>
-              <tbody>{sortedKpis.map((p,i)=>(
+              <tbody>{kpis.map((p,i)=>(
                 <tr key={p.id} className={`border-t border-slate-50 hover:bg-slate-50 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
-                  <td className="px-3 py-2.5 font-semibold text-slate-700">
-                    <div className="flex items-center gap-1.5">
-                      {p.name}
-                      {p.notes&&<span title={p.notes} className="text-slate-300 hover:text-slate-500 cursor-help text-xs">●</span>}
-                    </div>
-                  </td>
-                  {isManager&&<td className="px-3 py-2.5 text-slate-400 text-xs">{p.staff_name}</td>}
+                  <td className="px-3 py-2.5 font-semibold text-slate-700"><button onClick={()=>onEdit(p)} className="hover:text-blue-600 hover:underline text-left">{p.name}</button></td>
                   <td className="px-3 py-2.5 text-slate-500">{p.area}</td>
                   <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{p.season} {p.year}</td>
                   <td className="px-3 py-2.5 font-mono">{pct(p.fillRate)}</td>
@@ -741,7 +581,7 @@ function Dashboard({programs,staffName,isManager,onEdit,onAddProgram}) {
               </thead>
               <tbody>{kpis.map((p,i)=>(
                 <tr key={p.id} className={`border-t border-slate-50 hover:bg-slate-50 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
-                  <td className="px-3 py-2.5 font-semibold text-slate-700 whitespace-nowrap">{p.name}</td>
+                  <td className="px-3 py-2.5 font-semibold text-slate-700 whitespace-nowrap"><button onClick={()=>onEdit(p)} className="hover:text-blue-600 hover:underline text-left">{p.name}</button></td>
                   <td className="px-2 py-2.5 text-center text-slate-400 font-mono text-xs">{p.ant_enrollment}</td>
                   <td className="px-2 py-2.5 text-center font-mono text-xs">{p.act_enrollment}</td>
                   <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varEnr)}`}>{vNum(p.varEnr)}</td>
@@ -766,7 +606,601 @@ function Dashboard({programs,staffName,isManager,onEdit,onAddProgram}) {
             <div key={p.id} className="border border-slate-100 rounded-lg p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="font-semibold text-slate-700">{p.name}</div>
+                  <button onClick={()=>onEdit(p)} className="font-semibold text-slate-700 hover:text-blue-600 hover:underline text-left">{p.name}</button>
+                  <div className="text-xs text-slate-400">{p.area} - {p.season} {p.year}</div>
+                </div>
+                <Badge status={p.status}/>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <PBar label="Enrollment"  actual={p.act_enrollment} budget={p.ant_enrollment} ff={v=>v.toString()}/>
+                <PBar label="Revenue"     actual={p.revenue}        budget={p.antRevenue}      ff={v=>dollar(v)}/>
+                <PBar label="Total Cost"  actual={p.totalCost}      budget={p.antTotal}        ff={v=>dollar(v)} inv/>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <PBar label="Cost Recovery"     actual={p.costRecovery*100} budget={p.antCR*100} ff={v=>`${v.toFixed(1)}%`}/>
+                <PBar label="Net Profit/(Loss)" actual={p.profitLoss}       budget={p.antProfit} ff={v=>dollar(v)}/>
+              </div>
+            </div>
+          ))}</div>
+        )}
+      </div>
+      <div className="bg-white rounded-lg shadow-sm p-4">
+        <h3 className="font-bold text-slate-700 text-sm mb-3">Status Guide</h3>
+        <div className="space-y-2 text-sm">
+          <div className="flex items-center gap-3"><Badge status="Healthy"/><span className="text-slate-500">70%+ fill rate and 100%+ cost recovery</span></div>
+          <div className="flex items-center gap-3"><Badge status="Monitor"/><span className="text-slate-500">60-69.9% fill rate or approaching targets</span></div>
+          <div className="flex items-center gap-3"><Badge status="Needs Redesign"/><span className="text-slate-500">Below 60% fill rate or below 50% cost recovery</span></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Dashboard (Manager View — full analytics) ────────────────────────────────
+function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
+  const [sf,setSf]     = useState("All");
+  const [af,setAf]     = useState("All");
+  const [yf,setYf]     = useState("All");
+  const [dv,setDv]     = useState("summary");
+  const [sort,setSort] = useState({col:"name",dir:1});
+
+  const allStaff = ["All",...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
+  const allAreas = ["All",...new Set(programs.map(p=>p.area))];
+  const allYears = ["All",...YEARS];
+
+  const vis  = programs
+    .filter(p=>sf==="All"||p.staff_name===sf)
+    .filter(p=>af==="All"||p.area===af)
+    .filter(p=>yf==="All"||p.year===yf);
+
+  const kpis = useMemo(()=>vis.map(p=>({...p,...calcKPIs(p)})),[vis]);
+
+  const sortedKpis = useMemo(()=>[...kpis].sort((a,b)=>{
+    let av=a[sort.col], bv=b[sort.col];
+    if(typeof av==="string") av=av.toLowerCase();
+    if(typeof bv==="string") bv=bv.toLowerCase();
+    return av<bv?-sort.dir:av>bv?sort.dir:0;
+  }),[kpis,sort]);
+
+  const toggleSort = col => setSort(s=>s.col===col?{col,dir:-s.dir}:{col,dir:1});
+  const sortIcon   = col => sort.col===col?(sort.dir===1?"↑":"↓"):"";
+  const thCls      = col => `px-3 py-2 text-left font-semibold cursor-pointer hover:text-slate-700 select-none ${sort.col===col?"text-slate-700":""}`;
+
+  // ── Aggregates ──
+  const avgFill  = kpis.length ? kpis.reduce((a,p)=>a+p.fillRate,0)/kpis.length : 0;
+  const avgCR    = kpis.length ? kpis.reduce((a,p)=>a+p.costRecovery,0)/kpis.length : 0;
+  const surplus  = kpis.reduce((a,p)=>a+p.profitLoss,0);
+  const antRev   = kpis.reduce((a,p)=>a+p.antRevenue,0);
+  const actRev   = kpis.reduce((a,p)=>a+p.revenue,0);
+  const antEnr   = vis.reduce((a,p)=>a+(p.ant_enrollment||0),0);
+  const actEnr   = vis.reduce((a,p)=>a+(p.act_enrollment||0),0);
+  const antCost  = kpis.reduce((a,p)=>a+p.antTotal,0);
+  const actCost  = kpis.reduce((a,p)=>a+p.totalCost,0);
+  const healthy  = kpis.filter(p=>p.status==="Healthy").length;
+  const monitor  = kpis.filter(p=>p.status==="Monitor").length;
+  const redesign = kpis.filter(p=>p.status==="Needs Redesign").length;
+  const noActuals= kpis.filter(p=>!p.hasActuals).length;
+
+  // ── Program Snapshot health score (0–100) ──
+  const healthScore = kpis.length
+    ? Math.round((avgFill*0.4 + Math.min(avgCR,2)/2*0.4 + (healthy/kpis.length)*0.2)*100)
+    : 0;
+  const healthColor = healthScore>=75?"#22c55e":healthScore>=50?"#eab308":"#ef4444";
+
+  // ── Needs attention queue ──
+  const needsAttention = kpis
+    .filter(p=>p.status==="Needs Redesign"||p.trend==="Declining"||p.fillRate<0.5)
+    .sort((a,b)=>a.fillRate-b.fillRate)
+    .slice(0,8);
+
+  // ── Waitlist demand signal ──
+  const totalWaitlist  = vis.reduce((a,p)=>a+(p.waitlist||0),0);
+  const totalCapacity  = vis.reduce((a,p)=>a+(p.ant_capacity||0),0);
+  const waitlistPct    = totalCapacity>0 ? totalWaitlist/totalCapacity : 0;
+  const highDemand     = kpis
+    .filter(p=>(p.waitlist||0)>0)
+    .sort((a,b)=>(b.waitlist||0)-(a.waitlist||0))
+    .slice(0,5);
+
+  // ── Revenue per participant ──
+  const totalActEnr = vis.reduce((a,p)=>a+(p.act_enrollment||0),0);
+  const revPerPart  = totalActEnr>0 ? actRev/totalActEnr : 0;
+  const rppByArea   = useMemo(()=>{
+    const map={};
+    kpis.forEach(p=>{
+      const enr=p.act_enrollment||0; const rev=p.revenue||0;
+      if(!map[p.area]) map[p.area]={area:p.area,rev:0,enr:0};
+      map[p.area].rev+=rev; map[p.area].enr+=enr;
+    });
+    return Object.values(map).map(r=>({...r,rpp:r.enr>0?r.rev/r.enr:0})).sort((a,b)=>b.rpp-a.rpp);
+  },[kpis]);
+
+  // ── NPS summary ──
+  const withNPS   = kpis.filter(p=>p.nps&&p.nps>0);
+  const avgNPS    = withNPS.length ? Math.round(withNPS.reduce((a,p)=>a+(p.nps||0),0)/withNPS.length) : null;
+  const lowNPS    = withNPS.filter(p=>p.nps<50).sort((a,b)=>a.nps-b.nps).slice(0,5);
+  const npsByArea = useMemo(()=>{
+    const map={};
+    withNPS.forEach(p=>{
+      if(!map[p.area]) map[p.area]={area:p.area,sum:0,count:0};
+      map[p.area].sum+=p.nps; map[p.area].count++;
+    });
+    return Object.values(map).map(r=>({...r,avg:Math.round(r.sum/r.count)})).sort((a,b)=>b.avg-a.avg);
+  },[withNPS]);
+
+  // ── Workload by staff ──
+  const workloadByStaff = useMemo(()=>{
+    const map={};
+    kpis.forEach(p=>{
+      const name=p.staff_name||"Unknown";
+      if(!map[name]) map[name]={name,totalWL:0,count:0};
+      const wlPct = p.ant_program_type&&p.ant_program_type!=="Custom"
+        ? (PROGRAM_TYPES.find(t=>t.label===p.ant_program_type)?.pct||0)*100
+        : parseFloat(p.ant_custom_workload)||0;
+      map[name].totalWL+=wlPct; map[name].count++;
+    });
+    return Object.values(map).sort((a,b)=>b.totalWL-a.totalWL);
+  },[kpis]);
+
+  // ── Classification mix ──
+  const classMix = useMemo(()=>{
+    const map={};
+    kpis.forEach(p=>{
+      const c=p.classification||"Unknown";
+      if(!map[c]) map[c]={label:c,count:0,revenue:0,cost:0,profit:0};
+      map[c].count++; map[c].revenue+=p.revenue; map[c].cost+=p.totalCost; map[c].profit+=p.profitLoss;
+    });
+    return Object.values(map).sort((a,b)=>b.count-a.count);
+  },[kpis]);
+  const classMixColors = {"Community Driven":"#1e3a5f","Revenue Driven":"#22c55e","Both":"#d4a017","Unknown":"#94a3b8"};
+
+  // ── Subsidy burden ──
+  const subsidyBurden = kpis.reduce((a,p)=>a+Math.max(0,-p.profitLoss),0);
+
+  // ── Top/Bottom performers ──
+  const byFill   = [...kpis].sort((a,b)=>b.fillRate-a.fillRate);
+  const byCR     = [...kpis].sort((a,b)=>b.costRecovery-a.costRecovery);
+  const top3Fill = byFill.slice(0,3);
+  const bot3Fill = byFill.slice(-3).reverse();
+  const top3CR   = byCR.slice(0,3);
+  const bot3CR   = byCR.slice(-3).reverse();
+
+  // ── Area rollup ──
+  const areaRollup = useMemo(()=>{
+    const map={};
+    kpis.forEach(p=>{
+      if(!map[p.area]) map[p.area]={area:p.area,count:0,fillSum:0,crSum:0,profit:0,waitlist:0,capacity:0};
+      map[p.area].count++; map[p.area].fillSum+=p.fillRate; map[p.area].crSum+=p.costRecovery;
+      map[p.area].profit+=p.profitLoss; map[p.area].waitlist+=(p.waitlist||0); map[p.area].capacity+=(p.ant_capacity||0);
+    });
+    return Object.values(map).map(r=>({...r,avgFill:r.fillSum/r.count,avgCR:r.crSum/r.count})).sort((a,b)=>b.avgFill-a.avgFill);
+  },[kpis]);
+
+  const selCls    = "rounded border border-slate-200 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:border-blue-400 min-w-[140px]";
+  const anyFilter = sf!=="All"||af!=="All"||yf!=="All";
+
+  return (
+    <div className="space-y-6">
+
+      {/* ── Filters + Export ── */}
+      <div className="bg-white rounded-lg shadow-sm px-4 py-3 flex flex-wrap gap-4 items-end justify-between">
+        <div className="flex flex-wrap gap-4 items-end">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Staff</label>
+            <select value={sf} onChange={e=>setSf(e.target.value)} className={selCls}>
+              {allStaff.map(s=><option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Area</label>
+            <select value={af} onChange={e=>setAf(e.target.value)} className={selCls}>
+              {allAreas.map(a=><option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Year</label>
+            <select value={yf} onChange={e=>setYf(e.target.value)} className={selCls}>
+              {allYears.map(y=><option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+          {anyFilter&&<button onClick={()=>{setSf("All");setAf("All");setYf("All");}} className="text-xs text-slate-400 hover:text-slate-600 pb-1.5 font-medium">Clear filters</button>}
+        </div>
+        <button onClick={()=>exportCSV(vis)} className="text-xs font-semibold px-3 py-2 rounded border border-slate-200 text-slate-500 hover:bg-slate-50 transition whitespace-nowrap">↓ Export CSV</button>
+      </div>
+
+      {/* ── Needs Attention Queue ── */}
+      {needsAttention.length>0&&(
+        <div className="bg-red-50 border border-red-200 rounded-lg overflow-hidden">
+          <div className="px-4 py-2.5 flex items-center gap-2" style={{backgroundColor:"#991b1b"}}>
+            <span className="text-white text-sm">⚠</span>
+            <span className="text-xs font-bold uppercase tracking-widest text-white">Needs Attention — {needsAttention.length} Program{needsAttention.length!==1?"s":""}</span>
+          </div>
+          <div className="divide-y divide-red-100">
+            {needsAttention.map(p=>(
+              <div key={p.id} className="px-4 py-2.5 flex items-center justify-between gap-4 hover:bg-red-50/50">
+                <div className="flex-1 min-w-0">
+                  <button onClick={()=>onEdit(p)} className="text-sm font-semibold text-slate-700 hover:text-blue-600 hover:underline text-left truncate block">{p.name}</button>
+                  <div className="text-xs text-slate-400">{p.area} — {p.season} {p.year} — {p.staff_name}</div>
+                </div>
+                <div className="hidden sm:flex gap-4 text-xs font-mono shrink-0">
+                  <span className="text-slate-500">Fill: <span className={p.fillRate<0.6?"text-red-600 font-bold":""}>{pct(p.fillRate)}</span></span>
+                  <span className="text-slate-500">Recovery: <span className={p.costRecovery<0.5?"text-red-600 font-bold":""}>{pct(p.costRecovery)}</span></span>
+                  <span className={p.trend==="Declining"?"text-amber-600 font-semibold":"text-slate-400"}>{p.trend}</span>
+                </div>
+                <Badge status={p.status}/>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Missing actuals alert ── */}
+      {noActuals>0&&(
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-center gap-3">
+          <span className="text-amber-500 text-lg">⚠</span>
+          <span className="text-sm text-amber-700 font-medium">{noActuals} program{noActuals!==1?"s have":" has"} budget data but no actuals entered yet.</span>
+        </div>
+      )}
+
+      {/* ── KPI Row 1 — with health score ── */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <KCard label="Programs"          value={vis.length}      accent="#1e3a5f"/>
+        <KCard label="Avg Fill Rate"     value={pct(avgFill)}    accent="#d4a017"/>
+        <KCard label="Avg Cost Recovery" value={pct(avgCR)}      accent="#d4a017"/>
+        <KCard label="Total Net P/(L)"   value={dollar(surplus)} accent={surplus>=0?"#22c55e":"#ef4444"}/>
+        <div style={{borderTop:`3px solid ${healthColor}`}} className="bg-white rounded-lg p-4 shadow-sm">
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Health Score</div>
+          <div className="text-2xl font-bold" style={{color:healthColor}}>{healthScore}<span className="text-sm font-normal text-slate-400">/100</span></div>
+          <div className="text-xs text-slate-400 mt-0.5">Fill · Recovery · Status</div>
+        </div>
+      </div>
+
+      {/* ── KPI Row 2 ── */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <KCard label="Healthy"          value={healthy}   sub="programs" accent="#22c55e"/>
+        <KCard label="Monitor"          value={monitor}   sub="programs" accent="#eab308"/>
+        <KCard label="Needs Redesign"   value={redesign}  sub="programs" accent="#ef4444"/>
+        <KCard label="Missing Actuals"  value={noActuals} sub="programs" accent="#f97316"/>
+        <KCard label="Rev / Participant" value={totalActEnr>0?dollar(revPerPart):"—"} sub="portfolio avg" accent="#1e3a5f"/>
+      </div>
+
+      {/* ── KPI Row 3 — financial ── */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <KCard label="Total Revenue"    value={dollar(actRev)}      accent="#22c55e"/>
+        <KCard label="Total Cost"       value={dollar(actCost)}     accent="#64748b"/>
+        <KCard label="Subsidy Burden"   value={dollar(subsidyBurden)} sub="tax $ supporting programs" accent="#ef4444"/>
+        <KCard label="Waitlist Demand"  value={pct(waitlistPct)}    sub={`${totalWaitlist} total on waitlists`} accent="#d4a017"/>
+      </div>
+
+      {/* ── Program Snapshot bars ── */}
+      <div className="bg-white rounded-lg shadow-sm p-5 space-y-5">
+        <h3 className="font-bold text-slate-700 text-sm">Program Snapshot: Budgeted vs Actual</h3>
+        <PBar label="Total Revenue"      actual={actRev}  budget={antRev}  ff={v=>dollar(v)}/>
+        <PBar label="Total Enrollment"   actual={actEnr}  budget={antEnr}  ff={v=>v.toString()}/>
+        <PBar label="Total Program Cost" actual={actCost} budget={antCost} ff={v=>dollar(v)} inv/>
+      </div>
+
+      {/* ── Classification Mix ── */}
+      {classMix.length>0&&(
+        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100">
+            <h3 className="font-bold text-slate-700 text-sm">Program Mix by Classification</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Balance of community service vs. revenue-generating programs</p>
+          </div>
+          <div className="p-4">
+            <div className="flex h-4 rounded-full overflow-hidden mb-4 gap-0.5">
+              {classMix.map(c=>(
+                <div key={c.label} title={`${c.label}: ${c.count} programs`}
+                  style={{width:`${(c.count/kpis.length)*100}%`,backgroundColor:classMixColors[c.label]||"#94a3b8"}}/>
+              ))}
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {classMix.map(c=>(
+                <div key={c.label} className="flex items-start gap-2.5 p-3 rounded-lg bg-slate-50">
+                  <div className="w-2.5 h-2.5 rounded-full mt-1 shrink-0" style={{backgroundColor:classMixColors[c.label]||"#94a3b8"}}/>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-bold text-slate-700">{c.label}</div>
+                    <div className="text-xs text-slate-400">{c.count} program{c.count!==1?"s":""} · {Math.round((c.count/kpis.length)*100)}% of inventory</div>
+                    <div className="text-xs font-mono text-slate-500 mt-0.5">{dollar(c.revenue)} revenue · <span className={c.profit>=0?"text-green-600":"text-red-500"}>{dollar(c.profit)} net</span></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Workload by Staff ── */}
+      {workloadByStaff.length>0&&(
+        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100">
+            <h3 className="font-bold text-slate-700 text-sm">Staff Workload Distribution</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Estimated FT workload % allocated across programs</p>
+          </div>
+          <div className="p-4 space-y-3">
+            {workloadByStaff.map(s=>{
+              const pctVal = Math.min(s.totalWL,100);
+              const barColor = s.totalWL>80?"#ef4444":s.totalWL>60?"#eab308":"#22c55e";
+              return (
+                <div key={s.name}>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-sm font-semibold text-slate-700">{s.name}</span>
+                    <span className="text-xs font-mono text-slate-500">{s.totalWL.toFixed(1)}% allocated · {s.count} program{s.count!==1?"s":""}</span>
+                  </div>
+                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all" style={{width:`${pctVal}%`,backgroundColor:barColor}}/>
+                  </div>
+                </div>
+              );
+            })}
+            <p className="text-xs text-slate-400 pt-1">Based on budgeted program type workload %. Green = under 60%, Yellow = 60–80%, Red = over 80%.</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Top/Bottom Performers ── */}
+      {kpis.length>=3&&(
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {[
+            {title:"Top 3 — Fill Rate",           data:top3Fill, metric:p=>pct(p.fillRate),    good:true},
+            {title:"Bottom 3 — Fill Rate",         data:bot3Fill, metric:p=>pct(p.fillRate),    good:false},
+            {title:"Top 3 — Cost Recovery",        data:top3CR,   metric:p=>pct(p.costRecovery),good:true},
+            {title:"Bottom 3 — Cost Recovery",     data:bot3CR,   metric:p=>pct(p.costRecovery),good:false},
+          ].map(({title,data,metric,good})=>(
+            <div key={title} className="bg-white rounded-lg shadow-sm overflow-hidden">
+              <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white" style={{backgroundColor:good?"#166534":"#991b1b"}}>{title}</div>
+              {data.map((p,i)=>(
+                <div key={p.id} className={`px-4 py-2.5 flex items-center justify-between ${i>0?"border-t border-slate-50":""}`}>
+                  <div>
+                    <button onClick={()=>onEdit(p)} className="text-sm font-semibold text-slate-700 hover:text-blue-600 hover:underline text-left">{p.name}</button>
+                    <div className="text-xs text-slate-400">{p.area} — {p.season} {p.year}</div>
+                  </div>
+                  <div className={`text-sm font-bold ${good?"text-green-700":"text-red-600"}`}>{metric(p)}</div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── High Demand Programs (Waitlist) ── */}
+      {highDemand.length>0&&(
+        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white" style={{backgroundColor:"#d4a017",color:"#1e3a5f"}}>
+            High Demand — Programs with Waitlists
+          </div>
+          {highDemand.map((p,i)=>(
+            <div key={p.id} className={`px-4 py-2.5 flex items-center justify-between gap-4 ${i>0?"border-t border-slate-50":""} hover:bg-slate-50`}>
+              <div className="flex-1 min-w-0">
+                <button onClick={()=>onEdit(p)} className="text-sm font-semibold text-slate-700 hover:text-blue-600 hover:underline text-left">{p.name}</button>
+                <div className="text-xs text-slate-400">{p.area} — {p.season} {p.year} — {p.staff_name}</div>
+              </div>
+              <div className="flex gap-4 text-xs font-mono text-slate-500 shrink-0">
+                <span>Fill: {pct(p.fillRate)}</span>
+                <span className="font-bold text-amber-600">{p.waitlist} on waitlist</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Revenue per Participant by Area ── */}
+      {rppByArea.filter(r=>r.enr>0).length>1&&(
+        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100">
+            <h3 className="font-bold text-slate-700 text-sm">Revenue per Participant by Area</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Avg: {totalActEnr>0?dollar(revPerPart):"—"} — areas above avg may be well-priced; below may need review</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="bg-slate-50 text-xs text-slate-400 uppercase tracking-wider">
+                <th className="px-4 py-2 text-left font-semibold">Area</th>
+                <th className="px-4 py-2 text-left font-semibold">Participants</th>
+                <th className="px-4 py-2 text-left font-semibold">Revenue</th>
+                <th className="px-4 py-2 text-left font-semibold">Rev / Participant</th>
+                <th className="px-4 py-2 text-left font-semibold">vs Avg</th>
+              </tr></thead>
+              <tbody>{rppByArea.filter(r=>r.enr>0).map((r,i)=>{
+                const diff = r.rpp - revPerPart;
+                return (
+                  <tr key={r.area} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
+                    <td className="px-4 py-2.5 font-semibold text-slate-700">{r.area}</td>
+                    <td className="px-4 py-2.5 text-slate-500">{r.enr}</td>
+                    <td className="px-4 py-2.5 font-mono text-xs">{dollar(r.rev)}</td>
+                    <td className="px-4 py-2.5 font-mono text-xs font-bold">{dollar(r.rpp)}</td>
+                    <td className={`px-4 py-2.5 font-mono text-xs font-semibold ${diff>=0?"text-green-600":"text-red-500"}`}>{diff>=0?"+":""}{dollar(diff)}</td>
+                  </tr>
+                );
+              })}</tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── NPS Summary ── */}
+      {withNPS.length>0&&(
+        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-slate-700 text-sm">NPS Summary</h3>
+              <p className="text-xs text-slate-400 mt-0.5">{withNPS.length} of {kpis.length} programs have NPS data</p>
+            </div>
+            <div className="text-right">
+              <div className="text-xs text-slate-400">Snapshot Avg</div>
+              <div className={`text-2xl font-black ${avgNPS>=70?"text-green-600":avgNPS>=50?"text-amber-500":"text-red-500"}`}>{avgNPS}</div>
+            </div>
+          </div>
+          {npsByArea.length>1&&(
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="bg-slate-50 text-xs text-slate-400 uppercase tracking-wider">
+                  <th className="px-4 py-2 text-left font-semibold">Area</th>
+                  <th className="px-4 py-2 text-left font-semibold">Programs w/ NPS</th>
+                  <th className="px-4 py-2 text-left font-semibold">Avg NPS</th>
+                  <th className="px-4 py-2 text-left font-semibold">Rating</th>
+                </tr></thead>
+                <tbody>{npsByArea.map((r,i)=>(
+                  <tr key={r.area} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
+                    <td className="px-4 py-2.5 font-semibold text-slate-700">{r.area}</td>
+                    <td className="px-4 py-2.5 text-slate-500">{r.count}</td>
+                    <td className={`px-4 py-2.5 font-bold text-lg ${r.avg>=70?"text-green-600":r.avg>=50?"text-amber-500":"text-red-500"}`}>{r.avg}</td>
+                    <td className="px-4 py-2.5 text-xs text-slate-400">{r.avg>=70?"Strong":r.avg>=50?"Acceptable":"Needs Review"}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          )}
+          {lowNPS.length>0&&(
+            <div className="px-4 py-3 border-t border-slate-100 bg-red-50">
+              <div className="text-xs font-bold text-red-600 uppercase tracking-widest mb-2">Low NPS Programs (below 50)</div>
+              <div className="space-y-1">
+                {lowNPS.map(p=>(
+                  <div key={p.id} className="flex items-center justify-between">
+                    <button onClick={()=>onEdit(p)} className="text-sm text-slate-700 hover:text-blue-600 hover:underline">{p.name}</button>
+                    <span className="text-sm font-bold text-red-600">{p.nps}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Area Rollup ── */}
+      {areaRollup.length>1&&(
+        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100">
+            <h3 className="font-bold text-slate-700 text-sm">Capacity Utilization by Area</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="bg-slate-50 text-xs text-slate-400 uppercase tracking-wider">
+                <th className="px-4 py-2 text-left font-semibold">Area</th>
+                <th className="px-4 py-2 text-left font-semibold">Programs</th>
+                <th className="px-4 py-2 text-left font-semibold">Avg Fill Rate</th>
+                <th className="px-4 py-2 text-left font-semibold">Avg Cost Recovery</th>
+                <th className="px-4 py-2 text-left font-semibold">Waitlist</th>
+                <th className="px-4 py-2 text-left font-semibold">Net P/(L)</th>
+              </tr></thead>
+              <tbody>{areaRollup.map((r,i)=>(
+                <tr key={r.area} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
+                  <td className="px-4 py-2.5 font-semibold text-slate-700">{r.area}</td>
+                  <td className="px-4 py-2.5 text-slate-500">{r.count}</td>
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="h-1.5 w-16 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full" style={{width:`${Math.min(r.avgFill*100,100)}%`,backgroundColor:r.avgFill>=0.7?"#22c55e":r.avgFill>=0.6?"#eab308":"#ef4444"}}/>
+                      </div>
+                      <span className="font-mono text-xs">{pct(r.avgFill)}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-2.5 font-mono text-xs">{pct(r.avgCR)}</td>
+                  <td className="px-4 py-2.5 font-mono text-xs text-slate-500">{r.waitlist>0?<span className="text-amber-600 font-semibold">{r.waitlist}</span>:"—"}</td>
+                  <td className={`px-4 py-2.5 font-mono text-xs font-semibold ${r.profit>=0?"text-green-700":"text-red-600"}`}>{dollar(r.profit)}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Program Detail ── */}
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 flex-wrap gap-2">
+          <h2 className="font-bold text-slate-700 text-sm">Program Detail</h2>
+          <div className="flex gap-1">
+            {[["summary","Summary"],["variances","Variances"],["progress","Progress"]].map(([v,l])=>(
+              <button key={v} onClick={()=>setDv(v)}
+                className={`text-xs px-3 py-1.5 rounded font-medium transition ${dv===v?"text-white":"bg-slate-100 text-slate-500 hover:bg-slate-200"}`}
+                style={dv===v?{backgroundColor:"#1e3a5f"}:{}}>{l}</button>
+            ))}
+          </div>
+        </div>
+        {vis.length===0 ? (
+          <div className="p-8 text-center text-slate-400 text-sm">No programs found. <button onClick={onAddProgram} className="text-amber-600 font-semibold underline">Add a program.</button></div>
+        ) : dv==="summary" ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="bg-slate-50 text-xs text-slate-400 uppercase tracking-wider">
+                {[["name","Program"],["staff_name","Staff"],["area","Area"],["season","Season"],["fillRate","Fill Rate"],["costRecovery","Cost Recovery"],["profitLoss","Net P/(L)"],["totalCost","Total Cost"],["waitlist","Waitlist"],["trend","Trend"],["status","Status"],[null,""]].map(([col,h])=>(
+                  <th key={h} className={col?`px-3 py-2 text-left font-semibold cursor-pointer hover:text-slate-700 select-none ${sort.col===col?"text-slate-700":""}`:"px-3 py-2"}
+                    onClick={col?()=>toggleSort(col):undefined}>
+                    {h}{col&&<span className="ml-1 text-slate-300">{sortIcon(col)}</span>}
+                  </th>
+                ))}
+              </tr></thead>
+              <tbody>{sortedKpis.map((p,i)=>(
+                <tr key={p.id} className={`border-t border-slate-50 hover:bg-slate-50 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
+                  <td className="px-3 py-2.5 font-semibold text-slate-700">
+                    <div className="flex items-center gap-1.5">
+                      <button onClick={()=>onEdit(p)} className="hover:text-blue-600 hover:underline text-left">{p.name}</button>
+                      {p.notes&&<span title={p.notes} className="text-slate-300 hover:text-slate-500 cursor-help text-xs">●</span>}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2.5 text-slate-400 text-xs">{p.staff_name}</td>
+                  <td className="px-3 py-2.5 text-slate-500">{p.area}</td>
+                  <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{p.season} {p.year}</td>
+                  <td className="px-3 py-2.5 font-mono">{pct(p.fillRate)}</td>
+                  <td className="px-3 py-2.5 font-mono">{pct(p.costRecovery)}</td>
+                  <td className={`px-3 py-2.5 font-mono font-semibold ${p.profitLoss>=0?"text-green-700":"text-red-600"}`}>{dollar(p.profitLoss)}</td>
+                  <td className="px-3 py-2.5 font-mono text-slate-500">{dollar(p.totalCost)}</td>
+                  <td className="px-3 py-2.5 text-slate-500">{p.waitlist||0}</td>
+                  <td className="px-3 py-2.5 text-slate-500">{p.trend}</td>
+                  <td className="px-3 py-2.5"><Badge status={p.status}/></td>
+                  <td className="px-3 py-2.5"><button onClick={()=>onEdit(p)} className="text-xs text-slate-400 hover:text-slate-700 font-medium">Edit</button></td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        ) : dv==="variances" ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 text-xs text-slate-400 uppercase tracking-wider">
+                  <th className="px-3 py-2 text-left font-semibold">Program</th>
+                  <th className="px-3 py-2 text-center font-semibold" colSpan={3}>Enrollment</th>
+                  <th className="px-3 py-2 text-center font-semibold border-l border-slate-200" colSpan={3}>Revenue</th>
+                  <th className="px-3 py-2 text-center font-semibold border-l border-slate-200" colSpan={3}>Total Cost</th>
+                  <th className="px-3 py-2 text-center font-semibold border-l border-slate-200" colSpan={3}>Cost Recovery</th>
+                  <th className="px-3 py-2 text-center font-semibold border-l border-slate-200" colSpan={3}>Net Profit/(Loss)</th>
+                </tr>
+                <tr className="bg-slate-50 text-xs text-slate-300 uppercase">
+                  <th className="px-3 py-1"/>
+                  <th className="px-2 py-1 text-center">Bud.</th><th className="px-2 py-1 text-center">Actual</th><th className="px-2 py-1 text-center">Var.</th>
+                  <th className="px-2 py-1 text-center border-l border-slate-200">Bud.</th><th className="px-2 py-1 text-center">Actual</th><th className="px-2 py-1 text-center">Var.</th>
+                  <th className="px-2 py-1 text-center border-l border-slate-200">Bud.</th><th className="px-2 py-1 text-center">Actual</th><th className="px-2 py-1 text-center">Var.</th>
+                  <th className="px-2 py-1 text-center border-l border-slate-200">Bud.</th><th className="px-2 py-1 text-center">Actual</th><th className="px-2 py-1 text-center">Var.</th>
+                  <th className="px-2 py-1 text-center border-l border-slate-200">Bud.</th><th className="px-2 py-1 text-center">Actual</th><th className="px-2 py-1 text-center">Var.</th>
+                </tr>
+              </thead>
+              <tbody>{kpis.map((p,i)=>(
+                <tr key={p.id} className={`border-t border-slate-50 hover:bg-slate-50 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
+                  <td className="px-3 py-2.5 font-semibold text-slate-700 whitespace-nowrap"><button onClick={()=>onEdit(p)} className="hover:text-blue-600 hover:underline text-left">{p.name}</button></td>
+                  <td className="px-2 py-2.5 text-center text-slate-400 font-mono text-xs">{p.ant_enrollment}</td>
+                  <td className="px-2 py-2.5 text-center font-mono text-xs">{p.act_enrollment}</td>
+                  <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varEnr)}`}>{vNum(p.varEnr)}</td>
+                  <td className="px-2 py-2.5 text-center text-slate-400 font-mono text-xs border-l border-slate-100">{dollar(p.antRevenue)}</td>
+                  <td className="px-2 py-2.5 text-center font-mono text-xs">{dollar(p.revenue)}</td>
+                  <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varRev)}`}>{vDollar(p.varRev)}</td>
+                  <td className="px-2 py-2.5 text-center text-slate-400 font-mono text-xs border-l border-slate-100">{dollar(p.antTotal)}</td>
+                  <td className="px-2 py-2.5 text-center font-mono text-xs">{dollar(p.totalCost)}</td>
+                  <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varCost,true)}`}>{vDollar(p.varCost)}</td>
+                  <td className="px-2 py-2.5 text-center text-slate-400 font-mono text-xs border-l border-slate-100">{pct(p.antCR)}</td>
+                  <td className="px-2 py-2.5 text-center font-mono text-xs">{pct(p.costRecovery)}</td>
+                  <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varCR)}`}>{vPct(p.varCR)}</td>
+                  <td className="px-2 py-2.5 text-center text-slate-400 font-mono text-xs border-l border-slate-100">{dollar(p.antProfit)}</td>
+                  <td className="px-2 py-2.5 text-center font-mono text-xs">{dollar(p.profitLoss)}</td>
+                  <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varProfit)}`}>{vDollar(p.varProfit)}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-4 space-y-5">{kpis.map(p=>(
+            <div key={p.id} className="border border-slate-100 rounded-lg p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <button onClick={()=>onEdit(p)} className="font-semibold text-slate-700 hover:text-blue-600 hover:underline text-left">{p.name}</button>
                   <div className="text-xs text-slate-400">{p.area} - {p.season} {p.year}{p.staff_name?" - "+p.staff_name:""}</div>
                 </div>
                 <Badge status={p.status}/>
@@ -785,7 +1219,7 @@ function Dashboard({programs,staffName,isManager,onEdit,onAddProgram}) {
         )}
       </div>
 
-      {/* Status guide */}
+      {/* ── Status Guide ── */}
       <div className="bg-white rounded-lg shadow-sm p-4">
         <h3 className="font-bold text-slate-700 text-sm mb-3">Status Guide</h3>
         <div className="space-y-2 text-sm">
@@ -796,6 +1230,12 @@ function Dashboard({programs,staffName,isManager,onEdit,onAddProgram}) {
       </div>
     </div>
   );
+}
+
+// ─── Dashboard router ─────────────────────────────────────────────────────────
+function Dashboard({programs,staffName,isManager,onEdit,onAddProgram}) {
+  if(isManager) return <ManagerDashboard programs={programs} staffName={staffName} onEdit={onEdit} onAddProgram={onAddProgram}/>;
+  return <StaffDashboard programs={programs} staffName={staffName} onEdit={onEdit} onAddProgram={onAddProgram}/>;
 }
 
 // ─── Multi-Season View ────────────────────────────────────────────────────────
@@ -1277,7 +1717,7 @@ export default function App() {
       const data = cleanForDB(p);
       if(data.id){ const{error:e}=await supabase.from("programs").update(data).eq("id",data.id); if(e) throw e; }
       else        { const{error:e}=await supabase.from("programs").insert(data);                 if(e) throw e; }
-      await fetchAll(); setEditingProgram(null); setAddingProgram(false); setTab("dashboard");
+      await fetchAll(); setEditingProgram(null); setAddingProgram(false); setTab("programs");
     } catch(e){ setError("Failed to save: "+(e.message||"unknown error")); }
     setSaving(false);
   };
