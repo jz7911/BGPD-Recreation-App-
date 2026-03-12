@@ -924,8 +924,8 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
         </div>
         <KCard label="Avg Fill Rate"     value={pct(avgFill)}    accent="#d4a017" target="≥70%"/>
         <KCard label="Avg Cost Recovery" value={pct(avgCR)}      accent="#d4a017" target="≥100%"/>
-        <KCard label="Total Net P/(L)"   value={dollar(surplus)} accent={surplus>=0?"#22c55e":"#ef4444"}
-          sub={`Subsidy burden: ${dollar(subsidyBurden)}`}/>
+        <KCard label="Total Net P/(L)"   value={dollar(surplus)} accent={surplus>=0?"#22c55e":"#ef4444"}/>
+        <KCard label="Subsidy Burden"    value={dollar(subsidyBurden)} sub="tax $ supporting programs" accent="#ef4444"/>
         <KCard label="Programs"          value={vis.length}      accent="#1e3a5f"
           sub={`${noActuals} missing actuals`}/>
       </div>
@@ -935,19 +935,20 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
         <KCard label="Healthy"          value={healthy}   sub={`${kpis.length>0?Math.round(healthy/kpis.length*100):0}% of programs`} accent="#22c55e"/>
         <KCard label="Monitor"          value={monitor}   sub={`${kpis.length>0?Math.round(monitor/kpis.length*100):0}% of programs`} accent="#eab308"/>
         <KCard label="Needs Redesign"   value={redesign}  sub={`${kpis.length>0?Math.round(redesign/kpis.length*100):0}% of programs`} accent="#ef4444"/>
-        <KCard label="Waitlist Demand"  value={pct(waitlistPct)} sub={`${totalWaitlist} on waitlists`} accent="#d4a017"/>
+        <KCard label="Missing Actuals"  value={noActuals} sub="programs without actuals" accent="#f97316"/>
+      </div>
+
+      {/* ── KPI Row 3 — financial detail ── */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <KCard label="Total Revenue"     value={dollar(actRev)}    accent="#22c55e"/>
+        <KCard label="Total Cost"        value={dollar(actCost)}   accent="#64748b"/>
+        <KCard label="Rev / Participant" value={totalActEnr>0?dollar(revPerPart):"—"} sub="portfolio avg" accent="#1e3a5f"/>
+        <KCard label="Waitlist Demand"   value={pct(waitlistPct)}  sub={`${totalWaitlist} on waitlists`} accent="#d4a017"/>
       </div>
 
       {/* ── Program Snapshot bars ── */}
       <div className="bg-white rounded-lg shadow-sm p-5 space-y-5">
-        <div className="flex items-start justify-between flex-wrap gap-3">
-          <h3 className="font-bold text-slate-700 text-sm">Program Snapshot: Budgeted vs Actual</h3>
-          <div className="flex gap-6 text-xs font-mono text-slate-500">
-            <span>Revenue: <span className="font-bold text-slate-700">{dollar(actRev)}</span></span>
-            <span>Total Cost: <span className="font-bold text-slate-700">{dollar(actCost)}</span></span>
-            <span>Rev/Participant: <span className="font-bold text-slate-700">{totalActEnr>0?dollar(revPerPart):"—"}</span></span>
-          </div>
-        </div>
+        <h3 className="font-bold text-slate-700 text-sm">Program Snapshot: Budgeted vs Actual</h3>
         <PBar label="Total Revenue"      actual={actRev}  budget={antRev}  ff={v=>dollar(v)}/>
         <PBar label="Total Enrollment"   actual={actEnr}  budget={antEnr}  ff={v=>v.toString()}/>
         <PBar label="Total Program Cost" actual={actCost} budget={antCost} ff={v=>dollar(v)} inv/>
@@ -979,52 +980,6 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                 </div>
               ))}
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Workload by Staff ── */}
-      {workloadByStaff.length>0&&(
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100">
-            <h3 className="font-bold text-slate-700 text-sm">Staff Workload Distribution</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Estimated FT workload % allocated across programs. Only counts programs with a Program Type selected.</p>
-          </div>
-          <div className="p-4 space-y-3">
-            {workloadByStaff.map(s=>{
-              const pctVal = Math.min(s.totalWL,100);
-              const barColor = s.totalWL>80?"#ef4444":s.totalWL>60?"#eab308":"#22c55e";
-              // find programs for this staff member missing a program type
-              const missingType = kpis.filter(p=>p.staff_name===s.name&&!p.ant_program_type);
-              return (
-                <div key={s.name}>
-                  <div className="flex justify-between items-center mb-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-slate-700">{s.name}</span>
-                      {missingType.length>0&&(
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                          ⚠ {missingType.length} missing program type
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-xs font-mono text-slate-500">{s.totalWL.toFixed(1)}% allocated · {s.count} program{s.count!==1?"s":""}</span>
-                  </div>
-                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full transition-all" style={{width:`${pctVal}%`,backgroundColor:s.totalWL===0?"#e2e8f0":barColor}}/>
-                  </div>
-                  {missingType.length>0&&(
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      {missingType.map(p=>(
-                        <span key={p.id} className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded truncate max-w-[200px]" title={p.name}>
-                          {p.name}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-            <p className="text-xs text-slate-400 pt-1">Green = under 60%, Yellow = 60–80%, Red = over 80%. Programs without a program type selected contribute 0% and are flagged above.</p>
           </div>
         </div>
       )}
