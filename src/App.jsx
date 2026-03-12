@@ -27,7 +27,7 @@ const PROGRAM_TYPES = [
 const ADMIN_OVERHEAD_RATE  = 0.1;
 const FT_ANNUAL_SALARY     = 97700;
 const FACILITY_COST_PER_HR = 3;
-const MANAGER_NAMES        = ["admin","manager","joe zimmermann"];
+const MANAGER_NAMES        = ["admin","manager"];
 
 // ─── DB columns (the ONLY fields sent to Supabase) ───────────────────────────
 const DB_FIELDS = [
@@ -662,113 +662,7 @@ function ProgramForm({initial,staffName,onSave,onDelete,onDuplicate,onCancel,sav
   );
 }
 
-// ─── Cost Recovery Tab ────────────────────────────────────────────────────────
-function CostRecoveryView({programs,costRecords,onSave}) {
-  const [selId,setSelId] = useState(programs[0]?.id||"");
-  const [cr,setCR]       = useState(null);
-  const [saved,setSaved] = useState(false);
 
-  useEffect(()=>{
-    if(!selId) return;
-    const ex = costRecords.find(r=>r.program_id===selId);
-    setCR(ex ? {...ex} : {
-      program_id:selId, season:"Summer", service_category:"", program_type:"",
-      custom_workload:"", facility_hours:0, revenue:0,
-      personnel:0, commodities:0, contractuals:0, other1:0, other2:0, notes:""
-    });
-  },[selId,costRecords]);
-
-  const set  = k => v => setCR(prev=>({...prev,[k]:v}));
-  const prog = programs.find(p=>p.id===selId);
-  const calc = cr ? (()=>{
-    const wl  = cr.program_type&&cr.program_type!=="Custom"
-      ? (PROGRAM_TYPES.find(t=>t.label===cr.program_type)?.pct||0)
-      : (parseFloat(cr.custom_workload)||0)/100;
-    const d   = (cr.personnel||0)+(cr.commodities||0)+(cr.contractuals||0)+(cr.other1||0)+(cr.other2||0);
-    const ao  = d*ADMIN_OVERHEAD_RATE;
-    const ft  = FT_ANNUAL_SALARY*wl;
-    const fac = FACILITY_COST_PER_HR*(cr.facility_hours||0);
-    const tot = d+ao+ft+fac;
-    const rev = cr.revenue||0;
-    return {d,ao,ft,fac,tot,rev,crPct:tot>0?rev/tot:0,subPct:1-(tot>0?rev/tot:0),profit:rev-tot};
-  })():null;
-
-  const handleSave = async () => { await onSave(cr); setSaved(true); setTimeout(()=>setSaved(false),2000); };
-  if(programs.length===0) return <div className="text-center py-16 text-slate-400 text-sm">Add programs first.</div>;
-
-  return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-lg shadow-sm p-5">
-        <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Select Program</div>
-        <select className="w-full rounded border border-slate-200 px-3 py-2 text-sm bg-white" value={selId} onChange={e=>setSelId(e.target.value)}>
-          {programs.map(p=><option key={p.id} value={p.id}>{p.name} - {p.season} {p.year}{p.staff_name?" ("+p.staff_name+")":""}</option>)}
-        </select>
-        {prog&&<div className="mt-2 text-xs text-slate-400">{prog.area} - {prog.classification}</div>}
-      </div>
-      {cr&&(<>
-        <div className="bg-white rounded-lg shadow-sm p-5 space-y-4">
-          <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">Program Info</div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Inp label="Service Category"  value={cr.service_category||""} onChange={set("service_category")} options={["",...SERVICE_CATEGORIES]}/>
-            <Inp label="Season / Session"  value={cr.season||""} onChange={set("season")} options={SEASONS}/>
-            <Inp label="Total Revenue ($)" type="number" value={cr.revenue||0}        onChange={set("revenue")}        min={0}/>
-            <Inp label="Facility Hours"    type="number" value={cr.facility_hours||0} onChange={set("facility_hours")} min={0} hint={"$"+FACILITY_COST_PER_HR+"/hr"}/>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm p-5 space-y-4">
-          <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">Direct Costs</div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Inp label="Personnel ($)"            type="number" value={cr.personnel||0}    onChange={set("personnel")}    min={0}/>
-            <Inp label="Commodities ($)"          type="number" value={cr.commodities||0}  onChange={set("commodities")}  min={0}/>
-            <Inp label="Contractuals ($)"         type="number" value={cr.contractuals||0} onChange={set("contractuals")} min={0}/>
-            <Inp label="Other Direct Costs ($)"   type="number" value={cr.other1||0}       onChange={set("other1")}       min={0}/>
-            <Inp label="Other Direct Costs 2 ($)" type="number" value={cr.other2||0}       onChange={set("other2")}       min={0}/>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm p-5 space-y-4">
-          <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">Staff Workload</div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Inp label="Program Type" value={cr.program_type||"Custom"} onChange={set("program_type")} options={["Custom",...PROGRAM_TYPES.map(t=>t.label)]}/>
-            {(!cr.program_type||cr.program_type==="Custom")
-              ? <Inp label="Custom Workload %" type="number" value={cr.custom_workload||0} onChange={set("custom_workload")} min={0} max={100} hint="% of FT staff time"/>
-              : <div className="flex flex-col gap-1 justify-center">
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Estimated Workload %</label>
-                  <div className="text-lg font-bold text-slate-700">{((PROGRAM_TYPES.find(t=>t.label===cr.program_type)?.pct||0)*100).toFixed(1)}%</div>
-                </div>
-            }
-          </div>
-        </div>
-        {calc&&(
-          <div className="bg-slate-800 rounded-lg p-5 text-white space-y-4">
-            <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">Results (Auto-Calculated)</div>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-              {[["Direct Costs",dollar(calc.d)],["Admin Overhead (10%)",dollar(calc.ao)],["Allocated FT Staff",dollar(calc.ft)],
-                ["Allocated Facility",dollar(calc.fac)],["Total Program Cost",dollar(calc.tot)],["Total Revenue",dollar(calc.rev)]].map(([l,v])=>(
-                <div key={l}><div className="text-xs text-slate-400">{l}</div><div className="text-base font-bold">{v}</div></div>
-              ))}
-            </div>
-            <div className="border-t border-slate-600 pt-4 grid grid-cols-3 gap-4">
-              <div><div className="text-xs text-slate-400">Cost Recovery</div><div className={`text-2xl font-black ${calc.crPct>=1?"text-green-400":"text-amber-400"}`}>{pct(calc.crPct)}</div></div>
-              <div><div className="text-xs text-slate-400">Subsidy</div><div className="text-2xl font-black text-slate-200">{pct(Math.max(0,calc.subPct))}</div></div>
-              <div><div className="text-xs text-slate-400">Net Profit/(Loss)</div><div className={`text-2xl font-black ${calc.profit>=0?"text-green-400":"text-red-400"}`}>{dollar(calc.profit)}</div></div>
-            </div>
-          </div>
-        )}
-        <div className="bg-white rounded-lg shadow-sm p-5">
-          <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Notes</div>
-          <textarea className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 resize-none" rows={3}
-            placeholder="Cost notes, assumptions, anomalies..."
-            value={cr.notes||""} onChange={e=>setCR(prev=>({...prev,notes:e.target.value}))}/>
-        </div>
-        <div className="flex justify-end">
-          <button onClick={handleSave}
-            className="px-5 py-2 text-sm font-semibold text-white rounded transition"
-            style={{backgroundColor:saved?"#22c55e":"#1e3a5f"}}>{saved?"Saved!":"Save Worksheet"}</button>
-        </div>
-      </>)}
-    </div>
-  );
-}
 
 // ─── Reference Tab ────────────────────────────────────────────────────────────
 function Reference() {
@@ -923,7 +817,6 @@ function Reference() {
 export default function App() {
   const [tab,setTab]                       = useState("dashboard");
   const [programs,setPrograms]             = useState([]);
-  const [costRecords,setCostRecords]       = useState([]);
   const [editingProgram,setEditingProgram] = useState(null);
   const [addingProgram,setAddingProgram]   = useState(false);
   const [dupProgram,setDupProgram]         = useState(null);
@@ -935,11 +828,8 @@ export default function App() {
 
   const fetchAll = useCallback(async()=>{
     setLoading(true);
-    const [{data:p},{data:c}] = await Promise.all([
-      supabase.from("programs").select("*").order("created_at",{ascending:false}),
-      supabase.from("cost_records").select("*"),
-    ]);
-    setPrograms(p||[]); setCostRecords(c||[]); setLoading(false);
+    const {data:p} = await supabase.from("programs").select("*").order("created_at",{ascending:false});
+    setPrograms(p||[]); setLoading(false);
   },[]);
 
   useEffect(()=>{ if(staffName) fetchAll(); else setLoading(false); },[staffName,fetchAll]);
@@ -960,7 +850,6 @@ export default function App() {
   const handleDeleteProgram = async id => {
     setSaving(true);
     await supabase.from("programs").delete().eq("id",id);
-    await supabase.from("cost_records").delete().eq("program_id",id);
     await fetchAll(); setEditingProgram(null); setTab("dashboard"); setSaving(false);
   };
 
@@ -979,14 +868,7 @@ export default function App() {
     setSaving(false);
   };
 
-  const handleSaveCR = async cr => {
-    const exists = costRecords.find(r=>r.program_id===cr.program_id);
-    if(exists){ await supabase.from("cost_records").update(cr).eq("program_id",cr.program_id); }
-    else      { await supabase.from("cost_records").insert(cr); }
-    await fetchAll();
-  };
-
-  const tabs = [{id:"dashboard",label:"Dashboard"},{id:"programs",label:"Programs"},{id:"cost",label:"Cost Recovery"},{id:"kpi",label:"Reference"}];
+  const tabs = [{id:"dashboard",label:"Dashboard"},{id:"programs",label:"Programs"},{id:"kpi",label:"Reference"}];
   const showingForm = editingProgram||addingProgram;
 
   if(!staffName) return <StaffSetup onConfirm={handleConfirmName}/>;
@@ -1088,7 +970,6 @@ export default function App() {
                 onCancel={()=>{setEditingProgram(null);setAddingProgram(false);}}
                 saving={saving}/>
             )}
-            {tab==="cost"&&<CostRecoveryView programs={programs} costRecords={costRecords} onSave={handleSaveCR}/>}
             {tab==="kpi"&&<Reference/>}
           </>
         )}
