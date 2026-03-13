@@ -191,7 +191,7 @@ function SeasonReport({programs, filters, onClose}) {
   const secH = {fontWeight:700, fontSize:13, color:"#1e3a5f", borderBottom:"2px solid #d4a017", paddingBottom:4, marginBottom:10, marginTop:20};
 
   return (
-    <div id="season-report" style={{display:"none", fontFamily:"'IBM Plex Sans','Segoe UI',sans-serif", padding:"0", color:"#1e293b", background:"white"}}>
+    <div id="season-report" style={{fontFamily:"'IBM Plex Sans','Segoe UI',sans-serif", padding:"0", color:"#1e293b", background:"white"}}>
       {/* Header */}
       <div style={{background:"#1e3a5f", color:"white", padding:"20px 28px", marginBottom:20, display:"flex", justifyContent:"space-between", alignItems:"flex-start"}}>
         <div>
@@ -426,7 +426,7 @@ function Inp({label,type="text",value,onChange,options,min,max,hint,placeholder,
 }
 
 // ─── Confirm Delete Modal ─────────────────────────────────────────────────────
-function ConfirmModal({message,onConfirm,onCancel}) {
+function ConfirmModal({message,onConfirm,onCancel,confirmLabel="Delete",confirmColor="#ef4444"}) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:"rgba(15,23,42,0.5)"}}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
@@ -434,7 +434,7 @@ function ConfirmModal({message,onConfirm,onCancel}) {
         <div className="text-sm text-slate-500">{message}</div>
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={onCancel} className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
-          <button onClick={onConfirm} className="px-4 py-2 text-sm font-semibold text-white bg-red-500 rounded-lg hover:bg-red-600">Delete</button>
+          <button onClick={onConfirm} className="px-4 py-2 text-sm font-semibold text-white rounded-lg" style={{backgroundColor:confirmColor}}>{confirmLabel}</button>
         </div>
       </div>
     </div>
@@ -1736,6 +1736,8 @@ function ProgramForm({initial,staffName,isManager,onSave,onDelete,onArchive,onDu
           message={p.is_archived ? `Restore "${p.name}" to active programs?` : `Archive "${p.name}"? It will be hidden from dashboards and reports but can be restored later.`}
           onConfirm={()=>onArchive(p.id, !p.is_archived)}
           onCancel={()=>setConfirmArchive(false)}
+          confirmLabel={p.is_archived?"Restore":"Archive"}
+          confirmColor={p.is_archived?"#16a34a":"#64748b"}
         />
       )}
       <div className="flex items-center justify-between">
@@ -2562,6 +2564,7 @@ export default function App() {
                 isManager={effectiveManager}
                 onSave={handleSaveProgram}
                 onDelete={handleDeleteProgram}
+                onArchive={handleArchiveProgram}
                 onDuplicate={p=>setDupProgram(p)}
                 onCancel={()=>{setEditingProgram(null);setAddingProgram(false);}}
                 saving={saving}/>
