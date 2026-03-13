@@ -299,16 +299,20 @@ function printSeasonReport(programs, filters) {
 
   function doSave() {
     const container = document.createElement("div");
-    container.style.cssText = "position:fixed;left:-9999px;top:0;";
+    // Must be visible on screen for html2canvas to capture it
+    container.style.cssText = "position:fixed;top:0;left:0;z-index:-1;opacity:0;pointer-events:none;width:750px;background:white;";
     container.innerHTML = bodyHTML;
     document.body.appendChild(container);
-    window.html2pdf().set({
-      margin: 0.4,
-      filename,
-      image: {type:"jpeg", quality:0.98},
-      html2canvas: {scale:2, useCORS:true, logging:false, backgroundColor:"#ffffff"},
-      jsPDF: {unit:"in", format:"letter", orientation:"portrait"},
-    }).from(container).save().then(()=>{ document.body.removeChild(container); });
+    // Small delay to let browser lay out the DOM before capturing
+    setTimeout(()=>{
+      window.html2pdf().set({
+        margin: 0.4,
+        filename,
+        image: {type:"jpeg", quality:0.98},
+        html2canvas: {scale:2, useCORS:true, logging:false, backgroundColor:"#ffffff", windowWidth:750},
+        jsPDF: {unit:"in", format:"letter", orientation:"portrait"},
+      }).from(container).save().then(()=>{ document.body.removeChild(container); });
+    }, 300);
   }
 
   if(window.html2pdf) {
