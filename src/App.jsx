@@ -166,7 +166,7 @@ function sColor(s) {
 
 
 // ─── Season Report (print-to-PDF) ─────────────────────────────────────────────
-function SeasonReport({programs, filters, onClose}) {
+function SeasonReport({programs, filters, onClose, onDone}) {
   const kpis        = programs.map(p=>({...p,...calcKPIs(p)}));
   const avgFill     = kpis.length ? kpis.reduce((a,p)=>a+p.fillRate,0)/kpis.length : 0;
   const avgCR       = kpis.length ? kpis.reduce((a,p)=>a+p.costRecovery,0)/kpis.length : 0;
@@ -183,7 +183,15 @@ function SeasonReport({programs, filters, onClose}) {
   const topPerf     = [...kpis].filter(p=>p.hasActuals).sort((a,b)=>b.fillRate-a.fillRate).slice(0,5);
   const today       = new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
 
-  // Print is triggered externally via window.print() from the modal button
+  useEffect(()=>{
+    const t = setTimeout(()=>{
+      window.print();
+      // After print dialog closes, unmount
+      const after = setTimeout(()=>{ if(onDone) onDone(); }, 500);
+      return ()=>clearTimeout(after);
+    }, 150);
+    return ()=>clearTimeout(t);
+  },[]);
 
   const tdH  = {padding:"6px 10px", fontWeight:600, fontSize:11, background:"#1e3a5f", color:"white", textAlign:"left"};
   const td   = {padding:"6px 10px", fontSize:11, borderBottom:"1px solid #f1f5f9"};
@@ -688,6 +696,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
   const [snf,setSnf]         = useState("All");
   const [dv,setDv]           = useState("summary");
   const [showReport,setShowReport] = useState(false);
+  const [printing,setPrinting]     = useState(false);
 
   const allStaff   = ["All",...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
   const allAreas   = ["All",...new Set(programs.map(p=>p.area))];
@@ -756,13 +765,13 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
             <div className="text-xs text-slate-400">{vis.length} programs with current filters applied</div>
             <div className="flex gap-3 justify-center pt-2">
               <button onClick={()=>setShowReport(false)} className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
-              <button onClick={()=>{ setShowReport(false); setTimeout(()=>window.print(),100); }}
+              <button onClick={()=>{ setShowReport(false); setPrinting(true); }}
                 className="px-5 py-2 text-sm font-semibold text-white rounded-lg" style={{backgroundColor:"#1e3a5f"}}>Print / Save PDF</button>
             </div>
           </div>
         </div>
       )}
-      <SeasonReport programs={vis} filters={`${sf!=="All"?`Staff: ${sf}`:"All Staff"} · ${af!=="All"?`Area: ${af}`:"All Areas"} · ${snf!=="All"?`Season: ${snf}`:"All Seasons"} · ${yf!=="All"?`Year: ${yf}`:"All Years"}`} onClose={()=>setShowReport(false)}/>
+      {printing&&<SeasonReport programs={vis} filters={`${sf!=="All"?`Staff: ${sf}`:"All Staff"} · ${af!=="All"?`Area: ${af}`:"All Areas"} · ${snf!=="All"?`Season: ${snf}`:"All Seasons"} · ${yf!=="All"?`Year: ${yf}`:"All Years"}`} onClose={()=>setPrinting(false)} onDone={()=>setPrinting(false)}/>}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <KCard label="Programs"                value={vis.length}      accent="#1e3a5f"/>
         <KCard label="Avg Fill Rate"           value={pct(avgFill)}    accent="#d4a017"/>
@@ -907,6 +916,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   const [dv,setDv]           = useState("summary");
   const [sort,setSort]       = useState({col:"name",dir:1});
   const [showReport,setShowReport] = useState(false);
+  const [printing,setPrinting]     = useState(false);
 
   const allStaff   = ["All",...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
   const allAreas   = ["All",...new Set(programs.map(p=>p.area))];
@@ -1125,13 +1135,13 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
             <div className="text-xs text-slate-400">Filters applied: {sf!=="All"?`Staff: ${sf} · `:""}{ af!=="All"?`Area: ${af} · `:""}{ yf!=="All"?`Year: ${yf}`:"All Programs"} · {vis.length} programs</div>
             <div className="flex gap-3 justify-center pt-2">
               <button onClick={()=>setShowReport(false)} className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
-              <button onClick={()=>{ setShowReport(false); setTimeout(()=>window.print(),100); }}
+              <button onClick={()=>{ setShowReport(false); setPrinting(true); }}
                 className="px-5 py-2 text-sm font-semibold text-white rounded-lg" style={{backgroundColor:"#1e3a5f"}}>Print / Save PDF</button>
             </div>
           </div>
         </div>
       )}
-      <SeasonReport programs={vis} filters={`${sf!=="All"?`Staff: ${sf}`:"All Staff"} · ${af!=="All"?`Area: ${af}`:"All Areas"} · ${yf!=="All"?`Year: ${yf}`:"All Years"}`} onClose={()=>setShowReport(false)}/>
+      {printing&&<SeasonReport programs={vis} filters={`${sf!=="All"?`Staff: ${sf}`:"All Staff"} · ${af!=="All"?`Area: ${af}`:"All Areas"} · ${yf!=="All"?`Year: ${yf}`:"All Years"}`} onClose={()=>setPrinting(false)} onDone={()=>setPrinting(false)}/>}
 
       {/* ── Needs Attention Queue ── */}
       {needsAttention.length>0&&(
