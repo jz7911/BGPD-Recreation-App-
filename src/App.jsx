@@ -741,7 +741,10 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
           </select>
         </div>
         {anyFilter&&<button onClick={()=>{setSf("All");setAf("All");setYf("All");setSnf("All");}} className="text-xs text-slate-400 hover:text-slate-600 pb-1.5 font-medium">Clear filters</button>}
-        <button onClick={()=>setShowReport(true)} className="text-xs font-semibold px-3 py-2 rounded transition whitespace-nowrap text-white ml-auto" style={{backgroundColor:"#1e3a5f"}}>⬜ Season Report</button>
+        <div className="flex gap-2 ml-auto">
+          <button onClick={()=>exportCSV(vis)} className="text-xs font-semibold px-3 py-2 rounded border border-slate-200 text-slate-500 hover:bg-slate-50 transition whitespace-nowrap">↓ Export CSV</button>
+          <button onClick={()=>setShowReport(true)} className="text-xs font-semibold px-3 py-2 rounded transition whitespace-nowrap text-white" style={{backgroundColor:"#1e3a5f"}}>⬜ Season Report</button>
+        </div>
       </div>
       {showReport&&(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:"rgba(15,23,42,0.7)"}}>
@@ -1208,36 +1211,6 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
         <PBar label="Total Program Cost" actual={actCost} budget={antCost} ff={v=>dollar(v)} inv/>
       </div>
 
-      {/* ── Classification Mix ── */}
-      {classMix.length>0&&(
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100">
-            <h3 className="font-bold text-slate-700 text-sm">Program Mix by Classification</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Balance of community service vs. revenue-generating programs</p>
-          </div>
-          <div className="p-4">
-            <div className="flex h-4 rounded-full overflow-hidden mb-4 gap-0.5">
-              {classMix.map(c=>(
-                <div key={c.label} title={`${c.label}: ${c.count} programs`}
-                  style={{width:`${(c.count/kpis.length)*100}%`,backgroundColor:classMixColors[c.label]||"#94a3b8"}}/>
-              ))}
-            </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              {classMix.map(c=>(
-                <div key={c.label} className="flex items-start gap-2.5 p-3 rounded-lg bg-slate-50">
-                  <div className="w-2.5 h-2.5 rounded-full mt-1 shrink-0" style={{backgroundColor:classMixColors[c.label]||"#94a3b8"}}/>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-bold text-slate-700">{c.label}</div>
-                    <div className="text-xs text-slate-400">{c.count} program{c.count!==1?"s":""} · {Math.round((c.count/kpis.length)*100)}% of inventory</div>
-                    <div className="text-xs font-mono text-slate-500 mt-0.5">{dollar(c.revenue)} revenue · <span className={c.profit>=0?"text-green-600":"text-red-500"}>{dollar(c.profit)} net</span></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── Programs by Area ── */}
       {areaRollup.length>0&&(
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
@@ -1324,7 +1297,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-100">
             <h3 className="font-bold text-slate-700 text-sm">Revenue per Participant by Area</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Avg: {totalActEnr>0?dollar(revPerPart):"—"} — areas above avg may be well-priced; below may need review</p>
+            <p className="text-xs text-slate-400 mt-0.5">Overall avg: {totalActEnr>0?dollar(revPerPart):"—"}</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -1333,20 +1306,15 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                 <th className="px-4 py-2 text-left font-semibold">Participants</th>
                 <th className="px-4 py-2 text-left font-semibold">Revenue</th>
                 <th className="px-4 py-2 text-left font-semibold">Rev / Participant</th>
-                <th className="px-4 py-2 text-left font-semibold">vs Avg</th>
               </tr></thead>
-              <tbody>{rppByArea.filter(r=>r.enr>0).map((r,i)=>{
-                const diff = r.rpp - revPerPart;
-                return (
-                  <tr key={r.area} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
-                    <td className="px-4 py-2.5 font-semibold text-slate-700">{r.area}</td>
-                    <td className="px-4 py-2.5 text-slate-500">{r.enr}</td>
-                    <td className="px-4 py-2.5 font-mono text-xs">{dollar(r.rev)}</td>
-                    <td className="px-4 py-2.5 font-mono text-xs font-bold">{dollar(r.rpp)}</td>
-                    <td className={`px-4 py-2.5 font-mono text-xs font-semibold ${diff>=0?"text-green-600":"text-red-500"}`}>{diff>=0?"+":""}{dollar(diff)}</td>
-                  </tr>
-                );
-              })}</tbody>
+              <tbody>{rppByArea.filter(r=>r.enr>0).map((r,i)=>(
+                <tr key={r.area} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
+                  <td className="px-4 py-2.5 font-semibold text-slate-700">{r.area}</td>
+                  <td className="px-4 py-2.5 text-slate-500">{r.enr}</td>
+                  <td className="px-4 py-2.5 font-mono text-xs">{dollar(r.rev)}</td>
+                  <td className="px-4 py-2.5 font-mono text-xs font-bold">{dollar(r.rpp)}</td>
+                </tr>
+              ))}</tbody>
             </table>
           </div>
         </div>
@@ -1401,43 +1369,70 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
         </div>
       )}
 
-      {/* ── Area Rollup ── */}
+      {/* ── Capacity Utilization by Area ── */}
       {areaRollup.length>1&&(
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-100">
             <h3 className="font-bold text-slate-700 text-sm">Capacity Utilization by Area</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Avg fill rate per area — green ≥70%, yellow 60–69%, red &lt;60%</p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="bg-slate-50 text-xs text-slate-400 uppercase tracking-wider">
-                <th className="px-4 py-2 text-left font-semibold">Area</th>
-                <th className="px-4 py-2 text-left font-semibold">Programs</th>
-                <th className="px-4 py-2 text-left font-semibold">Avg Fill Rate</th>
-                <th className="px-4 py-2 text-left font-semibold">Avg Cost Recovery</th>
-                <th className="px-4 py-2 text-left font-semibold">Waitlist</th>
-                <th className="px-4 py-2 text-left font-semibold">Net P/(L)</th>
-              </tr></thead>
-              <tbody>{areaRollup.map((r,i)=>(
-                <tr key={r.area} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
-                  <td className="px-4 py-2.5 font-semibold text-slate-700">{r.area}</td>
-                  <td className="px-4 py-2.5 text-slate-500">{r.count}</td>
-                  <td className="px-4 py-2.5">
+          <div className="p-4 space-y-3">
+            {[...areaRollup].sort((a,b)=>b.avgFill-a.avgFill).map(r=>{
+              const fillColor = r.avgFill>=0.7?"#22c55e":r.avgFill>=0.6?"#eab308":"#ef4444";
+              return(
+                <div key={r.area}>
+                  <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
-                      <div className="h-1.5 w-16 bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full rounded-full" style={{width:`${Math.min(r.avgFill*100,100)}%`,backgroundColor:r.avgFill>=0.7?"#22c55e":r.avgFill>=0.6?"#eab308":"#ef4444"}}/>
-                      </div>
-                      <span className="font-mono text-xs">{pct(r.avgFill)}</span>
+                      <span className="text-sm font-semibold text-slate-700">{r.area}</span>
+                      <span className="text-xs text-slate-400">{r.count} program{r.count!==1?"s":""}</span>
+                      {r.waitlist>0&&<span className="text-xs font-semibold text-amber-600">{r.waitlist} waitlisted</span>}
                     </div>
-                  </td>
-                  <td className="px-4 py-2.5 font-mono text-xs">{pct(r.avgCR)}</td>
-                  <td className="px-4 py-2.5 font-mono text-xs text-slate-500">{r.waitlist>0?<span className="text-amber-600 font-semibold">{r.waitlist}</span>:"—"}</td>
-                  <td className={`px-4 py-2.5 font-mono text-xs font-semibold ${r.profit>=0?"text-green-700":"text-red-600"}`}>{dollar(r.profit)}</td>
-                </tr>
-              ))}</tbody>
-            </table>
+                    <div className="flex items-center gap-3 text-xs font-mono">
+                      <span className="font-bold" style={{color:fillColor}}>{pct(r.avgFill)} fill</span>
+                      <span className="text-slate-400">{pct(r.avgCR)} CR</span>
+                      <span className={r.profit>=0?"text-green-700 font-semibold":"text-red-600 font-semibold"}>{dollar(r.profit)}</span>
+                    </div>
+                  </div>
+                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all" style={{width:`${Math.min(r.avgFill*100,100)}%`,backgroundColor:fillColor}}/>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
+
+      {/* ── Classification Mix ── */}
+      {classMix.length>0&&(
+        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100">
+            <h3 className="font-bold text-slate-700 text-sm">Program Mix by Classification</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Balance of community service vs. revenue-generating programs</p>
+          </div>
+          <div className="p-4">
+            <div className="flex h-4 rounded-full overflow-hidden mb-4 gap-0.5">
+              {classMix.map(c=>(
+                <div key={c.label} title={`${c.label}: ${c.count} programs`}
+                  style={{width:`${(c.count/kpis.length)*100}%`,backgroundColor:classMixColors[c.label]||"#94a3b8"}}/>
+              ))}
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {classMix.map(c=>(
+                <div key={c.label} className="flex items-start gap-2.5 p-3 rounded-lg bg-slate-50">
+                  <div className="w-2.5 h-2.5 rounded-full mt-1 shrink-0" style={{backgroundColor:classMixColors[c.label]||"#94a3b8"}}/>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-bold text-slate-700">{c.label}</div>
+                    <div className="text-xs text-slate-400">{c.count} program{c.count!==1?"s":""} · {Math.round((c.count/kpis.length)*100)}% of inventory</div>
+                    <div className="text-xs font-mono text-slate-500 mt-0.5">{dollar(c.revenue)} revenue · <span className={c.profit>=0?"text-green-600":"text-red-500"}>{dollar(c.profit)} net</span></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* ── Program Detail ── */}
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
@@ -4224,52 +4219,26 @@ function CampsDetail({db}){
         </table>
       </div>
 
-      {/* FY detail bar chart with optional YoY */}
-      {(()=>{
-        const [showYoY,setShowYoY]=React.useState(false);
-        const prevFy2=ADMIN_FYS[ADMIN_FYS.indexOf(fy)-1];
-        const prevRows=prevFy2?camps.filter(c=>c.fy===prevFy2&&c.camp_name!=="Camp Connection"):[];
-        const allMax=Math.max(maxEnroll,...(showYoY?prevRows.map(c=>c.enrollment||0):[]),1);
-        return(
-        <div className="bg-white rounded-xl border border-slate-100 p-5 shadow-sm mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="font-semibold text-sm text-slate-700">FY {fy} — Enrollment by Camp</div>
-            {prevRows.length>0&&<button onClick={()=>setShowYoY(s=>!s)}
-              className="text-xs px-2 py-1 rounded-lg border font-semibold transition"
-              style={showYoY?{background:"#7c3aed",color:"white",borderColor:"#7c3aed"}:{borderColor:"#e2e8f0",color:"#64748b"}}>
-              {showYoY?"Hide":"Show"} {prevFy2} YoY
-            </button>}
-          </div>
-          <div className="space-y-2">
-            {fyRows.sort((a,b)=>(b.enrollment||0)-(a.enrollment||0)).map(c=>{
-              const prevC=prevRows.find(p=>p.camp_name===c.camp_name);
-              const prevEnroll=prevC?.enrollment||0;
-              const pct=yoyPct(c.enrollment,prevEnroll);
-              return(
-              <div key={c.id} className="flex items-center gap-3">
-                <div className="text-xs text-slate-600 w-32 flex-shrink-0 truncate">{c.camp_name}</div>
-                <div className="flex-1 relative h-5">
-                  {showYoY&&prevEnroll>0&&<div className="absolute inset-y-0 left-0 rounded-full opacity-30" style={{width:`${(prevEnroll/allMax)*100}%`,background:"#7c3aed"}}/>}
-                  <div className="absolute inset-y-0 left-0 rounded-full" style={{width:`${((c.enrollment||0)/allMax)*100}%`,background:"#7c3aed"}}/>
-                </div>
-                <div className="text-xs font-bold text-slate-800 w-8 text-right">{c.enrollment||0}</div>
-                {showYoY&&pct!==null&&<div className="w-12 text-right" style={{fontSize:"10px",color:pct>=0?"#16a34a":"#dc2626"}}>{pct>=0?"▲":"▼"}{Math.abs(pct).toFixed(0)}%</div>}
-                <div className="flex gap-1">
-                  <button onClick={()=>openEdit(c)} className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-400 text-xs">✏</button>
-                  <button onClick={()=>setConfirm(c.id)} className="p-1 rounded bg-red-50 hover:bg-red-100 text-red-300 text-xs">✕</button>
-                </div>
+      {/* FY detail bar chart */}
+      <div className="bg-white rounded-xl border border-slate-100 p-5 shadow-sm mb-6">
+        <div className="font-semibold text-sm text-slate-700 mb-4">FY {fy} — Enrollment by Camp</div>
+        <div className="space-y-2">
+          {fyRows.sort((a,b)=>(b.enrollment||0)-(a.enrollment||0)).map(c=>(
+            <div key={c.id} className="flex items-center gap-3">
+              <div className="text-xs text-slate-600 w-32 flex-shrink-0 truncate">{c.camp_name}</div>
+              <div className="flex-1 h-5 rounded-full overflow-hidden" style={{background:"#f1f5f9"}}>
+                <div className="h-full rounded-full" style={{width:`${((c.enrollment||0)/maxEnroll)*100}%`,background:"#7c3aed"}}/>
               </div>
-              );
-            })}
-            {fyRows.length===0&&<div className="text-xs text-slate-400 text-center py-4">No camp data for FY {fy} — click "+ Add" to enter data</div>}
-          </div>
-          {showYoY&&<div className="flex gap-4 mt-3 text-xs text-slate-400">
-            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded inline-block" style={{background:"#7c3aed"}}/>Current FY</span>
-            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded inline-block opacity-30" style={{background:"#7c3aed"}}/>Prior FY</span>
-          </div>}
+              <div className="text-xs font-bold text-slate-800 w-8 text-right">{c.enrollment||0}</div>
+              <div className="flex gap-1">
+                <button onClick={()=>openEdit(c)} className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-400 text-xs">✏</button>
+                <button onClick={()=>setConfirm(c.id)} className="p-1 rounded bg-red-50 hover:bg-red-100 text-red-300 text-xs">✕</button>
+              </div>
+            </div>
+          ))}
+          {fyRows.length===0&&<div className="text-xs text-slate-400 text-center py-4">No camp data for FY {fy} — click "+ Add" to enter data</div>}
         </div>
-        );
-      })()}
+      </div>
 
       {showModal&&(
         <AModal title={editRow?"Edit Camp Record":"Add Camp Record"} onClose={()=>setShowModal(false)}>
@@ -4539,21 +4508,537 @@ function EventsDetail({db}){
   );
 }
 
+const SEED_FEES = [
+  {fy:"2026-2027",area:"Other",program_name:"Dog Park Passes - Annual",resident_fee:"$25/$31",nonresident_fee:"$28/$40/$52 & $35/$50/$60",contractual:false,notes:"SR & created tiers for dogs - 1, 2, 3 etc.",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Dog Park Passes - Late Season",resident_fee:"$15/$19",nonresident_fee:"$20/$24/$32 & $25/$30/$40",contractual:false,notes:"SR & created tiers for dogs - 1, 2, 3 etc.",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Dog Park Passes - Daily",resident_fee:"8.0",nonresident_fee:"$8/$12/$16",contractual:false,notes:"SR & created tiers for dogs - 1, 2, 3 etc.",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Drawing & Painting",resident_fee:"$91/$114",nonresident_fee:"$80/$100",contractual:false,notes:"The number of classes/sessions decreased",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Mah Jongg Tournament",resident_fee:"25.0",nonresident_fee:"27.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Adult Trips",resident_fee:"varies dep on destination",nonresident_fee:"varies dep on destination",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Adult Basketball - Open Gym",resident_fee:"$6 Per Class",nonresident_fee:"$7 Per Class",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Adult Fall Softball",resident_fee:"750.0",nonresident_fee:"800.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Pickleball Clinics",resident_fee:"$75 Per Class",nonresident_fee:"$80 Per Class",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Adult Pickleball",resident_fee:"$6 Per Class",nonresident_fee:"$7 Per Class",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Adult Summer Softball Competitive",resident_fee:"750.0",nonresident_fee:"800.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Adult Summer Softball Recreational",resident_fee:"750.0",nonresident_fee:"800.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Adult Volleyball",resident_fee:"$6 Per Class",nonresident_fee:"$7 Per Class",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Fall Adult Karate",resident_fee:"$15 - $19",nonresident_fee:"$15 - $19",contractual:true,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Spring Adult Karate",resident_fee:"$15 - $19",nonresident_fee:"$15 - $19",contractual:true,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Summer Adult Karate",resident_fee:"$15 - $19",nonresident_fee:"$15 - $19",contractual:true,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Winter Adult Karate",resident_fee:"$15 - $19",nonresident_fee:"$15 - $19",contractual:true,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Adult Bags League",resident_fee:"$65 Per Team",nonresident_fee:"$65 Per Team",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Adult Kickball League",resident_fee:"$65 Per Team",nonresident_fee:"$65 Per Team",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Adult Whiffle Ball League",resident_fee:"$65 Per Team",nonresident_fee:"$65 Per Team",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"All Ages - Fall/Winter",resident_fee:"380.0",nonresident_fee:"385.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"All Ages - Summer",resident_fee:"205.0",nonresident_fee:"210.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"8 & Under - Fall/Winter",resident_fee:"490.0",nonresident_fee:"495.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"9-10, 11-12, 13-14, 15 and older - Fall/Winter",resident_fee:"565.0",nonresident_fee:"570.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"8 & Under - Summer",resident_fee:"380.0",nonresident_fee:"385.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"9-10, 11-12, 13-14, 15 and older - Summer",resident_fee:"465.0",nonresident_fee:"470.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Swim Team Tryouts",resident_fee:"10.0",nonresident_fee:"15.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Per session (8 - 30 min.) Tadpoles Swim Classes",resident_fee:"$111/$139",nonresident_fee:"$115/$145",contractual:false,notes:"SR",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Per session (8 - 30 min.) Water Babies",resident_fee:"$70/$88",nonresident_fee:"$75/$95",contractual:false,notes:"SR",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Per session (8 - 30 min.) Water Tots",resident_fee:"$83/$104",nonresident_fee:"$90/$115",contractual:false,notes:"SR",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Per session (8 - 30 min.) Group Swim Classes",resident_fee:"$99/$124",nonresident_fee:"$100/$125",contractual:false,notes:"SR",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Per session (6 - 60 min.) Swim Team Prep (26-27 based on 6 classes)",resident_fee:"$166/$207",nonresident_fee:"$125/$160",contractual:false,notes:"The number of classes/sessions decreased",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Private Lessons Fee (8 lessons)",resident_fee:"250.0",nonresident_fee:"260.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Small Group Training (swim team)",resident_fee:"45.0",nonresident_fee:"45.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Hurricanes Private Lessons (30 min lessons)",resident_fee:"42.0",nonresident_fee:"45.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Member Priority Private Lessons (8 lessons) (Members)",resident_fee:"210.0",nonresident_fee:"215.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Member Priority Private Lessons (8 lessons) (Non-Member Residents)",resident_fee:"250.0",nonresident_fee:"260.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Member Priority Private Lessons (8 lessons) (Non-Member Non-Res)",resident_fee:"313.0",nonresident_fee:"325.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Lifeguard (New)",resident_fee:"85.0",nonresident_fee:"100.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"12 months and under",resident_fee:"Free",nonresident_fee:"Free",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Children and Adults",resident_fee:"5.0",nonresident_fee:"5.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Seniors",resident_fee:"3.0",nonresident_fee:"3.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Twilight Time",resident_fee:"3.0",nonresident_fee:"3.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"With Current Pool Pass",resident_fee:"4.0",nonresident_fee:"4.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Splasher Pass",resident_fee:"80.0",nonresident_fee:"80.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Party Deck Rental",resident_fee:"$175 / $215",nonresident_fee:"$177 / $265",contractual:false,notes:"SR",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Ultimate (Private) Rental (Full Facility Rental)",resident_fee:"$440 / $540",nonresident_fee:"$440 / $660",contractual:false,notes:"SR",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Splash Bash (Semi Private - Max 65) Rental",resident_fee:"$245 / $307",nonresident_fee:"$247 / $370",contractual:false,notes:"SR",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Mini Splash Bash (Semi Private - Max 50) Rental",resident_fee:"$215 / $269",nonresident_fee:"$217 / $325",contractual:false,notes:"SR",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Lap Swim",resident_fee:"8.0",nonresident_fee:"8.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Open Swim",resident_fee:"8.0",nonresident_fee:"8.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Senior Rate",resident_fee:"5.0",nonresident_fee:"5.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Twilight Time Public/Senior",resident_fee:"5.0",nonresident_fee:"5.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Pool Punch Pass",resident_fee:"$120/$150",nonresident_fee:"$120/$150",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Individual",resident_fee:"$125/$156",nonresident_fee:"$125/$160",contractual:false,notes:"SR",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Family of 2",resident_fee:"$140/$174",nonresident_fee:"$140/$175",contractual:false,notes:"SR",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Family of 3",resident_fee:"$155/$192",nonresident_fee:"$155/$195",contractual:false,notes:"SR",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Family of 4",resident_fee:"$170/$210",nonresident_fee:"$170/$215",contractual:false,notes:"SR",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Family of 5",resident_fee:"$185/$228",nonresident_fee:"$185/$235",contractual:false,notes:"SR",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Family of 6",resident_fee:"$200/$246",nonresident_fee:"$200/$250",contractual:false,notes:"SR",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"District 102 - Pritchett, Tripp - AM",resident_fee:"13.0",nonresident_fee:"14.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"District 102 - Pritchett, Tripp - PM",resident_fee:"16.0",nonresident_fee:"17.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"District 102 - Meridian - AM",resident_fee:"7.0",nonresident_fee:"7.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"District 102 - Meridian - PM",resident_fee:"23.0",nonresident_fee:"24.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"District 21 - Kilmer, Longfellow - AM",resident_fee:"13.0",nonresident_fee:"14.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"District 21 - Kilmer, Longfellow - PM",resident_fee:"16.0",nonresident_fee:"17.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"District 96  - Ivy, Kld, Pra, Ctry Meadows - AM",resident_fee:"8.0",nonresident_fee:"9.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"District 96  - Ivy, Kld, Pra, Ctry Meadows - PM",resident_fee:"20.0",nonresident_fee:"21.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"District 96  - Willow Grove - AM",resident_fee:"11.0",nonresident_fee:"12.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"District 96  - Willow Grove - PM",resident_fee:"20.0",nonresident_fee:"21.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"One Day Field Trip (Clubhouse Participant)",resident_fee:"60.0",nonresident_fee:"65.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Field Trip Only (Attends field trips but not a Clubhouse participant)",resident_fee:"70.0",nonresident_fee:"75.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Birthday Parties - Basic",resident_fee:"345.0",nonresident_fee:"$300 In/$375 Out",contractual:false,notes:"SR & Created In/Out-of-District Pricing",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Birthday Parites - Specialty",resident_fee:"430.0",nonresident_fee:"$400 In/$500 Out",contractual:false,notes:"SR & Created In/Out-of-District Pricing",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Two Year Old Preschool- 2 days",resident_fee:"19.0",nonresident_fee:"24.66",contractual:false,notes:"Extended class to 2 hours/day & one extra week",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Two Year Old Preschool- 3 days",resident_fee:"19.0",nonresident_fee:"24.75",contractual:false,notes:"Extended class to 2 hours/day & one extra week",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Pre Threes Preschool- 2 days",resident_fee:"24.0",nonresident_fee:"27.0",contractual:false,notes:"Extended class to 2.25 hours/day",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Pre Threes Preschool- 3 days",resident_fee:"24.0",nonresident_fee:"27.0",contractual:false,notes:"Extended class to 2.25 hours/day",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Three Year Old Preschool- 2 days",resident_fee:"35.0",nonresident_fee:"N/A",contractual:false,notes:"Lack of registration",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Three Year Old Preschool- 3 days",resident_fee:"35.0",nonresident_fee:"35.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Three Year Old Preschool- 5 days",resident_fee:"35.0",nonresident_fee:"35.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Four Year Old Preschool- 2 days",resident_fee:"35.0",nonresident_fee:"N/A",contractual:false,notes:"Lack of registration",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Four Year Old Preschool- 3 days",resident_fee:"35.0",nonresident_fee:"35.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Four Year Old Preschool- 5 days",resident_fee:"35.0",nonresident_fee:"35.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Alphabet Zoo",resident_fee:"13.0",nonresident_fee:"14.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Hands on Art",resident_fee:"29.0",nonresident_fee:"N/A",contractual:true,notes:"Program cancelled",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Game On",resident_fee:"19.5",nonresident_fee:"21.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Passport to Adventure",resident_fee:"20.0",nonresident_fee:"21.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Kid Rock",resident_fee:"13.0",nonresident_fee:"13.0",contractual:true,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Friendship Cafe'",resident_fee:"13.0",nonresident_fee:"14.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Math Detectives",resident_fee:"13.0",nonresident_fee:"14.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Sprinkle and Sparkle Crafts",resident_fee:"13.0",nonresident_fee:"14.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Add-On",resident_fee:"$44IN/$44OUT",nonresident_fee:"$47IN/$47OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Adult",resident_fee:"$73IN/$83OUT",nonresident_fee:"$76IN/$86OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Corporate",resident_fee:"$65IN/$65OUT",nonresident_fee:"$68IN/$68OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Corporate B",resident_fee:"$60IN/$60OUT",nonresident_fee:"$63IN/$63OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Corporate Special (EMERG PERS)",resident_fee:"$44IN/$44OUT",nonresident_fee:"$47IN/$47OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Senior",resident_fee:"$55IN/$65OUT",nonresident_fee:"$58IN/$68OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Military/Veteran",resident_fee:"$44IN/$44OUT",nonresident_fee:"$47IN/$47OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Annual Adult",resident_fee:"$876IN/$996OUT",nonresident_fee:"$912IN/$1032OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Annual Add-On",resident_fee:"$528 IN/OUT",nonresident_fee:"$564 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Annual Senior",resident_fee:"$660IN/$780OUT",nonresident_fee:"$696IN/$816OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Annual Corporate",resident_fee:"$780 IN/OUT",nonresident_fee:"$816 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Annual Corporate B",resident_fee:"$720 IN/OUT",nonresident_fee:"$756 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Annual Military/Veteran",resident_fee:"$528 IN/OUT",nonresident_fee:"$564 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Reinrollment Fee",resident_fee:"$100 IN/OUT",nonresident_fee:"$100 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"10 Day Student Pass",resident_fee:"$20 IN/OUT",nonresident_fee:"$30 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"30 Day Student Pass",resident_fee:"$40 IN/OUT",nonresident_fee:"$50 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"100 Day Student Pass",resident_fee:"$100 IN/OUT",nonresident_fee:"$150 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"10 Day Family of Member Pass",resident_fee:"$29 IN/OUT",nonresident_fee:"$32 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"1 Month Family of Member Pass",resident_fee:"$59 IN/OUT",nonresident_fee:"$62 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"1 Month Adult",resident_fee:"$95 IN/OUT",nonresident_fee:"$98 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"1 Month Senior",resident_fee:"$75 IN/OUT",nonresident_fee:"$78 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"1 Week Adult Guest",resident_fee:"$50 IN/OUT",nonresident_fee:"$53 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"2 Week Adult Guest",resident_fee:"$75 IN/OUT",nonresident_fee:"$78 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"3 Week Adult Guest",resident_fee:"$85 IN/OUT",nonresident_fee:"$88 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"1 Day Guest",resident_fee:"$15 IN/OUT",nonresident_fee:"$18 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"1 Day Corp",resident_fee:"$7 IN/OUT",nonresident_fee:"$10 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Flex Pass 12 Visits",resident_fee:"$150 IN/OUT",nonresident_fee:"$180 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Starter Pack 5-Half Hour Sessions",resident_fee:"$135M/$185NM",nonresident_fee:"$175M/$225NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Single Session Half Hour Rate",resident_fee:"$37M/$47NM",nonresident_fee:"$40M/$50NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"5 Pack",resident_fee:"$176 M/$223NM",nonresident_fee:"$190M/$228NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"10 Pack",resident_fee:"$333 M/$423NM",nonresident_fee:"$360 M/$450NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"15 Pack",resident_fee:"$472 M/$599NM",nonresident_fee:"$510M/$638NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"20 Pack",resident_fee:"$592M/$752NM",nonresident_fee:"$640M/$800NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Buddy Half Hour Rate",resident_fee:"$27M/$37NM",nonresident_fee:"$30M/$40NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"5 Pack",resident_fee:"$128M/ $176NM",nonresident_fee:"$143M/ $190NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"10 Pack",resident_fee:"$243M/$333NM",nonresident_fee:"$270M/$360NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"15 Pack",resident_fee:"$344M/$472NM",nonresident_fee:"$383M/$510NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"20 Pack",resident_fee:"$432M/$592NM",nonresident_fee:"$480M/$640NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Single Session Hour Rate",resident_fee:"$65 M/$75 NM",nonresident_fee:"$68 M/$78 NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"5 Pack",resident_fee:"$309 M/$356 NM",nonresident_fee:"$323 M/$371 NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"10 Pack",resident_fee:"$585 M/$675 NM",nonresident_fee:"$612 M/$702 NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"15 Pack",resident_fee:"$829 M/ $956NM",nonresident_fee:"$867 M/ $995NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"20 Pack",resident_fee:"$1040M/ $1200NM",nonresident_fee:"$1088M/ $1248NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Buddy Hour Rate",resident_fee:"$45M/$55NM",nonresident_fee:"$48M/$58NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"5 Pack",resident_fee:"$214M/$261NM",nonresident_fee:"$228M/$276NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"10 Pack",resident_fee:"$405M/$495NM",nonresident_fee:"$43M/$522NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"15 Pack",resident_fee:"$574M/$701NM",nonresident_fee:"$612M/$740NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"20 Pack",resident_fee:"$720M/$880NM",nonresident_fee:"$768M/$928NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Stretch Single Session",resident_fee:"$20M/$25NM",nonresident_fee:"$20M/$25NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"5 Pack Stretch",resident_fee:"$95M/$119NM",nonresident_fee:"$95M/$119NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Fencing 3 Day Monthly Membership USSA",resident_fee:"N/A",nonresident_fee:"$270 IN/$290 OUT",contractual:true,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Fencing 3 Day Add-on Monthly Membership USSA",resident_fee:"N/A",nonresident_fee:"$230 IN/$247 OUT",contractual:true,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Fencing 2 Day Monthly Membership USSA",resident_fee:"N/A",nonresident_fee:"$250 IN/$270 OUT",contractual:true,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Fencing 2 Day Add-on Monthly Membership USSA",resident_fee:"N/A",nonresident_fee:"$213 IN/$230 OUT",contractual:true,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Fencing 1 Day Monthly Membership USSA",resident_fee:"N/A",nonresident_fee:"$160 IN/$180 OUT",contractual:true,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Fencing 1 Day Add-on Monthly USSA",resident_fee:"N/A",nonresident_fee:"$136 IN/$153 OUT",contractual:true,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Fencing Starter Pack 5/2 USSA",resident_fee:"N/A",nonresident_fee:"$250 IN/OUT",contractual:true,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Fencing 1/2 hour - 1",resident_fee:"$56 IN/OUT",nonresident_fee:"$56 IN/OUT",contractual:true,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Fencing 1/2 hour - 5 pack",resident_fee:"$260 IN/OUT",nonresident_fee:"$260 IN/OUT",contractual:true,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Fencing 1/2 hour - 10 pack",resident_fee:"$510 IN/OUT",nonresident_fee:"$510 IN/OUT",contractual:true,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Fencing 1/2 hour - 15 pack",resident_fee:"$750 IN/OUT",nonresident_fee:"$750 IN/OUT",contractual:true,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Open Fencing USSA",resident_fee:"50.0",nonresident_fee:"$25 IN/$35 OUT",contractual:true,notes:"The price was incorrectly inputted last year.",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Drop-in Fencing USSA",resident_fee:"65.0",nonresident_fee:"50.0",contractual:true,notes:"The price was incorrectly inputted last year.",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Fencing Monthly Adult IFC",resident_fee:"N/A",nonresident_fee:"$30 IN/OUT",contractual:true,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Fencing Group Class IFC",resident_fee:"$28 IN/ $33 OUT",nonresident_fee:"$28 IN/$32 OUT",contractual:true,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Drop-in Fencing Adult  IFC",resident_fee:"15.0",nonresident_fee:"15.0",contractual:true,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Group Reformer Class",resident_fee:"$26M/$32NM",nonresident_fee:"$30M/$35",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Starter Pack  4- One Hour Sessions",resident_fee:"$200M/$250NM",nonresident_fee:"$230M/$270NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Single Sessions",resident_fee:"$67M/$77NM",nonresident_fee:"$70M/$80NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Hour 5 Pack",resident_fee:"$318M/$366NM",nonresident_fee:"$333M/$380NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Hour 10 Pack",resident_fee:"$603M/$693NM",nonresident_fee:"$630M/$720NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Hour 15 pack",resident_fee:"$855M/$982NM",nonresident_fee:"$893M/$1020NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Hour 20 Pack",resident_fee:"$1072M/$1232NM",nonresident_fee:"$1120M/$1280NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Duet Hour Single Session",resident_fee:"$47M/$57NM",nonresident_fee:"$50M/$60NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Duet 5 Pack",resident_fee:"$225M/$271NM",nonresident_fee:"$238M/$285NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Duet 10 Pack",resident_fee:"$423M/$513NM",nonresident_fee:"$450M/$540NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Duet 15 Pack",resident_fee:"$600M/$727NM",nonresident_fee:"$638M/$765NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Duet 20 Pack",resident_fee:"$752M/$912NM",nonresident_fee:"$800M/$960NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Aqua Arthritis",resident_fee:"$10M/$13NM",nonresident_fee:"$12M/$15NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Choose To Lose,Spring Fit, Beach Body",resident_fee:"$18 M/$20 NM",nonresident_fee:"$20M/$25NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Stress Management",resident_fee:"$18 M/$20 NM",nonresident_fee:"$20M/$25NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Team Fit & Strong",resident_fee:"$18 M/$20 NM",nonresident_fee:"$20M/$25NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Group Weight Lifting",resident_fee:"$18 M/$20 NM",nonresident_fee:"$20M/$25NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"TRX Core Training",resident_fee:"$10M/$13NM",nonresident_fee:"$12M/$15NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Youth Boxing",resident_fee:"$18 M/$20 NM",nonresident_fee:"$20M/$25NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Strong Girls",resident_fee:"$18 M/$20 NM",nonresident_fee:"$20M/$25NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Youth Fitness",resident_fee:"$18 M/$20 NM",nonresident_fee:"$20M/$25NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Teen Boxing",resident_fee:"$18 M/$20 NM",nonresident_fee:"$20M/$25NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Swim for Fitness",resident_fee:"$18 M/$20 NM",nonresident_fee:"$20M/$25NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Evolution Basketball Training Camp",resident_fee:"$500 IN/$600 OUT",nonresident_fee:"$160 IN/$180 OUT",contractual:true,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Single Session 45 minutes",resident_fee:"$95M/$110NM",nonresident_fee:"$95M/$110NM",contractual:true,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Starter Pack 6 -  45 minute sessions",resident_fee:"$510M/$510NM",nonresident_fee:"$510M/$510NM",contractual:true,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"8 Pack 45 minutes",resident_fee:"$720M/$800NM",nonresident_fee:"$720M/$800NM",contractual:true,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"10 Pack 45 minutes",resident_fee:"$900M/$1000NM",nonresident_fee:"$900M/$1000NM",contractual:true,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"12 Pack 45 minutes",resident_fee:"$1080M/$1200NM",nonresident_fee:"$1080M/$1200NM",contractual:true,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Forever Fit",resident_fee:"7.0",nonresident_fee:"8.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Hatha Yoga",resident_fee:"12.0",nonresident_fee:"16.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Zumba",resident_fee:"$70-$175",nonresident_fee:"$120/$150",contractual:true,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Junior Golf Level 1",resident_fee:"$140In/$175Out",nonresident_fee:"$160In/$200Out",contractual:false,notes:"SR",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Junior Golf Level 2",resident_fee:"$140In/$175Out",nonresident_fee:"$160In/$200Out",contractual:false,notes:"SR",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Adult Level 1",resident_fee:"$140In/$175Out",nonresident_fee:"$160In/$200Out",contractual:false,notes:"SR",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Adult Level 2",resident_fee:"$140In/$175Out",nonresident_fee:"$160In/$200Out",contractual:false,notes:"SR",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"5 Hour Pass",resident_fee:"$95in Nov/$105ROS",nonresident_fee:"$100in Nov/$110 ROS",contractual:false,notes:"SR",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Season Pass",resident_fee:"700.0",nonresident_fee:"725.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"30 Min Tee Admission (weekday before 6pm)",resident_fee:"13.0",nonresident_fee:"14.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"30 Min Tee Admission (weekends)",resident_fee:"14.0",nonresident_fee:"15.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"30 Min Tee Admission (Senior rate)",resident_fee:"11.0",nonresident_fee:"12.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"30 Min Tee Admission (Student rate)",resident_fee:"12.0",nonresident_fee:"13.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Golf Pro Lessons",resident_fee:"$13Wkdy/$14Wknd",nonresident_fee:"$14Wkdy/$15Wknd",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Alcott Small Room (Monday - Thursday)",resident_fee:"$40 in/$60 out",nonresident_fee:"$40 in/$60 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Alcott Large Room (Monday - Thursday)",resident_fee:"$60 in/$90 out",nonresident_fee:"$85 in/$130 out",contractual:false,notes:"Adjusted to match CAC rates",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Alcott Small Room (Friday - Sunday)",resident_fee:"$50 in/$75 out",nonresident_fee:"$50 in/$75 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Alcott Large Room (Friday - Sunday)",resident_fee:"$80 in/$120 out",nonresident_fee:"$110 in/$165 out",contractual:false,notes:"Adjusted to match CAC rates",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"CAC Rooms 6, 7 (Monday - Thursday)",resident_fee:"$40 in/ $60 out",nonresident_fee:"$40 in/ $60 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"CAC Rooms 19, 21 (Monday - Thursday)",resident_fee:"$75 in/ $115 out",nonresident_fee:"$85 in/ $130 out",contractual:false,notes:"Adjusted to align with rooms of the same size",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"CAC Room 20 (Monday - Thursday)",resident_fee:"$85 in/ $130 out",nonresident_fee:"$95 in/ $140 out",contractual:false,notes:"Increased because of size",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"CAC Full MPR (20 & 21) (Monday - Thursday)",resident_fee:"$100 in/ $150 out",nonresident_fee:"$125 in/ $180 out",contractual:false,notes:"Increased because of size",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"CAC Theater (Monday - Thursday)",resident_fee:"$125 in/ $190 out",nonresident_fee:"$125 in/ $190 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"CAC Rooms 6, 7 (Friday - Sunday)",resident_fee:"$50 in/ $75 out",nonresident_fee:"$50 in/ $75 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"CAC Rooms 19, 21 (Friday - Sunday)",resident_fee:"$95 in/ $145 out",nonresident_fee:"$110 in/ $165 out",contractual:false,notes:"Increased because of size",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"CAC Room 20 (Friday - Sunday)",resident_fee:"$110 in/ $165 out",nonresident_fee:"$120 in/ $175 out",contractual:false,notes:"Increased by $10 since it's a larger space than 19 or 20",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"CAC Full MPR (20 & 21) (Friday - Sunday)",resident_fee:"$125 in/ $190 out",nonresident_fee:"$150 in/ $215 out",contractual:false,notes:"Increased because of size",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"CAC Theater (Friday - Sunday)",resident_fee:"$155 in/ $235 out",nonresident_fee:"$155 in/ $235 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Scout Badge Day",resident_fee:"10.0",nonresident_fee:"$5/$10",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Camp in a bag - I",resident_fee:"25.0",nonresident_fee:"N/A",contractual:false,notes:"Program cancelled",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"School Educational Programs",resident_fee:"$25/$30",nonresident_fee:"$50$65",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Thanksgiving Class",resident_fee:"10.0",nonresident_fee:"12.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Love, Murder, Science",resident_fee:"5.0",nonresident_fee:"5.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Mom and Me Tea",resident_fee:"30.0",nonresident_fee:"30.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Puzzle Palooza",resident_fee:"40.0",nonresident_fee:"40.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Wedding Dress Workshop",resident_fee:"65.0",nonresident_fee:"65.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Scout Programs",resident_fee:"$5/$10",nonresident_fee:"$5/$10",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Nature Classroom Birthday Party",resident_fee:"300.0",nonresident_fee:"300.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Fields",resident_fee:"$40/hr",nonresident_fee:"$50/$75/hr",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Parking Lots",resident_fee:"$100/day",nonresident_fee:"$100/day",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Shelters Monday - Friday (Public and Nonprofits)",resident_fee:"$40/ $60",nonresident_fee:"$40/ $60",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Shelters Saturday - Sunday (Public and Nonprofits)",resident_fee:"$60/ $90",nonresident_fee:"$60/ $90",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Shelters Monday - Friday (Corporations)",resident_fee:"$70/$105",nonresident_fee:"N/A",contractual:false,notes:"Not offereing",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Shelters Saturday - Sunday (Corportations)",resident_fee:"$90/$135",nonresident_fee:"N/A",contractual:false,notes:"Not offereing",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Special Events",resident_fee:"$100 - $2500",nonresident_fee:"$100 - $2500",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Amphitheater Pavilion Monday-Friday",resident_fee:"$100/$150",nonresident_fee:"$150/$225",contractual:false,notes:"Increased because of size",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Amphitheater Pavilion Saturday-Sunday",resident_fee:"$150/ $225",nonresident_fee:"$200/$300",contractual:false,notes:"Increased because of size",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Sport Courts",resident_fee:"$10/$13",nonresident_fee:"$10/$15/hour",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Commercial Rentals Monday-Thursday. 1 day package",resident_fee:"$1,150 in/ $1,725 out",nonresident_fee:"$1,150 in/ $1,725 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Commercial Rentals Monday-Thursday. 2 day package",resident_fee:"$2,100 in/ $3,150 out",nonresident_fee:"$2,100 in/ $3,150 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Commercial Rentals Monday-Thursday. 3 day package",resident_fee:"$3,000 in/ $4,500 out",nonresident_fee:"$3,000 in/ $4,500 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Commercial Rentals Friday-Sunday. 1 day package",resident_fee:"$1,300 in/ $2,100 out",nonresident_fee:"$1,300 in/ $2,100 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Commercial Rentals Friday-Sunday. 2 day package",resident_fee:"$2,350 in/$3,525 out",nonresident_fee:"$2,350 in/$3,525 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Commercial Rentals Friday-Sunday. 3 day package",resident_fee:"$3,250 in/ $4,875 out",nonresident_fee:"$3,250 in/ $4,875 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Private Rentals Monday-Thursday",resident_fee:"$300 in/ $450 out",nonresident_fee:"$300 in/ $450 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Private Rentals Friday-Sunday",resident_fee:"$500 in/$750 out",nonresident_fee:"$500 in/$750 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Fall Young Children's Theater",resident_fee:"350.0",nonresident_fee:"$400/$500",contractual:false,notes:"SR",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Fall Children's Theater",resident_fee:"400.0",nonresident_fee:"$400/$500",contractual:false,notes:"SR & Added out-of-district rates",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Winter Teen Theater",resident_fee:"400.0",nonresident_fee:"$400/$500",contractual:false,notes:"SR & Added out-of-district rates",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Spring Kids Theater",resident_fee:"400.0",nonresident_fee:"$400/$500",contractual:false,notes:"SR & Added out-of-district rates",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Summer Musical",resident_fee:"25.0",nonresident_fee:"N/A",contractual:false,notes:"Eliminating registration fee",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Workshop Series",resident_fee:"25.0",nonresident_fee:"25.0",contractual:false,notes:"SR",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Acting Studio",resident_fee:"$12.40-$13",nonresident_fee:"$12.50-$14 per class",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Advanced Theatre Co.",resident_fee:"$15-$18 per class",nonresident_fee:"$15-$18 per class",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Piano Instruction",resident_fee:"380.0",nonresident_fee:"$380/$475",contractual:false,notes:"SR & Added out-of-district rates",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Special Recreation Theater: Broadway Buddies",resident_fee:"$20 per class",nonresident_fee:"$20 per class",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"BG Singers",resident_fee:"230.0",nonresident_fee:"230.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Dance Company Minis",resident_fee:"$14 per class",nonresident_fee:"$14 per class",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Dance Company Duets/Trios",resident_fee:"$16 per class",nonresident_fee:"$18 per class",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Dance Company Choreography Classes",resident_fee:"$11 per class",nonresident_fee:"$12 per class",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Dance Company Solos",resident_fee:"$28 per class",nonresident_fee:"$30 per class",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Dance - 30 minute classes",resident_fee:"$11 per class",nonresident_fee:"$11 per class",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Dance - 45 minute classes",resident_fee:"$12 per class",nonresident_fee:"$13 per class",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Dance - 60 minute classes",resident_fee:"$13 per class",nonresident_fee:"$15 per class",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Winter Dance Production",resident_fee:"325.0",nonresident_fee:"$350/$440",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Baby Brushstrokes",resident_fee:"$15/$19",nonresident_fee:"$15-$20",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Art Together: Family & Friends Art Night",resident_fee:"$15/$19",nonresident_fee:"$15-$20",contractual:false,notes:"",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Mixed Media",resident_fee:"$165/$205",nonresident_fee:"$15 per class",contractual:false,notes:"Adjusting display to per class fee",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Art Club",resident_fee:"$180/$225",nonresident_fee:"$15 per class",contractual:false,notes:"Adjusting display to per class fee",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Beginning Sewing",resident_fee:"$180/$225",nonresident_fee:"$25 per class",contractual:true,notes:"Adjusting display to per class fee",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Fashion Design & Intermediate Sewing",resident_fee:"$180/$225",nonresident_fee:"$25 per class",contractual:true,notes:"Adjusting display to per class fee",is_archived:false},
+  {fy:"2026-2027",area:"Other",program_name:"Bingo Luncheon",resident_fee:"7.0",nonresident_fee:"7.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Dog Park Passes - Annual",resident_fee:"$25/$31",nonresident_fee:"$25/$31",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Dog Park Passes - Late Season",resident_fee:"$15/$19",nonresident_fee:"$15/$19",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Dog Park Passes - Daily",resident_fee:"8.0",nonresident_fee:"8.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Drawing & Painting",resident_fee:"$85/$105",nonresident_fee:"$91/$114",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Mah Jongg Tournament",resident_fee:"20.0",nonresident_fee:"25.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Puppy/Dog Socializing & Obedience",resident_fee:"$100/$125",nonresident_fee:"",contractual:true,notes:"No longer running",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Adult Basketball - Open Gym",resident_fee:"5.0",nonresident_fee:"$6 Per Class",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Adult Fall Softball",resident_fee:"700.0",nonresident_fee:"750.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Pickleball Clinics",resident_fee:"20.0",nonresident_fee:"$75 Per Class",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Adult Pickleball",resident_fee:"5.0",nonresident_fee:"$6 Per Class",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Adult Summer Softball Competitive",resident_fee:"700.0",nonresident_fee:"750.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Adult Summer Softball Recreational",resident_fee:"650.0",nonresident_fee:"750.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Adult Volleyball",resident_fee:"6.0",nonresident_fee:"$6 Per Class",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Fall Adult Karate",resident_fee:"$13 - $16.50 per class",nonresident_fee:"$15 - $19",contractual:true,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Spring Adult Karate",resident_fee:"$13 - $16.50 per class",nonresident_fee:"$15 - $19",contractual:true,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Summer Adult Karate",resident_fee:"$13 - $16.50 per class",nonresident_fee:"$15 - $19",contractual:true,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Winter Adult Karate",resident_fee:"$13 - $16.50 per class",nonresident_fee:"$15 - $19",contractual:true,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"All Ages - Fall/Winter",resident_fee:"360.0",nonresident_fee:"380.0",contractual:false,notes:"Increased fees for high school use",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"All Ages - Summer",resident_fee:"185.0",nonresident_fee:"205.0",contractual:false,notes:"Increased fees for high school use",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"8 & Under - Fall/Winter",resident_fee:"440.0",nonresident_fee:"490.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"9-10, 11-12, 13-14, 15 and older - Fall/Winter",resident_fee:"525.0",nonresident_fee:"565.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"8 & Under - Summer",resident_fee:"340.0",nonresident_fee:"380.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"9-10, 11-12, 13-14, 15 and older - Summer",resident_fee:"425.0",nonresident_fee:"465.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Swim Team Tryouts",resident_fee:"10.0",nonresident_fee:"10.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Per session (8 - 30 min.) Tadpoles Swim Classes",resident_fee:"$102/$127",nonresident_fee:"$111/$139",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Per session (8 - 30 min.) Water Babies",resident_fee:"$61/$75",nonresident_fee:"$70/$88",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Per session (8 - 30 min.) Water Tots",resident_fee:"$74/$92",nonresident_fee:"$83/$104",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Per session (8 - 30 min.) Group Swim Classes",resident_fee:"$90/$112",nonresident_fee:"$99/$124",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Per session (10 - 60 min.) Swim Team Prep",resident_fee:"$152/$189",nonresident_fee:"$166/$207",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Private Lessons Fee (8 lessons)",resident_fee:"208.0",nonresident_fee:"250.0",contractual:false,notes:"Increased 20% to get to the 30% profit margin for programs  CB 2/11/25",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Hurricanes Private Lessons (30 min lessons)",resident_fee:"$35/lesson",nonresident_fee:"42.0",contractual:false,notes:"Increased 20% to get to the 30% profit margin for programs  CB 2/11/25",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Member Priority Private Lessons (8 lessons) (Members)",resident_fee:"175.0",nonresident_fee:"210.0",contractual:false,notes:"Increased 20% to get to the 30% profit margin for programs  CB 2/11/25",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Member Priority Private Lessons (8 lessons) (Non-Member Residents)",resident_fee:"208.0",nonresident_fee:"250.0",contractual:false,notes:"Increased 20% to get to the 30% profit margin for programs  CB 2/11/25",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Member Priority Private Lessons (8 lessons) (Non-Member Non-Res)",resident_fee:"260.0",nonresident_fee:"313.0",contractual:false,notes:"Increased 20% to get to the 30% profit margin for programs  CB 2/11/25",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Lifeguard (New)",resident_fee:"75.0",nonresident_fee:"85.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Lifeguard (Recertification)",resident_fee:"75.0",nonresident_fee:"NA",contractual:false,notes:"Not a public program, remove",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Lifeguard (Trainer)",resident_fee:"200.0",nonresident_fee:"NA",contractual:false,notes:"Not a public program, remove",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"12 months and under",resident_fee:"NA",nonresident_fee:"Free",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Children and Adults",resident_fee:"NA",nonresident_fee:"5.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Seniors",resident_fee:"NA",nonresident_fee:"3.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Twilight Time",resident_fee:"NA",nonresident_fee:"3.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"With Current Pool Pass",resident_fee:"NA",nonresident_fee:"4.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Splasher Pass",resident_fee:"NA",nonresident_fee:"80.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Party Deck Rental",resident_fee:"NA",nonresident_fee:"$175 / $215",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Ultimate (Private) Rental (Full Facility Rental)",resident_fee:"NA",nonresident_fee:"$440 / $540",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Mini Splash Bash (Semi Private - Max 50) Rental",resident_fee:"NA",nonresident_fee:"$245 / $307",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Splash Bash (Semi Private - Max 65) Rental",resident_fee:"NA",nonresident_fee:"$215 / $269",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Lap Swim",resident_fee:"7.0",nonresident_fee:"8.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Open Swim",resident_fee:"7.0",nonresident_fee:"8.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Senior Rate",resident_fee:"5.0",nonresident_fee:"5.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Twilight Time Public/Senior",resident_fee:"$5/$4",nonresident_fee:"5.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Pool Punch Pass",resident_fee:"$100/$125",nonresident_fee:"$120/$150",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Individual",resident_fee:"$125/$156",nonresident_fee:"$125/$156",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Family of 2",resident_fee:"$140/$174",nonresident_fee:"$140/$174",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Family of 3",resident_fee:"$155/$192",nonresident_fee:"$155/$192",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Family of 4",resident_fee:"$170/$210",nonresident_fee:"$170/$210",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Family of 5",resident_fee:"$185/$228",nonresident_fee:"$185/$228",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Family of 6",resident_fee:"$200/$246",nonresident_fee:"$200/$246",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"District 102 - Pritchett, Tripp - AM",resident_fee:"12.0",nonresident_fee:"14.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"District 102 - Pritchett, Tripp - PM",resident_fee:"15.0",nonresident_fee:"18.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"District 102 - Meridian - AM",resident_fee:"6.0",nonresident_fee:"7.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"District 102 - Meridian - PM",resident_fee:"21.0",nonresident_fee:"24.5",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"District 21 - Kilmer, Longfellow - AM",resident_fee:"12.0",nonresident_fee:"14.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"District 21 - Kilmer, Longfellow - PM",resident_fee:"15.0",nonresident_fee:"17.5",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"District 96  - Ivy, Kld, Pra, Ctry Meadows - AM",resident_fee:"8.0",nonresident_fee:"8.75",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"District 96  - Ivy, Kld, Pra, Ctry Meadows - PM",resident_fee:"18.0",nonresident_fee:"21.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"District 96  - Willow Grove - AM",resident_fee:"11.0",nonresident_fee:"13.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"District 96  - Willow Grove - PM",resident_fee:"18.0",nonresident_fee:"21.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"One Day Field Trip (Clubhouse Participant)",resident_fee:"50.0",nonresident_fee:"60.0",contractual:false,notes:"raised to help cover cost of supplies/field trips",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Field Trip Only (Attends field trips but not a Clubhouse participant)",resident_fee:"60.0",nonresident_fee:"70.0",contractual:false,notes:"raised to help cover cost of supplies/field trips",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Birthday Parties",resident_fee:"$275/$375",nonresident_fee:"$345 in/ $430 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Two Year Old Preschool- 2 days",resident_fee:"17.0",nonresident_fee:"19.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Two Year Old Preschool- 3 days",resident_fee:"17.0",nonresident_fee:"19.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Pre Threes Preschool- 2 days",resident_fee:"22.0",nonresident_fee:"24.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Pre Threes Preschool- 3 days",resident_fee:"22.0",nonresident_fee:"24.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Three Year Old Preschool- 2 days",resident_fee:"34.61",nonresident_fee:"35.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Three Year Old Preschool- 3 days",resident_fee:"33.0",nonresident_fee:"35.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Three Year Old Preschool- 5 days",resident_fee:"33.0",nonresident_fee:"35.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Four Year Old Preschool- 2 days",resident_fee:"34.61",nonresident_fee:"35.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Four Year Old Preschool- 3 days",resident_fee:"33.0",nonresident_fee:"35.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Four Year Old Preschool- 5 days",resident_fee:"33.0",nonresident_fee:"35.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Alphabet Mystery Party",resident_fee:"11.0",nonresident_fee:"13.0",contractual:false,notes:"Increased staffing cost",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Hands on Art",resident_fee:"14.0",nonresident_fee:"29.0",contractual:true,notes:"Only running Friday Fun Class. Increased cost",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Nature Safari",resident_fee:"11.0",nonresident_fee:"19.5",contractual:false,notes:"Increase in base cost $11-S13.Cost from previous year didn't reflect length of class. Should be 1.5 hour class.",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Stories Come Alive",resident_fee:"11.0",nonresident_fee:"20.0",contractual:false,notes:"Increase in base cost $11-S13.Cost from previous year didn't reflect length of class. Should be 1.5 hour class.",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Kid Rock",resident_fee:"12.25",nonresident_fee:"13.0",contractual:true,notes:"Contractual increase",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Friendship Cafe'",resident_fee:"11.0",nonresident_fee:"13.0",contractual:false,notes:"Increased staffing cost",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Number Ninjas",resident_fee:"11.0",nonresident_fee:"13.0",contractual:false,notes:"Increased staffing cost",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Ooey Gooey Science and Exploration",resident_fee:"11.0",nonresident_fee:"13.0",contractual:false,notes:"Increased staffing cost",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Add-On",resident_fee:"$44IN/$44OUT",nonresident_fee:"$44IN/$44OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Adult",resident_fee:"$73IN/$83OUT",nonresident_fee:"$73IN/$83OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Corporate",resident_fee:"$65IN/$65OUT",nonresident_fee:"$65IN/$65OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Corporate B",resident_fee:"$60IN/$60OUT",nonresident_fee:"$60IN/$60OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Corporate Special (EMERG PERS)",resident_fee:"$44IN/$44OUT",nonresident_fee:"$44IN/$44OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Senior",resident_fee:"$55IN/$65OUT",nonresident_fee:"$55IN/$65OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Military/Veteran",resident_fee:"$44IN/$44OUT",nonresident_fee:"$44IN/$44OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Annual Adult",resident_fee:"$876IN/$996OUT",nonresident_fee:"$876IN/$996OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Annual Add-On",resident_fee:"$528 IN/OUT",nonresident_fee:"$528 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Annual Senior",resident_fee:"$660IN/$780OUT",nonresident_fee:"$660IN/$780OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Annual Corporate",resident_fee:"$780 IN/OUT",nonresident_fee:"$780 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Annual Corporate B",resident_fee:"$720 IN/OUT",nonresident_fee:"$720 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Annual Military/Veteran",resident_fee:"$528 IN/OUT",nonresident_fee:"$528 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Reinrollment Fee",resident_fee:"$100 IN/OUT",nonresident_fee:"$100 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"10 Day Student Pass",resident_fee:"$20 IN/OUT",nonresident_fee:"$20 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"30 Day Student Pass",resident_fee:"$40 IN/OUT",nonresident_fee:"$40 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"100 Day Student Pass",resident_fee:"$100 IN/OUT",nonresident_fee:"$100 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"10 Day Family of Member Pass",resident_fee:"$29 IN/OUT",nonresident_fee:"$29 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"1 Month Family of Member Pass",resident_fee:"$59 IN/OUT",nonresident_fee:"$59 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"1 Month Adult",resident_fee:"$95 IN/OUT",nonresident_fee:"$95 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"1 Month Senior",resident_fee:"$75 IN/OUT",nonresident_fee:"$75 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"1 Week Adult Guest",resident_fee:"$50 IN/OUT",nonresident_fee:"$50 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"2 Week Adult Guest",resident_fee:"$75 IN/OUT",nonresident_fee:"$75 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"3 Week Adult Guest",resident_fee:"$85 IN/OUT",nonresident_fee:"$85 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"1 Day Guest",resident_fee:"$15 IN/OUT",nonresident_fee:"$15 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"1 Day Corp",resident_fee:"$7 IN/OUT",nonresident_fee:"$7 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Flex Pass 12 Visits",resident_fee:"$150 IN/OUT",nonresident_fee:"$150 IN/OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Specialty Programs Small Group Training",resident_fee:"$18M/$22NM",nonresident_fee:"$18M/$22NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Aqua Arthritis",resident_fee:"$10M/$13NM",nonresident_fee:"$10M/$13NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Starter Pack 5-Half Hour Sessions",resident_fee:"$135M/$185NM",nonresident_fee:"$135M/$185NM",contractual:false,notes:"One Time Purchase",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Single Session Half Hour Rate",resident_fee:"$37M/$47NM",nonresident_fee:"$37M/$47NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"5 Pack",resident_fee:"$176 M/$223NM",nonresident_fee:"$176 M/$223NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"10 Pack",resident_fee:"$333 M/$423NM",nonresident_fee:"$333 M/$423NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"15 Pack",resident_fee:"$472 M/$599NM",nonresident_fee:"$472 M/$599NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"20 Pack",resident_fee:"$592M/$752NM",nonresident_fee:"$592M/$752NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Buddy Half Hour Rate",resident_fee:"$27M/$37NM",nonresident_fee:"$27M/$37NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"5 Pack",resident_fee:"$128M/ $176NM",nonresident_fee:"$128M/ $176NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"10 Pack",resident_fee:"$243M/$333NM",nonresident_fee:"$243M/$333NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"15 Pack",resident_fee:"$344M/$472NM",nonresident_fee:"$344M/$472NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"20 Pack",resident_fee:"$432M/$592NM",nonresident_fee:"$432M/$592NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Single Session Hour Rate",resident_fee:"$65 M/$75 NM",nonresident_fee:"$65 M/$75 NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"5 Pack",resident_fee:"$309 M/$356 NM",nonresident_fee:"$309 M/$356 NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"10 Pack",resident_fee:"$585 M/$675 NM",nonresident_fee:"$585 M/$675 NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"15 Pack",resident_fee:"$829 M/ $956NM",nonresident_fee:"$829 M/ $956NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"20 Pack",resident_fee:"$1040M/ $1200NM",nonresident_fee:"$1040M/ $1200NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Buddy Hour Rate",resident_fee:"$45M/$55NM",nonresident_fee:"$45M/$55NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"5 Pack",resident_fee:"$214M/$261NM",nonresident_fee:"$214M/$261NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"10 Pack",resident_fee:"$405M/$495NM",nonresident_fee:"$405M/$495NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"15 Pack",resident_fee:"$574M/$701NM",nonresident_fee:"$574M/$701NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"20 Pack",resident_fee:"$720M/$880NM",nonresident_fee:"$720M/$880NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Stretch Single Session",resident_fee:"$20M/$25NM",nonresident_fee:"$20M/$25NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"5 Pack",resident_fee:"$95M/$119NM",nonresident_fee:"$95M/$119NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Youth Programs Small Group Training",resident_fee:"$18IN/$22OUT",nonresident_fee:"$18IN/$22OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Fencing 1/2 hour - 1",resident_fee:"$56 IN/OUT",nonresident_fee:"$56 IN/OUT",contractual:true,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Fencing 1/2 hour - 5 pack",resident_fee:"$260 IN/OUT",nonresident_fee:"$260 IN/OUT",contractual:true,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Fencing 1/2 hour - 10 pack",resident_fee:"$510 IN/OUT",nonresident_fee:"$510 IN/OUT",contractual:true,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Fencing 1/2 hour - 15 pack",resident_fee:"$750 IN/OUT",nonresident_fee:"$750 IN/OUT",contractual:true,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Fencing Group Class",resident_fee:"$28 IN/ $33 OUT",nonresident_fee:"$28 IN/ $33 OUT",contractual:true,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Open Fencing",resident_fee:"50.0",nonresident_fee:"50.0",contractual:true,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Drop-in Fencing",resident_fee:"65.0",nonresident_fee:"65.0",contractual:true,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Fencing High School Students",resident_fee:"15.0",nonresident_fee:"15.0",contractual:true,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Group Reformer Class",resident_fee:"$25M/$31NM",nonresident_fee:"$26M/$32NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Starter Pack  4- One Hour Sessions",resident_fee:"$200M/$250NM",nonresident_fee:"$200M/$250NM",contractual:false,notes:"One time purchase",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Single Sessions",resident_fee:"$67M/$77NM",nonresident_fee:"$67M/$77NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Hour 5 Pack",resident_fee:"$318M/$366NM",nonresident_fee:"$318M/$366NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Hour 10 Pack",resident_fee:"$603M/$693NM",nonresident_fee:"$603M/$693NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Hour 15 pack",resident_fee:"$855M/$982NM",nonresident_fee:"$855M/$982NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Hour 20 Pack",resident_fee:"$1072M/$1232NM",nonresident_fee:"$1072M/$1232NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Duet Hour Single Session",resident_fee:"$47M/$57NM",nonresident_fee:"$47M/$57NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Duet 5 Pack",resident_fee:"$225M/$271NM",nonresident_fee:"$225M/$271NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Duet 10 Pack",resident_fee:"$423M/$513NM",nonresident_fee:"$423M/$513NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Duet 15 Pack",resident_fee:"$600M/$727NM",nonresident_fee:"$600M/$727NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Duet 20 Pack",resident_fee:"$752M/$912NM",nonresident_fee:"$752M/$912NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Choose To Lose,Spring Fit, Beach Body",resident_fee:"$90 M/$110 NM",nonresident_fee:"$90M/$110NM",contractual:false,notes:"No change in fee - Running program at minimum enrollment required to run.",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"TRX Core Training",resident_fee:"$80 M/$104 NM",nonresident_fee:"$80M/$104NM",contractual:false,notes:"No change in fee - Running program at minimum enrollment required to run.",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Youth Boxing",resident_fee:"$171 IN/$207 OUT",nonresident_fee:"$171 IN/$207 OUT",contractual:false,notes:"No change in fee - Running program at minimum enrollment required to run.",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Youth Fitness",resident_fee:"$171 IN/$207 OUT",nonresident_fee:"$171 IN/$207 OUT",contractual:false,notes:"No change in fee - Running program at minimum enrollment required to run.",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Teen Boxing",resident_fee:"$144 IN/$184 OUT",nonresident_fee:"",contractual:false,notes:"Cancelled",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Swim for Fitness",resident_fee:"$108 M/$132 NM",nonresident_fee:"$108 M/$132 NM",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Evolution Basketball Training Camp",resident_fee:"$500 IN/$600 ID",nonresident_fee:"$500 IN/$600 ID",contractual:true,notes:"New program that started in November 24 - February 25",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Forever Fit",resident_fee:"6.0",nonresident_fee:"7.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Hatha Yoga",resident_fee:"11.0",nonresident_fee:"12.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Zumba",resident_fee:"$70-$175",nonresident_fee:"$70-$175",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Junior Golf Level 1",resident_fee:"$135In/$169Out",nonresident_fee:"$140In/$175Out",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Junior Golf Level 2",resident_fee:"$135In/$169Out",nonresident_fee:"$140In/$175Out",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Adult Level 1",resident_fee:"$135In/$169Out",nonresident_fee:"$140In/$175Out",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Adult Level 2",resident_fee:"$135In/$169Out",nonresident_fee:"$140In/$175Out",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"5 Hour Pass",resident_fee:"$95-$104",nonresident_fee:"$95in Nov/$105ROS",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Season Pass",resident_fee:"700.0",nonresident_fee:"700.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"30 Min Tee Admission (weekday before 6pm)",resident_fee:"13.0",nonresident_fee:"13.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"30 Min Tee Admission (weekends)",resident_fee:"14.0",nonresident_fee:"14.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"30 Min Tee Admission (Senior rate)",resident_fee:"11.0",nonresident_fee:"11.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"30 Min Tee Admission (Student rate)",resident_fee:"12.0",nonresident_fee:"12.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Golf Pro Lessons",resident_fee:"$13/$13",nonresident_fee:"$13Wkdy/$14Wknd",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Alcott Small Room (Monday - Thursday)",resident_fee:"$40/hr",nonresident_fee:"$40 in/$60 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Alcott Large Room (Monday - Thursday)",resident_fee:"$60/hr",nonresident_fee:"$60 in/$90 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Alcott Small Room (Friday - Sunday)",resident_fee:"$50/hr",nonresident_fee:"$50 in/$75 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Alcott Large Room (Friday - Sunday)",resident_fee:"$80/hr",nonresident_fee:"$80 in/$120 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"CAC Rooms 6, 7 (Monday - Thursday)",resident_fee:"$40/hr",nonresident_fee:"$40 in/ $60 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"CAC Rooms 19, 21 (Monday - Thursday)",resident_fee:"$75/hr",nonresident_fee:"$75 in/ $115 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"CAC Room 20 (Monday - Thursday)",resident_fee:"$85/hr",nonresident_fee:"$85 in/ $130 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"CAC Full MPR (20 & 21) (Monday - Thursday)",resident_fee:"$100/hr",nonresident_fee:"$100 in/ $150 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"CAC Theater (Monday - Thursday)",resident_fee:"$125/hr",nonresident_fee:"$125 in/ $190 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"CAC Rooms 6, 7 (Friday - Sunday)",resident_fee:"$50/hr",nonresident_fee:"$50 in/ $75 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"CAC Rooms 19, 21 (Friday - Sunday)",resident_fee:"$95/hr",nonresident_fee:"$95 in/ $145 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"CAC Room 20 (Friday - Sunday)",resident_fee:"$110/hr",nonresident_fee:"$110 in/ $165 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"CAC Full MPR (20 & 21) (Friday - Sunday)",resident_fee:"$125/hr",nonresident_fee:"$125 in/ $190 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"CAC Theater (Friday - Sunday)",resident_fee:"$175/hr",nonresident_fee:"$175 in/ $265 out",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Scout Badge Day",resident_fee:"10.0",nonresident_fee:"10.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Camp in a bag - I",resident_fee:"25.0",nonresident_fee:"25.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"School Educational Programs",resident_fee:"25.0",nonresident_fee:"$25/$30",contractual:false,notes:"$25 for onsite, $30 for offsite",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Thanksgiving Class",resident_fee:"10.0",nonresident_fee:"10.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Love, Murder, Science",resident_fee:"5.0",nonresident_fee:"5.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Gardening Classes",resident_fee:"10.0",nonresident_fee:"",contractual:false,notes:"No longer offered",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Mom and Me Tea",resident_fee:"25.0",nonresident_fee:"30.0",contractual:false,notes:"Increse due to supply costs",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Scout Programs",resident_fee:"$5/$10",nonresident_fee:"$5/$10",contractual:false,notes:"$10 fee is for 2 hour long program",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Nature Classroom Birthday Party",resident_fee:"300.0",nonresident_fee:"300.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Fields",resident_fee:"$40/hr",nonresident_fee:"$40/hr",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Parking Lots",resident_fee:"$100/day",nonresident_fee:"$100/day",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Shelters Monday - Friday (Public and Nonprofits)",resident_fee:"$25In/$30 Out",nonresident_fee:"$40/ $60",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Shelters Saturday - Sunday (Public and Nonprofits)",resident_fee:"$40In/$50 Out",nonresident_fee:"$60/ $90",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Shelters Monday - Friday (Corporations)",resident_fee:"$50In/$60 Out",nonresident_fee:"$70/$105",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Other",program_name:"Shelters Saturday - Sunday (Corportations)",resident_fee:"$75In/$90 Out",nonresident_fee:"$90/$135",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Sport Courts",resident_fee:"$10In/$13 OUt",nonresident_fee:"$10/$13",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Acting Studio",resident_fee:"$10/$12.4",nonresident_fee:"$12.40-$13",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Fall Adult Non Musical",resident_fee:"350.0",nonresident_fee:"",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Advanced Theatre Co.",resident_fee:"250.0",nonresident_fee:"$15-$18 per class",contractual:false,notes:"Class is 1.5 in length/ $18 for the class, plus funds to cover tickets",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"BG Singers",resident_fee:"230.0",nonresident_fee:"230.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Fall Children's Theatre",resident_fee:"350.0",nonresident_fee:"400.0",contractual:false,notes:"Raising the price to cover staff costs",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Dance Company Minis",resident_fee:"14.0",nonresident_fee:"$14 per class",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Dance Company Duets/Trios",resident_fee:"16.0",nonresident_fee:"$16 per class",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Dance Company Choreography Classes",resident_fee:"11.0",nonresident_fee:"$11 per class",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Dance Company Solos",resident_fee:"28.0",nonresident_fee:"$28 per class",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Piano Instruction",resident_fee:"380.0",nonresident_fee:"380.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Spring Kids Theatre",resident_fee:"350.0",nonresident_fee:"400.0",contractual:false,notes:"Increasing fees to be competitive with similar programs & cover increasing staff costs",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Winter Teen Theatre",resident_fee:"350.0",nonresident_fee:"400.0",contractual:false,notes:"Increasing fees to be competitive with similar programs & cover increasing staff costs",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Special Recreation Theatre: Broadway Buddies",resident_fee:"250.0",nonresident_fee:"$20 per class",contractual:false,notes:"This is the agreed upon rate with NWSRA for the program that each adgency will charge.",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Workshop Series",resident_fee:"25.0",nonresident_fee:"25.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Dance - 30 minute classes",resident_fee:"11.0",nonresident_fee:"$11 per class",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Dance - 45 minute classes",resident_fee:"12.0",nonresident_fee:"$12 per class",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Dance - 60 minute classes",resident_fee:"13.0",nonresident_fee:"$13 per class",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Winter Dance Production",resident_fee:"325.0",nonresident_fee:"325.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Baby Brushstrokes",resident_fee:"$15/$19",nonresident_fee:"$15/$19",contractual:false,notes:"Price will stay the same as this is a new program",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Art Together: Family & Friends Art Night",resident_fee:"$15/$19",nonresident_fee:"$15/$19",contractual:false,notes:"Price will stay the same as this is a new program",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Pinspiration Kids: Creative Arts Class",resident_fee:"$15/$19",nonresident_fee:"$165/$205",contractual:false,notes:"Price will stay the same as this is a new program",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Art Club",resident_fee:"$15/$19",nonresident_fee:"$180/$225",contractual:false,notes:"Price will stay the same as this is a new program",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Beginning Sewing",resident_fee:"$15/$19",nonresident_fee:"$180/$225",contractual:false,notes:"This class is $15 per class to cover material",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Fashion Design & Intermediate Sewing",resident_fee:"$15/$19",nonresident_fee:"$180/$225",contractual:false,notes:"This class is $15 per class to cover material",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Bingo Luncheon",resident_fee:"7.0",nonresident_fee:"7.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Monthly Parties",resident_fee:"$7IN/$9OUT",nonresident_fee:"$7IN/$9OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Holiday Party",resident_fee:"$12IN/$15OUT",nonresident_fee:"$12IN/$15OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Luncheons",resident_fee:"6.0",nonresident_fee:"7.0",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Senior Membership Fee",resident_fee:"$20IN/$25OUT",nonresident_fee:"$20IN/$25OUT",contractual:false,notes:"",is_archived:false},
+  {fy:"2025-2026",area:"Special Events",program_name:"Adventure Challenge",resident_fee:"14.0",nonresident_fee:"",contractual:false,notes:"No longer offering",is_archived:false},
+];
+
 // ─── FEE HISTORY ─────────────────────────────────────────────────────────────
 function FeeHistorySection({db}){
   const [fees,setFees]=useState([]);
   const [loading,setLoading]=useState(true);
-  const [fy,setFy]=useState(ADMIN_CUR);
+  const [fy,setFy]=useState("2026-2027");
   const [areaF,setAreaF]=useState("all");
   const [search,setSearch]=useState("");
   const [showModal,setShowModal]=useState(false);
   const [editRow,setEditRow]=useState(null);
   const [confirm,setConfirm]=useState(null);
-  const emptyForm={fy:ADMIN_CUR,area:"",program_name:"",resident_fee:"",nonresident_fee:"",contractual:false,notes:"",is_archived:false};
+  const emptyForm={fy:"2026-2027",area:"",program_name:"",resident_fee:"",nonresident_fee:"",contractual:false,notes:"",is_archived:false};
   const [form,setForm]=useState(emptyForm);
 
   async function load(){
     setLoading(true);
+    await seedIfEmpty(db,"admin_fees",SEED_FEES);
     const {data}=await db.from("admin_fees").select("*").order("area").order("program_name");
     setFees(data||[]);
     setLoading(false);
