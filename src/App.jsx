@@ -525,10 +525,10 @@ function StaffSetup({onConfirm}) {
       <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-sm">
         <div className="text-center mb-6">
           <div className="text-2xl font-bold text-slate-800 mb-1">BGPD Recreation</div>
-          <div className="text-sm text-slate-400">Enter your name to get started</div>
+          <div className="text-sm text-slate-400">Enter your first and last name to get started</div>
         </div>
         <div className="space-y-4">
-          <Inp label="Your Name" value={name} onChange={setName} placeholder="e.g. Sarah Johnson" required/>
+          <Inp label="First & Last Name" value={name} onChange={setName} placeholder="e.g. Jane Smith" required/>
           <button onClick={()=>name.trim()&&onConfirm(name.trim())} disabled={!name.trim()}
             className="w-full py-2.5 text-sm font-bold text-white rounded-lg transition disabled:opacity-40"
             style={{backgroundColor:"#1e3a5f"}}>Get Started</button>
@@ -2086,6 +2086,7 @@ function Reference({isManager}) {
           {id:"standards",label:"District Standards"},
           {id:"kpis",label:"KPI Menu"},
           {id:"guide",label:"Dashboard Guide"},
+          {id:"training",label:"📋 Training Guide"},
         ].map(s=>(
           <button key={s.id} onClick={()=>setSec(s.id)}
             className={`px-5 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition ${sec===s.id?"text-slate-800":"border-transparent text-slate-400 hover:text-slate-600"}`}
@@ -2369,6 +2370,549 @@ function Reference({isManager}) {
 
         </div>
       )}
+      {sec==="training"&&(
+        <div className="p-5 space-y-6">
+          {!isManager ? (
+            <>
+              {/* ── STAFF HEADER ── */}
+              <div className="rounded-xl p-6 text-white" style={{background:"linear-gradient(135deg,#1e3a5f 0%,#0f2d4a 100%)"}}>
+                <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{color:"#d4a017"}}>Staff Training Guide</div>
+                <div className="text-2xl font-black mb-2">Using the BGPD Recreation App</div>
+                <div className="text-sm opacity-80 mb-4">This guide walks you through everything in the app — what each number means, how to enter your programs, and how to keep your data current. Read it once and refer back as needed.</div>
+                <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                  {[{n:"1",l:"Log in & set up"},{n:"2",l:"Add your programs"},{n:"3",l:"Update as they run"}].map(s=>(
+                    <div key={s.n} className="rounded-lg p-2" style={{background:"rgba(255,255,255,0.1)"}}>
+                      <div className="text-lg font-black" style={{color:"#d4a017"}}>{s.n}</div>
+                      <div className="opacity-80">{s.l}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── GETTING STARTED ── */}
+              <GuideSection title="Step 1 — Getting Started" accent="#1e3a5f">
+                <p className="text-sm text-slate-600 mb-4">The app runs in your browser — nothing to download or install. Your manager will share a link. Open it on any computer or phone.</p>
+                <div className="rounded-lg border border-slate-200 overflow-hidden mb-4">
+                  <div className="px-4 py-2 bg-slate-800 text-white text-xs font-bold uppercase tracking-widest">First Time Setup</div>
+                  <div className="p-4 space-y-3">
+                    {[
+                      {n:"1",text:"Open the app link in your browser"},
+                      {n:"2",text:'Type your first and last name (e.g. "Jane Smith") and click Enter — always use both names'},
+                      {n:"3",text:"Your name is saved automatically — you won't need to type it again on this device"},
+                      {n:"4",text:"If you see a Manager View toggle, leave it off — that's for supervisors"},
+                    ].map(s=>(
+                      <div key={s.n} className="flex gap-3 items-start">
+                        <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0" style={{background:"#1e3a5f"}}>{s.n}</div>
+                        <div className="text-sm text-slate-600 pt-0.5">{s.text}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-800">
+                  <span className="font-bold">Important — always use your first and last name.</span> "Jane" and "Jane Smith" are treated as two different people. If your name isn't consistent across all your programs, they won't appear together when someone filters by staff name. Use the same spelling every time.
+                </div>
+              </GuideSection>
+
+              {/* ── TABS OVERVIEW ── */}
+              <GuideSection title="What Each Tab Does" accent="#1e3a5f">
+                <div className="space-y-3">
+                  {[
+                    {icon:"📊",label:"Dashboard",color:"#1e3a5f",desc:"Your home screen. Shows all your programs as a list with performance numbers. This is where you'll spend most of your time — checking fill rates, updating status, and spotting anything that needs attention."},
+                    {icon:"📁",label:"Programs",color:"#0f766e",desc:"Where you add new programs and edit existing ones. Think of this as your filing cabinet — every program you run gets an entry here with its enrollment, costs, and revenue."},
+                    {icon:"📅",label:"Multi-Season",color:"#7c3aed",desc:"A side-by-side view of the same program across multiple seasons. Useful when your manager asks how Fall Dance has trended over the past few years."},
+                    {icon:"📚",label:"Reference",color:"#d4a017",desc:"District standards, formulas, and this training guide. If you ever wonder what a number means or how it's calculated, this is where to look."},
+                  ].map(t=>(
+                    <div key={t.label} className="flex gap-3 p-4 rounded-lg border border-slate-100 bg-slate-50">
+                      <div className="text-2xl shrink-0">{t.icon}</div>
+                      <div>
+                        <div className="text-sm font-bold mb-0.5" style={{color:t.color}}>{t.label}</div>
+                        <div className="text-xs text-slate-500">{t.desc}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </GuideSection>
+
+              {/* ── ADDING A PROGRAM ── */}
+              <GuideSection title="Step 2 — How to Add a Program" accent="#0f766e">
+                <p className="text-sm text-slate-600 mb-4">Every program you run — classes, camps, events, leagues — should have its own entry. Click <span className="font-bold text-slate-800">+ Add Program</span> on the Dashboard or Programs tab to get started.</p>
+
+                <div className="space-y-3">
+                  {/* Section 1 - Basic Info */}
+                  <div className="rounded-lg border border-slate-100 overflow-hidden">
+                    <div className="px-4 py-2.5 flex items-center gap-2" style={{background:"#1e3a5f"}}>
+                      <span className="w-6 h-6 rounded-full bg-white flex items-center justify-center text-xs font-black shrink-0" style={{color:"#1e3a5f"}}>1</span>
+                      <span className="text-sm font-bold text-white">Basic Info</span>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      {[
+                        {field:"Program Name",tip:"Be specific. \"Adult Watercolor – Fall 2025\" is better than just \"Watercolor.\" This helps you find it later and makes year-over-year comparisons clear."},
+                        {field:"Area",tip:"Pick the closest match from the dropdown (Aquatics, Camps, Dance, etc.). This groups your programs with similar ones in department reports."},
+                        {field:"Season & Year",tip:"The season when this program runs — Spring, Summer, Fall, or Winter. Use the year it starts. Summer 2026 = June 2026 start."},
+                        {field:"Staff Name",tip:"Your name, typed exactly as you entered it when you logged in. If you manage this program with someone else, enter the primary responsible person."},
+                        {field:"Classification",tip:"Community Driven = offered for public benefit even at a subsidy (e.g. teen drop-ins, adaptive programs). Revenue Driven = expected to cover costs (e.g. fitness classes, swimming lessons). Not sure? Ask your manager."},
+                      ].map(r=>(
+                        <div key={r.field} className="text-sm">
+                          <div className="font-semibold text-slate-700 mb-0.5">{r.field}</div>
+                          <div className="text-xs text-slate-500">{r.tip}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Section 2 - Enrollment */}
+                  <div className="rounded-lg border border-slate-100 overflow-hidden">
+                    <div className="px-4 py-2.5 flex items-center gap-2" style={{background:"#0f766e"}}>
+                      <span className="w-6 h-6 rounded-full bg-white flex items-center justify-center text-xs font-black shrink-0" style={{color:"#0f766e"}}>2</span>
+                      <span className="text-sm font-bold text-white">Enrollment Numbers</span>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-xs text-blue-800 mb-3">
+                        <span className="font-bold">Anticipated = your plan before the program runs. Actual = what really happened.</span> You'll fill in Anticipated first, then come back and update Actual after registration closes.
+                      </div>
+                      {[
+                        {field:"Anticipated Enrollment",tip:"Your registration target. How many participants are you hoping to get? This is your goal before the program starts."},
+                        {field:"Actual Enrollment",tip:"How many actually registered. Update this once registration closes or the program ends. Leave blank until you know — don't guess."},
+                        {field:"Capacity",tip:"The maximum number your space or instructor can handle. If a room holds 20, capacity is 20. Always fill this in — the app needs it to calculate your fill rate."},
+                        {field:"Waitlist",tip:"Anyone who wanted to register but couldn't because the program was full. Enter this separately. It signals that you could run another section."},
+                      ].map(r=>(
+                        <div key={r.field} className="text-sm">
+                          <div className="font-semibold text-slate-700 mb-0.5">{r.field}</div>
+                          <div className="text-xs text-slate-500">{r.tip}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Section 3 - Revenue */}
+                  <div className="rounded-lg border border-slate-100 overflow-hidden">
+                    <div className="px-4 py-2.5 flex items-center gap-2" style={{background:"#d4a017"}}>
+                      <span className="w-6 h-6 rounded-full bg-white flex items-center justify-center text-xs font-black shrink-0" style={{color:"#d4a017"}}>3</span>
+                      <span className="text-sm font-bold text-white">Revenue</span>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      {[
+                        {field:"Anticipated Revenue",tip:"Budgeted revenue before the program runs. A quick estimate: your fee × anticipated enrollment is a good starting point. (Example: $85/person × 20 people = $1,700)"},
+                        {field:"Actual Revenue",tip:"What was actually collected after the program. This might differ from anticipated if enrollment was higher or lower than expected, or if scholarships/discounts were applied."},
+                      ].map(r=>(
+                        <div key={r.field} className="text-sm">
+                          <div className="font-semibold text-slate-700 mb-0.5">{r.field}</div>
+                          <div className="text-xs text-slate-500">{r.tip}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Section 4 - Costs */}
+                  <div className="rounded-lg border border-slate-100 overflow-hidden">
+                    <div className="px-4 py-2.5 flex items-center gap-2" style={{background:"#64748b"}}>
+                      <span className="w-6 h-6 rounded-full bg-white flex items-center justify-center text-xs font-black shrink-0" style={{color:"#64748b"}}>4</span>
+                      <span className="text-sm font-bold text-white">Costs — What Goes Where</span>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      <p className="text-xs text-slate-500 mb-2">You enter direct costs. The app automatically adds overhead (10%) and facility cost ($3/hr). You don't need to calculate those yourself.</p>
+                      {[
+                        {field:"Personnel",tip:"Wages paid to part-time instructors, lifeguards, counselors, or any hourly staff. Do not include your own salary here — that's handled by Program Type."},
+                        {field:"Commodities",tip:"Supplies, materials, equipment, uniforms, printing — anything physical you buy for the program."},
+                        {field:"Contractuals",tip:"Payments to outside vendors or contractors. For example, a hired performer, a DJ, a licensed curriculum provider."},
+                        {field:"Custom Cost Lines",tip:"Two extra lines you can label yourself. Use these for anything that doesn't fit above — for example, transportation, food, permits."},
+                        {field:"Facility Hours",tip:"How many hours of district space did this program use? The app charges $3/hour automatically. A 10-week class meeting 2 hrs/week = 20 facility hours."},
+                        {field:"Program Type — Very Important",tip:"This tells the app how much of your full-time staff salary to allocate to this program. If you leave it blank, your staff cost shows as $0 — which makes the program look cheaper than it really is. Use Core Program for regular offerings, Special Event for one-time events."},
+                      ].map(r=>(
+                        <div key={r.field} className="text-sm">
+                          <div className="font-semibold text-slate-700 mb-0.5">{r.field}</div>
+                          <div className="text-xs text-slate-500">{r.tip}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </GuideSection>
+
+              {/* ── UNDERSTANDING METRICS ── */}
+              <GuideSection title="Step 3 — Understanding Your Numbers" accent="#d4a017">
+                <p className="text-sm text-slate-600 mb-1">Once your program is saved, the app calculates several performance numbers automatically. Here's exactly what each one means and why it matters.</p>
+                <p className="text-xs text-slate-400 mb-4">You'll see these on your Dashboard and in the Programs list.</p>
+
+                {/* Fill Rate */}
+                <div className="rounded-xl border border-slate-200 overflow-hidden mb-4">
+                  <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+                    <div className="text-sm font-bold text-slate-800">Fill Rate</div>
+                    <div className="font-mono text-xs bg-slate-800 text-slate-100 rounded px-2 py-1 mt-1 inline-block">Actual Enrollment ÷ Capacity</div>
+                  </div>
+                  <div className="p-4 space-y-2 text-xs text-slate-600">
+                    <p>Fill rate tells you how full your program was compared to how many spots were available. If you had 25 spots and 18 people registered, your fill rate is 72%.</p>
+                    <p className="font-semibold text-slate-700">What the targets mean:</p>
+                    <div className="space-y-1">
+                      <div className="flex gap-2 items-center"><span className="w-2 h-2 rounded-full bg-green-500 shrink-0"/><span><span className="font-semibold text-green-700">70% or above = Healthy.</span> Strong demand. No action needed.</span></div>
+                      <div className="flex gap-2 items-center"><span className="w-2 h-2 rounded-full bg-yellow-400 shrink-0"/><span><span className="font-semibold text-yellow-700">60–69% = Monitor.</span> Getting close to the threshold. Keep an eye on registration trends.</span></div>
+                      <div className="flex gap-2 items-center"><span className="w-2 h-2 rounded-full bg-red-500 shrink-0"/><span><span className="font-semibold text-red-600">Below 60% = Needs Redesign.</span> Low demand. Expect a conversation with your manager about whether to adjust timing, format, or marketing.</span></div>
+                    </div>
+                    <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-amber-800 mt-2">
+                      <span className="font-bold">Common issue:</span> If your fill rate shows 0%, it usually means you forgot to enter Capacity. Go back and edit the program.
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cost Recovery */}
+                <div className="rounded-xl border border-slate-200 overflow-hidden mb-4">
+                  <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+                    <div className="text-sm font-bold text-slate-800">Cost Recovery</div>
+                    <div className="font-mono text-xs bg-slate-800 text-slate-100 rounded px-2 py-1 mt-1 inline-block">Actual Revenue ÷ Total Program Cost</div>
+                  </div>
+                  <div className="p-4 space-y-2 text-xs text-slate-600">
+                    <p>Cost recovery tells you what percentage of the program's cost was covered by what participants paid. 100% means break-even — fees covered every dollar of cost. Below 100% means the district subsidized the rest.</p>
+                    <p><span className="font-semibold text-slate-700">Example:</span> Your program cost $1,500 to run and brought in $1,200 in fees. Cost recovery = 80%. The district covered the remaining $300.</p>
+                    <p className="font-semibold text-slate-700">Important context:</p>
+                    <p>Not every program is expected to reach 100%. Community Driven programs (adaptive rec, teen drop-ins, free events) may have a target of 0–20% by design — the district intentionally subsidizes them because they serve the community. Check the District Standards tab for your specific program category's target.</p>
+                    <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-blue-800 mt-2">
+                      <span className="font-bold">Low cost recovery does not mean your program was bad.</span> It depends entirely on what type of program it is. A swim lesson class should cover its costs. A free family event is not expected to.
+                    </div>
+                  </div>
+                </div>
+
+                {/* Net P/L */}
+                <div className="rounded-xl border border-slate-200 overflow-hidden mb-4">
+                  <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+                    <div className="text-sm font-bold text-slate-800">Net Profit / (Loss)</div>
+                    <div className="font-mono text-xs bg-slate-800 text-slate-100 rounded px-2 py-1 mt-1 inline-block">Actual Revenue − Total Program Cost</div>
+                  </div>
+                  <div className="p-4 space-y-2 text-xs text-slate-600">
+                    <p>The dollar amount left over (or the dollar amount the district covered). A positive number means the program generated more in fees than it cost to run. A negative number means the district made up the difference.</p>
+                    <p><span className="font-semibold text-slate-700">Example:</span> Revenue $1,200, total cost $1,500 → Net ($300). The district subsidized this program by $300.</p>
+                    <p>Use this to understand financial impact, not to judge whether a program should continue. A ($2,000) loss on a community skating event serving 400 residents is a very different story than a ($2,000) loss on a small fitness class with 3 participants.</p>
+                  </div>
+                </div>
+
+                {/* Total Program Cost */}
+                <div className="rounded-xl border border-slate-200 overflow-hidden mb-4">
+                  <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+                    <div className="text-sm font-bold text-slate-800">Total Program Cost — How It's Built</div>
+                  </div>
+                  <div className="p-4 space-y-2 text-xs text-slate-600">
+                    <p>The total cost shown in the app is <span className="font-semibold">not just what you entered</span>. Four layers are stacked together:</p>
+                    <div className="space-y-2 mt-2">
+                      {[
+                        {n:"1",label:"Your Direct Costs",text:"Personnel + Commodities + Contractuals + custom cost lines. These are numbers you entered."},
+                        {n:"2",label:"Admin Overhead (10%)",text:"Added automatically. Covers district-level administrative support. You don't enter this."},
+                        {n:"3",label:"FT Staff Cost",text:"$97,700 × your Program Type percentage. This is your salary allocated to the program based on how complex it is to manage."},
+                        {n:"4",label:"Facility Cost",text:"$3/hour × the facility hours you entered. Covers the cost of using district space."},
+                      ].map(r=>(
+                        <div key={r.n} className="flex gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100">
+                          <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0" style={{background:"#1e3a5f"}}>{r.n}</div>
+                          <div><span className="font-semibold text-slate-700">{r.label} — </span><span className="text-slate-500">{r.text}</span></div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-amber-800 mt-2">
+                      <span className="font-bold">This is why Program Type matters so much.</span> If you don't select a Program Type, layer 3 becomes $0 — which makes the program look much cheaper than it really is, and inflates the cost recovery percentage artificially.
+                    </div>
+                  </div>
+                </div>
+
+                {/* Program Status */}
+                <div className="rounded-xl border border-slate-200 overflow-hidden mb-4">
+                  <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+                    <div className="text-sm font-bold text-slate-800">Program Status — the Badge</div>
+                  </div>
+                  <div className="p-4 space-y-2 text-xs text-slate-600">
+                    <p>The colored badge next to each program is calculated automatically from fill rate and cost recovery combined. You cannot manually set it.</p>
+                    <div className="space-y-2 mt-2">
+                      {[
+                        {s:"Healthy",color:"#22c55e",rule:"Fill rate ≥ 70% AND cost recovery ≥ 100%",detail:"Program is well-attended and financially sound. No action needed."},
+                        {s:"Monitor",color:"#eab308",rule:"Fill rate between 60–69%",detail:"One metric is borderline. Keep an eye on it — no action required yet but trends matter."},
+                        {s:"Needs Redesign",color:"#ef4444",rule:"Fill rate below 60% OR cost recovery below 50%",detail:"Significantly underperforming on at least one dimension. Your manager will likely follow up."},
+                      ].map(r=>(
+                        <div key={r.s} className="flex gap-3 p-3 rounded-lg border border-slate-100">
+                          <span className="px-2 py-0.5 rounded text-xs font-bold text-white h-fit mt-0.5 shrink-0" style={{backgroundColor:r.color}}>{r.s}</span>
+                          <div><div className="font-semibold text-slate-600 mb-0.5">{r.rule}</div><div className="text-slate-400">{r.detail}</div></div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-blue-800 mt-2">
+                      <span className="font-bold">Status uses Actual numbers when available.</span> If you haven't entered Actual Enrollment or Actual Revenue yet, it falls back to Anticipated numbers — so it may not reflect what really happened until you update those fields.
+                    </div>
+                  </div>
+                </div>
+
+                {/* Trend */}
+                <div className="rounded-xl border border-slate-200 overflow-hidden mb-4">
+                  <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+                    <div className="text-sm font-bold text-slate-800">Trend</div>
+                  </div>
+                  <div className="p-4 space-y-2 text-xs text-slate-600">
+                    <p>Trend shows whether enrollment is growing, stable, or declining compared to the same season last year. You set this manually on the program form — it's not calculated automatically.</p>
+                    <div className="space-y-1.5">
+                      {[
+                        {t:"Growing",c:"#22c55e",d:"Enrollment is up vs. the same season last year"},
+                        {t:"Stable",c:"#64748b",d:"Enrollment is roughly the same year over year"},
+                        {t:"Declining",c:"#ef4444",d:"Enrollment is down vs. last year — flags for manager attention"},
+                        {t:"New",c:"#7c3aed",d:"First time offering — no prior year to compare"},
+                      ].map(r=>(
+                        <div key={r.t} className="flex gap-2 items-center"><span className="font-bold text-xs w-16 shrink-0" style={{color:r.c}}>{r.t}</span><span className="text-slate-500">{r.d}</span></div>
+                      ))}
+                    </div>
+                    <p className="text-slate-400 mt-2">If you're unsure, use Stable. Your manager may update this during review.</p>
+                  </div>
+                </div>
+
+                {/* NPS */}
+                <div className="rounded-xl border border-slate-200 overflow-hidden mb-4">
+                  <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+                    <div className="text-sm font-bold text-slate-800">NPS — Net Promoter Score</div>
+                  </div>
+                  <div className="p-4 space-y-2 text-xs text-slate-600">
+                    <p>NPS is a standard customer satisfaction measure ranging from 0 to 100. It comes from a survey question: <span className="italic">"How likely are you to recommend this program to a friend?"</span> You enter it manually if you collected it.</p>
+                    <div className="grid grid-cols-3 gap-2 text-center mt-2">
+                      <div className="p-2 rounded-lg bg-green-50 border border-green-100"><div className="font-bold text-green-700">70–100</div><div className="text-slate-500 mt-0.5">Strong — participants are enthusiastic</div></div>
+                      <div className="p-2 rounded-lg bg-yellow-50 border border-yellow-100"><div className="font-bold text-yellow-700">50–69</div><div className="text-slate-500 mt-0.5">Acceptable — room to improve</div></div>
+                      <div className="p-2 rounded-lg bg-red-50 border border-red-100"><div className="font-bold text-red-600">0–49</div><div className="text-slate-500 mt-0.5">Needs review — some dissatisfaction</div></div>
+                    </div>
+                    <p className="text-slate-400 mt-2">NPS is optional. If you didn't collect it, leave the field blank. It won't affect fill rate or cost recovery calculations.</p>
+                  </div>
+                </div>
+              </GuideSection>
+
+              {/* ── WHEN TO UPDATE ── */}
+              <GuideSection title="Step 4 — When to Update Your Data" accent="#0f766e">
+                <p className="text-sm text-slate-600 mb-4">The dashboard is only useful if the data is current. Here's what to do and when.</p>
+                <div className="space-y-2">
+                  {[
+                    {when:"Before registration opens",icon:"📋",color:"#1e3a5f",what:"Create the program entry. Fill in: Program Name, Area, Season/Year, Staff Name, Classification, Program Type, Capacity, Anticipated Enrollment, Anticipated Revenue, and all known direct costs. This gives your manager a planning view."},
+                    {when:"When registration closes",icon:"✅",color:"#0f766e",what:"Update Actual Enrollment with the final count. Add any Waitlist numbers. Revenue doesn't need to be final yet if collection isn't complete."},
+                    {when:"When the program ends",icon:"💰",color:"#d4a017",what:"Update Actual Revenue with what was collected. Confirm costs are accurate. Set the Trend field (Growing/Stable/Declining). Add any Notes that explain unusual results — a canceled week, a weather cancellation, an unusually large group."},
+                    {when:"If you collected participant feedback",icon:"⭐",color:"#7c3aed",what:"Add your NPS score. Optional but valuable for long-term program tracking."},
+                    {when:"Anytime something changes",icon:"✏️",color:"#64748b",what:"Click the program name from the Dashboard or Programs tab and edit it. Every change saves immediately and metrics recalculate right away."},
+                  ].map((r,i)=>(
+                    <div key={i} className="flex gap-3 p-4 rounded-lg border border-slate-100">
+                      <div className="text-xl shrink-0">{r.icon}</div>
+                      <div>
+                        <div className="text-xs font-bold uppercase tracking-wide mb-1" style={{color:r.color}}>{r.when}</div>
+                        <div className="text-sm text-slate-500">{r.what}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </GuideSection>
+
+              {/* ── EXPORTING ── */}
+              <GuideSection title="Exporting and Reports" accent="#64748b">
+                <div className="space-y-3">
+                  <div className="p-4 rounded-lg bg-slate-50 border border-slate-100">
+                    <div className="text-sm font-bold text-slate-700 mb-1">↓ Export CSV</div>
+                    <div className="text-xs text-slate-500 mb-2">Downloads a spreadsheet of all visible programs with all metrics calculated. Opens in Excel or Google Sheets.</div>
+                    <div className="text-xs text-slate-400">Tip: filter to your name first, then export — so you only get your own programs.</div>
+                  </div>
+                  <div className="p-4 rounded-lg bg-slate-50 border border-slate-100">
+                    <div className="text-sm font-bold text-slate-700 mb-1">⬜ Season Report (PDF)</div>
+                    <div className="text-xs text-slate-500 mb-2">Generates a printable summary of your filtered programs. Opens your browser's print dialog — choose "Save as PDF."</div>
+                    <div className="text-xs text-slate-400">Tip: set your filters first (your name, a specific season) before clicking — the report shows exactly what's on screen.</div>
+                  </div>
+                </div>
+              </GuideSection>
+
+              {/* ── FAQ ── */}
+              <GuideSection title="Common Questions" accent="#7c3aed">
+                <div className="space-y-3">
+                  {[
+                    {q:"My program shows 'Needs Redesign' but it actually went really well. What's wrong?",a:"Status is calculated from your actual numbers. If Actual Enrollment or Actual Revenue hasn't been updated since the program ran, the app is still using your anticipated figures — which may have been conservative. Go edit the program and enter the real numbers. Status will update immediately."},
+                    {q:"My fill rate shows 0% but the program ran fine.",a:"This almost always means Capacity was left blank or set to 0. Without a capacity number, the app can't calculate how full you were. Go back and add it."},
+                    {q:"I don't know what Program Type to pick.",a:"Start here: is it a regular ongoing class or activity? Pick Core Program. Is it a one-time event? Pick Special Event. Is it a series of classes? Pick Small Program or Large Program depending on how complex it is. Your manager can help you pick if you're unsure — it's better to ask than leave it blank."},
+                    {q:"My cost recovery is very low. Am I doing something wrong?",a:"Not necessarily. Cost recovery targets vary by program type. A community benefit program (adaptive rec, a free event, a subsidized youth program) may have a 0–20% target by design. Check the District Standards tab under your program's category. If your target is low, a low cost recovery is expected and appropriate."},
+                    {q:"Should I enter every program, even small or one-time ones?",a:"Yes. The dashboard averages and comparisons are only accurate when all programs are entered. A partial list skews the metrics and makes the portfolio look healthier or sicker than it really is."},
+                    {q:"A program was canceled midway. How do I enter it?",a:"Enter it as you planned, then update Actual Enrollment and Actual Revenue to reflect what happened before the cancellation. Add a note explaining it was canceled (e.g. 'Canceled after week 4 — low enrollment'). This keeps the record honest and gives context for future planning."},
+                    {q:"I made a mistake. Can I change data after saving?",a:"Yes, anytime. Click the program name on the Dashboard or Programs tab, edit any field, and save. All metrics recalculate immediately. There's no lock-out period."},
+                    {q:"What's the difference between Anticipated and Actual fields?",a:"Anticipated = your plan before the program runs (enrollment target, budgeted revenue). Actual = what really happened (real enrollment count, real revenue collected). You fill in Anticipated first, then come back and update Actual after the program ends."},
+                  ].map((r,i)=>(
+                    <div key={i} className="rounded-lg border border-slate-200 overflow-hidden">
+                      <div className="px-4 py-3 bg-slate-50 text-sm font-semibold text-slate-700 border-b border-slate-100">{r.q}</div>
+                      <div className="px-4 py-3 text-sm text-slate-500">{r.a}</div>
+                    </div>
+                  ))}
+                </div>
+              </GuideSection>
+            </>
+          ) : (
+            <>
+              {/* ── MANAGER HEADER ── */}
+              <div className="rounded-xl p-6 text-white" style={{background:"linear-gradient(135deg,#1e3a5f 0%,#7c3aed 100%)"}}>
+                <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{color:"#d4a017"}}>Manager Training Guide</div>
+                <div className="text-2xl font-black mb-2">Leading with Data — BGPD Recreation App</div>
+                <div className="text-sm opacity-80 mb-4">How to use the dashboard to manage your team, evaluate programs, and communicate results. This guide covers everything you see that staff don't — and how to use it.</div>
+                <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                  {["Portfolio view","Analytics","Action queues","Admin KPIs"].map(l=>(
+                    <div key={l} className="rounded-lg p-2" style={{background:"rgba(255,255,255,0.1)"}}>
+                      <div className="opacity-80">{l}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── MANAGER vs STAFF VIEW ── */}
+              <GuideSection title="What You See That Staff Don't" accent="#1e3a5f">
+                <p className="text-sm text-slate-600 mb-4">When you toggle to Manager View, the dashboard expands significantly. Here's what's added:</p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {[
+                    {icon:"👁",label:"Full portfolio view",desc:"See every staff member's programs, not just your own. Filter by staff name, area, season, or year in any combination."},
+                    {icon:"📊",label:"Health Score (0–100)",desc:"A composite score across fill rate, cost recovery, trend, and NPS. One number that tells you how the portfolio is doing at a glance."},
+                    {icon:"🚨",label:"Needs Attention queue",desc:"Auto-surfaced programs falling below thresholds. Your weekly action list — sorted worst first."},
+                    {icon:"↕",label:"Year-over-year comparison",desc:"Each program row shows how fill rate and cost recovery changed vs. the same season last year."},
+                    {icon:"💰",label:"Subsidy Burden",desc:"Total dollar amount the district subsidizes — the sum of all program deficits. Useful for budget conversations."},
+                    {icon:"⭐",label:"Admin tab (★)",desc:"Fund-level financials, G&O tracking, rental history, and historical KPIs. Directors and managers only."},
+                  ].map(c=>(
+                    <div key={c.label} className="flex gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100">
+                      <div className="text-xl shrink-0">{c.icon}</div>
+                      <div>
+                        <div className="text-sm font-bold text-slate-700">{c.label}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{c.desc}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </GuideSection>
+
+              {/* ── FILTERS ── */}
+              <GuideSection title="Using Filters Strategically" accent="#d4a017">
+                <p className="text-sm text-slate-600 mb-3">Every metric, chart, and table updates in real time when you change a filter. Filters are your primary analysis tool.</p>
+                <div className="space-y-2">
+                  {[
+                    {use:"Staff review prep",how:"Filter to one staff member. Every metric — fill rate, cost recovery, status counts, Needs Attention — reflects only their programs. Export CSV for a one-pager to bring to the meeting."},
+                    {use:"Season benchmarking",how:"Filter to a single season (e.g. Summer) across all years. The YoY column in Program Detail shows growth or decline for each program. The top/bottom performers update accordingly."},
+                    {use:"Area budget review",how:"Filter to one area. Revenue, costs, and capacity utilization reflect only that area. Capacity Utilization shows fill rates sorted highest to lowest so you can immediately see where demand is strongest."},
+                    {use:"End-of-year reporting",how:"Clear all filters for the full portfolio view. Health Score, Subsidy Burden, and all aggregates show the complete picture. Use Season Report or Export CSV for documentation."},
+                    {use:"Pricing review",how:"Revenue per Participant by Area shows which areas generate more revenue per enrolled person. Use this alongside cost recovery targets from District Standards to identify where fees may warrant adjustment."},
+                  ].map((r,i)=>(
+                    <div key={i} className="flex gap-3 p-3 rounded-lg border border-slate-100">
+                      <div className="shrink-0 mt-0.5"><span className="inline-block bg-slate-800 text-white text-xs font-bold px-2 py-0.5 rounded">{r.use}</span></div>
+                      <div className="text-sm text-slate-500">{r.how}</div>
+                    </div>
+                  ))}
+                </div>
+              </GuideSection>
+
+              {/* ── READING THE DASHBOARD ── */}
+              <GuideSection title="Reading Each Dashboard Section" accent="#1e3a5f">
+                <div className="space-y-3">
+                  {[
+                    {title:"KPI Cards (top row)",color:"#1e3a5f",points:["Avg Fill Rate and Avg Cost Recovery are portfolio-wide averages across all visible programs — they respond to your filters","Total Net P/(L) is combined surplus/deficit at program-cost level, not fund-level","Health distribution: Healthy, Monitor, Needs Redesign counts with a dot showing 'Below 50% Recovery' as a separate flag"]},
+                    {title:"Program Snapshot: Budgeted vs. Actual",color:"#0f766e",points:["Dark bar = actual, lighter bar = budget. The goal: actual revenue and enrollment at or above budget; actual cost at or below","Large gaps are conversation starters — check if actuals have been updated by staff before drawing conclusions","If a program shows $0 actual revenue but it ran, the staff member hasn't updated it yet"]},
+                    {title:"Needs Attention Queue",color:"#dc2626",points:["Auto-populated with programs meeting one of three conditions: Needs Redesign status, Declining trend, or fill rate below 50%","Sorted by lowest fill rate — worst performers first. Capped at 8 programs","Each program here needs a decision: redesign format, remarket, adjust price, reduce capacity, or sunset"]},
+                    {title:"Top & Bottom Performers",color:"#166534",points:["Top 3 and Bottom 3 by fill rate and cost recovery — tells you what's working and what isn't","Click any program name to open it for editing","Bottom performers may be misclassified or missing data — check Program Type and actuals before drawing conclusions"]},
+                    {title:"Capacity Utilization by Area",color:"#7c3aed",points:["Areas sorted by fill rate descending — highest demand at top. Green = 70%+, Yellow = 60–69%, Red = below 60%","Cost recovery and net P/(L) shown inline so you see both financial dimensions at once","Waitlist count shown when present — areas with waitlists have proven demand for expansion"]},
+                    {title:"Revenue per Participant by Area",color:"#b45309",points:["Higher figure = more revenue per enrolled person. Community service areas will be lower by design","Overall average in the subheader is your portfolio benchmark","Use alongside cost recovery targets — a low Rev/Participant is fine if the cost recovery target for that area is low"]},
+                    {title:"Program Mix by Classification",color:"#64748b",points:["Shows the balance of Community Driven, Revenue Driven, and Both programs","Revenue and net figures per classification frame subsidy discussions: 'We subsidize X% of Community Driven programs totaling $Y'","Too skewed toward revenue-driven may signal under-investment in community benefit; too skewed the other way may create budget pressure"]},
+                  ].map(s=>(
+                    <div key={s.title} className="rounded-lg border border-slate-100 overflow-hidden">
+                      <div className="px-4 py-2.5 text-sm font-bold text-white" style={{backgroundColor:s.color}}>{s.title}</div>
+                      <ul className="p-3 space-y-1.5">
+                        {s.points.map(pt=>(
+                          <li key={pt} className="flex gap-2 text-xs text-slate-600"><span className="shrink-0 mt-0.5" style={{color:s.color}}>›</span>{pt}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </GuideSection>
+
+              {/* ── HEALTH SCORE ── */}
+              <GuideSection title="The Health Score — What It Measures" accent="#d4a017">
+                <p className="text-sm text-slate-600 mb-3">A composite 0–100 score combining the four most important signals. Useful for quick portfolio scanning and board-level communication.</p>
+                <table className="w-full text-sm mb-4">
+                  <thead><tr className="bg-slate-50 text-xs text-slate-400 uppercase tracking-wider">
+                    <th className="px-4 py-2 text-left font-semibold">Component</th>
+                    <th className="px-4 py-2 text-left font-semibold">Weight</th>
+                    <th className="px-4 py-2 text-left font-semibold">What it captures</th>
+                  </tr></thead>
+                  <tbody>
+                    {[
+                      {c:"Fill Rate",w:"40%",d:"Are people showing up? Highest weight — most direct demand signal."},
+                      {c:"Cost Recovery",w:"30%",d:"Is the program meeting its financial target? Community benefit programs get credit at lower levels."},
+                      {c:"Trend",w:"20%",d:"Is enrollment growing, stable, or declining vs. same season last year?"},
+                      {c:"NPS",w:"10%",d:"Are participants satisfied? Only scored when NPS data exists; excluded if blank."},
+                    ].map((r,i)=>(
+                      <tr key={r.c} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
+                        <td className="px-4 py-2.5 font-semibold text-slate-700">{r.c}</td>
+                        <td className="px-4 py-2.5"><span className="font-mono font-bold text-sm" style={{color:"#d4a017"}}>{r.w}</span></td>
+                        <td className="px-4 py-2.5 text-xs text-slate-500">{r.d}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                  {[{r:"75–100",l:"Strong",c:"#166534",bg:"#dcfce7"},{r:"50–74",l:"Developing",c:"#854d0e",bg:"#fef9c3"},{r:"0–49",l:"Needs Attention",c:"#991b1b",bg:"#fee2e2"}].map(b=>(
+                    <div key={b.l} className="p-2 rounded-lg border" style={{backgroundColor:b.bg}}>
+                      <div className="font-bold" style={{color:b.c}}>{b.r}</div>
+                      <div className="text-slate-500 mt-0.5">{b.l}</div>
+                    </div>
+                  ))}
+                </div>
+              </GuideSection>
+
+              {/* ── ADMIN TAB ── */}
+              <GuideSection title="The Admin Tab — Fund-Level KPIs" accent="#0f766e">
+                <p className="text-sm text-slate-600 mb-3">The ★ Admin tab contains financial and operational data above the program level — organized by fund and tracked year over year.</p>
+                <div className="space-y-2">
+                  {[
+                    {tab:"★ Executive Summary",desc:"FY-level overview: total revenue, expenses, net P/(L), and goal completion across all funds. YoY tables for Fund 4, Fitness, Clubhouse, and Camps with sparklines. Use for board prep and annual reporting."},
+                    {tab:"$ Fund Performance",desc:"Monthly revenue and expenses by fund, compared against monthly goal. Select any fund for a bar chart and full data table. Entries can be added or edited directly here, or they can sync from Google Sheets automatically."},
+                    {tab:"✓ Goals & Objectives",desc:"All department G&Os for the current FY. Filter by quarter, core value, or status. Update status inline without opening a modal. Archive completed goals to keep the view clean."},
+                    {tab:"⌂ Rentals",desc:"Year-over-year rental revenue by category (Alcott, CAC, Birthdays, Outdoor, etc.). Click any category row to drill into monthly detail and add or edit individual months."},
+                    {tab:"◎ Program Areas",desc:"Enrollment and revenue trends for Camps, Clubhouse, and Special Events — year-over-year tables with sparklines and bar charts per FY."},
+                    {tab:"◈ Fee History",desc:"Complete fee schedule across fiscal years. Amber highlights show changes vs. prior year. Search by program name or filter by area. Contractual items flagged separately."},
+                  ].map((r,i)=>(
+                    <div key={i} className="flex gap-3 p-3 rounded-lg border border-slate-100 bg-slate-50">
+                      <div className="shrink-0"><span className="inline-block font-mono text-xs font-bold text-white px-2 py-0.5 rounded" style={{background:"#1e3a5f"}}>{r.tab}</span></div>
+                      <div className="text-xs text-slate-500">{r.desc}</div>
+                    </div>
+                  ))}
+                </div>
+              </GuideSection>
+
+              {/* ── COACHING STAFF ── */}
+              <GuideSection title="Coaching Staff on Data Quality" accent="#7c3aed">
+                <p className="text-sm text-slate-600 mb-3">The most common data entry issues and how to address them:</p>
+                <div className="space-y-3">
+                  {[
+                    {issue:"Missing Program Type",impact:"Staff cost allocates as $0 — total program cost is understated, cost recovery looks artificially high",fix:"Ask staff to open the program and select Program Type from the dropdown in the Budgeted section. Cost recalculates immediately."},
+                    {issue:"Actuals never updated",impact:"Program shows 0% fill rate and $0 revenue even after running — makes all portfolio averages inaccurate",fix:"Set an expectation: update actuals within 2 weeks of program close. Use the 'Needs Attention' queue — programs with missing actuals often show up here."},
+                    {issue:"Capacity left blank",impact:"Fill rate shows 0% for every program that staff member manages",fix:"Ask staff to edit each program and enter the maximum capacity (room size, instructor limit, etc.)."},
+                    {issue:"All programs entered under one name",impact:"Filtering by staff member doesn't work; workload distribution is inaccurate",fix:"Staff name on each program must match exactly how staff logged in. If someone uses 'Joe' in one program and 'Joe Smith' in another, they appear as two different people."},
+                    {issue:"Revenue not updated after collection",impact:"Net P/(L) is negative even for financially healthy programs",fix:"Remind staff to update Actual Revenue after all payments are processed — not when registration closes, but after the program ends and final collections are confirmed."},
+                  ].map((r,i)=>(
+                    <div key={i} className="rounded-lg border border-slate-100 overflow-hidden">
+                      <div className="px-4 py-2.5 bg-red-50 border-b border-red-100 text-xs font-bold text-red-700">⚠ {r.issue}</div>
+                      <div className="p-3 grid grid-cols-1 gap-1 sm:grid-cols-2">
+                        <div className="text-xs text-slate-500"><span className="font-semibold text-slate-600">Impact: </span>{r.impact}</div>
+                        <div className="text-xs text-slate-500"><span className="font-semibold text-slate-600">Fix: </span>{r.fix}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </GuideSection>
+
+              {/* ── MANAGER FAQ ── */}
+              <GuideSection title="Common Manager Questions" accent="#1e3a5f">
+                <div className="space-y-3">
+                  {[
+                    {q:"A program shows Needs Redesign but the staff member says it went great. How do I reconcile that?",a:"Check whether actuals have been updated. If Actual Enrollment and Actual Revenue are still blank or showing anticipated numbers, the status is based on pre-program estimates. Ask the staff member to update their actuals first — then revisit the status."},
+                    {q:"The Health Score dropped significantly. What should I look for?",a:"Health Score weights fill rate most heavily (40%). A significant drop usually means one or more high-enrollment programs declined, or a batch of new programs with low actuals were added. Filter by season or area to isolate which segment pulled the score down."},
+                    {q:"How do I prepare for an annual report using this app?",a:"Clear all filters to show the full portfolio. Note the Health Score, total Net P/(L), and Subsidy Burden. Use the Classification Mix section for the community-benefit vs. revenue narrative. Export CSV for a full data appendix. Export Season Report as a PDF summary. Admin → Executive Summary has fund-level P&L."},
+                    {q:"A staff member left. What happens to their programs?",a:"Their programs stay in the system under their name. You can edit each program and reassign it to a new staff member by changing the Staff Name field. Alternatively, leave them as-is for historical accuracy and create new entries for the replacement's future work."},
+                    {q:"Can I see how a specific program has performed over multiple years?",a:"Yes — use the Multi-Season tab. Search for the program by name and you'll see its enrollment, revenue, fill rate, and cost recovery side-by-side across all seasons it's been offered."},
+                    {q:"What's the difference between the Dashboard Net P/(L) and what I see in the Admin Fund Performance tab?",a:"The Dashboard P/(L) is at the program-cost level — it includes allocated FT staff cost, overhead, and facility charges. The Fund Performance tab tracks actual fund-level revenue and expenses from your financial system. They measure different things and will not match."},
+                  ].map((r,i)=>(
+                    <div key={i} className="rounded-lg border border-slate-200 overflow-hidden">
+                      <div className="px-4 py-3 bg-slate-50 text-sm font-semibold text-slate-700 border-b border-slate-100">{r.q}</div>
+                      <div className="px-4 py-3 text-sm text-slate-500">{r.a}</div>
+                    </div>
+                  ))}
+                </div>
+              </GuideSection>
+            </>
+          )}
+        </div>
+      )
+}
     </div>
   );
 }
