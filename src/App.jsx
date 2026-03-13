@@ -300,12 +300,41 @@ function printSeasonReport(programs, filters) {
       <span>Confidential — Internal Use Only · Generated ${today}</span>
     </div>
   </div>
-  <script>window.onload=function(){window.print();window.onafterprint=function(){window.close();};};<\/script>
   </body></html>`;
 
-  const w = window.open("","_blank","width=900,height=700");
-  if(w){ w.document.write(html); w.document.close(); }
-  else { alert("Please allow popups for this site to generate the Season Report."); }
+  // Create a hidden iframe, write the HTML into it, then use html2pdf to save
+  const filename = `BGPD_Season_Report_${new Date().toISOString().slice(0,10)}.pdf`;
+
+  // Dynamically load html2pdf if not already loaded
+  function doSave() {
+    const container = document.createElement("div");
+    container.style.cssText = "position:fixed;left:-9999px;top:0;width:850px;background:white;";
+    container.innerHTML = html.replace(/<script[\s\S]*?<\/script>/gi,""); // strip the print script
+    document.body.appendChild(container);
+    window.html2pdf().set({
+      margin: [0.5,0.5,0.5,0.5],
+      filename,
+      image: {type:"jpeg", quality:0.98},
+      html2canvas: {scale:2, useCORS:true, logging:false},
+      jsPDF: {unit:"in", format:"letter", orientation:"portrait"},
+      pagebreak: {mode:["avoid-all","css"]},
+    }).from(container).save().then(()=>{ document.body.removeChild(container); });
+  }
+
+  if(window.html2pdf) {
+    doSave();
+  } else {
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
+    script.onload = doSave;
+    script.onerror = () => {
+      // Fallback: open popup if CDN fails
+      const w = window.open("","_blank","width=900,height=700");
+      if(w){ w.document.write(html); w.document.close(); }
+      else { alert("Please allow popups for this site to generate the Season Report."); }
+    };
+    document.head.appendChild(script);
+  }
 }
 
 // ─── CSV Export ───────────────────────────────────────────────────────────────
@@ -1897,7 +1926,7 @@ function ProgramForm({initial,staffName,isManager,onSave,onDelete,onArchive,onDu
 
 // ─── Programs List ────────────────────────────────────────────────────────────
 function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDupSingle}) {
-  const [sf,setSf]           = useState(isManager?"All":staffName);
+  const [sf,setSf]           = useState("All");
   const [af,setAf]           = useState("All");
   const [yf,setYf]           = useState("All");
   const [snf,setSnf]         = useState("All");
@@ -1968,7 +1997,7 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
           </select>
         </div>
         {(sf!=="All"||af!=="All"||yf!=="All"||snf!=="All"||search)&&(
-          <button onClick={()=>{setSf(isManager?"All":staffName);setAf("All");setYf("All");setSnf("All");setSearch("");}}
+          <button onClick={()=>{setSf("All");setAf("All");setYf("All");setSnf("All");setSearch("");}}
             className="text-xs text-slate-400 hover:text-slate-600 font-medium pb-1">Clear</button>
         )}
       </div>
