@@ -166,7 +166,7 @@ function sColor(s) {
 
 
 // ─── Season Report (print-to-PDF) ─────────────────────────────────────────────
-function SeasonReport({programs, filters, onClose, onDone}) {
+function printSeasonReport(programs, filters) {
   const kpis        = programs.map(p=>({...p,...calcKPIs(p)}));
   const avgFill     = kpis.length ? kpis.reduce((a,p)=>a+p.fillRate,0)/kpis.length : 0;
   const avgCR       = kpis.length ? kpis.reduce((a,p)=>a+p.costRecovery,0)/kpis.length : 0;
@@ -174,6 +174,9 @@ function SeasonReport({programs, filters, onClose, onDone}) {
   const totalCost   = kpis.reduce((a,p)=>a+p.totalCost,0);
   const totalPL     = kpis.reduce((a,p)=>a+p.profitLoss,0);
   const subsidy     = kpis.reduce((a,p)=>a+Math.max(0,-p.profitLoss),0);
+  const antRev      = kpis.reduce((a,p)=>a+p.antRevenue,0);
+  const antCost     = kpis.reduce((a,p)=>a+p.antTotal,0);
+  const antPL       = kpis.reduce((a,p)=>a+p.antProfit,0);
   const healthy     = kpis.filter(p=>p.status==="Healthy").length;
   const monitor     = kpis.filter(p=>p.status==="Monitor").length;
   const redesign    = kpis.filter(p=>p.status==="Needs Redesign").length;
@@ -183,161 +186,126 @@ function SeasonReport({programs, filters, onClose, onDone}) {
   const topPerf     = [...kpis].filter(p=>p.hasActuals).sort((a,b)=>b.fillRate-a.fillRate).slice(0,5);
   const today       = new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
 
-  useEffect(()=>{
-    const t = setTimeout(()=>{
-      window.print();
-      // After print dialog closes, unmount
-      const after = setTimeout(()=>{ if(onDone) onDone(); }, 500);
-      return ()=>clearTimeout(after);
-    }, 150);
-    return ()=>clearTimeout(t);
-  },[]);
+  const th = `padding:6px 10px;font-weight:600;font-size:11px;background:#1e3a5f;color:white;text-align:left;`;
+  const td = `padding:6px 10px;font-size:11px;border-bottom:1px solid #f1f5f9;`;
+  const tdR = td+`text-align:right;font-family:monospace;`;
+  const secH = `font-weight:700;font-size:13px;color:#1e3a5f;border-bottom:2px solid #d4a017;padding-bottom:4px;margin-bottom:10px;margin-top:20px;`;
 
-  const tdH  = {padding:"6px 10px", fontWeight:600, fontSize:11, background:"#1e3a5f", color:"white", textAlign:"left"};
-  const td   = {padding:"6px 10px", fontSize:11, borderBottom:"1px solid #f1f5f9"};
-  const tdR  = {...td, textAlign:"right", fontFamily:"monospace"};
-  const secH = {fontWeight:700, fontSize:13, color:"#1e3a5f", borderBottom:"2px solid #d4a017", paddingBottom:4, marginBottom:10, marginTop:20};
+  const kpiCards = [
+    {label:"Programs",      value:kpis.length,     color:"#1e3a5f"},
+    {label:"Avg Fill Rate", value:pct(avgFill),    color:avgFill>=0.7?"#16a34a":"#dc2626"},
+    {label:"Avg Recovery",  value:pct(avgCR),      color:avgCR>=1?"#16a34a":"#dc2626"},
+    {label:"Total Net P/L", value:dollar(totalPL), color:totalPL>=0?"#16a34a":"#dc2626"},
+    {label:"Subsidy",       value:dollar(subsidy), color:"#991b1b"},
+  ].map(c=>`<div style="border:1px solid #e2e8f0;border-top:3px solid ${c.color};border-radius:6px;padding:10px 12px;">
+    <div style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;">${c.label}</div>
+    <div style="font-size:16px;font-weight:800;color:${c.color};margin-top:2px;">${c.value}</div>
+  </div>`).join("");
 
-  return (
-    <div id="season-report" style={{fontFamily:"'IBM Plex Sans','Segoe UI',sans-serif", padding:"0", color:"#1e293b", background:"white"}}>
-      {/* Header */}
-      <div style={{background:"#1e3a5f", color:"white", padding:"20px 28px", marginBottom:20, display:"flex", justifyContent:"space-between", alignItems:"flex-start"}}>
-        <div>
-          <div style={{fontWeight:700, fontSize:20}}>BGPD Recreation — Season Performance Report</div>
-          <div style={{fontSize:12, opacity:0.75, marginTop:4}}>
-            {filters} · Generated {today}
-          </div>
-        </div>
-        <div style={{textAlign:"right"}}>
-          <div style={{fontSize:28, fontWeight:900, color:healthColor}}>{healthScore}<span style={{fontSize:14,fontWeight:400,color:"rgba(255,255,255,0.6)"}}>/100</span></div>
-          <div style={{fontSize:11, opacity:0.7}}>Health Score</div>
-        </div>
-      </div>
+  const statusCards = [
+    {label:"Healthy",       value:healthy,  p:kpis.length?Math.round(healthy/kpis.length*100):0,  color:"#16a34a",bg:"#dcfce7"},
+    {label:"Monitor",       value:monitor,  p:kpis.length?Math.round(monitor/kpis.length*100):0,  color:"#b45309",bg:"#fef9c3"},
+    {label:"Needs Redesign",value:redesign, p:kpis.length?Math.round(redesign/kpis.length*100):0, color:"#dc2626",bg:"#fee2e2"},
+  ].map(c=>`<div style="background:${c.bg};border-radius:6px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+    <div style="font-size:12px;font-weight:600;color:${c.color};">${c.label}</div>
+    <div style="font-size:18px;font-weight:800;color:${c.color};">${c.value} <span style="font-size:11px;font-weight:500;">(${c.p}%)</span></div>
+  </div>`).join("");
 
-      <div style={{padding:"0 28px 28px"}}>
-        {/* KPI row */}
-        <div style={{display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:10, marginBottom:20}}>
-          {[
-            {label:"Programs",       value:kpis.length,      color:"#1e3a5f"},
-            {label:"Avg Fill Rate",  value:pct(avgFill),     color:avgFill>=0.7?"#16a34a":"#dc2626"},
-            {label:"Avg Recovery",   value:pct(avgCR),       color:avgCR>=1?"#16a34a":"#dc2626"},
-            {label:"Total Net P/(L)",value:dollar(totalPL),  color:totalPL>=0?"#16a34a":"#dc2626"},
-            {label:"Subsidy",        value:dollar(subsidy),  color:"#991b1b"},
-          ].map(c=>(
-            <div key={c.label} style={{border:"1px solid #e2e8f0", borderTop:`3px solid ${c.color}`, borderRadius:6, padding:"10px 12px"}}>
-              <div style={{fontSize:10, fontWeight:600, color:"#94a3b8", textTransform:"uppercase", letterSpacing:1}}>{c.label}</div>
-              <div style={{fontSize:16, fontWeight:800, color:c.color, marginTop:2}}>{c.value}</div>
-            </div>
-          ))}
-        </div>
+  const finRows = [
+    {label:"Total Revenue", bud:antRev,  act:totalRev},
+    {label:"Total Cost",    bud:antCost, act:totalCost, inv:true},
+    {label:"Net P/(L)",     bud:antPL,   act:totalPL},
+  ].map((r,i)=>{
+    const v=r.act-r.bud; const good=r.inv?v<=0:v>=0;
+    return `<tr style="background:${i%2===0?"white":"#f8fafc"}">
+      <td style="${td}font-weight:600;">${r.label}</td>
+      <td style="${tdR}">${dollar(r.bud)}</td>
+      <td style="${tdR}">${dollar(r.act)}</td>
+      <td style="${tdR}color:${good?"#16a34a":"#dc2626"};font-weight:700;">${v>=0?"+":""}${dollar(v)}</td>
+    </tr>`;
+  }).join("");
 
-        {/* Status row */}
-        <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:20}}>
-          {[
-            {label:"Healthy",       value:healthy,   pct:kpis.length?Math.round(healthy/kpis.length*100):0,   color:"#16a34a", bg:"#dcfce7"},
-            {label:"Monitor",       value:monitor,   pct:kpis.length?Math.round(monitor/kpis.length*100):0,   color:"#b45309", bg:"#fef9c3"},
-            {label:"Needs Redesign",value:redesign,  pct:kpis.length?Math.round(redesign/kpis.length*100):0,  color:"#dc2626", bg:"#fee2e2"},
-          ].map(c=>(
-            <div key={c.label} style={{background:c.bg, borderRadius:6, padding:"10px 14px", display:"flex", justifyContent:"space-between", alignItems:"center"}}>
-              <div style={{fontSize:12, fontWeight:600, color:c.color}}>{c.label}</div>
-              <div style={{fontSize:18, fontWeight:800, color:c.color}}>{c.value} <span style={{fontSize:11, fontWeight:500}}>({c.pct}%)</span></div>
-            </div>
-          ))}
-        </div>
+  const topRows = topPerf.map((p,i)=>`<tr style="background:${i%2===0?"white":"#f8fafc"}">
+    <td style="${td}font-weight:600;">${p.name}</td>
+    <td style="${td}">${p.staff_name}</td>
+    <td style="${td}">${p.area}</td>
+    <td style="${tdR}color:${p.fillRate>=0.7?"#16a34a":"#dc2626"};font-weight:700;">${pct(p.fillRate)}</td>
+    <td style="${tdR}color:${p.costRecovery>=1?"#16a34a":"#dc2626"};font-weight:700;">${pct(p.costRecovery)}</td>
+    <td style="${tdR}color:${p.profitLoss>=0?"#16a34a":"#dc2626"};font-weight:700;">${dollar(p.profitLoss)}</td>
+    <td style="${td}">${p.status}</td>
+  </tr>`).join("");
 
-        {/* Revenue / Cost summary */}
-        <div style={secH}>Financial Summary</div>
-        <table style={{width:"100%", borderCollapse:"collapse", marginBottom:16}}>
-          <thead><tr>
-            {["Metric","Budget","Actual","Variance"].map(h=><th key={h} style={tdH}>{h}</th>)}
-          </tr></thead>
-          <tbody>
-            {[
-              {label:"Total Revenue", bud:kpis.reduce((a,p)=>a+p.antRevenue,0),  act:totalRev},
-              {label:"Total Cost",    bud:kpis.reduce((a,p)=>a+p.antTotal,0),    act:totalCost, inv:true},
-              {label:"Net P/(L)",     bud:kpis.reduce((a,p)=>a+p.antProfit,0),   act:totalPL},
-            ].map((r,i)=>{
-              const v=r.act-r.bud; const good=r.inv?v<=0:v>=0;
-              return <tr key={r.label} style={{background:i%2===0?"white":"#f8fafc"}}>
-                <td style={{...td,fontWeight:600}}>{r.label}</td>
-                <td style={tdR}>{dollar(r.bud)}</td>
-                <td style={tdR}>{dollar(r.act)}</td>
-                <td style={{...tdR, color:good?"#16a34a":"#dc2626", fontWeight:700}}>{v>=0?"+":""}{dollar(v)}</td>
-              </tr>;
-            })}
-          </tbody>
-        </table>
+  const attnRows = needsWork.map((p,i)=>`<tr style="background:${i%2===0?"white":"#fff5f5"}">
+    <td style="${td}font-weight:600;">${p.name}</td>
+    <td style="${td}">${p.staff_name}</td>
+    <td style="${td}">${p.area}</td>
+    <td style="${tdR}color:#dc2626;font-weight:700;">${pct(p.fillRate)}</td>
+    <td style="${tdR}color:${p.costRecovery<0.5?"#dc2626":"#b45309"};font-weight:700;">${pct(p.costRecovery)}</td>
+    <td style="${td}color:${p.trend==="Declining"?"#dc2626":"inherit"};">${p.trend}</td>
+    <td style="${td}">${p.status}</td>
+  </tr>`).join("");
 
-        {/* Top performers */}
-        {topPerf.length>0&&(<>
-          <div style={secH}>Top Performers by Fill Rate</div>
-          <table style={{width:"100%", borderCollapse:"collapse", marginBottom:16}}>
-            <thead><tr>
-              {["Program","Staff","Area","Fill Rate","Cost Recovery","Net P/(L)","Status"].map(h=><th key={h} style={tdH}>{h}</th>)}
-            </tr></thead>
-            <tbody>{topPerf.map((p,i)=>(
-              <tr key={p.id} style={{background:i%2===0?"white":"#f8fafc"}}>
-                <td style={{...td,fontWeight:600}}>{p.name}</td>
-                <td style={td}>{p.staff_name}</td>
-                <td style={td}>{p.area}</td>
-                <td style={{...tdR,color:p.fillRate>=0.7?"#16a34a":"#dc2626",fontWeight:700}}>{pct(p.fillRate)}</td>
-                <td style={{...tdR,color:p.costRecovery>=1?"#16a34a":"#dc2626",fontWeight:700}}>{pct(p.costRecovery)}</td>
-                <td style={{...tdR,color:p.profitLoss>=0?"#16a34a":"#dc2626",fontWeight:700}}>{dollar(p.profitLoss)}</td>
-                <td style={td}>{p.status}</td>
-              </tr>
-            ))}</tbody>
-          </table>
-        </>)}
+  const allRows = [...kpis].sort((a,b)=>a.name.localeCompare(b.name)).map((p,i)=>`<tr style="background:${i%2===0?"white":"#f8fafc"}">
+    <td style="${td}font-weight:600;">${p.name}</td>
+    <td style="${td}">${p.staff_name}</td>
+    <td style="${td}">${p.area}</td>
+    <td style="${td}">${p.season} ${p.year}</td>
+    <td style="${tdR}color:${p.fillRate>=0.7?"#16a34a":p.fillRate>=0.6?"#b45309":"#dc2626"};font-weight:600;">${pct(p.fillRate)}</td>
+    <td style="${tdR}color:${p.costRecovery>=1?"#16a34a":p.costRecovery>=0.5?"#b45309":"#dc2626"};font-weight:600;">${pct(p.costRecovery)}</td>
+    <td style="${tdR}color:${p.profitLoss>=0?"#16a34a":"#dc2626"};font-weight:600;">${dollar(p.profitLoss)}</td>
+    <td style="${td}">${p.status}</td>
+  </tr>`).join("");
 
-        {/* Needs attention */}
-        {needsWork.length>0&&(<>
-          <div style={secH}>Programs Needing Attention</div>
-          <table style={{width:"100%", borderCollapse:"collapse", marginBottom:16}}>
-            <thead><tr>
-              {["Program","Staff","Area","Fill Rate","Cost Recovery","Trend","Status"].map(h=><th key={h} style={tdH}>{h}</th>)}
-            </tr></thead>
-            <tbody>{needsWork.map((p,i)=>(
-              <tr key={p.id} style={{background:i%2===0?"white":"#fff5f5"}}>
-                <td style={{...td,fontWeight:600}}>{p.name}</td>
-                <td style={td}>{p.staff_name}</td>
-                <td style={td}>{p.area}</td>
-                <td style={{...tdR,color:"#dc2626",fontWeight:700}}>{pct(p.fillRate)}</td>
-                <td style={{...tdR,color:p.costRecovery<0.5?"#dc2626":"#b45309",fontWeight:700}}>{pct(p.costRecovery)}</td>
-                <td style={{...td,color:p.trend==="Declining"?"#dc2626":"inherit"}}>{p.trend}</td>
-                <td style={td}>{p.status}</td>
-              </tr>
-            ))}</tbody>
-          </table>
-        </>)}
-
-        {/* Full program list */}
-        <div style={secH}>All Programs</div>
-        <table style={{width:"100%", borderCollapse:"collapse"}}>
-          <thead><tr>
-            {["Program","Staff","Area","Season","Fill","Recovery","Net P/(L)","Status"].map(h=><th key={h} style={tdH}>{h}</th>)}
-          </tr></thead>
-          <tbody>{[...kpis].sort((a,b)=>a.name.localeCompare(b.name)).map((p,i)=>(
-            <tr key={p.id} style={{background:i%2===0?"white":"#f8fafc"}}>
-              <td style={{...td,fontWeight:600}}>{p.name}</td>
-              <td style={td}>{p.staff_name}</td>
-              <td style={td}>{p.area}</td>
-              <td style={td}>{p.season} {p.year}</td>
-              <td style={{...tdR,color:p.fillRate>=0.7?"#16a34a":p.fillRate>=0.6?"#b45309":"#dc2626",fontWeight:600}}>{pct(p.fillRate)}</td>
-              <td style={{...tdR,color:p.costRecovery>=1?"#16a34a":p.costRecovery>=0.5?"#b45309":"#dc2626",fontWeight:600}}>{pct(p.costRecovery)}</td>
-              <td style={{...tdR,color:p.profitLoss>=0?"#16a34a":"#dc2626",fontWeight:600}}>{dollar(p.profitLoss)}</td>
-              <td style={td}>{p.status}</td>
-            </tr>
-          ))}</tbody>
-        </table>
-
-        {/* Footer */}
-        <div style={{marginTop:24, paddingTop:12, borderTop:"1px solid #e2e8f0", fontSize:10, color:"#94a3b8", display:"flex", justifyContent:"space-between"}}>
-          <span>Barrington Park District · Recreation Management System</span>
-          <span>Confidential — Internal Use Only · Generated {today}</span>
-        </div>
-      </div>
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+  <title>BGPD Season Report</title>
+  <style>
+    * { font-family: 'Segoe UI', sans-serif; margin:0; padding:0; box-sizing:border-box; }
+    body { background:white; color:#1e293b; }
+    table { border-collapse:collapse; width:100%; }
+    @page { margin:0.75in; size:letter; }
+    @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
+  </style>
+  </head><body>
+  <div style="background:#1e3a5f;color:white;padding:20px 28px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-start;">
+    <div>
+      <div style="font-weight:700;font-size:20px;">BGPD Recreation — Season Performance Report</div>
+      <div style="font-size:12px;opacity:0.75;margin-top:4px;">${filters} · Generated ${today}</div>
     </div>
-  );
+    <div style="text-align:right;">
+      <div style="font-size:28px;font-weight:900;color:${healthColor};">${healthScore}<span style="font-size:14px;font-weight:400;color:rgba(255,255,255,0.6);">/100</span></div>
+      <div style="font-size:11px;opacity:0.7;">Health Score</div>
+    </div>
+  </div>
+  <div style="padding:0 28px 28px;">
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px;">${kpiCards}</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;">${statusCards}</div>
+    <div style="${secH}">Financial Summary</div>
+    <table style="margin-bottom:16px;"><thead><tr>
+      <th style="${th}">Metric</th><th style="${th}">Budget</th><th style="${th}">Actual</th><th style="${th}">Variance</th>
+    </tr></thead><tbody>${finRows}</tbody></table>
+    ${topPerf.length>0?`<div style="${secH}">Top Performers by Fill Rate</div>
+    <table style="margin-bottom:16px;"><thead><tr>
+      <th style="${th}">Program</th><th style="${th}">Staff</th><th style="${th}">Area</th><th style="${th}">Fill Rate</th><th style="${th}">Cost Recovery</th><th style="${th}">Net P/(L)</th><th style="${th}">Status</th>
+    </tr></thead><tbody>${topRows}</tbody></table>`:""}
+    ${needsWork.length>0?`<div style="${secH}">Programs Needing Attention</div>
+    <table style="margin-bottom:16px;"><thead><tr>
+      <th style="${th}">Program</th><th style="${th}">Staff</th><th style="${th}">Area</th><th style="${th}">Fill Rate</th><th style="${th}">Cost Recovery</th><th style="${th}">Trend</th><th style="${th}">Status</th>
+    </tr></thead><tbody>${attnRows}</tbody></table>`:""}
+    <div style="${secH}">All Programs</div>
+    <table><thead><tr>
+      <th style="${th}">Program</th><th style="${th}">Staff</th><th style="${th}">Area</th><th style="${th}">Season</th><th style="${th}">Fill</th><th style="${th}">Recovery</th><th style="${th}">Net P/(L)</th><th style="${th}">Status</th>
+    </tr></thead><tbody>${allRows}</tbody></table>
+    <div style="margin-top:24px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:10px;color:#94a3b8;display:flex;justify-content:space-between;">
+      <span>Barrington Park District · Recreation Management System</span>
+      <span>Confidential — Internal Use Only · Generated ${today}</span>
+    </div>
+  </div>
+  <script>window.onload=function(){window.print();window.onafterprint=function(){window.close();};};<\/script>
+  </body></html>`;
+
+  const w = window.open("","_blank","width=900,height=700");
+  if(w){ w.document.write(html); w.document.close(); }
+  else { alert("Please allow popups for this site to generate the Season Report."); }
 }
 
 // ─── CSV Export ───────────────────────────────────────────────────────────────
@@ -696,7 +664,6 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
   const [snf,setSnf]         = useState("All");
   const [dv,setDv]           = useState("summary");
   const [showReport,setShowReport] = useState(false);
-  const [printing,setPrinting]     = useState(false);
 
   const allStaff   = ["All",...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
   const allAreas   = ["All",...new Set(programs.map(p=>p.area))];
@@ -765,13 +732,12 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
             <div className="text-xs text-slate-400">{vis.length} programs with current filters applied</div>
             <div className="flex gap-3 justify-center pt-2">
               <button onClick={()=>setShowReport(false)} className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
-              <button onClick={()=>{ setShowReport(false); setPrinting(true); }}
+              <button onClick={()=>{ setShowReport(false); printSeasonReport(vis, `${sf!=="All"?`Staff: ${sf}`:"All Staff"} · ${af!=="All"?`Area: ${af}`:"All Areas"} · ${snf!=="All"?`Season: ${snf}`:"All Seasons"} · ${yf!=="All"?`Year: ${yf}`:"All Years"}`); }}
                 className="px-5 py-2 text-sm font-semibold text-white rounded-lg" style={{backgroundColor:"#1e3a5f"}}>Print / Save PDF</button>
             </div>
           </div>
         </div>
       )}
-      {printing&&<SeasonReport programs={vis} filters={`${sf!=="All"?`Staff: ${sf}`:"All Staff"} · ${af!=="All"?`Area: ${af}`:"All Areas"} · ${snf!=="All"?`Season: ${snf}`:"All Seasons"} · ${yf!=="All"?`Year: ${yf}`:"All Years"}`} onClose={()=>setPrinting(false)} onDone={()=>setPrinting(false)}/>}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <KCard label="Programs"                value={vis.length}      accent="#1e3a5f"/>
         <KCard label="Avg Fill Rate"           value={pct(avgFill)}    accent="#d4a017"/>
@@ -916,7 +882,6 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   const [dv,setDv]           = useState("summary");
   const [sort,setSort]       = useState({col:"name",dir:1});
   const [showReport,setShowReport] = useState(false);
-  const [printing,setPrinting]     = useState(false);
 
   const allStaff   = ["All",...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
   const allAreas   = ["All",...new Set(programs.map(p=>p.area))];
@@ -1135,13 +1100,12 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
             <div className="text-xs text-slate-400">Filters applied: {sf!=="All"?`Staff: ${sf} · `:""}{ af!=="All"?`Area: ${af} · `:""}{ yf!=="All"?`Year: ${yf}`:"All Programs"} · {vis.length} programs</div>
             <div className="flex gap-3 justify-center pt-2">
               <button onClick={()=>setShowReport(false)} className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
-              <button onClick={()=>{ setShowReport(false); setPrinting(true); }}
+              <button onClick={()=>{ setShowReport(false); printSeasonReport(vis, `${sf!=="All"?`Staff: ${sf}`:"All Staff"} · ${af!=="All"?`Area: ${af}`:"All Areas"} · ${snf!=="All"?`Season: ${snf}`:"All Seasons"} · ${yf!=="All"?`Year: ${yf}`:"All Years"}`); }}
                 className="px-5 py-2 text-sm font-semibold text-white rounded-lg" style={{backgroundColor:"#1e3a5f"}}>Print / Save PDF</button>
             </div>
           </div>
         </div>
       )}
-      {printing&&<SeasonReport programs={vis} filters={`${sf!=="All"?`Staff: ${sf}`:"All Staff"} · ${af!=="All"?`Area: ${af}`:"All Areas"} · ${yf!=="All"?`Year: ${yf}`:"All Years"}`} onClose={()=>setPrinting(false)} onDone={()=>setPrinting(false)}/>}
 
       {/* ── Needs Attention Queue ── */}
       {needsAttention.length>0&&(
@@ -1958,7 +1922,7 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h2 className="font-bold text-slate-700">All Programs ({programs.length})</h2>
+        <h2 className="font-bold text-slate-700">{showArchived ? "Archived Programs" : "Active Programs"} ({vis.length})</h2>
         <div className="flex gap-2">
           {isManager&&(
             <button onClick={onBulkDup}
