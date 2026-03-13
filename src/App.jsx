@@ -28,7 +28,7 @@ const ADMIN_OVERHEAD_RATE  = 0.1;
 const FT_ANNUAL_SALARY     = 97700;
 const FACILITY_COST_PER_HR = 3;
 const MANAGER_NAMES        = ["admin","manager","joe zimmermann","erika strojinc","dan stanczak","brian o'malley","chris eckert","chuck burgess","diana clayson","amanda busch"];
-const ADMIN_NAMES          = ["admin","joe zimmermann","erika strojinc","dan stanczak","tim beckmann"]; // Director-level: sees ★ Admin tab
+const ADMIN_NAMES          = ["admin","joe zimmermann"]; // Director-level: sees ★ Admin tab
 
 
 // Service category cost recovery targets
@@ -2399,7 +2399,6 @@ function Reference({isManager}) {
                       {n:"1",text:"Open the app link in your browser"},
                       {n:"2",text:'Type your first and last name (e.g. "Jane Smith") and click Enter — always use both names'},
                       {n:"3",text:"Your name is saved automatically — you won't need to type it again on this device"},
-                      {n:"4",text:"If you see a Manager View toggle, leave it off — that's for supervisors"},
                     ].map(s=>(
                       <div key={s.n} className="flex gap-3 items-start">
                         <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0" style={{background:"#1e3a5f"}}>{s.n}</div>
@@ -2468,10 +2467,10 @@ function Reference({isManager}) {
                     </div>
                     <div className="p-4 space-y-3">
                       <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-xs text-blue-800 mb-3">
-                        <span className="font-bold">Anticipated = your plan before the program runs. Actual = what really happened.</span> You'll fill in Anticipated first, then come back and update Actual after registration closes.
+                        <span className="font-bold">Budgeted = your plan before the program runs. Actual = what really happened.</span> You'll fill in Budgeted first, then come back and update Actual after registration closes.
                       </div>
                       {[
-                        {field:"Anticipated Enrollment",tip:"Your registration target. How many participants are you hoping to get? This is your goal before the program starts."},
+                        {field:"Budgeted Enrollment",tip:"Your registration target. How many participants are you hoping to get? This is your goal before the program starts."},
                         {field:"Actual Enrollment",tip:"How many actually registered. Update this once registration closes or the program ends. Leave blank until you know — don't guess."},
                         {field:"Capacity",tip:"The maximum number your space or instructor can handle. If a room holds 20, capacity is 20. Always fill this in — the app needs it to calculate your fill rate."},
                         {field:"Waitlist",tip:"Anyone who wanted to register but couldn't because the program was full. Enter this separately. It signals that you could run another section."},
@@ -2492,8 +2491,8 @@ function Reference({isManager}) {
                     </div>
                     <div className="p-4 space-y-3">
                       {[
-                        {field:"Anticipated Revenue",tip:"Budgeted revenue before the program runs. A quick estimate: your fee × anticipated enrollment is a good starting point. (Example: $85/person × 20 people = $1,700)"},
-                        {field:"Actual Revenue",tip:"What was actually collected after the program. This might differ from anticipated if enrollment was higher or lower than expected, or if scholarships/discounts were applied."},
+                        {field:"Budgeted Revenue",tip:"Budgeted revenue before the program runs. A quick estimate: your fee × budgeted enrollment is a good starting point. (Example: $85/person × 20 people = $1,700)"},
+                        {field:"Actual Revenue",tip:"What was actually collected after the program. This might differ from budgeted if enrollment was higher or lower than expected, or if scholarships/discounts were applied."},
                       ].map(r=>(
                         <div key={r.field} className="text-sm">
                           <div className="font-semibold text-slate-700 mb-0.5">{r.field}</div>
@@ -2630,7 +2629,7 @@ function Reference({isManager}) {
                       ))}
                     </div>
                     <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-blue-800 mt-2">
-                      <span className="font-bold">Status uses Actual numbers when available.</span> If you haven't entered Actual Enrollment or Actual Revenue yet, it falls back to Anticipated numbers — so it may not reflect what really happened until you update those fields.
+                      <span className="font-bold">Status uses Actual numbers when available.</span> If you haven't entered Actual Enrollment or Actual Revenue yet, it falls back to Budgeted numbers — so it may not reflect what really happened until you update those fields.
                     </div>
                   </div>
                 </div>
@@ -2678,7 +2677,7 @@ function Reference({isManager}) {
                 <p className="text-sm text-slate-600 mb-4">The dashboard is only useful if the data is current. Here's what to do and when.</p>
                 <div className="space-y-2">
                   {[
-                    {when:"Before registration opens",icon:"📋",color:"#1e3a5f",what:"Create the program entry. Fill in: Program Name, Area, Season/Year, Staff Name, Classification, Program Type, Capacity, Anticipated Enrollment, Anticipated Revenue, and all known direct costs. This gives your manager a planning view."},
+                    {when:"Before registration opens",icon:"📋",color:"#1e3a5f",what:"Create the program entry. Fill in: Program Name, Area, Season/Year, Staff Name, Classification, Program Type, Capacity, Budgeted Enrollment, Budgeted Revenue, and all known direct costs. This gives your manager a planning view."},
                     {when:"When registration closes",icon:"✅",color:"#0f766e",what:"Update Actual Enrollment with the final count. Add any Waitlist numbers. Revenue doesn't need to be final yet if collection isn't complete."},
                     {when:"When the program ends",icon:"💰",color:"#d4a017",what:"Update Actual Revenue with what was collected. Confirm costs are accurate. Set the Trend field (Growing/Stable/Declining). Add any Notes that explain unusual results — a canceled week, a weather cancellation, an unusually large group."},
                     {when:"If you collected participant feedback",icon:"⭐",color:"#7c3aed",what:"Add your NPS score. Optional but valuable for long-term program tracking."},
@@ -2715,14 +2714,14 @@ function Reference({isManager}) {
               <GuideSection title="Common Questions" accent="#7c3aed">
                 <div className="space-y-3">
                   {[
-                    {q:"My program shows 'Needs Redesign' but it actually went really well. What's wrong?",a:"Status is calculated from your actual numbers. If Actual Enrollment or Actual Revenue hasn't been updated since the program ran, the app is still using your anticipated figures — which may have been conservative. Go edit the program and enter the real numbers. Status will update immediately."},
+                    {q:"My program shows 'Needs Redesign' but it actually went really well. What's wrong?",a:"Status is calculated from your actual numbers. If Actual Enrollment or Actual Revenue hasn't been updated since the program ran, the app is still using your budgeted figures — which may have been conservative. Go edit the program and enter the real numbers. Status will update immediately."},
                     {q:"My fill rate shows 0% but the program ran fine.",a:"This almost always means Capacity was left blank or set to 0. Without a capacity number, the app can't calculate how full you were. Go back and add it."},
                     {q:"I don't know what Program Type to pick.",a:"Start here: is it a regular ongoing class or activity? Pick Core Program. Is it a one-time event? Pick Special Event. Is it a series of classes? Pick Small Program or Large Program depending on how complex it is. Your manager can help you pick if you're unsure — it's better to ask than leave it blank."},
                     {q:"My cost recovery is very low. Am I doing something wrong?",a:"Not necessarily. Cost recovery targets vary by program type. A community benefit program (adaptive rec, a free event, a subsidized youth program) may have a 0–20% target by design. Check the District Standards tab under your program's category. If your target is low, a low cost recovery is expected and appropriate."},
                     {q:"Should I enter every program, even small or one-time ones?",a:"Yes. The dashboard averages and comparisons are only accurate when all programs are entered. A partial list skews the metrics and makes the portfolio look healthier or sicker than it really is."},
                     {q:"A program was canceled midway. How do I enter it?",a:"Enter it as you planned, then update Actual Enrollment and Actual Revenue to reflect what happened before the cancellation. Add a note explaining it was canceled (e.g. 'Canceled after week 4 — low enrollment'). This keeps the record honest and gives context for future planning."},
                     {q:"I made a mistake. Can I change data after saving?",a:"Yes, anytime. Click the program name on the Dashboard or Programs tab, edit any field, and save. All metrics recalculate immediately. There's no lock-out period."},
-                    {q:"What's the difference between Anticipated and Actual fields?",a:"Anticipated = your plan before the program runs (enrollment target, budgeted revenue). Actual = what really happened (real enrollment count, real revenue collected). You fill in Anticipated first, then come back and update Actual after the program ends."},
+                    {q:"What's the difference between Budgeted and Actual fields?",a:"Budgeted = your plan before the program runs (enrollment target, budgeted revenue). Actual = what really happened (real enrollment count, real revenue collected). You fill in Budgeted first, then come back and update Actual after the program ends."},
                   ].map((r,i)=>(
                     <div key={i} className="rounded-lg border border-slate-200 overflow-hidden">
                       <div className="px-4 py-3 bg-slate-50 text-sm font-semibold text-slate-700 border-b border-slate-100">{r.q}</div>
@@ -2894,7 +2893,7 @@ function Reference({isManager}) {
               <GuideSection title="Common Manager Questions" accent="#1e3a5f">
                 <div className="space-y-3">
                   {[
-                    {q:"A program shows Needs Redesign but the staff member says it went great. How do I reconcile that?",a:"Check whether actuals have been updated. If Actual Enrollment and Actual Revenue are still blank or showing anticipated numbers, the status is based on pre-program estimates. Ask the staff member to update their actuals first — then revisit the status."},
+                    {q:"A program shows Needs Redesign but the staff member says it went great. How do I reconcile that?",a:"Check whether actuals have been updated. If Actual Enrollment and Actual Revenue are still blank or showing budgeted numbers, the status is based on pre-program estimates. Ask the staff member to update their actuals first — then revisit the status."},
                     {q:"The Health Score dropped significantly. What should I look for?",a:"Health Score weights fill rate most heavily (40%). A significant drop usually means one or more high-enrollment programs declined, or a batch of new programs with low actuals were added. Filter by season or area to isolate which segment pulled the score down."},
                     {q:"How do I prepare for an annual report using this app?",a:"Clear all filters to show the full portfolio. Note the Health Score, total Net P/(L), and Subsidy Burden. Use the Classification Mix section for the community-benefit vs. revenue narrative. Export CSV for a full data appendix. Export Season Report as a PDF summary. Admin → Executive Summary has fund-level P&L."},
                     {q:"A staff member left. What happens to their programs?",a:"Their programs stay in the system under their name. You can edit each program and reassign it to a new staff member by changing the Staff Name field. Alternatively, leave them as-is for historical accuracy and create new entries for the replacement's future work."},
