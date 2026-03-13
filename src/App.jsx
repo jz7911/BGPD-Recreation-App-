@@ -2563,7 +2563,7 @@ function Reference({isManager}) {
                     <p>Cost recovery tells you what percentage of the program's cost was covered by what participants paid. 100% means break-even — fees covered every dollar of cost. Below 100% means the district subsidized the rest.</p>
                     <p><span className="font-semibold text-slate-700">Example:</span> Your program cost $1,500 to run and brought in $1,200 in fees. Cost recovery = 80%. The district covered the remaining $300.</p>
                     <p className="font-semibold text-slate-700">Important context:</p>
-                    <p>Not every program is expected to reach 100%. Community Driven programs (adaptive rec, teen drop-ins, free events) may have a target of 0–20% by design — the district intentionally subsidizes them because they serve the community. Check the District Standards tab for your specific program category's target.</p>
+                    <p>Not every program is expected to reach 100%. Community Driven programs (free events) may have a target of 0–20% by design — the district intentionally subsidizes them because they serve the community. Check the District Standards tab for your specific program category's target.</p>
                     <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-blue-800 mt-2">
                       <span className="font-bold">Low cost recovery does not mean your program was bad.</span> It depends entirely on what type of program it is. A swim lesson class should cover its costs. A free family event is not expected to.
                     </div>
