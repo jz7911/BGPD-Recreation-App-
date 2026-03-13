@@ -69,6 +69,7 @@ const DB_FIELDS = [
   "act_other1","act_other2","act_facility_hours",
   "act_program_type","act_custom_workload",
   "decision_log",
+  "is_archived",
 ];
 
 function cleanForDB(p) {
@@ -145,6 +146,7 @@ function newProgram(staffName) {
     act_program_type:"", act_custom_workload:0,
     other1_label:"Other Direct Costs", other2_label:"Other Direct Costs 2",
     decision_log: [],
+    is_archived: false,
   };
 }
 
@@ -680,19 +682,24 @@ function BulkDupModal({programs,onConfirm,onCancel}) {
 
 // ─── Dashboard (Staff View — unchanged from original) ─────────────────────────
 function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
-  const [sf,setSf] = useState("All");
-  const [af,setAf] = useState("All");
-  const [yf,setYf] = useState("All");
-  const [dv,setDv] = useState("summary");
+  const [sf,setSf]           = useState("All");
+  const [af,setAf]           = useState("All");
+  const [yf,setYf]           = useState("All");
+  const [snf,setSnf]         = useState("All");
+  const [dv,setDv]           = useState("summary");
+  const [showReport,setShowReport] = useState(false);
 
-  const allStaff = ["All",...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
-  const allAreas = ["All",...new Set(programs.map(p=>p.area))];
-  const allYears = ["All",...YEARS];
+  const allStaff   = ["All",...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
+  const allAreas   = ["All",...new Set(programs.map(p=>p.area))];
+  const allYears   = ["All",...YEARS];
+  const allSeasons = ["All",...SEASONS];
 
   const vis  = programs
+    .filter(p=>!p.is_archived)
     .filter(p=>sf==="All"||p.staff_name===sf)
     .filter(p=>af==="All"||p.area===af)
-    .filter(p=>yf==="All"||p.year===yf);
+    .filter(p=>yf==="All"||p.year===yf)
+    .filter(p=>snf==="All"||p.season===snf);
 
   const kpis    = vis.map(p=>({...p,...calcKPIs(p)}));
   const avgFill = kpis.length ? kpis.reduce((a,p)=>a+p.fillRate,0)/kpis.length : 0;
@@ -709,7 +716,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
   const redesign = kpis.filter(p=>p.status==="Needs Redesign").length;
   const low50    = kpis.filter(p=>p.costRecovery<0.5).length;
   const selCls = "rounded border border-slate-200 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:border-blue-400 min-w-[140px]";
-  const anyFilter = sf!=="All"||af!=="All"||yf!=="All";
+  const anyFilter = sf!=="All"||af!=="All"||yf!=="All"||snf!=="All";
 
   return (
     <div className="space-y-6">
@@ -727,13 +734,35 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
           </select>
         </div>
         <div className="flex flex-col gap-1">
+          <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Season</label>
+          <select value={snf} onChange={e=>setSnf(e.target.value)} className={selCls}>
+            {allSeasons.map(s=><option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
           <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Year</label>
           <select value={yf} onChange={e=>setYf(e.target.value)} className={selCls}>
             {allYears.map(y=><option key={y} value={y}>{y}</option>)}
           </select>
         </div>
-        {anyFilter&&<button onClick={()=>{setSf("All");setAf("All");setYf("All");}} className="text-xs text-slate-400 hover:text-slate-600 pb-1.5 font-medium">Clear filters</button>}
+        {anyFilter&&<button onClick={()=>{setSf("All");setAf("All");setYf("All");setSnf("All");}} className="text-xs text-slate-400 hover:text-slate-600 pb-1.5 font-medium">Clear filters</button>}
+        <button onClick={()=>setShowReport(true)} className="text-xs font-semibold px-3 py-2 rounded transition whitespace-nowrap text-white ml-auto" style={{backgroundColor:"#1e3a5f"}}>⬜ Season Report</button>
       </div>
+      {showReport&&(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:"rgba(15,23,42,0.7)"}}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center space-y-4">
+            <div className="text-base font-bold text-slate-800">Season Performance Report</div>
+            <div className="text-sm text-slate-500">This will open your browser's print dialog. Choose "Save as PDF" to export.</div>
+            <div className="text-xs text-slate-400">{vis.length} programs with current filters applied</div>
+            <div className="flex gap-3 justify-center pt-2">
+              <button onClick={()=>setShowReport(false)} className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
+              <button onClick={()=>{ setShowReport(false); setTimeout(()=>window.print(),100); }}
+                className="px-5 py-2 text-sm font-semibold text-white rounded-lg" style={{backgroundColor:"#1e3a5f"}}>Print / Save PDF</button>
+            </div>
+          </div>
+        </div>
+      )}
+      <SeasonReport programs={vis} filters={`${sf!=="All"?`Staff: ${sf}`:"All Staff"} · ${af!=="All"?`Area: ${af}`:"All Areas"} · ${snf!=="All"?`Season: ${snf}`:"All Seasons"} · ${yf!=="All"?`Year: ${yf}`:"All Years"}`} onClose={()=>setShowReport(false)}/>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <KCard label="Programs"                value={vis.length}      accent="#1e3a5f"/>
         <KCard label="Avg Fill Rate"           value={pct(avgFill)}    accent="#d4a017"/>
@@ -874,18 +903,22 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   const [sf,setSf]           = useState("All");
   const [af,setAf]           = useState("All");
   const [yf,setYf]           = useState("All");
+  const [snf,setSnf]         = useState("All");
   const [dv,setDv]           = useState("summary");
   const [sort,setSort]       = useState({col:"name",dir:1});
   const [showReport,setShowReport] = useState(false);
 
-  const allStaff = ["All",...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
-  const allAreas = ["All",...new Set(programs.map(p=>p.area))];
-  const allYears = ["All",...YEARS];
+  const allStaff   = ["All",...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
+  const allAreas   = ["All",...new Set(programs.map(p=>p.area))];
+  const allYears   = ["All",...YEARS];
+  const allSeasons = ["All",...SEASONS];
 
   const vis  = programs
+    .filter(p=>!p.is_archived)
     .filter(p=>sf==="All"||p.staff_name===sf)
     .filter(p=>af==="All"||p.area===af)
-    .filter(p=>yf==="All"||p.year===yf);
+    .filter(p=>yf==="All"||p.year===yf)
+    .filter(p=>snf==="All"||p.season===snf);
 
   const kpis = useMemo(()=>vis.map(p=>({...p,...calcKPIs(p)})),[vis]);
 
@@ -1045,7 +1078,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   },[kpis]);
 
   const selCls    = "rounded border border-slate-200 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:border-blue-400 min-w-[140px]";
-  const anyFilter = sf!=="All"||af!=="All"||yf!=="All";
+  const anyFilter = sf!=="All"||af!=="All"||yf!=="All"||snf!=="All";
 
   return (
     <div className="space-y-6">
@@ -1066,12 +1099,18 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
             </select>
           </div>
           <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Season</label>
+            <select value={snf} onChange={e=>setSnf(e.target.value)} className={selCls}>
+              {allSeasons.map(s=><option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
             <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Year</label>
             <select value={yf} onChange={e=>setYf(e.target.value)} className={selCls}>
               {allYears.map(y=><option key={y} value={y}>{y}</option>)}
             </select>
           </div>
-          {anyFilter&&<button onClick={()=>{setSf("All");setAf("All");setYf("All");}} className="text-xs text-slate-400 hover:text-slate-600 pb-1.5 font-medium">Clear filters</button>}
+          {anyFilter&&<button onClick={()=>{setSf("All");setAf("All");setYf("All");setSnf("All");}} className="text-xs text-slate-400 hover:text-slate-600 pb-1.5 font-medium">Clear filters</button>}
         </div>
         <div className="flex gap-2">
           <button onClick={()=>exportCSV(vis)} className="text-xs font-semibold px-3 py-2 rounded border border-slate-200 text-slate-500 hover:bg-slate-50 transition whitespace-nowrap">↓ Export CSV</button>
@@ -1632,11 +1671,12 @@ function MultiSeasonView({programs,onEdit}) {
 }
 
 // ─── Program Form ─────────────────────────────────────────────────────────────
-function ProgramForm({initial,staffName,isManager,onSave,onDelete,onDuplicate,onCancel,saving}) {
+function ProgramForm({initial,staffName,isManager,onSave,onDelete,onArchive,onDuplicate,onCancel,saving}) {
   const [p,setP]             = useState(()=> initial ? {...cleanForDB(initial), decision_log: initial.decision_log||[], other1_label: initial.other1_label||"Other Direct Costs", other2_label: initial.other2_label||"Other Direct Costs 2"} : newProgram(staffName));
   const set                  = k => v => setP(prev=>({...prev,[k]:v}));
   const [sec,setSec]         = useState("info");
-  const [confirm,setConfirm] = useState(false);
+  const [confirm,setConfirm]         = useState(false);
+  const [confirmArchive,setConfirmArchive] = useState(false);
   const [logEntry,setLogEntry] = useState("");
   const [dirty,setDirty]     = useState(false);
   const isNew                = !initial;
@@ -1691,17 +1731,30 @@ function ProgramForm({initial,staffName,isManager,onSave,onDelete,onDuplicate,on
           onCancel={()=>setConfirm(false)}
         />
       )}
+      {confirmArchive&&(
+        <ConfirmModal
+          message={p.is_archived ? `Restore "${p.name}" to active programs?` : `Archive "${p.name}"? It will be hidden from dashboards and reports but can be restored later.`}
+          onConfirm={()=>onArchive(p.id, !p.is_archived)}
+          onCancel={()=>setConfirmArchive(false)}
+        />
+      )}
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
             <h2 className="font-bold text-slate-700">{isNew?"Add Program":"Edit Program"}</h2>
             {dirty&&<span className="text-xs bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full font-medium">Unsaved</span>}
           </div>
-          {lastUpdated&&<div className="text-xs text-slate-400 mt-0.5">Last updated {new Date(lastUpdated).toLocaleDateString()} · <span className="text-slate-300">Ctrl+S to save · Esc to go back</span></div>}
+          {lastUpdated&&<div className="text-xs text-slate-400 mt-0.5">Last updated {new Date(lastUpdated).toLocaleDateString()}</div>}
         </div>
         <button onClick={handleBack} className="text-sm text-slate-400 hover:text-slate-600">Back</button>
       </div>
 
+      {p.is_archived&&(
+        <div className="bg-slate-100 border border-slate-300 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
+          <span className="text-sm text-slate-600 font-medium">📦 This program is archived and hidden from dashboards and reports.</span>
+          {canEdit&&<button onClick={()=>setConfirmArchive(true)} className="text-sm font-semibold text-green-700 hover:underline">Restore</button>}
+        </div>
+      )}
       {!canEdit&&(
         <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-700">
           This program was entered by <strong>{p.staff_name}</strong>. View only.
@@ -1848,6 +1901,10 @@ function ProgramForm({initial,staffName,isManager,onSave,onDelete,onDuplicate,on
         <div className="flex gap-3 justify-between">
           <div className="flex gap-2">
             {!isNew&&<button onClick={()=>setConfirm(true)} className="px-4 py-2 text-sm text-red-500 hover:text-red-700 font-medium">Delete</button>}
+            {!isNew&&<button onClick={()=>setConfirmArchive(true)}
+              className={`px-4 py-2 text-sm font-medium rounded border transition ${p.is_archived?"border-green-300 text-green-700 hover:bg-green-50":"border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
+              {p.is_archived?"Restore":"Archive"}
+            </button>}
             {!isNew&&<button onClick={()=>onDuplicate(p)} className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded hover:bg-slate-50 font-medium">Duplicate</button>}
           </div>
           <div className="flex gap-3">
@@ -1864,21 +1921,27 @@ function ProgramForm({initial,staffName,isManager,onSave,onDelete,onDuplicate,on
 
 // ─── Programs List ────────────────────────────────────────────────────────────
 function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDupSingle}) {
-  const [sf,setSf] = useState(isManager?"All":staffName);
-  const [af,setAf] = useState("All");
-  const [yf,setYf] = useState("All");
-  const [search,setSearch] = useState("");
+  const [sf,setSf]           = useState(isManager?"All":staffName);
+  const [af,setAf]           = useState("All");
+  const [yf,setYf]           = useState("All");
+  const [snf,setSnf]         = useState("All");
+  const [search,setSearch]   = useState("");
+  const [showArchived,setShowArchived] = useState(false);
 
-  const allStaff = ["All",...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
-  const allAreas = ["All",...new Set(programs.map(p=>p.area))];
-  const allYears = ["All",...YEARS];
-  const selCls   = "rounded border border-slate-200 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:border-blue-400";
+  const allStaff   = ["All",...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
+  const allAreas   = ["All",...new Set(programs.map(p=>p.area))];
+  const allYears   = ["All",...YEARS];
+  const allSeasons = ["All",...SEASONS];
+  const selCls     = "rounded border border-slate-200 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:border-blue-400";
 
   const vis = programs
+    .filter(p=>showArchived ? !!p.is_archived : !p.is_archived)
     .filter(p=>sf==="All"||p.staff_name===sf)
     .filter(p=>af==="All"||p.area===af)
     .filter(p=>yf==="All"||p.year===yf)
+    .filter(p=>snf==="All"||p.season===snf)
     .filter(p=>!search||p.name.toLowerCase().includes(search.toLowerCase()));
+  const archivedCount = programs.filter(p=>p.is_archived&&(isManager||p.staff_name===staffName)).length;
 
   return (
     <div className="space-y-4">
@@ -1891,7 +1954,12 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
               Bulk Season Rollover
             </button>
           )}
-          <button onClick={onAdd} className="text-xs font-bold px-3 py-2 rounded text-white" style={{backgroundColor:"#1e3a5f"}}>+ Add Program</button>
+          <button onClick={()=>setShowArchived(s=>!s)}
+            className={`text-xs font-semibold px-3 py-2 rounded border transition ${showArchived?"text-white border-transparent":"border-slate-200 text-slate-500 hover:bg-slate-50"}`}
+            style={showArchived?{backgroundColor:"#64748b"}:{}}>
+            📦 {showArchived?"← Active Programs":`Archived (${archivedCount})`}
+          </button>
+          {!showArchived&&<button onClick={onAdd} className="text-xs font-bold px-3 py-2 rounded text-white" style={{backgroundColor:"#1e3a5f"}}>+ Add Program</button>}
         </div>
       </div>
       <div className="bg-white rounded-lg shadow-sm px-4 py-3 flex flex-wrap gap-3 items-end">
@@ -1912,13 +1980,19 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
           </select>
         </div>
         <div className="flex flex-col gap-1">
+          <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Season</label>
+          <select value={snf} onChange={e=>setSnf(e.target.value)} className={selCls}>
+            {allSeasons.map(s=><option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
           <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Year</label>
           <select value={yf} onChange={e=>setYf(e.target.value)} className={selCls}>
             {allYears.map(y=><option key={y} value={y}>{y}</option>)}
           </select>
         </div>
-        {(sf!=="All"||af!=="All"||yf!=="All"||search)&&(
-          <button onClick={()=>{setSf(isManager?"All":staffName);setAf("All");setYf("All");setSearch("");}}
+        {(sf!=="All"||af!=="All"||yf!=="All"||snf!=="All"||search)&&(
+          <button onClick={()=>{setSf(isManager?"All":staffName);setAf("All");setYf("All");setSnf("All");setSearch("");}}
             className="text-xs text-slate-400 hover:text-slate-600 font-medium pb-1">Clear</button>
         )}
       </div>
@@ -2021,7 +2095,7 @@ function Reference({isManager}) {
         {[
           {id:"standards",label:"District Standards"},
           {id:"kpis",label:"KPI Menu"},
-          ...(isManager?[{id:"guide",label:"Dashboard Guide"}]:[]),
+          {id:"guide",label:"Dashboard Guide"},
         ].map(s=>(
           <button key={s.id} onClick={()=>setSec(s.id)}
             className={`px-5 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition ${sec===s.id?"text-slate-800":"border-transparent text-slate-400 hover:text-slate-600"}`}
@@ -2107,10 +2181,10 @@ function Reference({isManager}) {
           ))}
         </div>
       )}
-      {sec==="guide"&&isManager&&(
+      {sec==="guide"&&(
         <div className="p-5 space-y-8">
           <div>
-            <p className="text-sm text-slate-500">This guide explains exactly how every number on the manager dashboard is calculated. Use it to understand what the data is telling you and where to focus attention.</p>
+            <p className="text-sm text-slate-500">{isManager ? "This guide explains exactly how every number on the manager dashboard is calculated. Use it to understand what the data is telling you and where to focus attention." : "This guide explains how program performance is measured and what each metric means for your programs."}</p>
           </div>
 
           {/* ── Program Cost ── */}
@@ -2175,8 +2249,8 @@ function Reference({isManager}) {
             </div>
           </GuideSection>
 
-          {/* ── Health Score ── */}
-          <GuideSection title="Health Score (0–100)" accent="#d4a017">
+          {/* ── Health Score — manager only ── */}
+          {isManager&&<GuideSection title="Health Score (0–100)" accent="#d4a017">
             <p className="text-sm text-slate-600 mb-3">A single composite number summarizing overall program inventory performance. Weighted across three dimensions:</p>
             <div className="space-y-2 mb-4">
               {[
@@ -2201,10 +2275,9 @@ function Reference({isManager}) {
               <div className="p-2 rounded-lg bg-yellow-50 border border-yellow-200"><span className="font-bold text-yellow-700">50–74</span><div className="text-slate-500 mt-0.5">Developing</div></div>
               <div className="p-2 rounded-lg bg-red-50 border border-red-200"><span className="font-bold text-red-600">0–49</span><div className="text-slate-500 mt-0.5">Needs Attention</div></div>
             </div>
-          </GuideSection>
+          </GuideSection>}
 
-          {/* ── Subsidy Burden ── */}
-          <GuideSection title="Subsidy Burden ($)" accent="#ef4444">
+          {isManager&&<GuideSection title="Subsidy Burden ($)" accent="#ef4444">
             <p className="text-sm text-slate-600 mb-3">The total dollar amount the district is subsidizing — i.e., the sum of all program deficits. Only programs that lost money contribute. Profitable programs do not offset losses here.</p>
             <div className="p-3 rounded-lg bg-slate-800 text-slate-100 font-mono text-xs mb-3">
               Subsidy Burden = Σ max(0, Total Cost − Revenue) for each program
@@ -2213,10 +2286,9 @@ function Reference({isManager}) {
             <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
               <span className="font-bold">NRPA benchmark:</span> The national average cost recovery for public parks & recreation is approximately 24.6%, meaning most agencies subsidize about 75 cents of every dollar of program cost. Your subsidy burden relative to total cost gives you your effective subsidy rate to compare against this benchmark.
             </div>
-          </GuideSection>
+          </GuideSection>}
 
-          {/* ── Staff Workload ── */}
-          <GuideSection title="Staff Workload Distribution" accent="#1e3a5f">
+          {isManager&&<GuideSection title="Staff Workload Distribution" accent="#1e3a5f">
             <p className="text-sm text-slate-600 mb-3">Shows how much of each staff member's estimated FT capacity is allocated to programs in the current view. It is based entirely on the <span className="font-semibold">Program Type</span> selected on each program's budget form.</p>
             <div className="rounded-lg border border-slate-200 overflow-hidden mb-4">
               <div className="px-4 py-2 bg-slate-800 text-slate-100 text-xs font-bold uppercase tracking-widest">Program Type Workload %</div>
@@ -2239,18 +2311,16 @@ function Reference({isManager}) {
               <p>A staff member managing 10 Small Programs (4% each) would show <span className="font-mono font-bold">40% allocated</span> — meaning 40% of their FT salary ($39,080) is attributed to programs. The remaining 60% covers non-program time: planning, meetings, marketing, admin.</p>
               <p className="text-amber-700 font-medium">⚠ If a staff member shows 0% or unexpectedly low allocation, it almost always means their programs are missing a Program Type selection. Open each flagged program and select the appropriate type in the budgeted section.</p>
             </div>
-          </GuideSection>
+          </GuideSection>}
 
-          {/* ── Revenue per Participant ── */}
-          <GuideSection title="Revenue per Participant" accent="#d4a017">
+          {isManager&&<GuideSection title="Revenue per Participant" accent="#d4a017">
             <p className="text-sm text-slate-600 mb-3">The average revenue generated per enrolled participant. Useful for comparing pricing efficiency across areas.</p>
             <div className="p-3 rounded-lg bg-slate-800 text-slate-100 font-mono text-xs mb-3">
               Rev / Participant = Total Actual Revenue ÷ Total Actual Enrollment
             </div>
             <p className="text-sm text-slate-600">Areas significantly below the portfolio average may be underpriced for their service category. Areas well above average may be priced appropriately for higher-tier services (private lessons, specialized camps) — context matters. Use the Service Category Cost Recovery targets on the District Standards tab to validate.</p>
-          </GuideSection>
+          </GuideSection>}
 
-          {/* ── Waitlist Demand ── */}
           <GuideSection title="Waitlist Demand (%)" accent="#d4a017">
             <p className="text-sm text-slate-600 mb-3">Shows unmet demand as a percentage of total budgeted capacity.</p>
             <div className="p-3 rounded-lg bg-slate-800 text-slate-100 font-mono text-xs mb-3">
@@ -2259,8 +2329,8 @@ function Reference({isManager}) {
             <p className="text-sm text-slate-600">A waitlist demand of 10%+ across a program area suggests the district could expand capacity, add sections, or increase pricing. Individual programs with high waitlists relative to their size are prime candidates for additional sessions.</p>
           </GuideSection>
 
-          {/* ── Classification Mix ── */}
-          <GuideSection title="Program Mix by Classification" accent="#1e3a5f">
+          {/* ── Classification Mix — manager only ── */}
+          {isManager&&<GuideSection title="Program Mix by Classification" accent="#1e3a5f">
             <p className="text-sm text-slate-600 mb-3">Breaks down the inventory by how programs are classified and shows the financial profile of each group.</p>
             <div className="space-y-2">
               {[
@@ -2277,9 +2347,8 @@ function Reference({isManager}) {
                 </div>
               ))}
             </div>
-          </GuideSection>
+          </GuideSection>}
 
-          {/* ── NPS ── */}
           <GuideSection title="NPS (Net Promoter Score)" accent="#d4a017">
             <p className="text-sm text-slate-600 mb-3">NPS measures how likely participants are to recommend the program. Scores range from 0 to 100. It is entered manually on the program form — it is not calculated automatically.</p>
             <div className="grid grid-cols-3 gap-2 text-xs text-center mb-3">
@@ -2290,8 +2359,8 @@ function Reference({isManager}) {
             <p className="text-sm text-slate-600">Programs with low NPS but healthy fill rates are worth investigating — participants may be returning out of convenience rather than satisfaction, and a competitor or format change could quickly erode enrollment.</p>
           </GuideSection>
 
-          {/* ── Needs Attention ── */}
-          <GuideSection title="Needs Attention Queue" accent="#991b1b">
+          {/* ── Needs Attention — manager only ── */}
+          {isManager&&<GuideSection title="Needs Attention Queue" accent="#991b1b">
             <p className="text-sm text-slate-600 mb-3">An automatically generated action list of programs that meet at least one of the following conditions, sorted by fill rate ascending (worst first):</p>
             <div className="space-y-1.5">
               {[
@@ -2306,7 +2375,7 @@ function Reference({isManager}) {
               ))}
             </div>
             <p className="text-sm text-slate-600 mt-3">Use this queue as your weekly check-in list. Programs that appear here need a decision: redesign, remarket, adjust pricing, or sunset. The queue is capped at 8 programs — if more qualify, the 8 with the lowest fill rates are shown.</p>
-          </GuideSection>
+          </GuideSection>}
 
         </div>
       )}
@@ -2367,6 +2436,12 @@ export default function App() {
     setSaving(true);
     await supabase.from("programs").delete().eq("id",id);
     await fetchAll(); setEditingProgram(null); setTab("dashboard"); setSaving(false);
+  };
+
+  const handleArchiveProgram = async (id, archive) => {
+    setSaving(true);
+    await supabase.from("programs").update({is_archived: archive}).eq("id", id);
+    await fetchAll(); setEditingProgram(null); setTab("programs"); setSaving(false);
   };
 
   const handleDuplicate = async (source,{season,year,carry}) => {
