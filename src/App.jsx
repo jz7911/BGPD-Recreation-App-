@@ -2449,7 +2449,7 @@ function Reference({isManager}) {
                         {field:"Area",tip:"Pick the closest match from the dropdown (Aquatics, Camps, Dance, etc.). This groups your programs with similar ones in department reports."},
                         {field:"Season & Year",tip:"The season when this program runs — Spring, Summer, Fall, or Winter. Use the year it starts. Summer 2026 = June 2026 start."},
                         {field:"Staff Name",tip:"Your name, typed exactly as you entered it when you logged in. If you manage this program with someone else, enter the primary responsible person."},
-                        {field:"Classification",tip:"Community Driven = offered for public benefit even at a subsidy (e.g. teen drop-ins, adaptive programs). Revenue Driven = expected to cover costs (e.g. fitness classes, swimming lessons). Not sure? Ask your manager."},
+                        {field:"Classification",tip:"Community Driven = offered for public benefit even at a subsidy. Revenue Driven = expected to cover costs (e.g. fitness classes, swimming lessons). Not sure? Ask your manager."},
                       ].map(r=>(
                         <div key={r.field} className="text-sm">
                           <div className="font-semibold text-slate-700 mb-0.5">{r.field}</div>
