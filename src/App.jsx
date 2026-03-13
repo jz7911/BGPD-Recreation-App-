@@ -42,7 +42,6 @@ const DB_FIELDS = [
   "act_personnel","act_commodities","act_contractuals",
   "act_other1","act_other2","act_facility_hours",
   "act_program_type","act_custom_workload",
-  "other1_label","other2_label",
 ];
 
 function cleanForDB(p) {
@@ -200,8 +199,8 @@ function PBar({label,actual,budget,ff,inv}) {
         <div className="h-full rounded-full" style={{width:`${Math.min(p,100)}%`,backgroundColor:bc}}/>
       </div>
       <div className="flex justify-between text-xs text-slate-400">
-        <span>Actual: <span className="font-semibold text-slate-600">{ff?ff(actual):actual}</span></span>
         <span>Budget: <span className="font-semibold text-slate-600">{ff?ff(budget):budget}</span></span>
+        <span>Actual: <span className="font-semibold text-slate-600">{ff?ff(actual):actual}</span></span>
       </div>
     </div>
   );
@@ -275,7 +274,7 @@ function CostPanel({px,p,set}) {
               />
               <span className="text-xs text-slate-400 shrink-0">($)</span>
             </div>
-            <input type="number" min={0} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-300" value={p[px+"other1"]||""} onChange={e=>set(px+"other1")(e.target.value)} placeholder="0"/>
+            <input type="number" min={0} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-300" value={p[px+"other1"]||""} onChange={e=>set(px+"other1")(parseFloat(e.target.value)||0)} placeholder="0"/>
           </div>
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-1">
@@ -288,7 +287,7 @@ function CostPanel({px,p,set}) {
               />
               <span className="text-xs text-slate-400 shrink-0">($)</span>
             </div>
-            <input type="number" min={0} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-300" value={p[px+"other2"]||""} onChange={e=>set(px+"other2")(e.target.value)} placeholder="0"/>
+            <input type="number" min={0} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-300" value={p[px+"other2"]||""} onChange={e=>set(px+"other2")(parseFloat(e.target.value)||0)} placeholder="0"/>
           </div>
           <Inp label="Facility Hours"           type="number" value={p[px+"facility_hours"]} onChange={set(px+"facility_hours")} min={0} hint={"$"+FACILITY_COST_PER_HR+"/hr allocated"}/>
         </div>
@@ -925,7 +924,14 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
         <KCard label="Avg Fill Rate"     value={pct(avgFill)}    accent="#d4a017" target="≥70%"/>
         <KCard label="Avg Cost Recovery" value={pct(avgCR)}      accent="#d4a017" target="≥100%"/>
         <KCard label="Total Net P/(L)"   value={dollar(surplus)} accent={surplus>=0?"#22c55e":"#ef4444"}/>
-        <KCard label="Subsidy Burden"    value={dollar(subsidyBurden)} sub="tax $ supporting programs" accent="#ef4444"/>
+        <div style={{borderTop:"3px solid #991b1b",background:"#fff1f2"}} className="rounded-lg p-4 shadow-sm border border-red-200">
+          <div className="flex items-start justify-between gap-1 mb-1">
+            <div className="text-xs font-bold text-red-700 uppercase tracking-wider">⚠ Subsidy</div>
+            {actCost>0&&<div className="text-xs font-semibold text-red-400 shrink-0">{pct(subsidyBurden/actCost)} of cost</div>}
+          </div>
+          <div className="text-2xl font-black text-red-700">{dollar(subsidyBurden)}</div>
+          <div className="text-xs text-red-400 mt-0.5">tax dollars supporting programs</div>
+        </div>
         <KCard label="Programs"          value={vis.length}      accent="#1e3a5f"
           sub={`${noActuals} missing actuals`}/>
       </div>
@@ -980,6 +986,41 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Programs by Area ── */}
+      {areaRollup.length>0&&(
+        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100">
+            <h3 className="font-bold text-slate-700 text-sm">Programs by Area</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Inventory distribution across program areas</p>
+          </div>
+          <div className="p-4 space-y-2.5">
+            {[...areaRollup].sort((a,b)=>b.count-a.count).map(r=>{
+              const barW = Math.round((r.count/kpis.length)*100);
+              const barColor = r.avgFill>=0.7?"#22c55e":r.avgFill>=0.6?"#eab308":"#ef4444";
+              const healthyN  = kpis.filter(p=>p.area===r.area&&p.status==="Healthy").length;
+              const redesignN = kpis.filter(p=>p.area===r.area&&p.status==="Needs Redesign").length;
+              return (
+                <div key={r.area}>
+                  <div className="flex items-center justify-between mb-1 gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm font-semibold text-slate-700 truncate">{r.area}</span>
+                      <span className="text-xs text-slate-400 shrink-0">{r.count} program{r.count!==1?"s":""}</span>
+                      {healthyN>0&&<span className="text-xs font-semibold text-green-600 shrink-0">{healthyN} healthy</span>}
+                      {redesignN>0&&<span className="text-xs font-semibold text-red-500 shrink-0">{redesignN} needs redesign</span>}
+                    </div>
+                    <span className={`text-xs font-mono font-semibold shrink-0 ${r.profit>=0?"text-green-700":"text-red-600"}`}>{dollar(r.profit)}</span>
+                  </div>
+                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{width:`${barW}%`,backgroundColor:barColor}}/>
+                  </div>
+                </div>
+              );
+            })}
+            <p className="text-xs text-slate-400 pt-1">Bar width = share of total programs · Bar color = avg fill rate (green ≥70%, yellow 60–69%, red &lt;60%)</p>
           </div>
         </div>
       )}
@@ -1153,7 +1194,10 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
       {/* ── Program Detail ── */}
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 flex-wrap gap-2">
-          <h2 className="font-bold text-slate-700 text-sm">Program Detail</h2>
+          <div>
+            <h2 className="font-bold text-slate-700 text-sm">Program Detail</h2>
+            {dv==="summary"&&<p className="text-xs text-slate-400 mt-0.5">Year-over-year in <span className="font-semibold text-slate-500">vs Prior</span> column · Full trend history in <span className="font-semibold text-amber-600">Multi-Season</span> tab</p>}
+          </div>
           <div className="flex gap-1">
             {[["summary","Summary"],["variances","Variances"],["progress","Progress"]].map(([v,l])=>(
               <button key={v} onClick={()=>setDv(v)}
@@ -1982,7 +2026,9 @@ export default function App() {
   const [saving,setSaving]                 = useState(false);
   const [error,setError]                   = useState(null);
   const [staffName,setStaffName]           = useState(()=>localStorage.getItem("bgpd_staff_name")||"");
+  const [viewAsManager,setViewAsManager]   = useState(true);
   const isManager = MANAGER_NAMES.includes(staffName.toLowerCase().trim());
+  const effectiveManager = isManager && viewAsManager;
 
   const fetchAll = useCallback(async()=>{
     setLoading(true);
@@ -2066,9 +2112,20 @@ export default function App() {
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div>
             <div className="text-white font-bold text-lg leading-tight">BGPD Recreation</div>
-            <div style={{color:"#d4a017"}} className="text-xs font-semibold tracking-widest uppercase">{staffName}{isManager?" - Manager View":""}</div>
+            <div style={{color:"#d4a017"}} className="text-xs font-semibold tracking-widest uppercase">
+              {staffName}{isManager?(effectiveManager?" · Manager View":" · Staff View"):""}
+            </div>
           </div>
           <div className="flex items-center gap-2">
+            {isManager&&(
+              <button onClick={()=>setViewAsManager(v=>!v)}
+                className="text-xs font-bold px-3 py-2 rounded border transition"
+                style={effectiveManager
+                  ? {backgroundColor:"rgba(255,255,255,0.15)",borderColor:"rgba(255,255,255,0.3)",color:"#fff"}
+                  : {backgroundColor:"#d4a017",borderColor:"#d4a017",color:"#1e3a5f"}}>
+                {effectiveManager?"⇄ Staff View":"⇄ Manager View"}
+              </button>
+            )}
             <button onClick={()=>{setAddingProgram(true);setEditingProgram(null);setTab("programs");}}
               className="text-xs font-bold px-3 py-2 rounded transition"
               style={{backgroundColor:"#d4a017",color:"#1e3a5f"}}>+ Add Program</button>
@@ -2099,13 +2156,13 @@ export default function App() {
         ) : (
           <>
             {tab==="dashboard"&&!showingForm&&(
-              <Dashboard programs={programs} staffName={staffName} isManager={isManager}
+              <Dashboard programs={programs} staffName={staffName} isManager={effectiveManager}
                 onEdit={p=>{setEditingProgram(p);setTab("programs");}}
                 onAddProgram={()=>{setAddingProgram(true);setTab("programs");}}/>
             )}
             {tab==="programs"&&!showingForm&&(
               <ProgramsList
-                programs={programs} isManager={isManager} staffName={staffName}
+                programs={programs} isManager={effectiveManager} staffName={staffName}
                 onEdit={setEditingProgram}
                 onAdd={()=>setAddingProgram(true)}
                 onBulkDup={()=>setShowBulkDup(true)}
@@ -2115,7 +2172,7 @@ export default function App() {
               <ProgramForm
                 initial={editingProgram||null}
                 staffName={staffName}
-                isManager={isManager}
+                isManager={effectiveManager}
                 onSave={handleSaveProgram}
                 onDelete={handleDeleteProgram}
                 onDuplicate={p=>setDupProgram(p)}
@@ -2125,7 +2182,7 @@ export default function App() {
             {tab==="history"&&(
               <MultiSeasonView programs={programs} onEdit={p=>{setEditingProgram(p);setTab("programs");}}/>
             )}
-            {tab==="kpi"&&<Reference isManager={isManager}/>}
+            {tab==="kpi"&&<Reference isManager={effectiveManager}/>}
           </>
         )}
       </main>
