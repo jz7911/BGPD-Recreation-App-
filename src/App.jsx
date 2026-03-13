@@ -3726,6 +3726,7 @@ function GoalsSection({db}){
   const [editRow,setEditRow]=useState(null);
   const [confirm,setConfirm]=useState(null);
   const [expandedId,setExpandedId]=useState(null);
+  const [showArchived,setShowArchived]=useState(false);
   const emptyForm={fy:ADMIN_CUR,quarter:"Q1 (May–Aug)",staff_lead:"",supporting_staff:"",objective:"",core_value:"Excellence",status:"Not Started",updates:"",is_archived:false};
   const [form,setForm]=useState(emptyForm);
 
@@ -3750,8 +3751,6 @@ function GoalsSection({db}){
   async function quickStatus(id,status){await db.from("admin_goals").update({status}).eq("id",id);load();}
 
   function openEdit(r){setEditRow(r);setForm({fy:r.fy,quarter:r.quarter,staff_lead:r.staff_lead,supporting_staff:r.supporting_staff||"",objective:r.objective,core_value:r.core_value,status:r.status,updates:r.updates||"",is_archived:r.is_archived});setShowModal(true);}
-
-  const [showArchived,setShowArchived]=useState(false);
 
   if(loading) return <div className="text-center py-20 text-slate-400">Loading…</div>;
 
