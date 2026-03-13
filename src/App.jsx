@@ -256,68 +256,58 @@ function printSeasonReport(programs, filters) {
     <td style="${td}">${p.status}</td>
   </tr>`).join("");
 
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
-  <title>BGPD Season Report</title>
-  <style>
-    * { font-family: 'Segoe UI', sans-serif; margin:0; padding:0; box-sizing:border-box; }
-    body { background:white; color:#1e293b; }
-    table { border-collapse:collapse; width:100%; }
-    @page { margin:0.75in; size:letter; }
-    @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
-  </style>
-  </head><body>
-  <div style="background:#1e3a5f;color:white;padding:20px 28px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-start;">
-    <div>
-      <div style="font-weight:700;font-size:20px;">BGPD Recreation — Season Performance Report</div>
-      <div style="font-size:12px;opacity:0.75;margin-top:4px;">${filters} · Generated ${today}</div>
+  // Build the body HTML separately (no wrapping html/head/body tags)
+  const bodyHTML = `
+  <div style="font-family:'Segoe UI',sans-serif;color:#1e293b;background:white;width:750px;">
+    <div style="background:#1e3a5f;color:white;padding:20px 28px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-start;">
+      <div>
+        <div style="font-weight:700;font-size:20px;">BGPD Recreation — Season Performance Report</div>
+        <div style="font-size:12px;opacity:0.75;margin-top:4px;">${filters} · Generated ${today}</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:28px;font-weight:900;color:${healthColor};">${healthScore}<span style="font-size:14px;font-weight:400;color:rgba(255,255,255,0.6);">/100</span></div>
+        <div style="font-size:11px;opacity:0.7;">Health Score</div>
+      </div>
     </div>
-    <div style="text-align:right;">
-      <div style="font-size:28px;font-weight:900;color:${healthColor};">${healthScore}<span style="font-size:14px;font-weight:400;color:rgba(255,255,255,0.6);">/100</span></div>
-      <div style="font-size:11px;opacity:0.7;">Health Score</div>
+    <div style="padding:0 16px 28px;">
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px;">${kpiCards}</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">${statusCards}</div>
+      <div style="${secH}">Financial Summary</div>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:16px;"><thead><tr>
+        <th style="${th}">Metric</th><th style="${th}">Budget</th><th style="${th}">Actual</th><th style="${th}">Variance</th>
+      </tr></thead><tbody>${finRows}</tbody></table>
+      ${topPerf.length>0?`<div style="${secH}">Top Performers by Fill Rate</div>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:16px;"><thead><tr>
+        <th style="${th}">Program</th><th style="${th}">Staff</th><th style="${th}">Area</th><th style="${th}">Fill Rate</th><th style="${th}">Cost Recovery</th><th style="${th}">Net P/(L)</th><th style="${th}">Status</th>
+      </tr></thead><tbody>${topRows}</tbody></table>`:""}
+      ${needsWork.length>0?`<div style="${secH}">Programs Needing Attention</div>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:16px;"><thead><tr>
+        <th style="${th}">Program</th><th style="${th}">Staff</th><th style="${th}">Area</th><th style="${th}">Fill Rate</th><th style="${th}">Cost Recovery</th><th style="${th}">Trend</th><th style="${th}">Status</th>
+      </tr></thead><tbody>${attnRows}</tbody></table>`:""}
+      <div style="${secH}">All Programs</div>
+      <table style="width:100%;border-collapse:collapse;"><thead><tr>
+        <th style="${th}">Program</th><th style="${th}">Staff</th><th style="${th}">Area</th><th style="${th}">Season</th><th style="${th}">Fill</th><th style="${th}">Recovery</th><th style="${th}">Net P/(L)</th><th style="${th}">Status</th>
+      </tr></thead><tbody>${allRows}</tbody></table>
+      <div style="margin-top:24px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:10px;color:#94a3b8;display:flex;justify-content:space-between;">
+        <span>Barrington Park District · Recreation Management System</span>
+        <span>Confidential — Internal Use Only · Generated ${today}</span>
+      </div>
     </div>
-  </div>
-  <div style="padding:0 28px 28px;">
-    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px;">${kpiCards}</div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;">${statusCards}</div>
-    <div style="${secH}">Financial Summary</div>
-    <table style="margin-bottom:16px;"><thead><tr>
-      <th style="${th}">Metric</th><th style="${th}">Budget</th><th style="${th}">Actual</th><th style="${th}">Variance</th>
-    </tr></thead><tbody>${finRows}</tbody></table>
-    ${topPerf.length>0?`<div style="${secH}">Top Performers by Fill Rate</div>
-    <table style="margin-bottom:16px;"><thead><tr>
-      <th style="${th}">Program</th><th style="${th}">Staff</th><th style="${th}">Area</th><th style="${th}">Fill Rate</th><th style="${th}">Cost Recovery</th><th style="${th}">Net P/(L)</th><th style="${th}">Status</th>
-    </tr></thead><tbody>${topRows}</tbody></table>`:""}
-    ${needsWork.length>0?`<div style="${secH}">Programs Needing Attention</div>
-    <table style="margin-bottom:16px;"><thead><tr>
-      <th style="${th}">Program</th><th style="${th}">Staff</th><th style="${th}">Area</th><th style="${th}">Fill Rate</th><th style="${th}">Cost Recovery</th><th style="${th}">Trend</th><th style="${th}">Status</th>
-    </tr></thead><tbody>${attnRows}</tbody></table>`:""}
-    <div style="${secH}">All Programs</div>
-    <table><thead><tr>
-      <th style="${th}">Program</th><th style="${th}">Staff</th><th style="${th}">Area</th><th style="${th}">Season</th><th style="${th}">Fill</th><th style="${th}">Recovery</th><th style="${th}">Net P/(L)</th><th style="${th}">Status</th>
-    </tr></thead><tbody>${allRows}</tbody></table>
-    <div style="margin-top:24px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:10px;color:#94a3b8;display:flex;justify-content:space-between;">
-      <span>Barrington Park District · Recreation Management System</span>
-      <span>Confidential — Internal Use Only · Generated ${today}</span>
-    </div>
-  </div>
-  </body></html>`;
+  </div>`;
 
-  // Create a hidden iframe, write the HTML into it, then use html2pdf to save
   const filename = `BGPD_Season_Report_${new Date().toISOString().slice(0,10)}.pdf`;
 
-  // Dynamically load html2pdf if not already loaded
   function doSave() {
     const container = document.createElement("div");
-    container.style.cssText = "position:fixed;left:-9999px;top:0;width:850px;background:white;";
-    container.innerHTML = html.replace(/<script[\s\S]*?<\/script>/gi,""); // strip the print script
+    container.style.cssText = "position:fixed;left:-9999px;top:0;";
+    container.innerHTML = bodyHTML;
     document.body.appendChild(container);
     window.html2pdf().set({
-      margin: [0.5,0.5,0.5,0.5],
+      margin: 0.4,
       filename,
       image: {type:"jpeg", quality:0.98},
-      html2canvas: {scale:2, useCORS:true, logging:false},
+      html2canvas: {scale:2, useCORS:true, logging:false, backgroundColor:"#ffffff"},
       jsPDF: {unit:"in", format:"letter", orientation:"portrait"},
-      pagebreak: {mode:["avoid-all","css"]},
     }).from(container).save().then(()=>{ document.body.removeChild(container); });
   }
 
@@ -328,10 +318,11 @@ function printSeasonReport(programs, filters) {
     script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
     script.onload = doSave;
     script.onerror = () => {
-      // Fallback: open popup if CDN fails
       const w = window.open("","_blank","width=900,height=700");
-      if(w){ w.document.write(html); w.document.close(); }
-      else { alert("Please allow popups for this site to generate the Season Report."); }
+      if(w){
+        w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><style>*{font-family:'Segoe UI',sans-serif;margin:0;padding:0;box-sizing:border-box;}body{background:white;}table{border-collapse:collapse;width:100%;}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}</style></head><body>${bodyHTML}<script>window.onload=function(){window.print();window.onafterprint=function(){window.close();};};<\/script></body></html>`);
+        w.document.close();
+      } else { alert("Please allow popups for this site to generate the Season Report."); }
     };
     document.head.appendChild(script);
   }
