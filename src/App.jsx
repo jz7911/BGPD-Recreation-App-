@@ -29,6 +29,32 @@ const FT_ANNUAL_SALARY     = 97700;
 const FACILITY_COST_PER_HR = 3;
 const MANAGER_NAMES        = ["admin","manager","joe zimmermann","erika strojinc","dan stanczak","brian o'malley","chris eckert","chuck burgess","diana clayson","amanda busch"];
 
+
+// Service category cost recovery targets
+const SVC_TARGET_MAP = {
+  "Open Access":                       {min:0,    max:0,    label:"100% Subsidy",           expectSubsidy:true},
+  "Community Events":                  {min:0,    max:0.2,  label:"80-100% Subsidy",         expectSubsidy:true},
+  "Specialty Events":                  {min:0.95, max:1.05, label:"0-5% Subsidy",            expectSubsidy:false},
+  "Beg./Intro. Activities":            {min:1.0,  max:1.05, label:"100% Cost Recovery",      expectSubsidy:false},
+  "Drop In Activities":                {min:1.0,  max:1.05, label:"100-105% Cost Recovery",  expectSubsidy:false},
+  "Childcare Services":                {min:1.1,  max:1.3,  label:"110-130% Cost Recovery",  expectSubsidy:false},
+  "Intermediate/Adv. Activities":      {min:1.1,  max:1.3,  label:"110-130% Cost Recovery",  expectSubsidy:false},
+  "Private/Semi-Private Activities":   {min:1.3,  max:1.5,  label:"130-150% Cost Recovery",  expectSubsidy:false},
+  "Specialized Activities":            {min:1.3,  max:1.5,  label:"130-150% Cost Recovery",  expectSubsidy:false},
+  "Rentals":                           {min:1.3,  max:1.5,  label:"130-150% Cost Recovery",  expectSubsidy:false},
+  "Retail & Consumables":              {min:1.3,  max:1.5,  label:"130-150% Cost Recovery",  expectSubsidy:false},
+};
+function getSvcTarget(svc, cr) {
+  const t = SVC_TARGET_MAP[svc]; if(!t) return null;
+  const onTarget = t.expectSubsidy ? (cr <= t.max + 0.01) : (cr >= t.min);
+  return {onTarget, label:t.label};
+}
+function getLastUsed(staffName) {
+  try { return JSON.parse(localStorage.getItem("bgpd_lastused_"+staffName)||"{}"); } catch{return {};}
+}
+function saveLastUsed(staffName, patch) {
+  try { const p=getLastUsed(staffName); localStorage.setItem("bgpd_lastused_"+staffName, JSON.stringify({...p,...patch})); } catch{}
+}
 // ─── DB columns ───────────────────────────────────────────────────────────────
 const DB_FIELDS = [
   "id","created_at",
@@ -42,6 +68,7 @@ const DB_FIELDS = [
   "act_personnel","act_commodities","act_contractuals",
   "act_other1","act_other2","act_facility_hours",
   "act_program_type","act_custom_workload",
+  "decision_log",
 ];
 
 function cleanForDB(p) {
@@ -103,19 +130,21 @@ function calcKPIs(p) {
 }
 
 function newProgram(staffName) {
+  const last = getLastUsed(staffName);
   return {
-    name:"", area:"Youth Sports", season:"Summer", year:"2026",
-    classification:"Community Driven", service_category:"",
+    name:"", area:last.area||"Youth Sports", season:last.season||"Summer", year:last.year||"2026",
+    classification:last.classification||"Community Driven", service_category:last.service_category||"",
     trend:"Stable", nps:0, notes:"", staff_name: staffName||"", waitlist:0,
     ant_capacity:0, ant_enrollment:0, ant_revenue:0,
     ant_personnel:0, ant_commodities:0, ant_contractuals:0,
     ant_other1:0, ant_other2:0, ant_facility_hours:0,
-    ant_program_type:"", ant_custom_workload:0,
+    ant_program_type:last.program_type||"", ant_custom_workload:0,
     act_capacity:0, act_enrollment:0, act_revenue:0,
     act_personnel:0, act_commodities:0, act_contractuals:0,
     act_other1:0, act_other2:0, act_facility_hours:0,
     act_program_type:"", act_custom_workload:0,
     other1_label:"Other Direct Costs", other2_label:"Other Direct Costs 2",
+    decision_log: [],
   };
 }
 
@@ -131,6 +160,174 @@ function sColor(s) {
   if (s==="Healthy") return {bg:"#dcfce7",text:"#166534",dot:"#22c55e"};
   if (s==="Monitor") return {bg:"#fef9c3",text:"#854d0e",dot:"#eab308"};
   return                    {bg:"#fee2e2",text:"#991b1b",dot:"#ef4444"};
+}
+
+
+// ─── Season Report (print-to-PDF) ─────────────────────────────────────────────
+function SeasonReport({programs, filters, onClose}) {
+  const kpis        = programs.map(p=>({...p,...calcKPIs(p)}));
+  const avgFill     = kpis.length ? kpis.reduce((a,p)=>a+p.fillRate,0)/kpis.length : 0;
+  const avgCR       = kpis.length ? kpis.reduce((a,p)=>a+p.costRecovery,0)/kpis.length : 0;
+  const totalRev    = kpis.reduce((a,p)=>a+p.revenue,0);
+  const totalCost   = kpis.reduce((a,p)=>a+p.totalCost,0);
+  const totalPL     = kpis.reduce((a,p)=>a+p.profitLoss,0);
+  const subsidy     = kpis.reduce((a,p)=>a+Math.max(0,-p.profitLoss),0);
+  const healthy     = kpis.filter(p=>p.status==="Healthy").length;
+  const monitor     = kpis.filter(p=>p.status==="Monitor").length;
+  const redesign    = kpis.filter(p=>p.status==="Needs Redesign").length;
+  const healthScore = kpis.length ? Math.round((avgFill*0.4+Math.min(avgCR,2)/2*0.4+(healthy/kpis.length)*0.2)*100) : 0;
+  const healthColor = healthScore>=75?"#16a34a":healthScore>=50?"#b45309":"#dc2626";
+  const needsWork   = [...kpis].filter(p=>p.status==="Needs Redesign"||p.fillRate<0.5).sort((a,b)=>a.fillRate-b.fillRate).slice(0,5);
+  const topPerf     = [...kpis].filter(p=>p.hasActuals).sort((a,b)=>b.fillRate-a.fillRate).slice(0,5);
+  const today       = new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
+
+  // Print is triggered externally via window.print() from the modal button
+
+  const tdH  = {padding:"6px 10px", fontWeight:600, fontSize:11, background:"#1e3a5f", color:"white", textAlign:"left"};
+  const td   = {padding:"6px 10px", fontSize:11, borderBottom:"1px solid #f1f5f9"};
+  const tdR  = {...td, textAlign:"right", fontFamily:"monospace"};
+  const secH = {fontWeight:700, fontSize:13, color:"#1e3a5f", borderBottom:"2px solid #d4a017", paddingBottom:4, marginBottom:10, marginTop:20};
+
+  return (
+    <div id="season-report" style={{display:"none", fontFamily:"'IBM Plex Sans','Segoe UI',sans-serif", padding:"0", color:"#1e293b", background:"white"}}>
+      {/* Header */}
+      <div style={{background:"#1e3a5f", color:"white", padding:"20px 28px", marginBottom:20, display:"flex", justifyContent:"space-between", alignItems:"flex-start"}}>
+        <div>
+          <div style={{fontWeight:700, fontSize:20}}>BGPD Recreation — Season Performance Report</div>
+          <div style={{fontSize:12, opacity:0.75, marginTop:4}}>
+            {filters} · Generated {today}
+          </div>
+        </div>
+        <div style={{textAlign:"right"}}>
+          <div style={{fontSize:28, fontWeight:900, color:healthColor}}>{healthScore}<span style={{fontSize:14,fontWeight:400,color:"rgba(255,255,255,0.6)"}}>/100</span></div>
+          <div style={{fontSize:11, opacity:0.7}}>Health Score</div>
+        </div>
+      </div>
+
+      <div style={{padding:"0 28px 28px"}}>
+        {/* KPI row */}
+        <div style={{display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:10, marginBottom:20}}>
+          {[
+            {label:"Programs",       value:kpis.length,      color:"#1e3a5f"},
+            {label:"Avg Fill Rate",  value:pct(avgFill),     color:avgFill>=0.7?"#16a34a":"#dc2626"},
+            {label:"Avg Recovery",   value:pct(avgCR),       color:avgCR>=1?"#16a34a":"#dc2626"},
+            {label:"Total Net P/(L)",value:dollar(totalPL),  color:totalPL>=0?"#16a34a":"#dc2626"},
+            {label:"Subsidy",        value:dollar(subsidy),  color:"#991b1b"},
+          ].map(c=>(
+            <div key={c.label} style={{border:"1px solid #e2e8f0", borderTop:`3px solid ${c.color}`, borderRadius:6, padding:"10px 12px"}}>
+              <div style={{fontSize:10, fontWeight:600, color:"#94a3b8", textTransform:"uppercase", letterSpacing:1}}>{c.label}</div>
+              <div style={{fontSize:16, fontWeight:800, color:c.color, marginTop:2}}>{c.value}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Status row */}
+        <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:20}}>
+          {[
+            {label:"Healthy",       value:healthy,   pct:kpis.length?Math.round(healthy/kpis.length*100):0,   color:"#16a34a", bg:"#dcfce7"},
+            {label:"Monitor",       value:monitor,   pct:kpis.length?Math.round(monitor/kpis.length*100):0,   color:"#b45309", bg:"#fef9c3"},
+            {label:"Needs Redesign",value:redesign,  pct:kpis.length?Math.round(redesign/kpis.length*100):0,  color:"#dc2626", bg:"#fee2e2"},
+          ].map(c=>(
+            <div key={c.label} style={{background:c.bg, borderRadius:6, padding:"10px 14px", display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+              <div style={{fontSize:12, fontWeight:600, color:c.color}}>{c.label}</div>
+              <div style={{fontSize:18, fontWeight:800, color:c.color}}>{c.value} <span style={{fontSize:11, fontWeight:500}}>({c.pct}%)</span></div>
+            </div>
+          ))}
+        </div>
+
+        {/* Revenue / Cost summary */}
+        <div style={secH}>Financial Summary</div>
+        <table style={{width:"100%", borderCollapse:"collapse", marginBottom:16}}>
+          <thead><tr>
+            {["Metric","Budget","Actual","Variance"].map(h=><th key={h} style={tdH}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {[
+              {label:"Total Revenue", bud:kpis.reduce((a,p)=>a+p.antRevenue,0),  act:totalRev},
+              {label:"Total Cost",    bud:kpis.reduce((a,p)=>a+p.antTotal,0),    act:totalCost, inv:true},
+              {label:"Net P/(L)",     bud:kpis.reduce((a,p)=>a+p.antProfit,0),   act:totalPL},
+            ].map((r,i)=>{
+              const v=r.act-r.bud; const good=r.inv?v<=0:v>=0;
+              return <tr key={r.label} style={{background:i%2===0?"white":"#f8fafc"}}>
+                <td style={{...td,fontWeight:600}}>{r.label}</td>
+                <td style={tdR}>{dollar(r.bud)}</td>
+                <td style={tdR}>{dollar(r.act)}</td>
+                <td style={{...tdR, color:good?"#16a34a":"#dc2626", fontWeight:700}}>{v>=0?"+":""}{dollar(v)}</td>
+              </tr>;
+            })}
+          </tbody>
+        </table>
+
+        {/* Top performers */}
+        {topPerf.length>0&&(<>
+          <div style={secH}>Top Performers by Fill Rate</div>
+          <table style={{width:"100%", borderCollapse:"collapse", marginBottom:16}}>
+            <thead><tr>
+              {["Program","Staff","Area","Fill Rate","Cost Recovery","Net P/(L)","Status"].map(h=><th key={h} style={tdH}>{h}</th>)}
+            </tr></thead>
+            <tbody>{topPerf.map((p,i)=>(
+              <tr key={p.id} style={{background:i%2===0?"white":"#f8fafc"}}>
+                <td style={{...td,fontWeight:600}}>{p.name}</td>
+                <td style={td}>{p.staff_name}</td>
+                <td style={td}>{p.area}</td>
+                <td style={{...tdR,color:p.fillRate>=0.7?"#16a34a":"#dc2626",fontWeight:700}}>{pct(p.fillRate)}</td>
+                <td style={{...tdR,color:p.costRecovery>=1?"#16a34a":"#dc2626",fontWeight:700}}>{pct(p.costRecovery)}</td>
+                <td style={{...tdR,color:p.profitLoss>=0?"#16a34a":"#dc2626",fontWeight:700}}>{dollar(p.profitLoss)}</td>
+                <td style={td}>{p.status}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </>)}
+
+        {/* Needs attention */}
+        {needsWork.length>0&&(<>
+          <div style={secH}>Programs Needing Attention</div>
+          <table style={{width:"100%", borderCollapse:"collapse", marginBottom:16}}>
+            <thead><tr>
+              {["Program","Staff","Area","Fill Rate","Cost Recovery","Trend","Status"].map(h=><th key={h} style={tdH}>{h}</th>)}
+            </tr></thead>
+            <tbody>{needsWork.map((p,i)=>(
+              <tr key={p.id} style={{background:i%2===0?"white":"#fff5f5"}}>
+                <td style={{...td,fontWeight:600}}>{p.name}</td>
+                <td style={td}>{p.staff_name}</td>
+                <td style={td}>{p.area}</td>
+                <td style={{...tdR,color:"#dc2626",fontWeight:700}}>{pct(p.fillRate)}</td>
+                <td style={{...tdR,color:p.costRecovery<0.5?"#dc2626":"#b45309",fontWeight:700}}>{pct(p.costRecovery)}</td>
+                <td style={{...td,color:p.trend==="Declining"?"#dc2626":"inherit"}}>{p.trend}</td>
+                <td style={td}>{p.status}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </>)}
+
+        {/* Full program list */}
+        <div style={secH}>All Programs</div>
+        <table style={{width:"100%", borderCollapse:"collapse"}}>
+          <thead><tr>
+            {["Program","Staff","Area","Season","Fill","Recovery","Net P/(L)","Status"].map(h=><th key={h} style={tdH}>{h}</th>)}
+          </tr></thead>
+          <tbody>{[...kpis].sort((a,b)=>a.name.localeCompare(b.name)).map((p,i)=>(
+            <tr key={p.id} style={{background:i%2===0?"white":"#f8fafc"}}>
+              <td style={{...td,fontWeight:600}}>{p.name}</td>
+              <td style={td}>{p.staff_name}</td>
+              <td style={td}>{p.area}</td>
+              <td style={td}>{p.season} {p.year}</td>
+              <td style={{...tdR,color:p.fillRate>=0.7?"#16a34a":p.fillRate>=0.6?"#b45309":"#dc2626",fontWeight:600}}>{pct(p.fillRate)}</td>
+              <td style={{...tdR,color:p.costRecovery>=1?"#16a34a":p.costRecovery>=0.5?"#b45309":"#dc2626",fontWeight:600}}>{pct(p.costRecovery)}</td>
+              <td style={{...tdR,color:p.profitLoss>=0?"#16a34a":"#dc2626",fontWeight:600}}>{dollar(p.profitLoss)}</td>
+              <td style={td}>{p.status}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+
+        {/* Footer */}
+        <div style={{marginTop:24, paddingTop:12, borderTop:"1px solid #e2e8f0", fontSize:10, color:"#94a3b8", display:"flex", justifyContent:"space-between"}}>
+          <span>Barrington Park District · Recreation Management System</span>
+          <span>Confidential — Internal Use Only · Generated {today}</span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── CSV Export ───────────────────────────────────────────────────────────────
@@ -674,11 +871,12 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
 
 // ─── Dashboard (Manager View — full analytics) ────────────────────────────────
 function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
-  const [sf,setSf]     = useState("All");
-  const [af,setAf]     = useState("All");
-  const [yf,setYf]     = useState("All");
-  const [dv,setDv]     = useState("summary");
-  const [sort,setSort] = useState({col:"name",dir:1});
+  const [sf,setSf]           = useState("All");
+  const [af,setAf]           = useState("All");
+  const [yf,setYf]           = useState("All");
+  const [dv,setDv]           = useState("summary");
+  const [sort,setSort]       = useState({col:"name",dir:1});
+  const [showReport,setShowReport] = useState(false);
 
   const allStaff = ["All",...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
   const allAreas = ["All",...new Set(programs.map(p=>p.area))];
@@ -875,8 +1073,26 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
           </div>
           {anyFilter&&<button onClick={()=>{setSf("All");setAf("All");setYf("All");}} className="text-xs text-slate-400 hover:text-slate-600 pb-1.5 font-medium">Clear filters</button>}
         </div>
-        <button onClick={()=>exportCSV(vis)} className="text-xs font-semibold px-3 py-2 rounded border border-slate-200 text-slate-500 hover:bg-slate-50 transition whitespace-nowrap">↓ Export CSV</button>
+        <div className="flex gap-2">
+          <button onClick={()=>exportCSV(vis)} className="text-xs font-semibold px-3 py-2 rounded border border-slate-200 text-slate-500 hover:bg-slate-50 transition whitespace-nowrap">↓ Export CSV</button>
+          <button onClick={()=>setShowReport(true)} className="text-xs font-semibold px-3 py-2 rounded transition whitespace-nowrap text-white" style={{backgroundColor:"#1e3a5f"}}>⬜ Season Report</button>
+        </div>
       </div>
+      {showReport&&(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:"rgba(15,23,42,0.7)"}}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center space-y-4">
+            <div className="text-base font-bold text-slate-800">Season Performance Report</div>
+            <div className="text-sm text-slate-500">This will open your browser's print dialog. Choose "Save as PDF" to export.</div>
+            <div className="text-xs text-slate-400">Filters applied: {sf!=="All"?`Staff: ${sf} · `:""}{ af!=="All"?`Area: ${af} · `:""}{ yf!=="All"?`Year: ${yf}`:"All Programs"} · {vis.length} programs</div>
+            <div className="flex gap-3 justify-center pt-2">
+              <button onClick={()=>setShowReport(false)} className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
+              <button onClick={()=>{ setShowReport(false); setTimeout(()=>window.print(),100); }}
+                className="px-5 py-2 text-sm font-semibold text-white rounded-lg" style={{backgroundColor:"#1e3a5f"}}>Print / Save PDF</button>
+            </div>
+          </div>
+        </div>
+      )}
+      <SeasonReport programs={vis} filters={`${sf!=="All"?`Staff: ${sf}`:"All Staff"} · ${af!=="All"?`Area: ${af}`:"All Areas"} · ${yf!=="All"?`Year: ${yf}`:"All Years"}`} onClose={()=>setShowReport(false)}/>
 
       {/* ── Needs Attention Queue ── */}
       {needsAttention.length>0&&(
@@ -1417,15 +1633,54 @@ function MultiSeasonView({programs,onEdit}) {
 
 // ─── Program Form ─────────────────────────────────────────────────────────────
 function ProgramForm({initial,staffName,isManager,onSave,onDelete,onDuplicate,onCancel,saving}) {
-  const [p,setP]         = useState(initial ? cleanForDB(initial) : newProgram(staffName));
-  const set              = k => v => setP(prev=>({...prev,[k]:v}));
-  const [sec,setSec]     = useState("info");
+  const [p,setP]             = useState(()=> initial ? {...cleanForDB(initial), decision_log: initial.decision_log||[], other1_label: initial.other1_label||"Other Direct Costs", other2_label: initial.other2_label||"Other Direct Costs 2"} : newProgram(staffName));
+  const set                  = k => v => setP(prev=>({...prev,[k]:v}));
+  const [sec,setSec]         = useState("info");
   const [confirm,setConfirm] = useState(false);
-  const isNew            = !initial;
-  const canEdit          = p.staff_name===staffName||!initial||isManager;
-  const k                = calcKPIs(p);
-  const hasActuals       = k.hasActuals;
-  const lastUpdated      = initial?.updated_at||initial?.created_at;
+  const [logEntry,setLogEntry] = useState("");
+  const [dirty,setDirty]     = useState(false);
+  const isNew                = !initial;
+  const canEdit              = p.staff_name===staffName||!initial||isManager;
+  const k                    = calcKPIs(p);
+  const hasActuals           = k.hasActuals;
+  const lastUpdated          = initial?.updated_at||initial?.created_at;
+  const svcTarget            = getSvcTarget(p.service_category, k.costRecovery);
+  const log                  = Array.isArray(p.decision_log) ? p.decision_log : [];
+
+  // Track dirty state
+  const setField = key => val => { setP(prev=>({...prev,[key]:val})); setDirty(true); };
+
+  // Keyboard shortcut: Escape = back (with confirm if dirty), Ctrl/Cmd+S = save
+  useEffect(()=>{
+    const handler = e => {
+      if((e.ctrlKey||e.metaKey)&&e.key==="s"){ e.preventDefault(); if(canEdit&&p.name&&!saving) handleSave(); }
+      if(e.key==="Escape"){ handleBack(); }
+    };
+    window.addEventListener("keydown",handler);
+    return ()=>window.removeEventListener("keydown",handler);
+  });
+
+  const handleBack = () => {
+    if(dirty && !window.confirm("You have unsaved changes. Leave anyway?")) return;
+    onCancel();
+  };
+
+  const handleSave = () => {
+    saveLastUsed(staffName, {area:p.area, season:p.season, year:p.year, classification:p.classification, service_category:p.service_category, program_type:p.ant_program_type});
+    setDirty(false);
+    onSave(p);
+  };
+
+  const addLogEntry = () => {
+    if(!logEntry.trim()) return;
+    const entry = {date: new Date().toISOString(), author: staffName, text: logEntry.trim()};
+    const updated = [entry, ...log];
+    setP(prev=>({...prev, decision_log: updated}));
+    setLogEntry("");
+    setDirty(true);
+  };
+
+  const tabs = [{id:"info",label:"Program Info"},{id:"budgeted",label:"Budgeted"},{id:"actuals",label:"Actuals"},{id:"summary",label:"Summary"},{id:"log",label:`Log${log.length>0?" ("+log.length+")":""}`}];
 
   return (
     <div className="space-y-4">
@@ -1438,10 +1693,13 @@ function ProgramForm({initial,staffName,isManager,onSave,onDelete,onDuplicate,on
       )}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="font-bold text-slate-700">{isNew?"Add Program":"Edit Program"}</h2>
-          {lastUpdated&&<div className="text-xs text-slate-400 mt-0.5">Last updated {new Date(lastUpdated).toLocaleDateString()}</div>}
+          <div className="flex items-center gap-2">
+            <h2 className="font-bold text-slate-700">{isNew?"Add Program":"Edit Program"}</h2>
+            {dirty&&<span className="text-xs bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full font-medium">Unsaved</span>}
+          </div>
+          {lastUpdated&&<div className="text-xs text-slate-400 mt-0.5">Last updated {new Date(lastUpdated).toLocaleDateString()} · <span className="text-slate-300">Ctrl+S to save · Esc to go back</span></div>}
         </div>
-        <button onClick={onCancel} className="text-sm text-slate-400 hover:text-slate-600">Back</button>
+        <button onClick={handleBack} className="text-sm text-slate-400 hover:text-slate-600">Back</button>
       </div>
 
       {!canEdit&&(
@@ -1455,9 +1713,21 @@ function ProgramForm({initial,staffName,isManager,onSave,onDelete,onDuplicate,on
         </div>
       )}
 
+      {/* Service category target banner */}
+      {svcTarget&&hasActuals&&(
+        <div className={`rounded-lg px-4 py-2.5 flex items-center gap-3 border text-sm ${svcTarget.onTarget?"bg-green-50 border-green-200 text-green-800":"bg-amber-50 border-amber-200 text-amber-800"}`}>
+          <span className="text-base">{svcTarget.onTarget?"✓":"⚠"}</span>
+          <div>
+            <span className="font-semibold">{p.service_category} target: {svcTarget.label}</span>
+            <span className="ml-2 font-normal opacity-75">— Actual cost recovery: {pct(k.costRecovery)}</span>
+            {!svcTarget.onTarget&&<span className="ml-2 text-amber-700 font-medium">Not yet on target.</span>}
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
         <div className="flex border-b border-slate-100 overflow-x-auto">
-          {[{id:"info",label:"Program Info"},{id:"budgeted",label:"Budgeted"},{id:"actuals",label:"Actuals"},{id:"summary",label:"Summary"}].map(s=>(
+          {tabs.map(s=>(
             <button key={s.id} onClick={()=>setSec(s.id)}
               className={`px-4 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition ${sec===s.id?"text-slate-800":"border-transparent text-slate-400 hover:text-slate-600"}`}
               style={sec===s.id?{borderColor:"#d4a017"}:{}}>{s.label}</button>
@@ -1467,22 +1737,27 @@ function ProgramForm({initial,staffName,isManager,onSave,onDelete,onDuplicate,on
           {sec==="info"&&(
             <div className="space-y-4">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Inp label="Program Name"        value={p.name}                 onChange={set("name")}              required placeholder="e.g. Youth Basketball"/>
-                <Inp label="Staff Member"        value={p.staff_name}           onChange={set("staff_name")}        required placeholder="Your name"/>
-                <Inp label="Area"                value={p.area}                 onChange={set("area")}              options={AREAS}/>
-                <Inp label="Season"              value={p.season}               onChange={set("season")}            options={SEASONS}/>
-                <Inp label="Year"                value={p.year}                 onChange={set("year")}              options={YEARS}/>
-                <Inp label="Classification"      value={p.classification}       onChange={set("classification")}    options={CLASSIFICATIONS}/>
-                <Inp label="Service Category"    value={p.service_category||""} onChange={set("service_category")} options={["",...SERVICE_CATEGORIES]}/>
-                <Inp label="Participation Trend" value={p.trend}                onChange={set("trend")}             options={TRENDS}/>
-                <Inp label="NPS Score"           type="number" value={p.nps}        onChange={set("nps")}      min={0} max={100} hint="0-100"/>
-                <Inp label="Waitlist"            type="number" value={p.waitlist||0} onChange={set("waitlist")} min={0}/>
+                <Inp label="Program Name"        value={p.name}                 onChange={setField("name")}              required placeholder="e.g. Youth Basketball"/>
+                <Inp label="Staff Member"        value={p.staff_name}           onChange={setField("staff_name")}        required placeholder="Your name"/>
+                <Inp label="Area"                value={p.area}                 onChange={setField("area")}              options={AREAS}/>
+                <Inp label="Season"              value={p.season}               onChange={setField("season")}            options={SEASONS}/>
+                <Inp label="Year"                value={p.year}                 onChange={setField("year")}              options={YEARS}/>
+                <Inp label="Classification"      value={p.classification}       onChange={setField("classification")}    options={CLASSIFICATIONS}/>
+                <div>
+                  <Inp label="Service Category"  value={p.service_category||""} onChange={setField("service_category")} options={["",...SERVICE_CATEGORIES]}/>
+                  {p.service_category&&SVC_TARGET_MAP[p.service_category]&&(
+                    <div className="mt-1 text-xs text-slate-400">Target: <span className="font-semibold text-slate-500">{SVC_TARGET_MAP[p.service_category].label}</span></div>
+                  )}
+                </div>
+                <Inp label="Participation Trend" value={p.trend}                onChange={setField("trend")}             options={TRENDS}/>
+                <Inp label="NPS Score"           type="number" value={p.nps}        onChange={setField("nps")}      min={0} max={100} hint="0-100"/>
+                <Inp label="Waitlist"            type="number" value={p.waitlist||0} onChange={setField("waitlist")} min={0}/>
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Notes</label>
                 <textarea className="mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 resize-none" rows={3}
                   placeholder="Strategy notes, drivers, multi-year context..."
-                  value={p.notes||""} onChange={e=>setP(prev=>({...prev,notes:e.target.value}))}/>
+                  value={p.notes||""} onChange={e=>{setP(prev=>({...prev,notes:e.target.value}));setDirty(true);}}/>
               </div>
             </div>
           )}
@@ -1492,7 +1767,7 @@ function ProgramForm({initial,staffName,isManager,onSave,onDelete,onDuplicate,on
                 <div className="text-xs font-bold text-blue-600 uppercase tracking-widest">Budgeted</div>
                 <div className="text-xs text-blue-400 mt-0.5">What you think this program will do. You can update these at any time.</div>
               </div>
-              <CostPanel px="ant_" p={p} set={set}/>
+              <CostPanel px="ant_" p={p} set={k=>v=>{setField(k)(v);}} />
             </div>
           )}
           {sec==="actuals"&&(
@@ -1501,7 +1776,7 @@ function ProgramForm({initial,staffName,isManager,onSave,onDelete,onDuplicate,on
                 <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Actuals</div>
                 <div className="text-xs text-slate-400 mt-0.5">Update these as the program runs or after it concludes.</div>
               </div>
-              <CostPanel px="act_" p={p} set={set}/>
+              <CostPanel px="act_" p={p} set={k=>v=>{setField(k)(v);}} />
             </div>
           )}
           {sec==="summary"&&(
@@ -1512,6 +1787,12 @@ function ProgramForm({initial,staffName,isManager,onSave,onDelete,onDuplicate,on
                 <div><div className="text-xs text-slate-400">Net Profit/(Loss)</div><div className={`text-xl font-bold ${k.profitLoss>=0?"text-green-700":"text-red-600"}`}>{dollar(k.profitLoss)}</div></div>
                 <div><div className="text-xs text-slate-400">Status</div><div className="mt-1"><Badge status={k.status}/></div></div>
               </div>
+              {svcTarget&&hasActuals&&(
+                <div className={`rounded-lg px-3 py-2 flex items-center gap-2 text-xs border ${svcTarget.onTarget?"bg-green-50 border-green-200 text-green-800":"bg-amber-50 border-amber-200 text-amber-800"}`}>
+                  <span>{svcTarget.onTarget?"✓":"⚠"}</span>
+                  <span><strong>{p.service_category}</strong> target: {svcTarget.label} · Actual: {pct(k.costRecovery)}</span>
+                </div>
+              )}
               <div className="border-t border-slate-100 pt-4 space-y-4">
                 <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Variance vs Budget</div>
                 <PBar label="Enrollment"        actual={p.act_enrollment||0} budget={p.ant_enrollment||0} ff={v=>v.toString()}/>
@@ -1529,6 +1810,37 @@ function ProgramForm({initial,staffName,isManager,onSave,onDelete,onDuplicate,on
               </div>
             </div>
           )}
+          {sec==="log"&&(
+            <div className="space-y-4">
+              <div className="text-xs text-slate-400 mb-2">Record decisions, fee changes, pivots, or anything worth remembering. Each entry is timestamped automatically.</div>
+              {canEdit&&(
+                <div className="flex gap-2">
+                  <input className="flex-1 rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    placeholder='e.g. "Dropped fee from $85 to $65 to boost enrollment"'
+                    value={logEntry} onChange={e=>setLogEntry(e.target.value)}
+                    onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();addLogEntry();}}}/>
+                  <button onClick={addLogEntry} disabled={!logEntry.trim()}
+                    className="px-4 py-2 text-sm font-semibold text-white rounded disabled:opacity-40"
+                    style={{backgroundColor:"#1e3a5f"}}>Add</button>
+                </div>
+              )}
+              {log.length===0?(
+                <div className="text-center py-8 text-slate-300 text-sm">No entries yet. Add the first one above.</div>
+              ):(
+                <div className="space-y-2">
+                  {log.map((entry,i)=>(
+                    <div key={i} className="flex gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                      <div className="shrink-0 w-1.5 rounded-full bg-amber-400 mt-1" style={{minHeight:"1rem"}}/>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-slate-700">{entry.text}</div>
+                        <div className="text-xs text-slate-400 mt-1">{entry.author} · {new Date(entry.date).toLocaleDateString()} {new Date(entry.date).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1539,8 +1851,8 @@ function ProgramForm({initial,staffName,isManager,onSave,onDelete,onDuplicate,on
             {!isNew&&<button onClick={()=>onDuplicate(p)} className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded hover:bg-slate-50 font-medium">Duplicate</button>}
           </div>
           <div className="flex gap-3">
-            <button onClick={onCancel} className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded">Cancel</button>
-            <button onClick={()=>onSave(p)} disabled={!p.name||saving}
+            <button onClick={handleBack} className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded">Cancel</button>
+            <button onClick={handleSave} disabled={!p.name||saving}
               className="px-5 py-2 text-sm font-semibold text-white rounded disabled:opacity-40"
               style={{backgroundColor:"#1e3a5f"}}>{saving?"Saving...":isNew?"Save Program":"Update Program"}</button>
           </div>
