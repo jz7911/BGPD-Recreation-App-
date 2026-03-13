@@ -295,41 +295,35 @@ function printSeasonReport(programs, filters) {
     </div>
   </div>`;
 
-  const filename = `BGPD_Season_Report_${new Date().toISOString().slice(0,10)}.pdf`;
-
-  function doSave() {
-    const container = document.createElement("div");
-    // Must be visible on screen for html2canvas to capture it
-    container.style.cssText = "position:fixed;top:0;left:0;z-index:-1;opacity:0;pointer-events:none;width:750px;background:white;";
-    container.innerHTML = bodyHTML;
-    document.body.appendChild(container);
-    // Small delay to let browser lay out the DOM before capturing
-    setTimeout(()=>{
-      window.html2pdf().set({
-        margin: 0.4,
-        filename,
-        image: {type:"jpeg", quality:0.98},
-        html2canvas: {scale:2, useCORS:true, logging:false, backgroundColor:"#ffffff", windowWidth:750},
-        jsPDF: {unit:"in", format:"letter", orientation:"portrait"},
-      }).from(container).save().then(()=>{ document.body.removeChild(container); });
-    }, 300);
-  }
-
-  if(window.html2pdf) {
-    doSave();
-  } else {
-    const script = document.createElement("script");
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
-    script.onload = doSave;
-    script.onerror = () => {
-      const w = window.open("","_blank","width=900,height=700");
-      if(w){
-        w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><style>*{font-family:'Segoe UI',sans-serif;margin:0;padding:0;box-sizing:border-box;}body{background:white;}table{border-collapse:collapse;width:100%;}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}</style></head><body>${bodyHTML}<script>window.onload=function(){window.print();window.onafterprint=function(){window.close();};};<\/script></body></html>`);
-        w.document.close();
-      } else { alert("Please allow popups for this site to generate the Season Report."); }
+  // Build full HTML document as a Blob and open via object URL — avoids popup blockers
+  const fullHTML = `<!DOCTYPE html><html><head><meta charset="utf-8">
+  <title>BGPD Season Report</title>
+  <style>
+    * { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: white; color: #1e293b; }
+    table { border-collapse: collapse; width: 100%; }
+    @page { margin: 0.6in; size: letter; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+  </head><body>${bodyHTML}
+  <script>
+    window.onload = function() {
+      setTimeout(function() { window.print(); }, 500);
+      window.onafterprint = function() { window.close(); };
     };
-    document.head.appendChild(script);
-  }
+  <\/script>
+  </body></html>`;
+
+  const blob = new Blob([fullHTML], {type: "text/html"});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.target   = "_blank";
+  a.rel      = "noopener";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
 // ─── CSV Export ───────────────────────────────────────────────────────────────
@@ -757,7 +751,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
             <div className="flex gap-3 justify-center pt-2">
               <button onClick={()=>setShowReport(false)} className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
               <button onClick={()=>{ setShowReport(false); printSeasonReport(vis, `${sf!=="All"?`Staff: ${sf}`:"All Staff"} · ${af!=="All"?`Area: ${af}`:"All Areas"} · ${snf!=="All"?`Season: ${snf}`:"All Seasons"} · ${yf!=="All"?`Year: ${yf}`:"All Years"}`); }}
-                className="px-5 py-2 text-sm font-semibold text-white rounded-lg" style={{backgroundColor:"#1e3a5f"}}>Print / Save PDF</button>
+                className="px-5 py-2 text-sm font-semibold text-white rounded-lg" style={{backgroundColor:"#1e3a5f"}}>Save as PDF</button>
             </div>
           </div>
         </div>
@@ -1125,7 +1119,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
             <div className="flex gap-3 justify-center pt-2">
               <button onClick={()=>setShowReport(false)} className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
               <button onClick={()=>{ setShowReport(false); printSeasonReport(vis, `${sf!=="All"?`Staff: ${sf}`:"All Staff"} · ${af!=="All"?`Area: ${af}`:"All Areas"} · ${snf!=="All"?`Season: ${snf}`:"All Seasons"} · ${yf!=="All"?`Year: ${yf}`:"All Years"}`); }}
-                className="px-5 py-2 text-sm font-semibold text-white rounded-lg" style={{backgroundColor:"#1e3a5f"}}>Print / Save PDF</button>
+                className="px-5 py-2 text-sm font-semibold text-white rounded-lg" style={{backgroundColor:"#1e3a5f"}}>Save as PDF</button>
             </div>
           </div>
         </div>
