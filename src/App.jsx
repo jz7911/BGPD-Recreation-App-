@@ -28,6 +28,7 @@ const ADMIN_OVERHEAD_RATE  = 0.1;
 const FT_ANNUAL_SALARY     = 97700;
 const FACILITY_COST_PER_HR = 3;
 const MANAGER_NAMES        = ["admin","manager","joe zimmermann","erika strojinc","dan stanczak","brian o'malley","chris eckert","chuck burgess","diana clayson","amanda busch"];
+const ADMIN_NAMES          = ["admin","joe zimmermann"]; // Director-level: sees ★ Admin tab
 
 
 // Service category cost recovery targets
@@ -2390,6 +2391,1399 @@ function GuideSection({title,accent,children}) {
 }
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ADMIN MODULE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const ADMIN_FYS   = ["2023-2024","2024-2025","2025-2026","2026-2027","2027-2028"];
+const ADMIN_CUR   = "2025-2026";
+const MONTHS      = ["May","June","July","August","September","October","November","December","January","February","March","April"];
+const QUARTERS    = ["Q1 (May–Jul)","Q2 (Aug–Oct)","Q3 (Nov–Jan)","Q4 (Feb–Apr)"];
+const CORE_VALUES = ["Character","Excellence","Stewardship","Innovation","Community"];
+const GOAL_STATUS = ["Complete","Not Complete","Ongoing","Paused","Not Started"];
+const CAMP_NAMES  = ["Preschool 2s","Preschool 3s","Preschool 4s & 5s","Kinder Camp","Safety Stars","Adventure","Fun & Games","Grove","Sports Camp","Cycle & Surf","Xtreme Teens","Star Makers","Broadway Bound","Dance","CIT","Camp Connection","Post Camp"];
+const CLUBHOUSE_SITES = ["Country Meadows","Ivy Hall","Kildeer","Kilmer","Longfellow","Meridian","Prairie","Pritchett","Tripp","Willow Grove"];
+const RENTAL_CATS = ["Alcott Center","CAC","Birthdays","Outdoor/FCS","Fields & Courts","Shelters","Amphitheater","Spray N Play","Willow Stream Pool","Dog Park"];
+const FUND_NAMES  = ["Fund 4 – Recreation","Fitness Center (FCBG)","Clubhouse – All Sites","Camps – All Programs","Special Events","Golf Dome","Museum"];
+const EVENT_TYPES = ["Concert","Movie","Festival","Holiday Event","Sport/Tournament","Community Gathering","Other"];
+
+// ── Shared admin utilities ────────────────────────────────────────────────────
+function adminDollar(v){ const n=Number(v)||0; return n<0?`($${Math.abs(Math.round(n)).toLocaleString()})`:`$${Math.round(n).toLocaleString()}`; }
+function adminPct(v){ return `${((Number(v)||0)*100).toFixed(1)}%`; }
+function fyLabel(fy){ return `FY ${fy}`; }
+function trendArrow(cur,prev){ if(!prev||!cur) return null; const d=(cur-prev)/Math.abs(prev); return {dir:d>=0?"up":"down",pct:Math.abs(d*100).toFixed(1)}; }
+
+// ── Small reusable admin UI pieces ───────────────────────────────────────────
+function ACard({label,value,sub,color,trend,onClick}){
+  return (
+    <div onClick={onClick} className={`bg-white rounded-xl p-4 shadow-sm border-t-4 ${onClick?"cursor-pointer hover:shadow-md transition":""}`}
+      style={{borderTopColor:color||"#1e3a5f"}}>
+      <div className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">{label}</div>
+      <div className="text-2xl font-extrabold" style={{fontFamily:"monospace",color:color||"#0f172a"}}>{value}</div>
+      {sub&&<div className="text-xs text-slate-400 mt-1">{sub}</div>}
+      {trend&&<div className={`text-xs font-semibold mt-1 ${trend.dir==="up"?"text-green-600":"text-red-500"}`}>{trend.dir==="up"?"↑":"↓"} {trend.pct}% vs prior</div>}
+    </div>
+  );
+}
+
+function AModal({title,onClose,children,wide}){
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background:"rgba(0,0,0,0.5)"}}>
+      <div className={`bg-white rounded-2xl shadow-2xl flex flex-col`} style={{width:wide?"820px":"520px",maxWidth:"95vw",maxHeight:"90vh"}}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div className="font-bold text-slate-800 text-base">{title}</div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl font-bold">×</button>
+        </div>
+        <div className="overflow-y-auto flex-1 px-6 py-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function AInp({label,value,onChange,type="text",options,required,hint,rows}){
+  const cls = "w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white";
+  return (
+    <div className="mb-3">
+      <label className="block text-xs font-semibold text-slate-500 mb-1">{label}{required&&<span className="text-red-400 ml-1">*</span>}</label>
+      {options ? (
+        <select value={value||""} onChange={e=>onChange(e.target.value)} className={cls}>
+          <option value="">— select —</option>
+          {options.map(o=><option key={o} value={o}>{o}</option>)}
+        </select>
+      ) : rows ? (
+        <textarea value={value||""} onChange={e=>onChange(e.target.value)} rows={rows} className={cls}/>
+      ) : (
+        <input type={type} value={value||""} onChange={e=>onChange(e.target.value)} required={required} className={cls}/>
+      )}
+      {hint&&<div className="text-xs text-slate-400 mt-1">{hint}</div>}
+    </div>
+  );
+}
+
+function ABadge({status}){
+  const map={
+    "Complete":        "bg-green-100 text-green-800",
+    "Not Complete":    "bg-red-100 text-red-700",
+    "Ongoing":         "bg-yellow-100 text-yellow-800",
+    "Paused":          "bg-slate-100 text-slate-500",
+    "Not Started":     "bg-orange-100 text-orange-700",
+    "Archived":        "bg-slate-100 text-slate-400",
+  };
+  return <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${map[status]||"bg-slate-100 text-slate-600"}`}>{status}</span>;
+}
+
+function ABar({label,value,max,color}){
+  const pct = max>0 ? Math.min(100,Math.round((value/max)*100)) : 0;
+  return (
+    <div className="flex items-center gap-2 mb-2">
+      <div className="text-xs text-slate-500 w-32 text-right truncate flex-shrink-0">{label}</div>
+      <div className="flex-1 bg-slate-100 rounded h-2 overflow-hidden">
+        <div className="h-2 rounded" style={{width:`${pct}%`,background:color||"#1e3a5f"}}/>
+      </div>
+      <div className="text-xs font-mono font-semibold w-16 flex-shrink-0">{typeof value==="number"&&value>999?adminDollar(value):value.toLocaleString()}</div>
+    </div>
+  );
+}
+
+function AConfirm({message,onConfirm,onCancel,label="Delete",color="#ef4444"}){
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background:"rgba(0,0,0,0.4)"}}>
+      <div className="bg-white rounded-2xl shadow-2xl p-8 w-80 text-center">
+        <div className="text-slate-700 mb-6 text-sm">{message}</div>
+        <div className="flex gap-3 justify-center">
+          <button onClick={onCancel} className="px-5 py-2 rounded-lg border border-slate-200 text-sm font-semibold hover:bg-slate-50">Cancel</button>
+          <button onClick={onConfirm} className="px-5 py-2 rounded-lg text-white text-sm font-semibold" style={{background:color}}>{label}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FYFilter({value,onChange,label="Fiscal Year"}){
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{label}</span>
+      <select value={value} onChange={e=>onChange(e.target.value)}
+        className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm font-semibold bg-white focus:outline-none">
+        <option value="All">All Years</option>
+        {ADMIN_FYS.map(y=><option key={y} value={y}>{fyLabel(y)}</option>)}
+      </select>
+    </div>
+  );
+}
+
+// ─── GOALS & OBJECTIVES ───────────────────────────────────────────────────────
+function GoalsSection({db}){
+  const [goals,setGoals]       = useState([]);
+  const [loading,setLoading]   = useState(true);
+  const [fy,setFy]             = useState(ADMIN_CUR);
+  const [qFilter,setQFilter]   = useState("All");
+  const [stFilter,setStFilter] = useState("All");
+  const [staffFilter,setStFilter2] = useState("All");
+  const [modal,setModal]       = useState(null); // null | "new" | {goal obj}
+  const [saving,setSaving]     = useState(false);
+  const [delConfirm,setDelConfirm] = useState(null);
+  const [showArchived,setShowArchived] = useState(false);
+
+  const load = useCallback(async()=>{
+    setLoading(true);
+    const {data} = await db.from("admin_goals").select("*").order("created_at",{ascending:false});
+    setGoals(data||[]); setLoading(false);
+  },[db]);
+  useEffect(()=>{ load(); },[load]);
+
+  const vis = goals.filter(g=>{
+    if(g.is_archived !== showArchived) return false;
+    if(fy!=="All" && g.fy!==fy) return false;
+    if(qFilter!=="All" && g.quarter!==qFilter) return false;
+    if(stFilter!=="All" && g.status!==stFilter) return false;
+    if(staffFilter!=="All" && g.staff_lead!==staffFilter) return false;
+    return true;
+  });
+
+  const staffList = [...new Set(goals.map(g=>g.staff_lead).filter(Boolean))].sort();
+
+  const statCounts = ["Complete","Not Complete","Ongoing","Paused","Not Started"].map(s=>({
+    s, n:goals.filter(g=>!g.is_archived && (fy==="All"||g.fy===fy) && g.status===s).length
+  }));
+
+  const blank = {fy:ADMIN_CUR,quarter:"",staff_lead:"",supporting_staff:"",objective:"",core_value:"",status:"Not Started",updates:"",is_archived:false};
+
+  const save = async(g)=>{
+    setSaving(true);
+    if(g.id){ await db.from("admin_goals").update(g).eq("id",g.id); }
+    else     { await db.from("admin_goals").insert(g); }
+    await load(); setModal(null); setSaving(false);
+  };
+
+  const archive = async(g,val)=>{ await db.from("admin_goals").update({is_archived:val}).eq("id",g.id); await load(); };
+  const del     = async(id)=>{ await db.from("admin_goals").delete().eq("id",id); await load(); setDelConfirm(null); };
+
+  return (
+    <div>
+      {delConfirm&&<AConfirm message="Delete this goal permanently?" onConfirm={()=>del(delConfirm)} onCancel={()=>setDelConfirm(null)}/>}
+      {modal&&<GoalModal initial={modal==="new"?blank:modal} onSave={save} onClose={()=>setModal(null)} saving={saving}/>}
+
+      {/* Status summary */}
+      <div className="grid grid-cols-5 gap-3 mb-5">
+        {statCounts.map(({s,n})=>(
+          <div key={s} className="bg-white rounded-xl p-3 shadow-sm text-center cursor-pointer border-2 hover:border-blue-200 transition"
+            style={{borderColor: stFilter===s?"#d4a017":"transparent"}}
+            onClick={()=>setStFilter(st=>st===s?"All":s)}>
+            <div className="text-2xl font-extrabold" style={{fontFamily:"monospace"}}>{n}</div>
+            <ABadge status={s}/>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 items-center mb-4">
+        <FYFilter value={fy} onChange={setFy}/>
+        <select value={qFilter} onChange={e=>setQFilter(e.target.value)}
+          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none">
+          <option value="All">All Quarters</option>
+          {QUARTERS.map(q=><option key={q} value={q}>{q}</option>)}
+        </select>
+        <select value={stFilter} onChange={e=>setStFilter(e.target.value)}
+          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none">
+          <option value="All">All Statuses</option>
+          {GOAL_STATUS.map(s=><option key={s} value={s}>{s}</option>)}
+        </select>
+        <select value={staffFilter} onChange={e=>setStFilter2(e.target.value)}
+          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none">
+          <option value="All">All Staff</option>
+          {staffList.map(s=><option key={s} value={s}>{s}</option>)}
+        </select>
+        <button onClick={()=>setShowArchived(v=>!v)}
+          className="px-3 py-1.5 text-xs font-bold rounded-lg border transition"
+          style={showArchived?{background:"#1e3a5f",color:"white",border:"1px solid #1e3a5f"}:{background:"white",border:"1px solid #e2e8f0",color:"#64748b"}}>
+          {showArchived?"📂 Archived":"📂 Active"}
+        </button>
+        <div className="ml-auto">
+          <button onClick={()=>setModal("new")}
+            className="px-4 py-1.5 text-xs font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>+ Add Goal</button>
+        </div>
+      </div>
+
+      {loading ? <div className="text-center py-10 text-slate-400">Loading...</div> : (
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 text-xs font-bold text-slate-400 uppercase tracking-wide">
+                <th className="px-4 py-3 text-left">Objective</th>
+                <th className="px-4 py-3 text-left">Staff Lead</th>
+                <th className="px-4 py-3 text-left">Quarter</th>
+                <th className="px-4 py-3 text-left">Core Value</th>
+                <th className="px-4 py-3 text-left">Status</th>
+                <th className="px-4 py-3 text-left">FY</th>
+                <th className="px-4 py-3"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {vis.length===0&&(
+                <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400">No goals match current filters.</td></tr>
+              )}
+              {vis.map(g=>(
+                <tr key={g.id} className="border-t border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={()=>setModal(g)}>
+                  <td className="px-4 py-3 text-sm font-medium text-slate-800 max-w-xs">
+                    <div className="truncate">{g.objective}</div>
+                    {g.updates&&<div className="text-xs text-slate-400 truncate mt-0.5">{g.updates}</div>}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-600">{g.staff_lead}</td>
+                  <td className="px-4 py-3 text-xs text-slate-500">{g.quarter}</td>
+                  <td className="px-4 py-3 text-xs text-slate-500">{g.core_value}</td>
+                  <td className="px-4 py-3"><ABadge status={g.status}/></td>
+                  <td className="px-4 py-3 text-xs text-slate-400">{g.fy}</td>
+                  <td className="px-4 py-3 text-right" onClick={e=>e.stopPropagation()}>
+                    <div className="flex gap-1 justify-end">
+                      <button onClick={()=>archive(g,!g.is_archived)} className="text-xs px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-500"
+                        title={g.is_archived?"Restore":"Archive"}>{g.is_archived?"↩":"📦"}</button>
+                      <button onClick={()=>setDelConfirm(g.id)} className="text-xs px-2 py-1 rounded bg-red-50 hover:bg-red-100 text-red-400">✕</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GoalModal({initial,onSave,onClose,saving}){
+  const [g,setG] = useState({...initial});
+  const set = (k,v) => setG(p=>({...p,[k]:v}));
+  return (
+    <AModal title={g.id?"Edit Goal / Objective":"New Goal / Objective"} onClose={onClose} wide>
+      <div className="grid grid-cols-2 gap-x-4">
+        <div className="col-span-2"><AInp label="Objective (SMART)" value={g.objective} onChange={v=>set("objective",v)} rows={3} required/></div>
+        <AInp label="Staff Lead" value={g.staff_lead} onChange={v=>set("staff_lead",v)} required/>
+        <AInp label="Supporting Staff" value={g.supporting_staff} onChange={v=>set("supporting_staff",v)}/>
+        <AInp label="Fiscal Year" value={g.fy} onChange={v=>set("fy",v)} options={ADMIN_FYS}/>
+        <AInp label="Quarter" value={g.quarter} onChange={v=>set("quarter",v)} options={QUARTERS}/>
+        <AInp label="Core Value" value={g.core_value} onChange={v=>set("core_value",v)} options={CORE_VALUES}/>
+        <AInp label="Status" value={g.status} onChange={v=>set("status",v)} options={GOAL_STATUS}/>
+        <div className="col-span-2"><AInp label="Updates / Notes" value={g.updates} onChange={v=>set("updates",v)} rows={3}/></div>
+      </div>
+      <div className="flex justify-end gap-3 mt-2">
+        <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-slate-200 hover:bg-slate-50">Cancel</button>
+        <button onClick={()=>onSave(g)} disabled={saving} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>
+          {saving?"Saving…":"Save Goal"}
+        </button>
+      </div>
+    </AModal>
+  );
+}
+
+// ─── FUND PERFORMANCE ─────────────────────────────────────────────────────────
+function FundSection({db}){
+  const [records,setRecords] = useState([]);
+  const [loading,setLoading] = useState(true);
+  const [fy,setFy]           = useState(ADMIN_CUR);
+  const [fund,setFund]       = useState("All");
+  const [modal,setModal]     = useState(null);
+  const [delConfirm,setDelConfirm] = useState(null);
+  const [saving,setSaving]   = useState(false);
+  const [showArchived,setShowArchived] = useState(false);
+
+  const load = useCallback(async()=>{
+    setLoading(true);
+    const {data} = await db.from("admin_funds").select("*").order("fy",{ascending:false});
+    setRecords(data||[]); setLoading(false);
+  },[db]);
+  useEffect(()=>{ load(); },[load]);
+
+  const vis = records.filter(r=>{
+    if(r.is_archived !== showArchived) return false;
+    if(fy!=="All" && r.fy!==fy) return false;
+    if(fund!=="All" && r.fund_name!==fund) return false;
+    return true;
+  });
+
+  // Aggregate by fund for summary cards
+  const fundSummary = FUND_NAMES.map(fn=>{
+    const rows = records.filter(r=>!r.is_archived && (fy==="All"||r.fy===fy) && r.fund_name===fn);
+    const rev  = rows.reduce((a,r)=>a+(Number(r.revenue)||0),0);
+    const exp  = rows.reduce((a,r)=>a+(Number(r.expenses)||0),0);
+    const goal = rows.reduce((a,r)=>a+(Number(r.goal)||0),0);
+    return {fn, rev, exp, pl:rev-exp, goal};
+  }).filter(f=>f.rev>0||f.goal>0);
+
+  const totalRev = fundSummary.reduce((a,f)=>a+f.rev,0);
+
+  const blank = {fund_name:FUND_NAMES[0],fy:ADMIN_CUR,month:"",revenue:"",expenses:"",goal:"",notes:"",is_archived:false};
+
+  const save = async r=>{
+    setSaving(true);
+    if(r.id){ await db.from("admin_funds").update(r).eq("id",r.id); }
+    else     { await db.from("admin_funds").insert(r); }
+    await load(); setModal(null); setSaving(false);
+  };
+
+  const archive = async(r,val)=>{ await db.from("admin_funds").update({is_archived:val}).eq("id",r.id); await load(); };
+  const del     = async(id)=>{ await db.from("admin_funds").delete().eq("id",id); await load(); setDelConfirm(null); };
+
+  return (
+    <div>
+      {delConfirm&&<AConfirm message="Delete this record permanently?" onConfirm={()=>del(delConfirm)} onCancel={()=>setDelConfirm(null)}/>}
+      {modal&&<FundModal initial={modal==="new"?blank:modal} onSave={save} onClose={()=>setModal(null)} saving={saving}/>}
+
+      {/* Summary cards */}
+      {fundSummary.length>0&&(
+        <div className="grid grid-cols-2 gap-3 mb-5">
+          <ACard label="Total Revenue — All Funds" value={adminDollar(totalRev)} color="#1e3a5f"/>
+          {fundSummary.slice(0,3).map(f=>(
+            <ACard key={f.fn} label={f.fn} value={adminDollar(f.rev)}
+              sub={f.goal>0?`Goal: ${adminDollar(f.goal)} · ${f.goal>0?Math.round(f.rev/f.goal*100):0}% attained`:""}
+              color={f.goal>0&&f.rev>=f.goal?"#16a34a":f.goal>0?"#dc2626":"#1e3a5f"}/>
+          ))}
+        </div>
+      )}
+
+      {/* Bar chart vs goal */}
+      {fundSummary.length>0&&(
+        <div className="bg-white rounded-xl p-4 shadow-sm mb-5">
+          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Revenue vs Goal by Fund</div>
+          {fundSummary.map(f=>{
+            const pct = f.goal>0 ? Math.min(130,Math.round(f.rev/f.goal*100)) : 0;
+            const color = pct>=100?"#16a34a":pct>=80?"#eab308":"#dc2626";
+            return (
+              <div key={f.fn} className="flex items-center gap-3 mb-2">
+                <div className="text-xs text-slate-500 w-40 text-right truncate flex-shrink-0">{f.fn.replace("Fund 4 – ","").replace("Fitness Center (FCBG)","Fitness Ctr").replace("Clubhouse – All Sites","Clubhouse").replace("Camps – All Programs","Camps")}</div>
+                <div className="flex-1 bg-slate-100 rounded h-3 overflow-hidden relative">
+                  <div className="h-3 rounded transition-all" style={{width:`${Math.min(100,pct)}%`,background:color}}/>
+                  {pct>100&&<div className="absolute top-0 left-0 h-3 w-full border-2 border-green-400 rounded opacity-50"/>}
+                </div>
+                <div className="text-xs font-mono font-semibold w-14 flex-shrink-0" style={{color}}>{f.goal>0?`${pct}%`:"—"}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Filters + table */}
+      <div className="flex flex-wrap gap-3 items-center mb-4">
+        <FYFilter value={fy} onChange={setFy}/>
+        <select value={fund} onChange={e=>setFund(e.target.value)}
+          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none">
+          <option value="All">All Funds</option>
+          {FUND_NAMES.map(f=><option key={f} value={f}>{f}</option>)}
+        </select>
+        <button onClick={()=>setShowArchived(v=>!v)}
+          className="px-3 py-1.5 text-xs font-bold rounded-lg border transition"
+          style={showArchived?{background:"#1e3a5f",color:"white",border:"1px solid #1e3a5f"}:{background:"white",border:"1px solid #e2e8f0",color:"#64748b"}}>
+          {showArchived?"📂 Archived":"📂 Active"}
+        </button>
+        <div className="ml-auto">
+          <button onClick={()=>setModal("new")} className="px-4 py-1.5 text-xs font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>+ Add Entry</button>
+        </div>
+      </div>
+
+      {loading ? <div className="text-center py-10 text-slate-400">Loading...</div> : (
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 text-xs font-bold text-slate-400 uppercase tracking-wide">
+                <th className="px-4 py-3 text-left">Fund</th>
+                <th className="px-4 py-3 text-left">FY</th>
+                <th className="px-4 py-3 text-left">Month</th>
+                <th className="px-4 py-3 text-right">Revenue</th>
+                <th className="px-4 py-3 text-right">Expenses</th>
+                <th className="px-4 py-3 text-right">P/(L)</th>
+                <th className="px-4 py-3 text-right">Goal</th>
+                <th className="px-4 py-3 text-left">Notes</th>
+                <th className="px-4 py-3"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {vis.length===0&&<tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400">No records. Add an entry to get started.</td></tr>}
+              {vis.map(r=>{
+                const pl=(Number(r.revenue)||0)-(Number(r.expenses)||0);
+                return (
+                  <tr key={r.id} className="border-t border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={()=>setModal(r)}>
+                    <td className="px-4 py-3 font-semibold text-slate-700 text-xs">{r.fund_name}</td>
+                    <td className="px-4 py-3 text-xs text-slate-500">{r.fy}</td>
+                    <td className="px-4 py-3 text-xs text-slate-500">{r.month||"Annual"}</td>
+                    <td className="px-4 py-3 text-right font-mono text-sm">{adminDollar(r.revenue)}</td>
+                    <td className="px-4 py-3 text-right font-mono text-sm text-slate-500">{adminDollar(r.expenses)}</td>
+                    <td className={`px-4 py-3 text-right font-mono font-bold text-sm ${pl>=0?"text-green-600":"text-red-500"}`}>{adminDollar(pl)}</td>
+                    <td className="px-4 py-3 text-right font-mono text-sm text-slate-400">{r.goal?adminDollar(r.goal):"—"}</td>
+                    <td className="px-4 py-3 text-xs text-slate-400 max-w-xs truncate">{r.notes}</td>
+                    <td className="px-4 py-3 text-right" onClick={e=>e.stopPropagation()}>
+                      <div className="flex gap-1 justify-end">
+                        <button onClick={()=>archive(r,!r.is_archived)} className="text-xs px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-500">{r.is_archived?"↩":"📦"}</button>
+                        <button onClick={()=>setDelConfirm(r.id)} className="text-xs px-2 py-1 rounded bg-red-50 text-red-400">✕</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FundModal({initial,onSave,onClose,saving}){
+  const [r,setR] = useState({...initial});
+  const set=(k,v)=>setR(p=>({...p,[k]:v}));
+  return (
+    <AModal title={r.id?"Edit Fund Entry":"New Fund Entry"} onClose={onClose}>
+      <AInp label="Fund" value={r.fund_name} onChange={v=>set("fund_name",v)} options={FUND_NAMES} required/>
+      <AInp label="Fiscal Year" value={r.fy} onChange={v=>set("fy",v)} options={ADMIN_FYS} required/>
+      <AInp label="Month (leave blank for annual total)" value={r.month} onChange={v=>set("month",v)} options={["","...Annual",...MONTHS]}/>
+      <div className="grid grid-cols-3 gap-3">
+        <AInp label="Revenue ($)" value={r.revenue} onChange={v=>set("revenue",v)} type="number"/>
+        <AInp label="Expenses ($)" value={r.expenses} onChange={v=>set("expenses",v)} type="number"/>
+        <AInp label="Goal ($)" value={r.goal} onChange={v=>set("goal",v)} type="number"/>
+      </div>
+      <AInp label="Notes" value={r.notes} onChange={v=>set("notes",v)} rows={2}/>
+      <div className="flex justify-end gap-3 mt-2">
+        <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-slate-200 hover:bg-slate-50">Cancel</button>
+        <button onClick={()=>onSave(r)} disabled={saving} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>
+          {saving?"Saving…":"Save Entry"}
+        </button>
+      </div>
+    </AModal>
+  );
+}
+
+// ─── RENTALS ─────────────────────────────────────────────────────────────────
+function RentalsSection({db}){
+  const [records,setRecords] = useState([]);
+  const [loading,setLoading] = useState(true);
+  const [fy,setFy]           = useState(ADMIN_CUR);
+  const [cat,setCat]         = useState("All");
+  const [modal,setModal]     = useState(null);
+  const [delConfirm,setDelConfirm] = useState(null);
+  const [saving,setSaving]   = useState(false);
+  const [showArchived,setShowArchived] = useState(false);
+
+  const load = useCallback(async()=>{
+    setLoading(true);
+    const {data} = await db.from("admin_rentals").select("*").order("fy",{ascending:false});
+    setRecords(data||[]); setLoading(false);
+  },[db]);
+  useEffect(()=>{ load(); },[load]);
+
+  const vis = records.filter(r=>{
+    if(r.is_archived !== showArchived) return false;
+    if(fy!=="All" && r.fy!==fy) return false;
+    if(cat!=="All" && r.category!==cat) return false;
+    return true;
+  });
+
+  // Summary by category
+  const catSummary = RENTAL_CATS.map(c=>{
+    const rows = records.filter(r=>!r.is_archived && (fy==="All"||r.fy===fy) && r.category===c);
+    const rev  = rows.reduce((a,r)=>a+(Number(r.revenue)||0),0);
+    return {c, rev};
+  }).filter(f=>f.rev>0).sort((a,b)=>b.rev-a.rev);
+
+  const maxRev = catSummary.length ? catSummary[0].rev : 1;
+  const totalRentals = catSummary.reduce((a,c)=>a+c.rev,0);
+
+  const blank = {category:RENTAL_CATS[0],fy:ADMIN_CUR,month:"",revenue:"",notes:"",is_archived:false};
+
+  const save = async r=>{
+    setSaving(true);
+    if(r.id){ await db.from("admin_rentals").update(r).eq("id",r.id); }
+    else     { await db.from("admin_rentals").insert(r); }
+    await load(); setModal(null); setSaving(false);
+  };
+
+  const archive = async(r,val)=>{ await db.from("admin_rentals").update({is_archived:val}).eq("id",r.id); await load(); };
+  const del     = async(id)=>{ await db.from("admin_rentals").delete().eq("id",id); await load(); setDelConfirm(null); };
+
+  return (
+    <div>
+      {delConfirm&&<AConfirm message="Delete this record?" onConfirm={()=>del(delConfirm)} onCancel={()=>setDelConfirm(null)}/>}
+      {modal&&<RentalModal initial={modal==="new"?blank:modal} onSave={save} onClose={()=>setModal(null)} saving={saving}/>}
+
+      {/* Summary */}
+      {catSummary.length>0&&(
+        <div className="grid grid-cols-2 gap-4 mb-5">
+          <div className="bg-white rounded-xl p-4 shadow-sm">
+            <ACard label="Total Rental Revenue" value={adminDollar(totalRentals)} color="#1e3a5f"/>
+            <div className="mt-4">
+              {catSummary.map(f=>(
+                <ABar key={f.c} label={f.c} value={f.rev} max={maxRev} color="#1e3a5f"/>
+              ))}
+            </div>
+          </div>
+          <div className="bg-white rounded-xl p-4 shadow-sm">
+            <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Revenue by Category</div>
+            <table className="w-full text-xs">
+              <thead><tr className="text-slate-400"><th className="text-left pb-2">Category</th><th className="text-right pb-2">Revenue</th><th className="text-right pb-2">% of Total</th></tr></thead>
+              <tbody>
+                {catSummary.map(f=>(
+                  <tr key={f.c} className="border-t border-slate-50">
+                    <td className="py-1.5 font-medium">{f.c}</td>
+                    <td className="py-1.5 text-right font-mono">{adminDollar(f.rev)}</td>
+                    <td className="py-1.5 text-right font-mono text-slate-400">{totalRentals>0?`${Math.round(f.rev/totalRentals*100)}%`:"—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 items-center mb-4">
+        <FYFilter value={fy} onChange={setFy}/>
+        <select value={cat} onChange={e=>setCat(e.target.value)}
+          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none">
+          <option value="All">All Categories</option>
+          {RENTAL_CATS.map(c=><option key={c} value={c}>{c}</option>)}
+        </select>
+        <button onClick={()=>setShowArchived(v=>!v)}
+          className="px-3 py-1.5 text-xs font-bold rounded-lg border transition"
+          style={showArchived?{background:"#1e3a5f",color:"white",border:"1px solid #1e3a5f"}:{background:"white",border:"1px solid #e2e8f0",color:"#64748b"}}>
+          {showArchived?"📂 Archived":"📂 Active"}
+        </button>
+        <div className="ml-auto">
+          <button onClick={()=>setModal("new")} className="px-4 py-1.5 text-xs font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>+ Add Entry</button>
+        </div>
+      </div>
+
+      {loading ? <div className="text-center py-10 text-slate-400">Loading...</div> : (
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <table className="w-full text-sm">
+            <thead><tr className="bg-slate-50 text-xs font-bold text-slate-400 uppercase tracking-wide">
+              <th className="px-4 py-3 text-left">Category</th>
+              <th className="px-4 py-3 text-left">FY</th>
+              <th className="px-4 py-3 text-left">Month</th>
+              <th className="px-4 py-3 text-right">Revenue</th>
+              <th className="px-4 py-3 text-left">Notes</th>
+              <th className="px-4 py-3"></th>
+            </tr></thead>
+            <tbody>
+              {vis.length===0&&<tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">No records. Add an entry to get started.</td></tr>}
+              {vis.map(r=>(
+                <tr key={r.id} className="border-t border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={()=>setModal(r)}>
+                  <td className="px-4 py-3 font-semibold text-slate-700 text-xs">{r.category}</td>
+                  <td className="px-4 py-3 text-xs text-slate-500">{r.fy}</td>
+                  <td className="px-4 py-3 text-xs text-slate-500">{r.month||"Annual"}</td>
+                  <td className="px-4 py-3 text-right font-mono text-sm">{adminDollar(r.revenue)}</td>
+                  <td className="px-4 py-3 text-xs text-slate-400 max-w-xs truncate">{r.notes}</td>
+                  <td className="px-4 py-3 text-right" onClick={e=>e.stopPropagation()}>
+                    <div className="flex gap-1 justify-end">
+                      <button onClick={()=>archive(r,!r.is_archived)} className="text-xs px-2 py-1 rounded bg-slate-100 text-slate-500">{r.is_archived?"↩":"📦"}</button>
+                      <button onClick={()=>setDelConfirm(r.id)} className="text-xs px-2 py-1 rounded bg-red-50 text-red-400">✕</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RentalModal({initial,onSave,onClose,saving}){
+  const [r,setR] = useState({...initial});
+  const set=(k,v)=>setR(p=>({...p,[k]:v}));
+  return (
+    <AModal title={r.id?"Edit Rental Entry":"New Rental Entry"} onClose={onClose}>
+      <AInp label="Category" value={r.category} onChange={v=>set("category",v)} options={RENTAL_CATS} required/>
+      <AInp label="Fiscal Year" value={r.fy} onChange={v=>set("fy",v)} options={ADMIN_FYS} required/>
+      <AInp label="Month (leave blank for annual)" value={r.month} onChange={v=>set("month",v)} options={["","Annual",...MONTHS]}/>
+      <AInp label="Revenue ($)" value={r.revenue} onChange={v=>set("revenue",v)} type="number"/>
+      <AInp label="Notes" value={r.notes} onChange={v=>set("notes",v)} rows={2}/>
+      <div className="flex justify-end gap-3 mt-2">
+        <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-slate-200 hover:bg-slate-50">Cancel</button>
+        <button onClick={()=>onSave(r)} disabled={saving} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>
+          {saving?"Saving…":"Save Entry"}
+        </button>
+      </div>
+    </AModal>
+  );
+}
+
+// ─── PROGRAM AREAS: Camps + Clubhouse + Special Events ───────────────────────
+function ProgramAreasSection({db}){
+  const [sub,setSub] = useState("camps");
+  const tabs = [{id:"camps",label:"⛺ Camps"},{id:"clubhouse",label:"⌂ Clubhouse"},{id:"events",label:"◎ Special Events"}];
+  return (
+    <div>
+      <div className="flex gap-1 mb-5 bg-slate-100 p-1 rounded-xl w-fit">
+        {tabs.map(t=>(
+          <button key={t.id} onClick={()=>setSub(t.id)}
+            className={`px-4 py-2 text-xs font-bold rounded-lg transition ${sub===t.id?"bg-white shadow text-slate-800":"text-slate-500 hover:text-slate-700"}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {sub==="camps"    && <CampsDetail db={db}/>}
+      {sub==="clubhouse"&& <ClubhouseDetail db={db}/>}
+      {sub==="events"   && <EventsDetail db={db}/>}
+    </div>
+  );
+}
+
+function CampsDetail({db}){
+  const [records,setRecords] = useState([]);
+  const [loading,setLoading] = useState(true);
+  const [fy,setFy]           = useState(ADMIN_CUR);
+  const [camp,setCamp]       = useState("All");
+  const [modal,setModal]     = useState(null);
+  const [delConfirm,setDelConfirm] = useState(null);
+  const [saving,setSaving]   = useState(false);
+  const [showArchived,setShowArchived] = useState(false);
+
+  const load = useCallback(async()=>{
+    setLoading(true);
+    const {data} = await db.from("admin_camps").select("*").order("fy",{ascending:false});
+    setRecords(data||[]); setLoading(false);
+  },[db]);
+  useEffect(()=>{ load(); },[load]);
+
+  const vis = records.filter(r=>{
+    if(r.is_archived !== showArchived) return false;
+    if(fy!=="All" && r.fy!==fy) return false;
+    if(camp!=="All" && r.camp_name!==camp) return false;
+    return true;
+  });
+
+  const totEnroll = vis.reduce((a,r)=>a+(Number(r.total_enrollment)||0),0);
+  const totRev    = vis.reduce((a,r)=>a+(Number(r.revenue)||0),0);
+  const totExp    = vis.reduce((a,r)=>a+(Number(r.expenses)||0),0);
+
+  const campSummary = CAMP_NAMES.map(cn=>{
+    const rows = records.filter(r=>!r.is_archived && (fy==="All"||r.fy===fy) && r.camp_name===cn);
+    return {cn, enroll:rows.reduce((a,r)=>a+(Number(r.total_enrollment)||0),0)};
+  }).filter(c=>c.enroll>0).sort((a,b)=>b.enroll-a.enroll);
+  const maxE = campSummary.length ? campSummary[0].enroll : 1;
+
+  const blank = {camp_name:CAMP_NAMES[0],fy:ADMIN_CUR,total_enrollment:"",waitlist:"",revenue:"",expenses:"",notes:"",is_archived:false};
+
+  const save = async r=>{
+    setSaving(true);
+    if(r.id){ await db.from("admin_camps").update(r).eq("id",r.id); }
+    else     { await db.from("admin_camps").insert(r); }
+    await load(); setModal(null); setSaving(false);
+  };
+  const archive = async(r,val)=>{ await db.from("admin_camps").update({is_archived:val}).eq("id",r.id); await load(); };
+  const del     = async(id)=>{ await db.from("admin_camps").delete().eq("id",id); await load(); setDelConfirm(null); };
+
+  return (
+    <div>
+      {delConfirm&&<AConfirm message="Delete this camp record?" onConfirm={()=>del(delConfirm)} onCancel={()=>setDelConfirm(null)}/>}
+      {modal&&<CampModal initial={modal==="new"?blank:modal} onSave={save} onClose={()=>setModal(null)} saving={saving}/>}
+
+      {campSummary.length>0&&(
+        <div className="grid grid-cols-3 gap-3 mb-5">
+          <ACard label="Total Enrollment" value={totEnroll.toLocaleString()} color="#1e3a5f"/>
+          <ACard label="Total Revenue" value={adminDollar(totRev)} color="#16a34a"/>
+          <ACard label="Gross Margin" value={totRev>0?adminPct((totRev-totExp)/totRev):"—"} color="#d4a017"/>
+        </div>
+      )}
+      {campSummary.length>0&&(
+        <div className="bg-white rounded-xl p-4 shadow-sm mb-5">
+          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Enrollment by Camp</div>
+          {campSummary.map(c=><ABar key={c.cn} label={c.cn} value={c.enroll} max={maxE} color="#1e3a5f"/>)}
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-3 items-center mb-4">
+        <FYFilter value={fy} onChange={setFy}/>
+        <select value={camp} onChange={e=>setCamp(e.target.value)}
+          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none">
+          <option value="All">All Camps</option>
+          {CAMP_NAMES.map(c=><option key={c} value={c}>{c}</option>)}
+        </select>
+        <button onClick={()=>setShowArchived(v=>!v)}
+          className="px-3 py-1.5 text-xs font-bold rounded-lg border transition"
+          style={showArchived?{background:"#1e3a5f",color:"white",border:"1px solid #1e3a5f"}:{background:"white",border:"1px solid #e2e8f0",color:"#64748b"}}>
+          {showArchived?"📂 Archived":"📂 Active"}
+        </button>
+        <div className="ml-auto">
+          <button onClick={()=>setModal("new")} className="px-4 py-1.5 text-xs font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>+ Add Camp Record</button>
+        </div>
+      </div>
+
+      {loading?<div className="text-center py-10 text-slate-400">Loading...</div>:(
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <table className="w-full text-sm">
+            <thead><tr className="bg-slate-50 text-xs font-bold text-slate-400 uppercase tracking-wide">
+              <th className="px-4 py-3 text-left">Camp</th><th className="px-4 py-3 text-left">FY</th>
+              <th className="px-4 py-3 text-right">Enrollment</th><th className="px-4 py-3 text-right">Waitlist</th>
+              <th className="px-4 py-3 text-right">Revenue</th><th className="px-4 py-3 text-right">Expenses</th>
+              <th className="px-4 py-3 text-right">Margin</th><th className="px-4 py-3 text-left">Notes</th><th className="px-4 py-3"></th>
+            </tr></thead>
+            <tbody>
+              {vis.length===0&&<tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400">No camp records. Add one to get started.</td></tr>}
+              {vis.map(r=>{
+                const gm = Number(r.revenue)>0?(Number(r.revenue)-Number(r.expenses))/Number(r.revenue):null;
+                return (
+                  <tr key={r.id} className="border-t border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={()=>setModal(r)}>
+                    <td className="px-4 py-3 font-semibold text-slate-700 text-xs">{r.camp_name}</td>
+                    <td className="px-4 py-3 text-xs text-slate-500">{r.fy}</td>
+                    <td className="px-4 py-3 text-right font-mono">{(Number(r.total_enrollment)||0).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right font-mono text-slate-400">{r.waitlist||"—"}</td>
+                    <td className="px-4 py-3 text-right font-mono">{adminDollar(r.revenue)}</td>
+                    <td className="px-4 py-3 text-right font-mono text-slate-500">{adminDollar(r.expenses)}</td>
+                    <td className={`px-4 py-3 text-right font-mono font-bold text-xs ${gm===null?"text-slate-400":gm>=0.3?"text-green-600":gm>=0?"text-yellow-600":"text-red-500"}`}>
+                      {gm!==null?adminPct(gm):"—"}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-400 max-w-xs truncate">{r.notes}</td>
+                    <td className="px-4 py-3 text-right" onClick={e=>e.stopPropagation()}>
+                      <div className="flex gap-1 justify-end">
+                        <button onClick={()=>archive(r,!r.is_archived)} className="text-xs px-2 py-1 rounded bg-slate-100 text-slate-500">{r.is_archived?"↩":"📦"}</button>
+                        <button onClick={()=>setDelConfirm(r.id)} className="text-xs px-2 py-1 rounded bg-red-50 text-red-400">✕</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CampModal({initial,onSave,onClose,saving}){
+  const [r,setR]=useState({...initial});
+  const set=(k,v)=>setR(p=>({...p,[k]:v}));
+  return (
+    <AModal title={r.id?"Edit Camp Record":"New Camp Record"} onClose={onClose}>
+      <AInp label="Camp" value={r.camp_name} onChange={v=>set("camp_name",v)} options={CAMP_NAMES} required/>
+      <AInp label="Fiscal Year" value={r.fy} onChange={v=>set("fy",v)} options={ADMIN_FYS} required/>
+      <div className="grid grid-cols-2 gap-3">
+        <AInp label="Total Enrollment" value={r.total_enrollment} onChange={v=>set("total_enrollment",v)} type="number"/>
+        <AInp label="Waitlist Count" value={r.waitlist} onChange={v=>set("waitlist",v)} type="number"/>
+        <AInp label="Revenue ($)" value={r.revenue} onChange={v=>set("revenue",v)} type="number"/>
+        <AInp label="Expenses ($)" value={r.expenses} onChange={v=>set("expenses",v)} type="number"/>
+      </div>
+      <AInp label="Notes" value={r.notes} onChange={v=>set("notes",v)} rows={2}/>
+      <div className="flex justify-end gap-3 mt-2">
+        <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-slate-200">Cancel</button>
+        <button onClick={()=>onSave(r)} disabled={saving} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>
+          {saving?"Saving…":"Save"}
+        </button>
+      </div>
+    </AModal>
+  );
+}
+
+function ClubhouseDetail({db}){
+  const [records,setRecords] = useState([]);
+  const [loading,setLoading] = useState(true);
+  const [fy,setFy]           = useState(ADMIN_CUR);
+  const [site,setSite]       = useState("All");
+  const [modal,setModal]     = useState(null);
+  const [delConfirm,setDelConfirm] = useState(null);
+  const [saving,setSaving]   = useState(false);
+  const [showArchived,setShowArchived] = useState(false);
+
+  const load = useCallback(async()=>{
+    setLoading(true);
+    const {data} = await db.from("admin_clubhouse").select("*").order("fy",{ascending:false});
+    setRecords(data||[]); setLoading(false);
+  },[db]);
+  useEffect(()=>{ load(); },[load]);
+
+  const vis = records.filter(r=>{
+    if(r.is_archived !== showArchived) return false;
+    if(fy!=="All" && r.fy!==fy) return false;
+    if(site!=="All" && r.site_name!==site) return false;
+    return true;
+  });
+
+  const siteSummary = CLUBHOUSE_SITES.map(sn=>{
+    const rows = records.filter(r=>!r.is_archived && (fy==="All"||r.fy===fy) && r.site_name===sn);
+    return {sn, enroll:rows.reduce((a,r)=>a+(Number(r.enrollment)||0),0), rev:rows.reduce((a,r)=>a+(Number(r.revenue)||0),0)};
+  }).filter(s=>s.enroll>0||s.rev>0).sort((a,b)=>b.rev-a.rev);
+  const maxRev = siteSummary.length ? siteSummary[0].rev : 1;
+
+  const blank = {site_name:CLUBHOUSE_SITES[0],fy:ADMIN_CUR,month:"",enrollment:"",revenue:"",expenses:"",notes:"",is_archived:false};
+  const save = async r=>{
+    setSaving(true);
+    if(r.id){ await db.from("admin_clubhouse").update(r).eq("id",r.id); }
+    else     { await db.from("admin_clubhouse").insert(r); }
+    await load(); setModal(null); setSaving(false);
+  };
+  const archive = async(r,val)=>{ await db.from("admin_clubhouse").update({is_archived:val}).eq("id",r.id); await load(); };
+  const del     = async(id)=>{ await db.from("admin_clubhouse").delete().eq("id",id); await load(); setDelConfirm(null); };
+
+  const totRev = vis.reduce((a,r)=>a+(Number(r.revenue)||0),0);
+  const totEnroll = vis.reduce((a,r)=>a+(Number(r.enrollment)||0),0);
+
+  return (
+    <div>
+      {delConfirm&&<AConfirm message="Delete this clubhouse record?" onConfirm={()=>del(delConfirm)} onCancel={()=>setDelConfirm(null)}/>}
+      {modal&&<ClubhouseModal initial={modal==="new"?blank:modal} onSave={save} onClose={()=>setModal(null)} saving={saving}/>}
+
+      {siteSummary.length>0&&(
+        <div className="grid grid-cols-2 gap-3 mb-5">
+          <ACard label="Total Enrollment" value={totEnroll.toLocaleString()} color="#1e3a5f"/>
+          <ACard label="Total Revenue" value={adminDollar(totRev)} color="#16a34a"/>
+        </div>
+      )}
+      {siteSummary.length>0&&(
+        <div className="bg-white rounded-xl p-4 shadow-sm mb-5">
+          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Revenue by Site</div>
+          {siteSummary.map(s=><ABar key={s.sn} label={s.sn} value={s.rev} max={maxRev} color="#2d5a9e"/>)}
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-3 items-center mb-4">
+        <FYFilter value={fy} onChange={setFy}/>
+        <select value={site} onChange={e=>setSite(e.target.value)}
+          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none">
+          <option value="All">All Sites</option>
+          {CLUBHOUSE_SITES.map(s=><option key={s} value={s}>{s}</option>)}
+        </select>
+        <button onClick={()=>setShowArchived(v=>!v)}
+          className="px-3 py-1.5 text-xs font-bold rounded-lg border transition"
+          style={showArchived?{background:"#1e3a5f",color:"white",border:"1px solid #1e3a5f"}:{background:"white",border:"1px solid #e2e8f0",color:"#64748b"}}>
+          {showArchived?"📂 Archived":"📂 Active"}
+        </button>
+        <div className="ml-auto">
+          <button onClick={()=>setModal("new")} className="px-4 py-1.5 text-xs font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>+ Add Record</button>
+        </div>
+      </div>
+
+      {loading?<div className="text-center py-10 text-slate-400">Loading...</div>:(
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <table className="w-full text-sm">
+            <thead><tr className="bg-slate-50 text-xs font-bold text-slate-400 uppercase tracking-wide">
+              <th className="px-4 py-3 text-left">Site</th><th className="px-4 py-3 text-left">FY</th><th className="px-4 py-3 text-left">Month</th>
+              <th className="px-4 py-3 text-right">Enrollment</th><th className="px-4 py-3 text-right">Revenue</th>
+              <th className="px-4 py-3 text-right">Expenses</th><th className="px-4 py-3 text-right">Margin</th>
+              <th className="px-4 py-3 text-left">Notes</th><th className="px-4 py-3"></th>
+            </tr></thead>
+            <tbody>
+              {vis.length===0&&<tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400">No records. Add one to get started.</td></tr>}
+              {vis.map(r=>{
+                const gm=Number(r.revenue)>0?(Number(r.revenue)-Number(r.expenses))/Number(r.revenue):null;
+                return (
+                  <tr key={r.id} className="border-t border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={()=>setModal(r)}>
+                    <td className="px-4 py-3 font-semibold text-xs">{r.site_name}</td>
+                    <td className="px-4 py-3 text-xs text-slate-500">{r.fy}</td>
+                    <td className="px-4 py-3 text-xs text-slate-500">{r.month||"Annual"}</td>
+                    <td className="px-4 py-3 text-right font-mono">{(Number(r.enrollment)||0).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right font-mono">{adminDollar(r.revenue)}</td>
+                    <td className="px-4 py-3 text-right font-mono text-slate-500">{adminDollar(r.expenses)}</td>
+                    <td className={`px-4 py-3 text-right font-mono font-bold text-xs ${gm===null?"text-slate-400":gm>=0.3?"text-green-600":gm>=0?"text-yellow-600":"text-red-500"}`}>{gm!==null?adminPct(gm):"—"}</td>
+                    <td className="px-4 py-3 text-xs text-slate-400 truncate max-w-xs">{r.notes}</td>
+                    <td className="px-4 py-3 text-right" onClick={e=>e.stopPropagation()}>
+                      <div className="flex gap-1 justify-end">
+                        <button onClick={()=>archive(r,!r.is_archived)} className="text-xs px-2 py-1 rounded bg-slate-100 text-slate-500">{r.is_archived?"↩":"📦"}</button>
+                        <button onClick={()=>setDelConfirm(r.id)} className="text-xs px-2 py-1 rounded bg-red-50 text-red-400">✕</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ClubhouseModal({initial,onSave,onClose,saving}){
+  const [r,setR]=useState({...initial});
+  const set=(k,v)=>setR(p=>({...p,[k]:v}));
+  return (
+    <AModal title={r.id?"Edit Clubhouse Record":"New Clubhouse Record"} onClose={onClose}>
+      <AInp label="Site" value={r.site_name} onChange={v=>set("site_name",v)} options={CLUBHOUSE_SITES} required/>
+      <AInp label="Fiscal Year" value={r.fy} onChange={v=>set("fy",v)} options={ADMIN_FYS} required/>
+      <AInp label="Month" value={r.month} onChange={v=>set("month",v)} options={["","Annual",...MONTHS]}/>
+      <div className="grid grid-cols-3 gap-3">
+        <AInp label="Enrollment" value={r.enrollment} onChange={v=>set("enrollment",v)} type="number"/>
+        <AInp label="Revenue ($)" value={r.revenue} onChange={v=>set("revenue",v)} type="number"/>
+        <AInp label="Expenses ($)" value={r.expenses} onChange={v=>set("expenses",v)} type="number"/>
+      </div>
+      <AInp label="Notes" value={r.notes} onChange={v=>set("notes",v)} rows={2}/>
+      <div className="flex justify-end gap-3 mt-2">
+        <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-slate-200">Cancel</button>
+        <button onClick={()=>onSave(r)} disabled={saving} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>
+          {saving?"Saving…":"Save"}
+        </button>
+      </div>
+    </AModal>
+  );
+}
+
+function EventsDetail({db}){
+  const [records,setRecords] = useState([]);
+  const [loading,setLoading] = useState(true);
+  const [fy,setFy]           = useState(ADMIN_CUR);
+  const [type,setType]       = useState("All");
+  const [modal,setModal]     = useState(null);
+  const [delConfirm,setDelConfirm] = useState(null);
+  const [saving,setSaving]   = useState(false);
+  const [showArchived,setShowArchived] = useState(false);
+
+  const load = useCallback(async()=>{
+    setLoading(true);
+    const {data} = await db.from("admin_events").select("*").order("event_date",{ascending:false});
+    setRecords(data||[]); setLoading(false);
+  },[db]);
+  useEffect(()=>{ load(); },[load]);
+
+  const vis = records.filter(r=>{
+    if(r.is_archived !== showArchived) return false;
+    if(fy!=="All" && r.fy!==fy) return false;
+    if(type!=="All" && r.event_type!==type) return false;
+    return true;
+  });
+
+  const totAtt = vis.reduce((a,r)=>a+(Number(r.attendance)||0),0);
+  const totRev = vis.reduce((a,r)=>a+(Number(r.revenue)||0),0);
+
+  const evtSummary = [...vis].sort((a,b)=>(Number(b.attendance)||0)-(Number(a.attendance)||0)).slice(0,8);
+  const maxAtt = evtSummary.length ? (Number(evtSummary[0].attendance)||1) : 1;
+
+  const blank = {name:"",event_type:EVENT_TYPES[0],fy:ADMIN_CUR,event_date:"",attendance:"",revenue:"",expenses:"",notes:"",is_archived:false};
+  const save = async r=>{
+    setSaving(true);
+    if(r.id){ await db.from("admin_events").update(r).eq("id",r.id); }
+    else     { await db.from("admin_events").insert(r); }
+    await load(); setModal(null); setSaving(false);
+  };
+  const archive = async(r,val)=>{ await db.from("admin_events").update({is_archived:val}).eq("id",r.id); await load(); };
+  const del     = async(id)=>{ await db.from("admin_events").delete().eq("id",id); await load(); setDelConfirm(null); };
+
+  return (
+    <div>
+      {delConfirm&&<AConfirm message="Delete this event?" onConfirm={()=>del(delConfirm)} onCancel={()=>setDelConfirm(null)}/>}
+      {modal&&<EventModal initial={modal==="new"?blank:modal} onSave={save} onClose={()=>setModal(null)} saving={saving}/>}
+
+      {vis.length>0&&(
+        <div className="grid grid-cols-3 gap-3 mb-5">
+          <ACard label="Total Attendance" value={totAtt.toLocaleString()} color="#7c3aed"/>
+          <ACard label="Events Tracked" value={vis.length} color="#1e3a5f"/>
+          <ACard label="Total Revenue" value={adminDollar(totRev)} color="#16a34a"/>
+        </div>
+      )}
+      {evtSummary.length>0&&(
+        <div className="bg-white rounded-xl p-4 shadow-sm mb-5">
+          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Top Events by Attendance</div>
+          {evtSummary.map(e=><ABar key={e.id} label={e.name} value={Number(e.attendance)||0} max={maxAtt} color="#7c3aed"/>)}
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-3 items-center mb-4">
+        <FYFilter value={fy} onChange={setFy}/>
+        <select value={type} onChange={e=>setType(e.target.value)}
+          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none">
+          <option value="All">All Types</option>
+          {EVENT_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
+        </select>
+        <button onClick={()=>setShowArchived(v=>!v)}
+          className="px-3 py-1.5 text-xs font-bold rounded-lg border transition"
+          style={showArchived?{background:"#1e3a5f",color:"white",border:"1px solid #1e3a5f"}:{background:"white",border:"1px solid #e2e8f0",color:"#64748b"}}>
+          {showArchived?"📂 Archived":"📂 Active"}
+        </button>
+        <div className="ml-auto">
+          <button onClick={()=>setModal("new")} className="px-4 py-1.5 text-xs font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>+ Add Event</button>
+        </div>
+      </div>
+
+      {loading?<div className="text-center py-10 text-slate-400">Loading...</div>:(
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <table className="w-full text-sm">
+            <thead><tr className="bg-slate-50 text-xs font-bold text-slate-400 uppercase tracking-wide">
+              <th className="px-4 py-3 text-left">Event</th><th className="px-4 py-3 text-left">Type</th>
+              <th className="px-4 py-3 text-left">Date</th><th className="px-4 py-3 text-left">FY</th>
+              <th className="px-4 py-3 text-right">Attendance</th><th className="px-4 py-3 text-right">Revenue</th>
+              <th className="px-4 py-3 text-right">Expenses</th><th className="px-4 py-3 text-left">Notes</th><th className="px-4 py-3"></th>
+            </tr></thead>
+            <tbody>
+              {vis.length===0&&<tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400">No events. Add one to get started.</td></tr>}
+              {vis.map(r=>(
+                <tr key={r.id} className="border-t border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={()=>setModal(r)}>
+                  <td className="px-4 py-3 font-semibold text-xs">{r.name}</td>
+                  <td className="px-4 py-3 text-xs"><span className="px-2 py-0.5 bg-purple-50 text-purple-700 rounded-full text-xs font-medium">{r.event_type}</span></td>
+                  <td className="px-4 py-3 text-xs text-slate-500">{r.event_date}</td>
+                  <td className="px-4 py-3 text-xs text-slate-400">{r.fy}</td>
+                  <td className="px-4 py-3 text-right font-mono">{(Number(r.attendance)||0).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right font-mono">{adminDollar(r.revenue)}</td>
+                  <td className="px-4 py-3 text-right font-mono text-slate-500">{adminDollar(r.expenses)}</td>
+                  <td className="px-4 py-3 text-xs text-slate-400 truncate max-w-xs">{r.notes}</td>
+                  <td className="px-4 py-3 text-right" onClick={e=>e.stopPropagation()}>
+                    <div className="flex gap-1 justify-end">
+                      <button onClick={()=>archive(r,!r.is_archived)} className="text-xs px-2 py-1 rounded bg-slate-100 text-slate-500">{r.is_archived?"↩":"📦"}</button>
+                      <button onClick={()=>setDelConfirm(r.id)} className="text-xs px-2 py-1 rounded bg-red-50 text-red-400">✕</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EventModal({initial,onSave,onClose,saving}){
+  const [r,setR]=useState({...initial});
+  const set=(k,v)=>setR(p=>({...p,[k]:v}));
+  return (
+    <AModal title={r.id?"Edit Event":"New Event"} onClose={onClose}>
+      <AInp label="Event Name" value={r.name} onChange={v=>set("name",v)} required/>
+      <div className="grid grid-cols-2 gap-3">
+        <AInp label="Event Type" value={r.event_type} onChange={v=>set("event_type",v)} options={EVENT_TYPES}/>
+        <AInp label="Fiscal Year" value={r.fy} onChange={v=>set("fy",v)} options={ADMIN_FYS} required/>
+        <AInp label="Event Date" value={r.event_date} onChange={v=>set("event_date",v)} type="date"/>
+        <AInp label="Attendance" value={r.attendance} onChange={v=>set("attendance",v)} type="number"/>
+        <AInp label="Revenue ($)" value={r.revenue} onChange={v=>set("revenue",v)} type="number"/>
+        <AInp label="Expenses ($)" value={r.expenses} onChange={v=>set("expenses",v)} type="number"/>
+      </div>
+      <AInp label="Notes" value={r.notes} onChange={v=>set("notes",v)} rows={2}/>
+      <div className="flex justify-end gap-3 mt-2">
+        <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-slate-200">Cancel</button>
+        <button onClick={()=>onSave(r)} disabled={saving} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>
+          {saving?"Saving…":"Save"}
+        </button>
+      </div>
+    </AModal>
+  );
+}
+
+// ─── FEE HISTORY ──────────────────────────────────────────────────────────────
+function FeeHistorySection({db}){
+  const [records,setRecords] = useState([]);
+  const [loading,setLoading] = useState(true);
+  const [fy,setFy]           = useState(ADMIN_CUR);
+  const [area,setAreaF]      = useState("All");
+  const [search,setSearch]   = useState("");
+  const [modal,setModal]     = useState(null);
+  const [delConfirm,setDelConfirm] = useState(null);
+  const [saving,setSaving]   = useState(false);
+  const [showArchived,setShowArchived] = useState(false);
+
+  const load = useCallback(async()=>{
+    setLoading(true);
+    const {data} = await db.from("admin_fees").select("*").order("fy",{ascending:false});
+    setRecords(data||[]); setLoading(false);
+  },[db]);
+  useEffect(()=>{ load(); },[load]);
+
+  const vis = records.filter(r=>{
+    if(r.is_archived !== showArchived) return false;
+    if(fy!=="All" && r.fy!==fy) return false;
+    if(area!=="All" && r.area!==area) return false;
+    if(search && !r.program_name?.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+
+  const blank = {program_name:"",area:AREAS[0],fy:ADMIN_CUR,resident_fee:"",nonresident_fee:"",contractual:false,fee_notes:"",is_archived:false};
+  const save = async r=>{
+    setSaving(true);
+    if(r.id){ await db.from("admin_fees").update(r).eq("id",r.id); }
+    else     { await db.from("admin_fees").insert(r); }
+    await load(); setModal(null); setSaving(false);
+  };
+  const archive = async(r,val)=>{ await db.from("admin_fees").update({is_archived:val}).eq("id",r.id); await load(); };
+  const del     = async(id)=>{ await db.from("admin_fees").delete().eq("id",id); await load(); setDelConfirm(null); };
+
+  // FY comparison: for each program show prev FY fee
+  const prevFy = fy!=="All" ? ADMIN_FYS[ADMIN_FYS.indexOf(fy)-1] : null;
+  const prevMap = {};
+  if(prevFy){ records.filter(r=>r.fy===prevFy).forEach(r=>{ prevMap[r.program_name+"_"+r.area]=r; }); }
+
+  return (
+    <div>
+      {delConfirm&&<AConfirm message="Delete this fee record?" onConfirm={()=>del(delConfirm)} onCancel={()=>setDelConfirm(null)}/>}
+      {modal&&<FeeModal initial={modal==="new"?blank:modal} onSave={save} onClose={()=>setModal(null)} saving={saving}/>}
+
+      <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-700 font-medium mb-5">
+        📋 Fee History tracks resident/non-resident fees per program per fiscal year. Show last 2 years to compare, create future year entries to plan ahead. Contractual programs are flagged separately.
+      </div>
+
+      <div className="flex flex-wrap gap-3 items-center mb-4">
+        <FYFilter value={fy} onChange={setFy}/>
+        <select value={area} onChange={e=>setAreaF(e.target.value)}
+          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none">
+          <option value="All">All Areas</option>
+          {AREAS.map(a=><option key={a} value={a}>{a}</option>)}
+        </select>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search program…"
+          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none"/>
+        <button onClick={()=>setShowArchived(v=>!v)}
+          className="px-3 py-1.5 text-xs font-bold rounded-lg border transition"
+          style={showArchived?{background:"#1e3a5f",color:"white",border:"1px solid #1e3a5f"}:{background:"white",border:"1px solid #e2e8f0",color:"#64748b"}}>
+          {showArchived?"📂 Archived":"📂 Active"}
+        </button>
+        <div className="ml-auto flex gap-2">
+          <span className="text-xs text-slate-400 self-center">{vis.length} records</span>
+          <button onClick={()=>setModal("new")} className="px-4 py-1.5 text-xs font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>+ Add Fee</button>
+        </div>
+      </div>
+
+      {loading?<div className="text-center py-10 text-slate-400">Loading...</div>:(
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <table className="w-full text-sm">
+            <thead><tr className="bg-slate-50 text-xs font-bold text-slate-400 uppercase tracking-wide">
+              <th className="px-4 py-3 text-left">Program</th><th className="px-4 py-3 text-left">Area</th>
+              <th className="px-4 py-3 text-left">FY</th><th className="px-4 py-3 text-right">Resident Fee</th>
+              <th className="px-4 py-3 text-right">Non-Resident</th>{prevFy&&<th className="px-4 py-3 text-right">Prior Year (R)</th>}
+              <th className="px-4 py-3 text-left">Contractual</th><th className="px-4 py-3 text-left">Notes</th><th className="px-4 py-3"></th>
+            </tr></thead>
+            <tbody>
+              {vis.length===0&&<tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400">No fee records. Add one to start tracking.</td></tr>}
+              {vis.map(r=>{
+                const prev = prevMap[r.program_name+"_"+r.area];
+                const changed = prev && prev.resident_fee !== r.resident_fee;
+                return (
+                  <tr key={r.id} className="border-t border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={()=>setModal(r)}>
+                    <td className="px-4 py-3 font-semibold text-xs">{r.program_name}</td>
+                    <td className="px-4 py-3 text-xs text-slate-500">{r.area}</td>
+                    <td className="px-4 py-3 text-xs text-slate-400">{r.fy}</td>
+                    <td className={`px-4 py-3 text-right font-mono text-sm font-bold ${changed?"text-amber-600":""}`}>{r.resident_fee||"—"}</td>
+                    <td className="px-4 py-3 text-right font-mono text-sm text-slate-500">{r.nonresident_fee||"—"}</td>
+                    {prevFy&&<td className="px-4 py-3 text-right font-mono text-xs text-slate-400">{prev?prev.resident_fee||"—":"—"}</td>}
+                    <td className="px-4 py-3 text-xs">{r.contractual?<span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs font-bold">X</span>:""}</td>
+                    <td className="px-4 py-3 text-xs text-slate-400 max-w-xs truncate">{r.fee_notes}</td>
+                    <td className="px-4 py-3 text-right" onClick={e=>e.stopPropagation()}>
+                      <div className="flex gap-1 justify-end">
+                        <button onClick={()=>archive(r,!r.is_archived)} className="text-xs px-2 py-1 rounded bg-slate-100 text-slate-500">{r.is_archived?"↩":"📦"}</button>
+                        <button onClick={()=>setDelConfirm(r.id)} className="text-xs px-2 py-1 rounded bg-red-50 text-red-400">✕</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FeeModal({initial,onSave,onClose,saving}){
+  const [r,setR]=useState({...initial});
+  const set=(k,v)=>setR(p=>({...p,[k]:v}));
+  return (
+    <AModal title={r.id?"Edit Fee Record":"New Fee Record"} onClose={onClose}>
+      <AInp label="Program Name" value={r.program_name} onChange={v=>set("program_name",v)} required/>
+      <div className="grid grid-cols-2 gap-3">
+        <AInp label="Area" value={r.area} onChange={v=>set("area",v)} options={AREAS} required/>
+        <AInp label="Fiscal Year" value={r.fy} onChange={v=>set("fy",v)} options={ADMIN_FYS} required/>
+        <AInp label="Resident Fee" value={r.resident_fee} onChange={v=>set("resident_fee",v)} hint="e.g. $65/$75 or 65"/>
+        <AInp label="Non-Resident Fee" value={r.nonresident_fee} onChange={v=>set("nonresident_fee",v)}/>
+      </div>
+      <div className="flex items-center gap-3 mb-3">
+        <input type="checkbox" id="contractual" checked={!!r.contractual} onChange={e=>set("contractual",e.target.checked)} className="w-4 h-4"/>
+        <label htmlFor="contractual" className="text-sm font-medium text-slate-600">Contractual Program</label>
+      </div>
+      <AInp label="Notes / Comments" value={r.fee_notes} onChange={v=>set("fee_notes",v)} rows={2}/>
+      <div className="flex justify-end gap-3 mt-2">
+        <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-slate-200">Cancel</button>
+        <button onClick={()=>onSave(r)} disabled={saving} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>
+          {saving?"Saving…":"Save Fee"}
+        </button>
+      </div>
+    </AModal>
+  );
+}
+
+// ─── EXECUTIVE SUMMARY ────────────────────────────────────────────────────────
+function ExecSummary({programs,db}){
+  const [fy,setFy]     = useState(ADMIN_CUR);
+  const [goals,setGoals]   = useState([]);
+  const [funds,setFunds]   = useState([]);
+  const [rentals,setRentals] = useState([]);
+  const [camps,setCamps]   = useState([]);
+  const [events,setEvents] = useState([]);
+
+  useEffect(()=>{
+    const load = async()=>{
+      const [g,f,r,c,e] = await Promise.all([
+        db.from("admin_goals").select("*"),
+        db.from("admin_funds").select("*"),
+        db.from("admin_rentals").select("*"),
+        db.from("admin_camps").select("*"),
+        db.from("admin_events").select("*"),
+      ]);
+      setGoals(g.data||[]); setFunds(f.data||[]); setRentals(r.data||[]); setCamps(c.data||[]); setEvents(e.data||[]);
+    };
+    load();
+  },[db]);
+
+  // Program KPIs from main programs table
+  const progVis = programs.filter(p=>!p.is_archived);
+  const progKPIs = progVis.map(p=>{ const k=calcKPIs(p); return {...p,...k}; });
+  const healthy = progKPIs.filter(p=>p.status==="Healthy").length;
+  const monitor = progKPIs.filter(p=>p.status==="Monitor").length;
+  const redesign= progKPIs.filter(p=>p.status==="Needs Redesign").length;
+  const avgFill = progKPIs.length ? progKPIs.reduce((a,p)=>a+p.fillRate,0)/progKPIs.length : 0;
+  const avgCR   = progKPIs.length ? progKPIs.reduce((a,p)=>a+p.costRecovery,0)/progKPIs.length : 0;
+  const healthScore = progKPIs.length ? Math.round((avgFill*0.4+Math.min(avgCR,2)/2*0.4+(healthy/progKPIs.length)*0.2)*100) : 0;
+
+  // Fund aggregates
+  const fyFunds = funds.filter(f=>!f.is_archived && f.fy===fy);
+  const totalFundRev = fyFunds.reduce((a,f)=>a+(Number(f.revenue)||0),0);
+  const totalFundExp = fyFunds.reduce((a,f)=>a+(Number(f.expenses)||0),0);
+
+  // Goals stats
+  const fyGoals = goals.filter(g=>!g.is_archived && (g.fy===fy||fy==="All"));
+  const goalsComplete = fyGoals.filter(g=>g.status==="Complete").length;
+  const goalsNotComplete = fyGoals.filter(g=>g.status==="Not Complete").length;
+  const goalsPct = fyGoals.length ? Math.round(goalsComplete/fyGoals.length*100) : 0;
+
+  // Rentals
+  const fyRentals = rentals.filter(r=>!r.is_archived && r.fy===fy);
+  const totalRentalsRev = fyRentals.reduce((a,r)=>a+(Number(r.revenue)||0),0);
+
+  // Camps
+  const fyCamps = camps.filter(c=>!c.is_archived && c.fy===fy);
+  const totalCampEnroll = fyCamps.reduce((a,c)=>a+(Number(c.total_enrollment)||0),0);
+
+  // Events
+  const fyEvents = events.filter(e=>!e.is_archived && e.fy===fy);
+  const totalEventAtt = fyEvents.reduce((a,e)=>a+(Number(e.attendance)||0),0);
+
+  // G&O alert
+  const needsAttention = goals.filter(g=>!g.is_archived && g.fy===fy && (g.status==="Not Complete"||g.status==="Paused"));
+
+  return (
+    <div>
+      <div className="flex items-center gap-4 mb-5">
+        <FYFilter value={fy} onChange={setFy}/>
+        <div className="text-xs text-slate-400">All data below filtered by selected FY</div>
+      </div>
+
+      {/* Alert strip */}
+      {needsAttention.length>0&&(
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800 font-medium mb-5 flex gap-2 items-start">
+          <span>⚠</span>
+          <span><strong>{needsAttention.length} goal{needsAttention.length>1?"s":""}</strong> flagged as Not Complete or Paused in {fyLabel(fy)}: {needsAttention.slice(0,2).map(g=>g.staff_lead).join(", ")}{needsAttention.length>2?` +${needsAttention.length-2} more`:""}</span>
+        </div>
+      )}
+
+      {/* Headline row */}
+      <div className="grid grid-cols-3 gap-3 mb-5">
+        <ACard label="Health Score (Programs)" value={`${healthScore}/100`}
+          color={healthScore>=75?"#16a34a":healthScore>=50?"#b45309":"#dc2626"}
+          sub={`${progKPIs.length} active programs · ${healthy} healthy`}/>
+        <ACard label="Total Fund Revenue" value={adminDollar(totalFundRev)}
+          color="#1e3a5f" sub={`Expenses: ${adminDollar(totalFundExp)}`}/>
+        <ACard label="G&O Completion" value={`${goalsPct}%`}
+          color={goalsPct>=80?"#16a34a":goalsPct>=50?"#b45309":"#dc2626"}
+          sub={`${goalsComplete} complete · ${goalsNotComplete} not complete`}/>
+      </div>
+
+      {/* Program status row */}
+      <div className="grid grid-cols-4 gap-3 mb-5">
+        <div className="bg-white rounded-xl p-4 shadow-sm border-t-4" style={{borderTopColor:"#16a34a"}}>
+          <div className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">Healthy Programs</div>
+          <div className="text-3xl font-extrabold text-green-600" style={{fontFamily:"monospace"}}>{healthy}</div>
+          <div className="text-xs text-slate-400 mt-1">{progKPIs.length>0?`${Math.round(healthy/progKPIs.length*100)}% of portfolio`:""}</div>
+        </div>
+        <div className="bg-white rounded-xl p-4 shadow-sm border-t-4" style={{borderTopColor:"#eab308"}}>
+          <div className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">Monitor</div>
+          <div className="text-3xl font-extrabold text-amber-600" style={{fontFamily:"monospace"}}>{monitor}</div>
+        </div>
+        <div className="bg-white rounded-xl p-4 shadow-sm border-t-4" style={{borderTopColor:"#dc2626"}}>
+          <div className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">Needs Redesign</div>
+          <div className="text-3xl font-extrabold text-red-500" style={{fontFamily:"monospace"}}>{redesign}</div>
+        </div>
+        <div className="bg-white rounded-xl p-4 shadow-sm border-t-4" style={{borderTopColor:"#7c3aed"}}>
+          <div className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">Avg Cost Recovery</div>
+          <div className="text-3xl font-extrabold" style={{fontFamily:"monospace",color:avgCR>=1?"#16a34a":"#dc2626"}}>{adminPct(avgCR)}</div>
+        </div>
+      </div>
+
+      {/* Area-specific KPIs */}
+      <div className="grid grid-cols-3 gap-3 mb-5">
+        <ACard label="Total Rentals Revenue" value={adminDollar(totalRentalsRev)} color="#d4a017" sub={`${fyRentals.length} entries · ${fyLabel(fy)}`}/>
+        <ACard label="Camp Enrollment" value={totalCampEnroll.toLocaleString()} color="#2d5a9e" sub={`${fyCamps.length} camp records · ${fyLabel(fy)}`}/>
+        <ACard label="Special Event Attendance" value={totalEventAtt.toLocaleString()} color="#7c3aed" sub={`${fyEvents.length} events · ${fyLabel(fy)}`}/>
+      </div>
+
+      {/* Fund breakdown bars */}
+      {fyFunds.length>0&&(
+        <div className="bg-white rounded-xl p-4 shadow-sm mb-5">
+          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Fund Revenue — {fyLabel(fy)}</div>
+          {FUND_NAMES.map(fn=>{
+            const rows=fyFunds.filter(f=>f.fund_name===fn);
+            const rev=rows.reduce((a,f)=>a+(Number(f.revenue)||0),0);
+            const goal=rows.reduce((a,f)=>a+(Number(f.goal)||0),0);
+            if(!rev&&!goal) return null;
+            return <ABar key={fn} label={fn.replace("Fund 4 – ","F4: ").replace("Fitness Center (FCBG)","Fitness Ctr").replace("Clubhouse – All Sites","Clubhouse").replace("Camps – All Programs","Camps")} value={rev} max={Math.max(totalFundRev,1)} color="#1e3a5f"/>;
+          })}
+        </div>
+      )}
+
+      {/* G&O quick view */}
+      {fyGoals.length>0&&(
+        <div className="bg-white rounded-xl p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">Goals & Objectives — {fyLabel(fy)}</div>
+            <div className="flex gap-2">
+              {["Complete","Not Complete","Ongoing","Paused"].map(s=>(
+                <span key={s} className="text-xs text-slate-500">{s}: <strong>{fyGoals.filter(g=>g.status===s).length}</strong></span>
+              ))}
+            </div>
+          </div>
+          {fyGoals.filter(g=>g.status==="Not Complete"||g.status==="Paused").slice(0,5).map(g=>(
+            <div key={g.id} className="flex items-center gap-3 py-2 border-t border-slate-50">
+              <ABadge status={g.status}/>
+              <div className="flex-1 text-xs text-slate-700 truncate">{g.objective}</div>
+              <div className="text-xs text-slate-400 flex-shrink-0">{g.staff_lead}</div>
+            </div>
+          ))}
+          {fyGoals.filter(g=>g.status==="Not Complete"||g.status==="Paused").length===0&&(
+            <div className="text-xs text-green-600 font-semibold py-2">✓ All goals complete or on track for {fyLabel(fy)}</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── ADMIN CONTAINER ──────────────────────────────────────────────────────────
+function AdminView({programs,db}){
+  const [sub,setSub] = useState("summary");
+  const tabs = [
+    {id:"summary",  label:"★ Executive Summary"},
+    {id:"funds",    label:"$ Fund Performance"},
+    {id:"goals",    label:"✓ Goals & Objectives"},
+    {id:"rentals",  label:"⌂ Rentals"},
+    {id:"areas",    label:"◎ Program Areas"},
+    {id:"fees",     label:"◈ Fee History"},
+  ];
+  return (
+    <div>
+      {/* Admin tab strip */}
+      <div className="flex gap-0 mb-6 overflow-x-auto bg-white rounded-xl shadow-sm border border-slate-100 p-1">
+        {tabs.map(t=>(
+          <button key={t.id} onClick={()=>setSub(t.id)}
+            className={`px-4 py-2 text-xs font-bold rounded-lg transition whitespace-nowrap ${sub===t.id?"text-white":"text-slate-500 hover:text-slate-700 hover:bg-slate-50"}`}
+            style={sub===t.id?{background:"#1e3a5f"}:{}}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <div className="min-h-96">
+        {sub==="summary" && <ExecSummary programs={programs} db={db}/>}
+        {sub==="funds"   && <FundSection db={db}/>}
+        {sub==="goals"   && <GoalsSection db={db}/>}
+        {sub==="rentals" && <RentalsSection db={db}/>}
+        {sub==="areas"   && <ProgramAreasSection db={db}/>}
+        {sub==="fees"    && <FeeHistorySection db={db}/>}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [tab,setTab]                       = useState("dashboard");
   const [programs,setPrograms]             = useState([]);
@@ -2403,6 +3797,7 @@ export default function App() {
   const [staffName,setStaffName]           = useState(()=>localStorage.getItem("bgpd_staff_name")||"");
   const [viewAsManager,setViewAsManager]   = useState(true);
   const isManager = MANAGER_NAMES.includes(staffName.toLowerCase().trim());
+  const isAdmin   = ADMIN_NAMES.includes(staffName.toLowerCase().trim());
   const effectiveManager = isManager && viewAsManager;
 
   const fetchAll = useCallback(async()=>{
@@ -2475,6 +3870,7 @@ export default function App() {
     {id:"programs",label:"Programs"},
     {id:"history",label:"Multi-Season"},
     {id:"kpi",label:"Reference"},
+    ...(isAdmin?[{id:"admin",label:"★ Admin"}]:[]),
   ];
   const showingForm = editingProgram||addingProgram;
 
@@ -2520,8 +3916,8 @@ export default function App() {
         <div className="max-w-5xl mx-auto flex gap-1 px-4 overflow-x-auto">
           {tabs.map(t=>(
             <button key={t.id} onClick={()=>{setTab(t.id);setEditingProgram(null);setAddingProgram(false);}}
-              className={`px-4 py-3 text-sm font-semibold border-b-2 transition whitespace-nowrap ${tab===t.id?"text-slate-800":"border-transparent text-slate-400 hover:text-slate-600"}`}
-              style={tab===t.id?{borderColor:"#d4a017",borderBottomWidth:"2px"}:{}}>{t.label}</button>
+              className={`px-4 py-3 text-sm font-semibold border-b-2 transition whitespace-nowrap ${tab===t.id?(t.id==="admin"?"text-amber-700":"text-slate-800"):"border-transparent text-slate-400 hover:text-slate-600"}`}
+              style={tab===t.id?{borderColor:t.id==="admin"?"#d4a017":"#d4a017",borderBottomWidth:"2px"}:{}}>{t.label}</button>
           ))}
         </div>
       </nav>
@@ -2565,6 +3961,7 @@ export default function App() {
               <MultiSeasonView programs={programs} onEdit={p=>{setEditingProgram(p);setTab("programs");}}/>
             )}
             {tab==="kpi"&&<Reference isManager={effectiveManager}/>}
+            {tab==="admin"&&isAdmin&&<AdminView programs={programs} db={supabase}/>}
           </>
         )}
       </main>
