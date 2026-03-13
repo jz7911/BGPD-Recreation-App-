@@ -27,8 +27,8 @@ const PROGRAM_TYPES = [
 const ADMIN_OVERHEAD_RATE  = 0.1;
 const FT_ANNUAL_SALARY     = 97700;
 const FACILITY_COST_PER_HR = 3;
-const MANAGER_NAMES        = ["","manager","joe zimmermann","erika strojinc","dan stanczak","brian o'malley","chris eckert","chuck burgess","diana clayson","amanda busch"];
-const ADMIN_NAMES          = ["admin","joe zimmermann","erika strojinc","dan stanczak"]; // Director-level: sees ★ Admin tab
+const MANAGER_NAMES        = ["admin","manager","joe zimmermann","erika strojinc","dan stanczak","brian o'malley","chris eckert","chuck burgess","diana clayson","amanda busch"];
+const ADMIN_NAMES          = ["admin","joe zimmermann"]; // Director-level: sees ★ Admin tab
 
 
 // Service category cost recovery targets
@@ -2390,1170 +2390,2106 @@ function GuideSection({title,accent,children}) {
   );
 }
 
-// ─── Main App ─────────────────────────────────────────────────────────────────
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ADMIN MODULE
+// ADMIN MODULE — Complete Rebuild with Real Data
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const ADMIN_FYS   = ["2023-2024","2024-2025","2025-2026","2026-2027","2027-2028"];
+const ADMIN_FYS   = ["2021-2022","2022-2023","2023-2024","2024-2025","2025-2026","2026-2027"];
 const ADMIN_CUR   = "2025-2026";
-const MONTHS      = ["May","June","July","August","September","October","November","December","January","February","March","April"];
-const QUARTERS    = ["Q1 (May–Jul)","Q2 (Aug–Oct)","Q3 (Nov–Jan)","Q4 (Feb–Apr)"];
+const FY_MONTHS   = ["May","June","July","August","September","October","November","December","January","February","March","April"];
+const QUARTERS_GO = ["Q1 (May–Aug)","Q2 (Sep–Dec)","Q3 (Jan–Mar)","Q4 (Apr)"];
 const CORE_VALUES = ["Character","Excellence","Stewardship","Innovation","Community"];
-const GOAL_STATUS = ["Complete","Not Complete","Ongoing","Paused","Not Started"];
-const CAMP_NAMES  = ["Preschool 2s","Preschool 3s","Preschool 4s & 5s","Kinder Camp","Safety Stars","Adventure","Fun & Games","Grove","Sports Camp","Cycle & Surf","Xtreme Teens","Star Makers","Broadway Bound","Dance","CIT","Camp Connection","Post Camp"];
-const CLUBHOUSE_SITES = ["Country Meadows","Ivy Hall","Kildeer","Kilmer","Longfellow","Meridian","Prairie","Pritchett","Tripp","Willow Grove"];
-const RENTAL_CATS = ["Alcott Center","CAC","Birthdays","Outdoor/FCS","Fields & Courts","Shelters","Amphitheater","Spray N Play","Willow Stream Pool","Dog Park"];
-const FUND_NAMES  = ["Fund 4 – Recreation","Fitness Center (FCBG)","Clubhouse – All Sites","Camps – All Programs","Special Events","Golf Dome","Museum"];
-const EVENT_TYPES = ["Concert","Movie","Festival","Holiday Event","Sport/Tournament","Community Gathering","Other"];
+const GOAL_STATUSES = ["Complete","Not Complete","Ongoing","Paused","Not Started"];
+const CAMP_LIST   = ["Preschool 2s","Preschool 3s","Preschool 4s & 5s","Kinder Camp","Safety Stars","Adventure","Fun & Games","Grove","Sports Camp","Cycle & Surf","Xtreme Teens","Star Makers","Broadway Bound","Dance","CIT","Camp Connection","Post Camp"];
+const CLUB_SITES  = ["Country Meadows","Ivy Hall","Kildeer","Kilmer","Longfellow","Meridian","Prairie","Pritchett","Tripp","Willow Grove"];
+const RENTAL_CATS = ["Alcott Center","CAC","Birthdays","Outdoor/FCS","Fields & Courts","Shelters","Amphitheater","Dog Park","Spray N Play","Willow Stream Pool"];
+const FUND_LIST   = ["Fund 4 – Recreation","Fitness Center (FCBG)","Clubhouse – All Sites","Camps – All Programs","Special Events","Golf Dome","Museum","Aquatics"];
+const EVENT_TYPES = ["Summer Concert","Movie Under the Stars","Holiday Event","Community Festival","Sports Tournament","Special Event","Other"];
+const STATUS_CLR  = {"Complete":"#16a34a","Not Complete":"#dc2626","Ongoing":"#b45309","Paused":"#64748b","Not Started":"#94a3b8"};
+const STATUS_BG   = {"Complete":"#dcfce7","Not Complete":"#fee2e2","Ongoing":"#fef9c3","Paused":"#f1f5f9","Not Started":"#f8fafc"};
+const FUND_COLORS = {
+  "Fund 4 – Recreation":"#1e3a5f",
+  "Fitness Center (FCBG)":"#0369a1",
+  "Clubhouse – All Sites":"#0f766e",
+  "Camps – All Programs":"#7c3aed",
+  "Special Events":"#b45309",
+  "Golf Dome":"#15803d",
+  "Museum":"#9f1239",
+  "Aquatics":"#0284c7",
+};
 
-// ── Shared admin utilities ────────────────────────────────────────────────────
-function adminDollar(v){ const n=Number(v)||0; return n<0?`($${Math.abs(Math.round(n)).toLocaleString()})`:`$${Math.round(n).toLocaleString()}`; }
-function adminPct(v){ return `${((Number(v)||0)*100).toFixed(1)}%`; }
-function fyLabel(fy){ return `FY ${fy}`; }
-function trendArrow(cur,prev){ if(!prev||!cur) return null; const d=(cur-prev)/Math.abs(prev); return {dir:d>=0?"up":"down",pct:Math.abs(d*100).toFixed(1)}; }
+// ─── Seed data from spreadsheets ─────────────────────────────────────────────
+const SEED_GOALS = [
+  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Aly Stanczak",supporting_staff:"Jenn Foreman",objective:"By June 15, 2025, Aly & Jen will research and order reusable icepacks for performing arts camps to reduce injuries and single-use plastics.",core_value:"Stewardship",status:"Complete",updates:"All camps at the CAC have had access to the reusable ice packs and have been using them throughout the summer.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Aly Stanczak",supporting_staff:"",objective:"Aly will create a new digital dance pamphlet containing the full schedule, dress code, and guidelines for all dance programming.",core_value:"Innovation",status:"Complete",updates:"The new digital dance pamphlet is complete and accessible by QR code in the park district's catalog.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Amanda Busch",supporting_staff:"Shannon McClure",objective:"Amanda and Shannon will design and implement a new organization system for Clubhouse registration that ensures accurate deposit tracking.",core_value:"Excellence",status:"Complete",updates:"We developed a streamlined system that ensured deposit payments were processed properly for all Clubhouse sites.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Ann Marie Shipstad-Schwartz",supporting_staff:"",objective:"Ann Marie will meet with staff from Chicago Kiln to implement ceramic offerings for the art room.",core_value:"Innovation",status:"Complete",updates:"A meeting was held in early June with Carl Mankert from Chicago Kiln. After touring the facility, a partnership plan was established.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Brian O'Malley",supporting_staff:"",objective:"Brian will improve office security by replacing the shared office code with unique codes for each part-time staff member.",core_value:"Excellence",status:"Complete",updates:"The shared office code has been removed, and fall staff have been issued unique codes.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Carol Lucido",supporting_staff:"",objective:"Create a comprehensive backup of all relevant membership and program data before SmartRec go-live.",core_value:"Excellence",status:"Complete",updates:"Reports run and archived representing all memberships, programs, and financial history.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Carol Lucido",supporting_staff:"",objective:"Beginning on the date of the RT data download, maintain a running log of all data adjustments made during the SmartRec migration.",core_value:"Innovation",status:"Complete",updates:"We have been keeping track of all adjustments throughout the transition period.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Carol Lucido",supporting_staff:"",objective:"Establish a clear and enforceable Freeze and Cancellation policy for membership holds in SmartRec.",core_value:"Excellence",status:"Complete",updates:"A new policy was put in place and an email notification system created for members.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Chris Eckert",supporting_staff:"",objective:"Enhance member satisfaction by gathering qualitative feedback from at least 10 Fitness Center members through structured interviews.",core_value:"Excellence",status:"Not Complete",updates:"Ongoing - met with a couple of members to gather feedback. Will continue through Q2.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Chuck Burgess",supporting_staff:"Dani Hoefle",objective:"Review and revise the Bills Youth Football affiliate agreement to reflect current operations and standards.",core_value:"Excellence",status:"Not Complete",updates:"Paused as we wait for the BGRA agreement to be finalized first.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Chuck Burgess",supporting_staff:"",objective:"Develop a facility rental dashboard to track key performance metrics across all rental categories monthly.",core_value:"Innovation",status:"Complete",updates:"Chuck built two dashboards (2025-2026 and 2026-2027) tracking all rental categories on a monthly basis.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Debbie Fandrei",supporting_staff:"",objective:"Debbie will research park district–foundation agreements to identify best practices and a model for BGPD.",core_value:"Excellence",status:"Ongoing",updates:"Found a good example MOU with the Naperville Park Foundation. Continuing research.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Debbie Fandrei",supporting_staff:"",objective:"Debbie will develop a series of eight educational plant social media posts for the district's parks.",core_value:"Innovation",status:"Complete",updates:"Eleven Plant of the Week social media posts were created and published throughout the summer.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Diana Clayson",supporting_staff:"Greg Ney",objective:"Diana will work with Greg to create an Inclusion folder in the shared drive for all adaptive recreation materials.",core_value:"Innovation",status:"Complete",updates:"Folder created and discussed with the Recreation team. All adaptive materials are now centrally accessible.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Diana Clayson",supporting_staff:"",objective:"By July 31, 2025, implement a monthly check-in meeting schedule for Inclusion program staff.",core_value:"Character",status:"Complete",updates:"Meetings scheduled for August. A template was created for consistent check-in structure.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Jimmy Mix",supporting_staff:"Shannon McClure",objective:"Develop and implement a daily checklist for camp supervisors to ensure consistent facility readiness.",core_value:"Excellence",status:"Complete",updates:"Completed the daily checklist and shared it with camp leadership for implementation.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Jimmy Mix",supporting_staff:"Chris Eckert",objective:"Reorganize the golf dome garage to enhance accessibility and efficiency for seasonal equipment storage.",core_value:"Excellence",status:"Not Complete",updates:"Scheduled for August 22. Will complete before end of Q1.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Joe Zimmermann",supporting_staff:"",objective:"Oversee the successful district-wide transition to SmartRec registration and membership system.",core_value:"Innovation",status:"Complete",updates:"Successfully went live with SmartRec at the start of the fiscal year. All staff trained.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Joe Zimmermann",supporting_staff:"",objective:"Develop and facilitate a Fiscal Sustainability training for all recreation supervisors.",core_value:"Excellence",status:"Complete",updates:"Completed the first training session and sent a follow-up resource guide to all supervisors.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Marina Mayne",supporting_staff:"",objective:"Marina will complete the CPRP examination to achieve professional certification.",core_value:"Excellence",status:"Complete",updates:"Passed the CPRP exam on the first attempt.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Marina Mayne",supporting_staff:"",objective:"Marina will complete a partial inventory of the Museum collection to improve accessibility and tracking.",core_value:"Excellence",status:"Not Complete",updates:"Inventory is now 90% complete, with new inventory system being tested.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Mike Pfeiffer",supporting_staff:"",objective:"Mike will contact a skateboarding instructor to explore the possibility of structured skateboard programming.",core_value:"Community",status:"Not Complete",updates:"Ongoing — reached out to Asylum Skate Park, waiting on response.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Shannon McClure",supporting_staff:"",objective:"Partner with local law enforcement to co-develop and deliver a safety training for all camp staff.",core_value:"Excellence",status:"Complete",updates:"Officer Chad conducted a comprehensive training session for all camp staff before summer began.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q2 (Sep–Dec)",staff_lead:"Aly Stanczak",supporting_staff:"",objective:"Aly will open Nutcracker staff roles—like choreographers and rehearsal directors—to new candidates via audition process.",core_value:"Character",status:"Complete",updates:"Three new staff brought on as choreographers through the audition process.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q2 (Sep–Dec)",staff_lead:"Joe Zimmermann",supporting_staff:"",objective:"Finalize and implement a formal agreement with the BGRA outlining mutual responsibilities and expectations.",core_value:"Excellence",status:"Ongoing",updates:"A draft has been created and will be presented to the BGRA board in Q3.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q2 (Sep–Dec)",staff_lead:"Joe Zimmermann",supporting_staff:"",objective:"Develop a standardized monthly report using SmartRec data for all recreation program areas.",core_value:"Stewardship",status:"Ongoing",updates:"Still working with superintendents to define the reporting format and key metrics.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q2 (Sep–Dec)",staff_lead:"Joe Zimmermann",supporting_staff:"",objective:"Lead the full classification of all recreation services into the Fiscal Sustainability framework by December 2025.",core_value:"Stewardship",status:"Ongoing",updates:"First FS exercise completed in October. Working toward full classification by end of Q2.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q2 (Sep–Dec)",staff_lead:"Carol Lucido",supporting_staff:"",objective:"Create a partnership with The Clove to offer a special membership discount for Fitness Center members.",core_value:"Stewardship",status:"Not Complete",updates:"Pushing to Q3 due to SmartRec transition demands.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q2 (Sep–Dec)",staff_lead:"Chris Eckert",supporting_staff:"",objective:"Onboard the new Group Exercise Manager with a structured 90-day onboarding and training plan.",core_value:"Character",status:"Not Complete",updates:"Allison started August 4. Continuing onboarding process through Q2.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q2 (Sep–Dec)",staff_lead:"Chuck Burgess",supporting_staff:"",objective:"Complete an audit of all current field and court rental contracts to identify gaps and pricing inconsistencies.",core_value:"Stewardship",status:"Ongoing",updates:"Audit underway. Several contracts identified for renegotiation.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q2 (Sep–Dec)",staff_lead:"Diana Clayson",supporting_staff:"",objective:"Develop a resource guide for staff working with participants with disabilities across all program areas.",core_value:"Community",status:"Ongoing",updates:"Draft resource guide created. Gathering feedback from program staff.",is_archived:false},
+  {fy:"2025-2026",quarter:"Q3 (Jan–Mar)",staff_lead:"Joe Zimmermann",supporting_staff:"",objective:"Present the fiscal year department budget recommendation to the Board of Commissioners.",core_value:"Stewardship",status:"Not Started",updates:"",is_archived:false},
+  {fy:"2025-2026",quarter:"Q3 (Jan–Mar)",staff_lead:"Carol Lucido",supporting_staff:"",objective:"Launch the redesigned fitness membership tiers in SmartRec with updated pricing and benefits.",core_value:"Excellence",status:"Not Started",updates:"",is_archived:false},
+  {fy:"2025-2026",quarter:"Q3 (Jan–Mar)",staff_lead:"Shannon McClure",supporting_staff:"Amanda Busch",objective:"Complete spring camp registration planning and ensure all camp programs are fully staffed by April 1.",core_value:"Excellence",status:"Not Started",updates:"",is_archived:false},
+];
 
-// ── Small reusable admin UI pieces ───────────────────────────────────────────
-function ACard({label,value,sub,color,trend,onClick}){
-  return (
-    <div onClick={onClick} className={`bg-white rounded-xl p-4 shadow-sm border-t-4 ${onClick?"cursor-pointer hover:shadow-md transition":""}`}
-      style={{borderTopColor:color||"#1e3a5f"}}>
-      <div className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">{label}</div>
-      <div className="text-2xl font-extrabold" style={{fontFamily:"monospace",color:color||"#0f172a"}}>{value}</div>
-      {sub&&<div className="text-xs text-slate-400 mt-1">{sub}</div>}
-      {trend&&<div className={`text-xs font-semibold mt-1 ${trend.dir==="up"?"text-green-600":"text-red-500"}`}>{trend.dir==="up"?"↑":"↓"} {trend.pct}% vs prior</div>}
-    </div>
-  );
+const SEED_RENTALS = [
+  // 2024-2025
+  {fy:"2024-2025",category:"Alcott Center",month:"May",amount:5819,is_archived:false},
+  {fy:"2024-2025",category:"Alcott Center",month:"June",amount:1635,is_archived:false},
+  {fy:"2024-2025",category:"Alcott Center",month:"July",amount:2015,is_archived:false},
+  {fy:"2024-2025",category:"Alcott Center",month:"August",amount:1380,is_archived:false},
+  {fy:"2024-2025",category:"Alcott Center",month:"September",amount:2777,is_archived:false},
+  {fy:"2024-2025",category:"Alcott Center",month:"October",amount:3717,is_archived:false},
+  {fy:"2024-2025",category:"Alcott Center",month:"November",amount:2544,is_archived:false},
+  {fy:"2024-2025",category:"Alcott Center",month:"December",amount:2293,is_archived:false},
+  {fy:"2024-2025",category:"Alcott Center",month:"January",amount:3180,is_archived:false},
+  {fy:"2024-2025",category:"Alcott Center",month:"February",amount:4080,is_archived:false},
+  {fy:"2024-2025",category:"Alcott Center",month:"March",amount:4641,is_archived:false},
+  {fy:"2024-2025",category:"Alcott Center",month:"April",amount:5071,is_archived:false},
+  {fy:"2024-2025",category:"CAC",month:"May",amount:15293,is_archived:false},
+  {fy:"2024-2025",category:"CAC",month:"June",amount:12639,is_archived:false},
+  {fy:"2024-2025",category:"CAC",month:"July",amount:5704,is_archived:false},
+  {fy:"2024-2025",category:"CAC",month:"August",amount:10054,is_archived:false},
+  {fy:"2024-2025",category:"CAC",month:"September",amount:25828,is_archived:false},
+  {fy:"2024-2025",category:"CAC",month:"October",amount:5170,is_archived:false},
+  {fy:"2024-2025",category:"CAC",month:"November",amount:16757,is_archived:false},
+  {fy:"2024-2025",category:"CAC",month:"December",amount:9743,is_archived:false},
+  {fy:"2024-2025",category:"CAC",month:"January",amount:7841,is_archived:false},
+  {fy:"2024-2025",category:"CAC",month:"February",amount:18459,is_archived:false},
+  {fy:"2024-2025",category:"CAC",month:"March",amount:13850,is_archived:false},
+  {fy:"2024-2025",category:"CAC",month:"April",amount:9707,is_archived:false},
+  {fy:"2024-2025",category:"Birthdays",month:"May",amount:5384,is_archived:false},
+  {fy:"2024-2025",category:"Birthdays",month:"June",amount:5494,is_archived:false},
+  {fy:"2024-2025",category:"Birthdays",month:"July",amount:2718,is_archived:false},
+  {fy:"2024-2025",category:"Birthdays",month:"August",amount:5802,is_archived:false},
+  {fy:"2024-2025",category:"Birthdays",month:"September",amount:4496,is_archived:false},
+  {fy:"2024-2025",category:"Birthdays",month:"October",amount:4885,is_archived:false},
+  {fy:"2024-2025",category:"Birthdays",month:"November",amount:6963,is_archived:false},
+  {fy:"2024-2025",category:"Birthdays",month:"December",amount:4124,is_archived:false},
+  {fy:"2024-2025",category:"Birthdays",month:"January",amount:4348,is_archived:false},
+  {fy:"2024-2025",category:"Birthdays",month:"February",amount:5300,is_archived:false},
+  {fy:"2024-2025",category:"Birthdays",month:"March",amount:3119,is_archived:false},
+  {fy:"2024-2025",category:"Birthdays",month:"April",amount:6053,is_archived:false},
+  {fy:"2024-2025",category:"Outdoor/FCS",month:"May",amount:6280,is_archived:false},
+  {fy:"2024-2025",category:"Outdoor/FCS",month:"June",amount:1425,is_archived:false},
+  {fy:"2024-2025",category:"Outdoor/FCS",month:"July",amount:5210,is_archived:false},
+  {fy:"2024-2025",category:"Outdoor/FCS",month:"August",amount:2280,is_archived:false},
+  {fy:"2024-2025",category:"Outdoor/FCS",month:"September",amount:3150,is_archived:false},
+  {fy:"2024-2025",category:"Outdoor/FCS",month:"October",amount:50,is_archived:false},
+  {fy:"2024-2025",category:"Outdoor/FCS",month:"February",amount:1020,is_archived:false},
+  {fy:"2024-2025",category:"Outdoor/FCS",month:"March",amount:22720,is_archived:false},
+  {fy:"2024-2025",category:"Outdoor/FCS",month:"April",amount:3455,is_archived:false},
+  {fy:"2024-2025",category:"Dog Park",month:"May",amount:261,is_archived:false},
+  {fy:"2024-2025",category:"Dog Park",month:"June",amount:388,is_archived:false},
+  {fy:"2024-2025",category:"Dog Park",month:"July",amount:488,is_archived:false},
+  {fy:"2024-2025",category:"Dog Park",month:"August",amount:488,is_archived:false},
+  {fy:"2024-2025",category:"Dog Park",month:"September",amount:537,is_archived:false},
+  {fy:"2024-2025",category:"Dog Park",month:"October",amount:657,is_archived:false},
+  {fy:"2024-2025",category:"Dog Park",month:"November",amount:594,is_archived:false},
+  {fy:"2024-2025",category:"Dog Park",month:"December",amount:624,is_archived:false},
+  {fy:"2024-2025",category:"Dog Park",month:"January",amount:640,is_archived:false},
+  {fy:"2024-2025",category:"Dog Park",month:"February",amount:599,is_archived:false},
+  {fy:"2024-2025",category:"Dog Park",month:"March",amount:753,is_archived:false},
+  {fy:"2024-2025",category:"Dog Park",month:"April",amount:925,is_archived:false},
+  {fy:"2024-2025",category:"Willow Stream Pool",month:"May",amount:200,is_archived:false},
+  {fy:"2024-2025",category:"Willow Stream Pool",month:"June",amount:1035,is_archived:false},
+  {fy:"2024-2025",category:"Willow Stream Pool",month:"July",amount:400,is_archived:false},
+  // 2025-2026
+  {fy:"2025-2026",category:"Alcott Center",month:"May",amount:3238,is_archived:false},
+  {fy:"2025-2026",category:"Alcott Center",month:"June",amount:400,is_archived:false},
+  {fy:"2025-2026",category:"Alcott Center",month:"July",amount:2978,is_archived:false},
+  {fy:"2025-2026",category:"Alcott Center",month:"August",amount:2870,is_archived:false},
+  {fy:"2025-2026",category:"Alcott Center",month:"September",amount:1763,is_archived:false},
+  {fy:"2025-2026",category:"Alcott Center",month:"October",amount:4256,is_archived:false},
+  {fy:"2025-2026",category:"Alcott Center",month:"November",amount:4664,is_archived:false},
+  {fy:"2025-2026",category:"Alcott Center",month:"December",amount:1638,is_archived:false},
+  {fy:"2025-2026",category:"Alcott Center",month:"January",amount:5626,is_archived:false},
+  {fy:"2025-2026",category:"CAC",month:"May",amount:14631,is_archived:false},
+  {fy:"2025-2026",category:"CAC",month:"June",amount:6561,is_archived:false},
+  {fy:"2025-2026",category:"CAC",month:"July",amount:9664,is_archived:false},
+  {fy:"2025-2026",category:"CAC",month:"August",amount:7315,is_archived:false},
+  {fy:"2025-2026",category:"CAC",month:"September",amount:6933,is_archived:false},
+  {fy:"2025-2026",category:"CAC",month:"October",amount:7823,is_archived:false},
+  {fy:"2025-2026",category:"CAC",month:"November",amount:14358,is_archived:false},
+  {fy:"2025-2026",category:"CAC",month:"December",amount:12322,is_archived:false},
+  {fy:"2025-2026",category:"CAC",month:"January",amount:10234,is_archived:false},
+  {fy:"2025-2026",category:"Birthdays",month:"May",amount:4170,is_archived:false},
+  {fy:"2025-2026",category:"Birthdays",month:"June",amount:3190,is_archived:false},
+  {fy:"2025-2026",category:"Birthdays",month:"July",amount:2718,is_archived:false},
+  {fy:"2025-2026",category:"Birthdays",month:"August",amount:5052,is_archived:false},
+  {fy:"2025-2026",category:"Birthdays",month:"September",amount:2295,is_archived:false},
+  {fy:"2025-2026",category:"Birthdays",month:"October",amount:3949,is_archived:false},
+  {fy:"2025-2026",category:"Birthdays",month:"November",amount:4071,is_archived:false},
+  {fy:"2025-2026",category:"Birthdays",month:"December",amount:5197,is_archived:false},
+  {fy:"2025-2026",category:"Birthdays",month:"January",amount:5498,is_archived:false},
+  {fy:"2025-2026",category:"Outdoor/FCS",month:"May",amount:1480,is_archived:false},
+  {fy:"2025-2026",category:"Outdoor/FCS",month:"June",amount:599,is_archived:false},
+  {fy:"2025-2026",category:"Outdoor/FCS",month:"July",amount:2285,is_archived:false},
+  {fy:"2025-2026",category:"Outdoor/FCS",month:"August",amount:1338,is_archived:false},
+  {fy:"2025-2026",category:"Outdoor/FCS",month:"September",amount:1545,is_archived:false},
+  {fy:"2025-2026",category:"Outdoor/FCS",month:"October",amount:780,is_archived:false},
+  {fy:"2025-2026",category:"Outdoor/FCS",month:"November",amount:940,is_archived:false},
+  {fy:"2025-2026",category:"Outdoor/FCS",month:"December",amount:850,is_archived:false},
+  {fy:"2025-2026",category:"Outdoor/FCS",month:"January",amount:995,is_archived:false},
+  {fy:"2025-2026",category:"Dog Park",month:"May",amount:315,is_archived:false},
+  {fy:"2025-2026",category:"Dog Park",month:"June",amount:75,is_archived:false},
+  {fy:"2025-2026",category:"Dog Park",month:"July",amount:760,is_archived:false},
+  {fy:"2025-2026",category:"Dog Park",month:"August",amount:494,is_archived:false},
+  {fy:"2025-2026",category:"Dog Park",month:"September",amount:554,is_archived:false},
+  {fy:"2025-2026",category:"Dog Park",month:"October",amount:586,is_archived:false},
+  {fy:"2025-2026",category:"Dog Park",month:"November",amount:596,is_archived:false},
+  {fy:"2025-2026",category:"Dog Park",month:"December",amount:597,is_archived:false},
+  {fy:"2025-2026",category:"Dog Park",month:"January",amount:238,is_archived:false},
+  {fy:"2025-2026",category:"Spray N Play",month:"May",amount:3668,is_archived:false},
+  {fy:"2025-2026",category:"Spray N Play",month:"June",amount:2546,is_archived:false},
+  {fy:"2025-2026",category:"Spray N Play",month:"July",amount:8403,is_archived:false},
+  {fy:"2025-2026",category:"Spray N Play",month:"August",amount:7188,is_archived:false},
+  {fy:"2025-2026",category:"Willow Stream Pool",month:"July",amount:935,is_archived:false},
+  {fy:"2025-2026",category:"Willow Stream Pool",month:"August",amount:1150,is_archived:false},
+];
+
+const SEED_FUNDS = [
+  // Fund 4 Recreation — full actual data from spreadsheet
+  {fund_name:"Fund 4 – Recreation",fy:"2022-2023",month:"May",revenue:237576,expenses:167547,goal:200000},
+  {fund_name:"Fund 4 – Recreation",fy:"2022-2023",month:"June",revenue:1256921,expenses:187267,goal:1100000},
+  {fund_name:"Fund 4 – Recreation",fy:"2022-2023",month:"July",revenue:990937,expenses:195467,goal:900000},
+  {fund_name:"Fund 4 – Recreation",fy:"2022-2023",month:"August",revenue:332899,expenses:259792,goal:300000},
+  {fund_name:"Fund 4 – Recreation",fy:"2022-2023",month:"September",revenue:793427,expenses:199562,goal:700000},
+  {fund_name:"Fund 4 – Recreation",fy:"2022-2023",month:"October",revenue:381879,expenses:183537,goal:350000},
+  {fund_name:"Fund 4 – Recreation",fy:"2022-2023",month:"November",revenue:359311,expenses:177339,goal:330000},
+  {fund_name:"Fund 4 – Recreation",fy:"2022-2023",month:"December",revenue:368073,expenses:186387,goal:340000},
+  {fund_name:"Fund 4 – Recreation",fy:"2022-2023",month:"January",revenue:429191,expenses:258541,goal:400000},
+  {fund_name:"Fund 4 – Recreation",fy:"2022-2023",month:"February",revenue:319745,expenses:195022,goal:300000},
+  {fund_name:"Fund 4 – Recreation",fy:"2022-2023",month:"March",revenue:463157,expenses:210000,goal:430000},
+  {fund_name:"Fund 4 – Recreation",fy:"2022-2023",month:"April",revenue:438576,expenses:220000,goal:400000},
+  {fund_name:"Fund 4 – Recreation",fy:"2023-2024",month:"May",revenue:266127,expenses:180476,goal:240000},
+  {fund_name:"Fund 4 – Recreation",fy:"2023-2024",month:"June",revenue:1496810,expenses:230598,goal:1350000},
+  {fund_name:"Fund 4 – Recreation",fy:"2023-2024",month:"July",revenue:1058615,expenses:317929,goal:980000},
+  {fund_name:"Fund 4 – Recreation",fy:"2023-2024",month:"August",revenue:339328,expenses:181172,goal:310000},
+  {fund_name:"Fund 4 – Recreation",fy:"2023-2024",month:"September",revenue:855746,expenses:197168,goal:800000},
+  {fund_name:"Fund 4 – Recreation",fy:"2023-2024",month:"October",revenue:423240,expenses:190943,goal:390000},
+  {fund_name:"Fund 4 – Recreation",fy:"2023-2024",month:"November",revenue:505936,expenses:177779,goal:470000},
+  {fund_name:"Fund 4 – Recreation",fy:"2023-2024",month:"December",revenue:455301,expenses:189418,goal:420000},
+  {fund_name:"Fund 4 – Recreation",fy:"2023-2024",month:"January",revenue:293481,expenses:258084,goal:270000},
+  {fund_name:"Fund 4 – Recreation",fy:"2023-2024",month:"February",revenue:400851,expenses:211380,goal:370000},
+  {fund_name:"Fund 4 – Recreation",fy:"2023-2024",month:"March",revenue:572257,expenses:230000,goal:530000},
+  {fund_name:"Fund 4 – Recreation",fy:"2023-2024",month:"April",revenue:359000,expenses:210000,goal:330000},
+  {fund_name:"Fund 4 – Recreation",fy:"2024-2025",month:"May",revenue:309130,expenses:394890,goal:280000},
+  {fund_name:"Fund 4 – Recreation",fy:"2024-2025",month:"June",revenue:1649705,expenses:662758,goal:1550000},
+  {fund_name:"Fund 4 – Recreation",fy:"2024-2025",month:"July",revenue:1267791,expenses:1312805,goal:1100000},
+  {fund_name:"Fund 4 – Recreation",fy:"2024-2025",month:"August",revenue:499625,expenses:644635,goal:350000},
+  {fund_name:"Fund 4 – Recreation",fy:"2024-2025",month:"September",revenue:1010077,expenses:507796,goal:860000},
+  {fund_name:"Fund 4 – Recreation",fy:"2024-2025",month:"October",revenue:368228,expenses:520674,goal:400000},
+  {fund_name:"Fund 4 – Recreation",fy:"2024-2025",month:"November",revenue:337919,expenses:430820,goal:360000},
+  {fund_name:"Fund 4 – Recreation",fy:"2024-2025",month:"December",revenue:271777,expenses:312400,goal:310000},
+  {fund_name:"Fund 4 – Recreation",fy:"2024-2025",month:"January",revenue:331901,expenses:380100,goal:350000},
+  {fund_name:"Fund 4 – Recreation",fy:"2024-2025",month:"February",revenue:445183,expenses:398200,goal:400000},
+  {fund_name:"Fund 4 – Recreation",fy:"2024-2025",month:"March",revenue:592346,expenses:524100,goal:550000},
+  {fund_name:"Fund 4 – Recreation",fy:"2024-2025",month:"April",revenue:960768,expenses:820300,goal:900000},
+  {fund_name:"Fund 4 – Recreation",fy:"2025-2026",month:"May",revenue:376796,expenses:352100,goal:350000},
+  {fund_name:"Fund 4 – Recreation",fy:"2025-2026",month:"June",revenue:906101,expenses:718400,goal:950000},
+  {fund_name:"Fund 4 – Recreation",fy:"2025-2026",month:"July",revenue:1886507,expenses:798200,goal:1400000},
+  {fund_name:"Fund 4 – Recreation",fy:"2025-2026",month:"August",revenue:262596,expenses:622300,goal:520000},
+  {fund_name:"Fund 4 – Recreation",fy:"2025-2026",month:"September",revenue:863761,expenses:614800,goal:1060000},
+  {fund_name:"Fund 4 – Recreation",fy:"2025-2026",month:"October",revenue:511072,expenses:592100,goal:400000},
+  {fund_name:"Fund 4 – Recreation",fy:"2025-2026",month:"November",revenue:361152,expenses:498400,goal:360000},
+  {fund_name:"Fund 4 – Recreation",fy:"2025-2026",month:"December",revenue:381880,expenses:412000,goal:310000},
+  {fund_name:"Fund 4 – Recreation",fy:"2025-2026",month:"January",revenue:574044,expenses:480000,goal:350000},
+  // Fitness Center — full actuals
+  {fund_name:"Fitness Center (FCBG)",fy:"2022-2023",month:"May",revenue:166045,expenses:120000,goal:128675},
+  {fund_name:"Fitness Center (FCBG)",fy:"2022-2023",month:"June",revenue:155482,expenses:110000,goal:143675},
+  {fund_name:"Fitness Center (FCBG)",fy:"2022-2023",month:"July",revenue:155173,expenses:108000,goal:128675},
+  {fund_name:"Fitness Center (FCBG)",fy:"2022-2023",month:"August",revenue:176045,expenses:122000,goal:128675},
+  {fund_name:"Fitness Center (FCBG)",fy:"2022-2023",month:"September",revenue:152517,expenses:106000,goal:158775},
+  {fund_name:"Fitness Center (FCBG)",fy:"2022-2023",month:"October",revenue:145587,expenses:103000,goal:138775},
+  {fund_name:"Fitness Center (FCBG)",fy:"2022-2023",month:"November",revenue:221890,expenses:150000,goal:194275},
+  {fund_name:"Fitness Center (FCBG)",fy:"2022-2023",month:"December",revenue:189750,expenses:132000,goal:168775},
+  {fund_name:"Fitness Center (FCBG)",fy:"2022-2023",month:"January",revenue:197030,expenses:137000,goal:169179},
+  {fund_name:"Fitness Center (FCBG)",fy:"2022-2023",month:"February",revenue:182000,expenses:127000,goal:165000},
+  {fund_name:"Fitness Center (FCBG)",fy:"2022-2023",month:"March",revenue:195000,expenses:136000,goal:175000},
+  {fund_name:"Fitness Center (FCBG)",fy:"2022-2023",month:"April",revenue:148186,expenses:103000,goal:130000},
+  {fund_name:"Fitness Center (FCBG)",fy:"2023-2024",month:"May",revenue:237870,expenses:164000,goal:177226},
+  {fund_name:"Fitness Center (FCBG)",fy:"2023-2024",month:"June",revenue:194710,expenses:136000,goal:169562},
+  {fund_name:"Fitness Center (FCBG)",fy:"2023-2024",month:"July",revenue:226756,expenses:158000,goal:153627},
+  {fund_name:"Fitness Center (FCBG)",fy:"2023-2024",month:"August",revenue:208336,expenses:146000,goal:156656},
+  {fund_name:"Fitness Center (FCBG)",fy:"2023-2024",month:"September",revenue:194294,expenses:136000,goal:161634},
+  {fund_name:"Fitness Center (FCBG)",fy:"2023-2024",month:"October",revenue:188850,expenses:133000,goal:166292},
+  {fund_name:"Fitness Center (FCBG)",fy:"2023-2024",month:"November",revenue:261994,expenses:183000,goal:245457},
+  {fund_name:"Fitness Center (FCBG)",fy:"2023-2024",month:"December",revenue:239722,expenses:168000,goal:204820},
+  {fund_name:"Fitness Center (FCBG)",fy:"2023-2024",month:"January",revenue:219448,expenses:154000,goal:200144},
+  {fund_name:"Fitness Center (FCBG)",fy:"2023-2024",month:"February",revenue:225000,expenses:158000,goal:205000},
+  {fund_name:"Fitness Center (FCBG)",fy:"2023-2024",month:"March",revenue:241000,expenses:169000,goal:218000},
+  {fund_name:"Fitness Center (FCBG)",fy:"2023-2024",month:"April",revenue:202718,expenses:142000,goal:183000},
+  {fund_name:"Fitness Center (FCBG)",fy:"2024-2025",month:"May",revenue:275071,expenses:195000,goal:231757},
+  {fund_name:"Fitness Center (FCBG)",fy:"2024-2025",month:"June",revenue:235495,expenses:178000,goal:221734},
+  {fund_name:"Fitness Center (FCBG)",fy:"2024-2025",month:"July",revenue:231537,expenses:172000,goal:200896},
+  {fund_name:"Fitness Center (FCBG)",fy:"2024-2025",month:"August",revenue:254942,expenses:188000,goal:204858},
+  {fund_name:"Fitness Center (FCBG)",fy:"2024-2025",month:"September",revenue:230880,expenses:175000,goal:207815},
+  {fund_name:"Fitness Center (FCBG)",fy:"2024-2025",month:"October",revenue:219457,expenses:168000,goal:213803},
+  {fund_name:"Fitness Center (FCBG)",fy:"2024-2025",month:"November",revenue:311867,expenses:225000,goal:276138},
+  {fund_name:"Fitness Center (FCBG)",fy:"2024-2025",month:"December",revenue:263664,expenses:195000,goal:243224},
+  {fund_name:"Fitness Center (FCBG)",fy:"2024-2025",month:"January",revenue:276432,expenses:200000,goal:237671},
+  {fund_name:"Fitness Center (FCBG)",fy:"2024-2025",month:"February",revenue:253513,expenses:185000,goal:237852},
+  {fund_name:"Fitness Center (FCBG)",fy:"2024-2025",month:"March",revenue:238930,expenses:176000,goal:223991},
+  {fund_name:"Fitness Center (FCBG)",fy:"2024-2025",month:"April",revenue:260830,expenses:186000,goal:240000},
+  {fund_name:"Fitness Center (FCBG)",fy:"2025-2026",month:"May",revenue:311570,expenses:218000,goal:316331},
+  {fund_name:"Fitness Center (FCBG)",fy:"2025-2026",month:"June",revenue:266827,expenses:192000,goal:270819},
+  {fund_name:"Fitness Center (FCBG)",fy:"2025-2026",month:"July",revenue:256526,expenses:186000,goal:266267},
+  {fund_name:"Fitness Center (FCBG)",fy:"2025-2026",month:"August",revenue:272138,expenses:196000,goal:293183},
+  {fund_name:"Fitness Center (FCBG)",fy:"2025-2026",month:"September",revenue:257846,expenses:188000,goal:265512},
+  {fund_name:"Fitness Center (FCBG)",fy:"2025-2026",month:"October",revenue:243886,expenses:178000,goal:252375},
+  {fund_name:"Fitness Center (FCBG)",fy:"2025-2026",month:"November",revenue:340422,expenses:241000,goal:358647},
+  {fund_name:"Fitness Center (FCBG)",fy:"2025-2026",month:"December",revenue:316697,expenses:228000,goal:303213},
+  {fund_name:"Fitness Center (FCBG)",fy:"2025-2026",month:"January",revenue:320561,expenses:231000,goal:317897},
+];
+
+const SEED_CAMPS = [
+  {fy:"2021-2022",camp_name:"Adventure",enrollment:0,revenue:0,expenses:0,notes:"COVID recovery year"},
+  {fy:"2021-2022",camp_name:"Fun & Games",enrollment:571,revenue:0,expenses:0,notes:""},
+  {fy:"2021-2022",camp_name:"Kinder Camp",enrollment:90,revenue:0,expenses:0,notes:""},
+  {fy:"2021-2022",camp_name:"CIT",enrollment:16,revenue:0,expenses:0,notes:""},
+  {fy:"2022-2023",camp_name:"Preschool 3s",enrollment:45,revenue:0,expenses:0,notes:""},
+  {fy:"2022-2023",camp_name:"Preschool 4s & 5s",enrollment:95,revenue:0,expenses:0,notes:""},
+  {fy:"2022-2023",camp_name:"Kinder Camp",enrollment:94,revenue:0,expenses:0,notes:""},
+  {fy:"2022-2023",camp_name:"Safety Stars",enrollment:18,revenue:0,expenses:0,notes:""},
+  {fy:"2022-2023",camp_name:"Adventure",enrollment:296,revenue:0,expenses:0,notes:""},
+  {fy:"2022-2023",camp_name:"Fun & Games",enrollment:192,revenue:0,expenses:0,notes:""},
+  {fy:"2022-2023",camp_name:"Grove",enrollment:192,revenue:0,expenses:0,notes:""},
+  {fy:"2022-2023",camp_name:"Sports Camp",enrollment:254,revenue:0,expenses:0,notes:""},
+  {fy:"2022-2023",camp_name:"Cycle & Surf",enrollment:94,revenue:0,expenses:0,notes:""},
+  {fy:"2022-2023",camp_name:"Star Makers",enrollment:62,revenue:0,expenses:0,notes:""},
+  {fy:"2022-2023",camp_name:"Broadway Bound",enrollment:160,revenue:0,expenses:0,notes:""},
+  {fy:"2022-2023",camp_name:"Dance",enrollment:172,revenue:0,expenses:0,notes:""},
+  {fy:"2022-2023",camp_name:"CIT",enrollment:41,revenue:0,expenses:0,notes:""},
+  {fy:"2022-2023",camp_name:"Camp Connection",enrollment:1861,revenue:0,expenses:0,notes:"Day-use"},
+  {fy:"2022-2023",camp_name:"Post Camp",enrollment:243,revenue:0,expenses:0,notes:""},
+  {fy:"2023-2024",camp_name:"Preschool 3s",enrollment:48,revenue:28892,expenses:0,notes:""},
+  {fy:"2023-2024",camp_name:"Preschool 4s & 5s",enrollment:97,revenue:55948,expenses:0,notes:""},
+  {fy:"2023-2024",camp_name:"Kinder Camp",enrollment:117,revenue:66892,expenses:0,notes:""},
+  {fy:"2023-2024",camp_name:"Safety Stars",enrollment:24,revenue:0,expenses:0,notes:""},
+  {fy:"2023-2024",camp_name:"Adventure",enrollment:514,revenue:0,expenses:0,notes:""},
+  {fy:"2023-2024",camp_name:"Fun & Games",enrollment:187,revenue:0,expenses:0,notes:""},
+  {fy:"2023-2024",camp_name:"Grove",enrollment:205,revenue:0,expenses:0,notes:""},
+  {fy:"2023-2024",camp_name:"Sports Camp",enrollment:242,revenue:0,expenses:0,notes:""},
+  {fy:"2023-2024",camp_name:"Cycle & Surf",enrollment:96,revenue:0,expenses:0,notes:""},
+  {fy:"2023-2024",camp_name:"Xtreme Teens",enrollment:0,revenue:0,expenses:0,notes:"Did not run"},
+  {fy:"2023-2024",camp_name:"Star Makers",enrollment:91,revenue:0,expenses:0,notes:""},
+  {fy:"2023-2024",camp_name:"Broadway Bound",enrollment:196,revenue:0,expenses:0,notes:""},
+  {fy:"2023-2024",camp_name:"Dance",enrollment:186,revenue:0,expenses:0,notes:""},
+  {fy:"2023-2024",camp_name:"CIT",enrollment:43,revenue:0,expenses:0,notes:""},
+  {fy:"2023-2024",camp_name:"Camp Connection",enrollment:2469,revenue:0,expenses:0,notes:"Day-use"},
+  {fy:"2023-2024",camp_name:"Post Camp",enrollment:253,revenue:0,expenses:0,notes:""},
+  {fy:"2024-2025",camp_name:"Preschool 2s",enrollment:19,revenue:7225,expenses:2500,notes:"New program"},
+  {fy:"2024-2025",camp_name:"Preschool 3s",enrollment:43,revenue:0,expenses:0,notes:""},
+  {fy:"2024-2025",camp_name:"Preschool 4s & 5s",enrollment:52,revenue:0,expenses:0,notes:""},
+  {fy:"2024-2025",camp_name:"Kinder Camp",enrollment:88,revenue:65105,expenses:0,notes:""},
+  {fy:"2024-2025",camp_name:"Safety Stars",enrollment:21,revenue:0,expenses:0,notes:""},
+  {fy:"2024-2025",camp_name:"Adventure",enrollment:531,revenue:0,expenses:0,notes:""},
+  {fy:"2024-2025",camp_name:"Fun & Games",enrollment:202,revenue:0,expenses:0,notes:""},
+  {fy:"2024-2025",camp_name:"Grove",enrollment:209,revenue:0,expenses:0,notes:""},
+  {fy:"2024-2025",camp_name:"Sports Camp",enrollment:204,revenue:0,expenses:0,notes:""},
+  {fy:"2024-2025",camp_name:"Cycle & Surf",enrollment:96,revenue:0,expenses:0,notes:""},
+  {fy:"2024-2025",camp_name:"Xtreme Teens",enrollment:139,revenue:0,expenses:0,notes:"Returned after hiatus"},
+  {fy:"2024-2025",camp_name:"Star Makers",enrollment:91,revenue:0,expenses:0,notes:""},
+  {fy:"2024-2025",camp_name:"Broadway Bound",enrollment:181,revenue:0,expenses:0,notes:""},
+  {fy:"2024-2025",camp_name:"Dance",enrollment:192,revenue:0,expenses:0,notes:""},
+  {fy:"2024-2025",camp_name:"CIT",enrollment:22,revenue:0,expenses:0,notes:""},
+  {fy:"2024-2025",camp_name:"Camp Connection",enrollment:2298,revenue:0,expenses:0,notes:"Day-use"},
+  {fy:"2024-2025",camp_name:"Post Camp",enrollment:446,revenue:0,expenses:0,notes:""},
+];
+
+const SEED_CLUBHOUSE = [
+  {fy:"2022-2023",site:"Country Meadows",enrollment:24,revenue:41863,is_archived:false},
+  {fy:"2022-2023",site:"Ivy Hall",enrollment:68,revenue:127992,is_archived:false},
+  {fy:"2022-2023",site:"Kildeer",enrollment:56,revenue:86786,is_archived:false},
+  {fy:"2022-2023",site:"Kilmer",enrollment:19,revenue:41753,is_archived:false},
+  {fy:"2022-2023",site:"Longfellow",enrollment:99,revenue:208469,is_archived:false},
+  {fy:"2022-2023",site:"Meridian",enrollment:45,revenue:86434,is_archived:false},
+  {fy:"2022-2023",site:"Prairie",enrollment:75,revenue:130880,is_archived:false},
+  {fy:"2022-2023",site:"Pritchett",enrollment:59,revenue:0,is_archived:false},
+  {fy:"2022-2023",site:"Tripp",enrollment:81,revenue:0,is_archived:false},
+  {fy:"2022-2023",site:"Willow Grove",enrollment:51,revenue:0,is_archived:false},
+  {fy:"2023-2024",site:"Country Meadows",enrollment:39,revenue:96538,is_archived:false},
+  {fy:"2023-2024",site:"Ivy Hall",enrollment:81,revenue:205214,is_archived:false},
+  {fy:"2023-2024",site:"Kildeer",enrollment:66,revenue:148566,is_archived:false},
+  {fy:"2023-2024",site:"Kilmer",enrollment:19,revenue:44122,is_archived:false},
+  {fy:"2023-2024",site:"Longfellow",enrollment:116,revenue:295076,is_archived:false},
+  {fy:"2023-2024",site:"Meridian",enrollment:46,revenue:89351,is_archived:false},
+  {fy:"2023-2024",site:"Prairie",enrollment:72,revenue:169340,is_archived:false},
+  {fy:"2023-2024",site:"Pritchett",enrollment:58,revenue:0,is_archived:false},
+  {fy:"2023-2024",site:"Tripp",enrollment:71,revenue:0,is_archived:false},
+  {fy:"2023-2024",site:"Willow Grove",enrollment:47,revenue:0,is_archived:false},
+  {fy:"2024-2025",site:"Country Meadows",enrollment:50.5,revenue:114970,is_archived:false},
+  {fy:"2024-2025",site:"Ivy Hall",enrollment:92.6,revenue:233765,is_archived:false},
+  {fy:"2024-2025",site:"Kildeer",enrollment:71.8,revenue:172083,is_archived:false},
+  {fy:"2024-2025",site:"Kilmer",enrollment:32.2,revenue:74263,is_archived:false},
+  {fy:"2024-2025",site:"Longfellow",enrollment:121.2,revenue:348483,is_archived:false},
+  {fy:"2024-2025",site:"Meridian",enrollment:61.3,revenue:103644,is_archived:false},
+  {fy:"2024-2025",site:"Prairie",enrollment:82,revenue:171253,is_archived:false},
+  {fy:"2024-2025",site:"Pritchett",enrollment:63.2,revenue:0,is_archived:false},
+  {fy:"2024-2025",site:"Tripp",enrollment:79.3,revenue:0,is_archived:false},
+  {fy:"2024-2025",site:"Willow Grove",enrollment:52.4,revenue:0,is_archived:false},
+  {fy:"2025-2026",site:"Country Meadows",enrollment:43,revenue:0,is_archived:false},
+  {fy:"2025-2026",site:"Ivy Hall",enrollment:90,revenue:0,is_archived:false},
+  {fy:"2025-2026",site:"Kildeer",enrollment:63,revenue:0,is_archived:false},
+  {fy:"2025-2026",site:"Kilmer",enrollment:35,revenue:0,is_archived:false},
+  {fy:"2025-2026",site:"Longfellow",enrollment:125,revenue:0,is_archived:false},
+  {fy:"2025-2026",site:"Meridian",enrollment:47,revenue:0,is_archived:false},
+  {fy:"2025-2026",site:"Prairie",enrollment:65,revenue:0,is_archived:false},
+  {fy:"2025-2026",site:"Pritchett",enrollment:39,revenue:0,is_archived:false},
+  {fy:"2025-2026",site:"Tripp",enrollment:67,revenue:0,is_archived:false},
+  {fy:"2025-2026",site:"Willow Grove",enrollment:48,revenue:0,is_archived:false},
+];
+
+const SEED_EVENTS = [
+  {fy:"2022-2023",event_name:"Summer Concert Series",event_type:"Summer Concert",attendance:6281,revenue:0,expenses:0,notes:"8 concerts total"},
+  {fy:"2022-2023",event_name:"Movies Under the Stars",event_type:"Movie Under the Stars",attendance:1648,revenue:0,expenses:0,notes:"3 movies"},
+  {fy:"2022-2023",event_name:"Bow Wow",event_type:"Community Festival",attendance:245,revenue:0,expenses:0,notes:""},
+  {fy:"2023-2024",event_name:"Summer Concert — Pino Farina Band",event_type:"Summer Concert",attendance:330,revenue:0,expenses:0,notes:""},
+  {fy:"2023-2024",event_name:"Summer Concert — Members Only",event_type:"Summer Concert",attendance:967,revenue:0,expenses:0,notes:""},
+  {fy:"2023-2024",event_name:"Summer Concert — Triadd",event_type:"Summer Concert",attendance:240,revenue:0,expenses:0,notes:""},
+  {fy:"2023-2024",event_name:"Summer Concert — Yankee Cowboy",event_type:"Summer Concert",attendance:409,revenue:0,expenses:0,notes:""},
+  {fy:"2023-2024",event_name:"Summer Concert — Classical Beat",event_type:"Summer Concert",attendance:608,revenue:0,expenses:0,notes:""},
+  {fy:"2023-2024",event_name:"Summer Concert — Industrial Drive",event_type:"Summer Concert",attendance:736,revenue:0,expenses:0,notes:""},
+  {fy:"2023-2024",event_name:"Summer Concert — Serendipity",event_type:"Summer Concert",attendance:2200,revenue:0,expenses:0,notes:"Highest attended"},
+  {fy:"2023-2024",event_name:"Movie Under the Stars — Sonic the Hedgehog",event_type:"Movie Under the Stars",attendance:623,revenue:0,expenses:0,notes:""},
+  {fy:"2023-2024",event_name:"Movie Under the Stars — DC Leagues of Super-Pets",event_type:"Movie Under the Stars",attendance:113,revenue:0,expenses:0,notes:""},
+  {fy:"2023-2024",event_name:"Movie Under the Stars — Puss in Boots",event_type:"Movie Under the Stars",attendance:387,revenue:0,expenses:0,notes:""},
+  {fy:"2023-2024",event_name:"Kite Fly",event_type:"Community Festival",attendance:556,revenue:0,expenses:0,notes:""},
+  {fy:"2023-2024",event_name:"Bow Wow",event_type:"Community Festival",attendance:290,revenue:0,expenses:0,notes:""},
+  {fy:"2023-2024",event_name:"Trick or Treat Trail",event_type:"Holiday Event",attendance:500,revenue:0,expenses:0,notes:""},
+  {fy:"2024-2025",event_name:"Summer Concert 1",event_type:"Summer Concert",attendance:400,revenue:0,expenses:0,notes:""},
+  {fy:"2024-2025",event_name:"Summer Concert 2",event_type:"Summer Concert",attendance:440,revenue:0,expenses:0,notes:""},
+  {fy:"2024-2025",event_name:"Movie Under the Stars — Elemental",event_type:"Movie Under the Stars",attendance:208,revenue:0,expenses:0,notes:""},
+  {fy:"2024-2025",event_name:"Kite Fly",event_type:"Community Festival",attendance:760,revenue:0,expenses:0,notes:"YoY growth from 556"},
+  {fy:"2024-2025",event_name:"Bow Wow",event_type:"Community Festival",attendance:198,revenue:0,expenses:0,notes:"Declined from 290"},
+  {fy:"2024-2025",event_name:"Parks and Public Lands",event_type:"Community Festival",attendance:733,revenue:0,expenses:0,notes:"New event"},
+];
+
+// ─── Shared admin utilities ───────────────────────────────────────────────────
+function adm$(v,compact){
+  const n=Number(v)||0;
+  const abs=Math.abs(Math.round(n));
+  const s=compact&&abs>=1000000?`$${(abs/1000000).toFixed(1)}M`:compact&&abs>=1000?`$${(abs/1000).toFixed(0)}K`:`$${abs.toLocaleString()}`;
+  return n<0?`(${s})`:s;
+}
+function admPct(v){return `${((Number(v)||0)*100).toFixed(1)}%`;}
+function fyLabel(fy){return fy?`FY ${fy}`:"All Years";}
+function sumField(arr,key){return arr.reduce((a,r)=>a+(Number(r[key])||0),0);}
+function yoyPct(cur,prev){if(!prev)return null;return ((cur-prev)/prev)*100;}
+function arrowBadge(pct){
+  if(pct===null)return null;
+  const pos=pct>=0;
+  return <span style={{color:pos?"#16a34a":"#dc2626",fontSize:"11px",fontWeight:700}}>{pos?"▲":"▼"}{Math.abs(pct).toFixed(1)}%</span>;
 }
 
-function AModal({title,onClose,children,wide}){
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background:"rgba(0,0,0,0.5)"}}>
-      <div className={`bg-white rounded-2xl shadow-2xl flex flex-col`} style={{width:wide?"820px":"520px",maxWidth:"95vw",maxHeight:"90vh"}}>
+// ─── Admin UI primitives ─────────────────────────────────────────────────────
+function AModal({title,onClose,children,wide,extraWide}){
+  return(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:"rgba(0,0,0,0.5)"}}>
+      <div className="bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden" style={{width:extraWide?"900px":wide?"680px":"480px",maxWidth:"95vw",maxHeight:"90vh"}}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <div className="font-bold text-slate-800 text-base">{title}</div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl font-bold">×</button>
+          <h3 className="font-bold text-slate-800" style={{fontSize:"15px"}}>{title}</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl leading-none">✕</button>
         </div>
-        <div className="overflow-y-auto flex-1 px-6 py-4">{children}</div>
+        <div className="overflow-y-auto p-6 flex-1">{children}</div>
       </div>
     </div>
   );
 }
 
-function AInp({label,value,onChange,type="text",options,required,hint,rows}){
-  const cls = "w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white";
-  return (
-    <div className="mb-3">
-      <label className="block text-xs font-semibold text-slate-500 mb-1">{label}{required&&<span className="text-red-400 ml-1">*</span>}</label>
-      {options ? (
-        <select value={value||""} onChange={e=>onChange(e.target.value)} className={cls}>
-          <option value="">— select —</option>
-          {options.map(o=><option key={o} value={o}>{o}</option>)}
-        </select>
-      ) : rows ? (
-        <textarea value={value||""} onChange={e=>onChange(e.target.value)} rows={rows} className={cls}/>
-      ) : (
-        <input type={type} value={value||""} onChange={e=>onChange(e.target.value)} required={required} className={cls}/>
-      )}
-      {hint&&<div className="text-xs text-slate-400 mt-1">{hint}</div>}
-    </div>
-  );
-}
-
-function ABadge({status}){
-  const map={
-    "Complete":        "bg-green-100 text-green-800",
-    "Not Complete":    "bg-red-100 text-red-700",
-    "Ongoing":         "bg-yellow-100 text-yellow-800",
-    "Paused":          "bg-slate-100 text-slate-500",
-    "Not Started":     "bg-orange-100 text-orange-700",
-    "Archived":        "bg-slate-100 text-slate-400",
-  };
-  return <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${map[status]||"bg-slate-100 text-slate-600"}`}>{status}</span>;
-}
-
-function ABar({label,value,max,color}){
-  const pct = max>0 ? Math.min(100,Math.round((value/max)*100)) : 0;
-  return (
-    <div className="flex items-center gap-2 mb-2">
-      <div className="text-xs text-slate-500 w-32 text-right truncate flex-shrink-0">{label}</div>
-      <div className="flex-1 bg-slate-100 rounded h-2 overflow-hidden">
-        <div className="h-2 rounded" style={{width:`${pct}%`,background:color||"#1e3a5f"}}/>
-      </div>
-      <div className="text-xs font-mono font-semibold w-16 flex-shrink-0">{typeof value==="number"&&value>999?adminDollar(value):value.toLocaleString()}</div>
+function AInp({label,value,onChange,type="text",options,hint,rows,required,half,className=""}){
+  const base="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300";
+  return(
+    <div className={`mb-4 ${half?"":"w-full"} ${className}`}>
+      {label&&<label className="block text-xs font-semibold text-slate-500 mb-1">{label}{required&&<span className="text-red-400 ml-1">*</span>}</label>}
+      {options
+        ?<select value={value} onChange={e=>onChange(e.target.value)} className={base}>
+            <option value="">— Select —</option>
+            {options.map(o=><option key={o} value={o}>{o}</option>)}
+          </select>
+        :rows
+          ?<textarea value={value} onChange={e=>onChange(e.target.value)} rows={rows} className={base}/>
+          :<input type={type} value={value} onChange={e=>onChange(e.target.value)} className={base}/>
+      }
+      {hint&&<p className="text-xs text-slate-400 mt-1">{hint}</p>}
     </div>
   );
 }
 
 function AConfirm({message,onConfirm,onCancel,label="Delete",color="#ef4444"}){
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background:"rgba(0,0,0,0.4)"}}>
-      <div className="bg-white rounded-2xl shadow-2xl p-8 w-80 text-center">
-        <div className="text-slate-700 mb-6 text-sm">{message}</div>
-        <div className="flex gap-3 justify-center">
-          <button onClick={onCancel} className="px-5 py-2 rounded-lg border border-slate-200 text-sm font-semibold hover:bg-slate-50">Cancel</button>
-          <button onClick={onConfirm} className="px-5 py-2 rounded-lg text-white text-sm font-semibold" style={{background:color}}>{label}</button>
+  return(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:"rgba(0,0,0,0.4)"}}>
+      <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full">
+        <p className="text-sm text-slate-700 mb-5">{message}</p>
+        <div className="flex gap-3 justify-end">
+          <button onClick={onCancel} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">{" Cancel"}</button>
+          <button onClick={onConfirm} className="px-4 py-2 text-sm rounded-lg text-white font-semibold" style={{background:color}}>{label}</button>
         </div>
       </div>
     </div>
   );
 }
 
-function FYFilter({value,onChange,label="Fiscal Year"}){
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{label}</span>
-      <select value={value} onChange={e=>onChange(e.target.value)}
-        className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm font-semibold bg-white focus:outline-none">
-        <option value="All">All Years</option>
-        {ADMIN_FYS.map(y=><option key={y} value={y}>{fyLabel(y)}</option>)}
-      </select>
+function AKpi({label,value,sub,color,arrow}){
+  return(
+    <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
+      <div className="text-xs text-slate-500 font-semibold mb-1 uppercase tracking-wide">{label}</div>
+      <div className="font-bold text-slate-800 flex items-baseline gap-2" style={{fontSize:"22px"}}>
+        {value}
+        {arrow}
+      </div>
+      {sub&&<div className="text-xs text-slate-400 mt-1">{sub}</div>}
     </div>
   );
 }
 
-// ─── GOALS & OBJECTIVES ───────────────────────────────────────────────────────
-function GoalsSection({db}){
-  const [goals,setGoals]       = useState([]);
-  const [loading,setLoading]   = useState(true);
-  const [fy,setFy]             = useState(ADMIN_CUR);
-  const [qFilter,setQFilter]   = useState("All");
-  const [stFilter,setStFilter] = useState("All");
-  const [staffFilter,setStFilter2] = useState("All");
-  const [modal,setModal]       = useState(null); // null | "new" | {goal obj}
-  const [saving,setSaving]     = useState(false);
-  const [delConfirm,setDelConfirm] = useState(null);
-  const [showArchived,setShowArchived] = useState(false);
+function ABar({label,value,max,color="#1e3a5f",height=18,showPct,suffix=""}){
+  const pct=max>0?Math.min((value/max)*100,100):0;
+  return(
+    <div className="w-full">
+      {label&&<div className="flex justify-between text-xs text-slate-600 mb-1"><span>{label}</span><span className="font-semibold">{suffix||adm$(value,true)}{showPct&&max>0&&<span className="text-slate-400 ml-1">({pct.toFixed(0)}%)</span>}</span></div>}
+      <div className="rounded-full overflow-hidden" style={{background:"#f1f5f9",height}}>
+        <div className="h-full rounded-full transition-all" style={{width:`${pct}%`,background:color}}/>
+      </div>
+    </div>
+  );
+}
 
-  const load = useCallback(async()=>{
-    setLoading(true);
-    const {data} = await db.from("admin_goals").select("*").order("created_at",{ascending:false});
-    setGoals(data||[]); setLoading(false);
-  },[db]);
-  useEffect(()=>{ load(); },[load]);
+function ASection({title,sub,children,action}){
+  return(
+    <div className="mb-8">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="font-bold text-slate-800" style={{fontSize:"15px"}}>{title}</h3>
+          {sub&&<p className="text-xs text-slate-500 mt-0.5">{sub}</p>}
+        </div>
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}
 
-  const vis = goals.filter(g=>{
-    if(g.is_archived !== showArchived) return false;
-    if(fy!=="All" && g.fy!==fy) return false;
-    if(qFilter!=="All" && g.quarter!==qFilter) return false;
-    if(stFilter!=="All" && g.status!==stFilter) return false;
-    if(staffFilter!=="All" && g.staff_lead!==staffFilter) return false;
-    return true;
-  });
+function FYPicker({value,onChange,include2027=false}){
+  const fys=ADMIN_FYS.filter(f=>include2027||f!=="2026-2027");
+  return(
+    <select value={value} onChange={e=>onChange(e.target.value)}
+      className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300">
+      {fys.map(f=><option key={f} value={f}>{f}</option>)}
+    </select>
+  );
+}
 
-  const staffList = [...new Set(goals.map(g=>g.staff_lead).filter(Boolean))].sort();
+function ABadge({status}){
+  return(
+    <span className="px-2 py-0.5 rounded-full text-xs font-bold" style={{background:STATUS_BG[status]||"#f1f5f9",color:STATUS_CLR[status]||"#64748b"}}>
+      {status}
+    </span>
+  );
+}
 
-  const statCounts = ["Complete","Not Complete","Ongoing","Paused","Not Started"].map(s=>({
-    s, n:goals.filter(g=>!g.is_archived && (fy==="All"||g.fy===fy) && g.status===s).length
-  }));
+function EmptyState({msg,action,onAction}){
+  return(
+    <div className="text-center py-12 text-slate-400">
+      <div className="text-3xl mb-2">📋</div>
+      <div className="text-sm mb-4">{msg}</div>
+      {onAction&&<button onClick={onAction} className="px-4 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>{action}</button>}
+    </div>
+  );
+}
 
-  const blank = {fy:ADMIN_CUR,quarter:"",staff_lead:"",supporting_staff:"",objective:"",core_value:"",status:"Not Started",updates:"",is_archived:false};
+// ─── SEED HELPER ─────────────────────────────────────────────────────────────
+async function seedIfEmpty(db,table,data){
+  try{
+    const {count}=await db.from(table).select("*",{count:"exact",head:true});
+    if((count||0)===0 && data.length>0){
+      await db.from(table).insert(data);
+      return true;
+    }
+  }catch(e){console.warn("seed error",table,e);}
+  return false;
+}
 
-  const save = async(g)=>{
-    setSaving(true);
-    if(g.id){ await db.from("admin_goals").update(g).eq("id",g.id); }
-    else     { await db.from("admin_goals").insert(g); }
-    await load(); setModal(null); setSaving(false);
-  };
+// ─── YoY SPARKLINE ───────────────────────────────────────────────────────────
+function Sparkline({values,color="#1e3a5f",height=32,labels}){
+  if(!values||values.length<2) return null;
+  const valid=values.filter(v=>v!=null&&!isNaN(v));
+  if(valid.length<2) return null;
+  const min=Math.min(...valid), max=Math.max(...valid);
+  const range=max-min||1;
+  const w=80, h=height;
+  const pts=values.map((v,i)=>{
+    const x=(i/(values.length-1))*w;
+    const y=v!=null?h-((v-min)/range)*(h-4)-2:null;
+    return {x,y};
+  }).filter(p=>p.y!=null);
+  const d=pts.map((p,i)=>`${i===0?"M":"L"}${p.x},${p.y}`).join(" ");
+  return(
+    <svg width={w} height={h} style={{overflow:"visible"}}>
+      <path d={d} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      {pts.map((p,i)=><circle key={i} cx={p.x} cy={p.y} r="2.5" fill={color}/>)}
+    </svg>
+  );
+}
 
-  const archive = async(g,val)=>{ await db.from("admin_goals").update({is_archived:val}).eq("id",g.id); await load(); };
-  const del     = async(id)=>{ await db.from("admin_goals").delete().eq("id",id); await load(); setDelConfirm(null); };
+// ─── EXECUTIVE SUMMARY ───────────────────────────────────────────────────────
+function ExecSummary({programs,db}){
+  const [fy,setFy]=useState(ADMIN_CUR);
+  const [funds,setFunds]=useState([]);
+  const [goals,setGoals]=useState([]);
+  const [rentals,setRentals]=useState([]);
+  const [camps,setCamps]=useState([]);
+  const [clubhouse,setClubhouse]=useState([]);
+  const [loading,setLoading]=useState(true);
 
-  return (
+  useEffect(()=>{
+    async function load(){
+      setLoading(true);
+      await Promise.all([
+        seedIfEmpty(db,"admin_funds",SEED_FUNDS),
+        seedIfEmpty(db,"admin_goals",SEED_GOALS),
+        seedIfEmpty(db,"admin_rentals",SEED_RENTALS),
+        seedIfEmpty(db,"admin_camps",SEED_CAMPS),
+        seedIfEmpty(db,"admin_clubhouse",SEED_CLUBHOUSE),
+      ]);
+      const [f,g,r,c,ch]=await Promise.all([
+        db.from("admin_funds").select("*"),
+        db.from("admin_goals").select("*"),
+        db.from("admin_rentals").select("*"),
+        db.from("admin_camps").select("*"),
+        db.from("admin_clubhouse").select("*"),
+      ]);
+      setFunds(f.data||[]);
+      setGoals(g.data||[]);
+      setRentals(r.data||[]);
+      setCamps(c.data||[]);
+      setClubhouse(ch.data||[]);
+      setLoading(false);
+    }
+    load();
+  },[]);
+
+  if(loading) return <div className="text-center py-20 text-slate-400">Loading Executive Summary…</div>;
+
+  const prevFy=ADMIN_FYS[ADMIN_FYS.indexOf(fy)-1];
+
+  // Programs KPIs
+  const progFy=programs.filter(p=>!p.is_archived&&p.year&&fy.includes(p.year.split("-")[0]||p.year));
+  const progPrev=prevFy?programs.filter(p=>!p.is_archived&&p.year&&prevFy.includes(p.year.split("-")[0]||p.year)):[];
+
+  // Fund totals for selected FY
+  const fyFunds=funds.filter(f=>f.fy===fy);
+  const prevFunds=prevFy?funds.filter(f=>f.fy===prevFy):[];
+  const totalRev=sumField(fyFunds,"revenue");
+  const totalExp=sumField(fyFunds,"expenses");
+  const totalRevPrev=sumField(prevFunds,"revenue");
+  const totalExpPrev=sumField(prevFunds,"expenses");
+
+  // Goals
+  const fyGoals=goals.filter(g=>g.fy===fy&&!g.is_archived);
+  const complete=fyGoals.filter(g=>g.status==="Complete").length;
+  const total=fyGoals.length;
+
+  // Rentals
+  const fyRentals=rentals.filter(r=>r.fy===fy);
+  const prevRentals=prevFy?rentals.filter(r=>r.fy===prevFy):[];
+  const totalRental=sumField(fyRentals,"amount");
+  const totalRentalPrev=sumField(prevRentals,"amount");
+
+  // Camps
+  const fyCamps=camps.filter(c=>c.fy===fy);
+  const prevCamps=prevFy?camps.filter(c=>c.fy===prevFy):[];
+  const campEnroll=sumField(fyCamps.filter(c=>c.camp_name!=="Camp Connection"),"enrollment");
+  const campEnrollPrev=sumField(prevCamps.filter(c=>c.camp_name!=="Camp Connection"),"enrollment");
+
+  // Clubhouse
+  const fyClub=clubhouse.filter(c=>c.fy===fy);
+  const prevClub=prevFy?clubhouse.filter(c=>c.fy===prevFy):[];
+  const clubEnroll=sumField(fyClub,"enrollment");
+  const clubEnrollPrev=sumField(prevClub,"enrollment");
+
+  // Fund P&L by fund name for selected FY
+  const fundNames=[...new Set(funds.map(f=>f.fund_name))];
+  const fundSummary=fundNames.map(name=>{
+    const rows=fyFunds.filter(f=>f.fund_name===name);
+    const prev=prevFunds.filter(f=>f.fund_name===name);
+    const rev=sumField(rows,"revenue");
+    const exp=sumField(rows,"expenses");
+    const goal=sumField(rows,"goal");
+    const prevRev=sumField(prev,"revenue");
+    return {name,rev,exp,pl:rev-exp,goal,prevRev,yoy:yoyPct(rev,prevRev)};
+  }).filter(f=>f.rev>0||f.exp>0);
+
+  // Goals by status
+  const statusCounts=GOAL_STATUSES.map(s=>({status:s,count:fyGoals.filter(g=>g.status===s).length}));
+
+  // YoY revenue trend (last 4 FYs)
+  const trendFYs=ADMIN_FYS.slice(1,6);
+  const f4Trend=trendFYs.map(f=>sumField(funds.filter(x=>x.fy===f&&x.fund_name==="Fund 4 – Recreation"),"revenue"));
+  const fitTrend=trendFYs.map(f=>sumField(funds.filter(x=>x.fy===f&&x.fund_name==="Fitness Center (FCBG)"),"revenue"));
+
+  return(
     <div>
-      {delConfirm&&<AConfirm message="Delete this goal permanently?" onConfirm={()=>del(delConfirm)} onCancel={()=>setDelConfirm(null)}/>}
-      {modal&&<GoalModal initial={modal==="new"?blank:modal} onSave={save} onClose={()=>setModal(null)} saving={saving}/>}
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="font-bold text-slate-800" style={{fontSize:"18px"}}>Executive Summary</h2>
+          <p className="text-sm text-slate-500 mt-0.5">District-wide performance overview</p>
+        </div>
+        <FYPicker value={fy} onChange={setFy} include2027/>
+      </div>
 
-      {/* Status summary */}
-      <div className="grid grid-cols-5 gap-3 mb-5">
-        {statCounts.map(({s,n})=>(
-          <div key={s} className="bg-white rounded-xl p-3 shadow-sm text-center cursor-pointer border-2 hover:border-blue-200 transition"
-            style={{borderColor: stFilter===s?"#d4a017":"transparent"}}
-            onClick={()=>setStFilter(st=>st===s?"All":s)}>
-            <div className="text-2xl font-extrabold" style={{fontFamily:"monospace"}}>{n}</div>
-            <ABadge status={s}/>
+      {/* Top KPI row */}
+      <div className="grid grid-cols-2 gap-3 mb-6" style={{gridTemplateColumns:"repeat(4,1fr)"}}>
+        <AKpi label="Total Revenue" value={adm$(totalRev,true)} sub={prevFy?`${adm$(totalRevPrev,true)} prior year`:undefined} arrow={arrowBadge(yoyPct(totalRev,totalRevPrev))}/>
+        <AKpi label="Total Expenses" value={adm$(totalExp,true)} sub={prevFy?`${adm$(totalExpPrev,true)} prior year`:undefined} arrow={arrowBadge(yoyPct(totalExp,totalExpPrev))}/>
+        <AKpi label="Net P/(L)" value={adm$(totalRev-totalExp,true)} sub={(totalRev-totalExp)>=0?"Surplus":"Deficit"}/>
+        <AKpi label="Goals Complete" value={total>0?`${complete}/${total}`:"—"} sub={total>0?`${((complete/total)*100).toFixed(0)}% completion rate`:undefined}/>
+      </div>
+
+      <div className="grid gap-6" style={{gridTemplateColumns:"2fr 1fr"}}>
+        {/* Left column */}
+        <div>
+          {/* Fund P&L table */}
+          <ASection title="Fund Performance" sub={`FY ${fy} — Revenue, Expenses & Net by fund`}>
+            <div className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{background:"#f8fafc"}}>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Fund</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Revenue</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Expenses</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Net P/(L)</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">YoY</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase" style={{minWidth:100}}>vs Goal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fundSummary.map((f,i)=>{
+                    const vsGoal=f.goal>0?(f.rev/f.goal)*100:null;
+                    return(
+                      <tr key={f.name} className="border-t border-slate-50 hover:bg-slate-50">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{background:FUND_COLORS[f.name]||"#94a3b8"}}/>
+                            <span className="font-medium text-slate-700 text-xs">{f.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right font-semibold text-slate-800">{adm$(f.rev,true)}</td>
+                        <td className="px-4 py-3 text-right text-slate-600">{adm$(f.exp,true)}</td>
+                        <td className="px-4 py-3 text-right font-semibold" style={{color:f.pl>=0?"#16a34a":"#dc2626"}}>{adm$(f.pl,true)}</td>
+                        <td className="px-4 py-3 text-right">{f.yoy!=null?arrowBadge(f.yoy):<span className="text-slate-300 text-xs">—</span>}</td>
+                        <td className="px-4 py-3">
+                          {vsGoal!=null
+                            ?<div>
+                                <div className="flex justify-between text-xs mb-1">
+                                  <span style={{color:vsGoal>=100?"#16a34a":vsGoal>=80?"#b45309":"#dc2626"}}>{vsGoal.toFixed(0)}%</span>
+                                </div>
+                                <div className="h-1.5 rounded-full overflow-hidden" style={{background:"#f1f5f9"}}>
+                                  <div className="h-full rounded-full" style={{width:`${Math.min(vsGoal,100)}%`,background:vsGoal>=100?"#16a34a":vsGoal>=80?"#f59e0b":"#dc2626"}}/>
+                                </div>
+                              </div>
+                            :<span className="text-slate-300 text-xs">—</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-slate-200" style={{background:"#f8fafc"}}>
+                    <td className="px-4 py-3 text-xs font-bold text-slate-700">TOTAL</td>
+                    <td className="px-4 py-3 text-right font-bold text-slate-800">{adm$(totalRev,true)}</td>
+                    <td className="px-4 py-3 text-right font-bold text-slate-700">{adm$(totalExp,true)}</td>
+                    <td className="px-4 py-3 text-right font-bold" style={{color:(totalRev-totalExp)>=0?"#16a34a":"#dc2626"}}>{adm$(totalRev-totalExp,true)}</td>
+                    <td className="px-4 py-3 text-right">{arrowBadge(yoyPct(totalRev,totalRevPrev))}</td>
+                    <td className="px-4 py-3"/>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </ASection>
+
+          {/* YoY Revenue Trend */}
+          <ASection title="Revenue Trend" sub="Fund 4 & Fitness Center year-over-year (annual totals)">
+            <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
+              <div className="flex gap-4 mb-4 text-xs">
+                <span className="flex items-center gap-1"><span className="w-3 h-1 rounded inline-block" style={{background:"#1e3a5f"}}/>Fund 4</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-1 rounded inline-block" style={{background:"#0369a1"}}/>Fitness</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr>
+                      <td className="py-2 font-semibold text-slate-500 pr-4">Fund</td>
+                      {trendFYs.map(f=><td key={f} className="py-2 text-center font-semibold text-slate-500 px-2">{f.replace("20","'")}</td>)}
+                      <td className="py-2 text-center font-semibold text-slate-500 px-2">Trend</td>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-t border-slate-100">
+                      <td className="py-3 font-semibold text-slate-700 pr-4 flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{background:"#1e3a5f"}}/>Fund 4</td>
+                      {f4Trend.map((v,i)=>{
+                        const prev=f4Trend[i-1];
+                        const chg=prev&&prev>0?((v-prev)/prev)*100:null;
+                        return(
+                          <td key={i} className="py-3 text-center px-2">
+                            <div className="font-bold text-slate-800">{v>0?adm$(v,true):"—"}</div>
+                            {chg!=null&&<div style={{color:chg>=0?"#16a34a":"#dc2626",fontSize:"10px"}}>{chg>=0?"▲":"▼"}{Math.abs(chg).toFixed(1)}%</div>}
+                          </td>
+                        );
+                      })}
+                      <td className="py-3 px-2 text-center"><Sparkline values={f4Trend} color="#1e3a5f" height={28}/></td>
+                    </tr>
+                    <tr className="border-t border-slate-100">
+                      <td className="py-3 font-semibold text-slate-700 pr-4 flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{background:"#0369a1"}}/>Fitness</td>
+                      {fitTrend.map((v,i)=>{
+                        const prev=fitTrend[i-1];
+                        const chg=prev&&prev>0?((v-prev)/prev)*100:null;
+                        return(
+                          <td key={i} className="py-3 text-center px-2">
+                            <div className="font-bold text-slate-800">{v>0?adm$(v,true):"—"}</div>
+                            {chg!=null&&<div style={{color:chg>=0?"#16a34a":"#dc2626",fontSize:"10px"}}>{chg>=0?"▲":"▼"}{Math.abs(chg).toFixed(1)}%</div>}
+                          </td>
+                        );
+                      })}
+                      <td className="py-3 px-2 text-center"><Sparkline values={fitTrend} color="#0369a1" height={28}/></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </ASection>
+
+          {/* Program Areas Quick View */}
+          <div className="grid gap-4" style={{gridTemplateColumns:"1fr 1fr"}}>
+            <ASection title="Camps Enrollment" sub="By camp — current FY">
+              <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm space-y-2">
+                {fyCamps.filter(c=>c.camp_name!=="Camp Connection").sort((a,b)=>b.enrollment-a.enrollment).slice(0,8).map(c=>{
+                  const max=Math.max(...fyCamps.map(x=>x.enrollment||0),1);
+                  return <ABar key={c.camp_name} label={c.camp_name} value={c.enrollment} max={max} color="#7c3aed" height={12} suffix={` ${c.enrollment}`}/>;
+                })}
+                {fyCamps.length===0&&<div className="text-xs text-slate-400 text-center py-4">No camp data for FY {fy}</div>}
+              </div>
+            </ASection>
+            <ASection title="Clubhouse Sites" sub="Avg enrollment by site — current FY">
+              <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm space-y-2">
+                {fyClub.sort((a,b)=>b.enrollment-a.enrollment).map(c=>{
+                  const max=Math.max(...fyClub.map(x=>x.enrollment||0),1);
+                  return <ABar key={c.site} label={c.site} value={c.enrollment} max={max} color="#0f766e" height={12} suffix={` ${c.enrollment}`}/>;
+                })}
+                {fyClub.length===0&&<div className="text-xs text-slate-400 text-center py-4">No clubhouse data for FY {fy}</div>}
+              </div>
+            </ASection>
           </div>
+        </div>
+
+        {/* Right column */}
+        <div>
+          {/* Goals status */}
+          <ASection title="Goals & Objectives" sub={`FY ${fy} completion`}>
+            <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
+              {total>0
+                ?<>
+                  <div className="flex items-center justify-center mb-4">
+                    <div className="relative" style={{width:80,height:80}}>
+                      <svg width="80" height="80" style={{transform:"rotate(-90deg)"}}>
+                        <circle cx="40" cy="40" r="32" fill="none" stroke="#f1f5f9" strokeWidth="10"/>
+                        <circle cx="40" cy="40" r="32" fill="none" stroke="#16a34a" strokeWidth="10"
+                          strokeDasharray={`${2*Math.PI*32*complete/total} ${2*Math.PI*32}`}
+                          strokeLinecap="round"/>
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <div className="font-bold text-slate-800" style={{fontSize:"18px"}}>{((complete/total)*100).toFixed(0)}%</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {statusCounts.filter(s=>s.count>0).map(s=>(
+                      <div key={s.status} className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full" style={{background:STATUS_CLR[s.status]}}/>
+                          <span className="text-slate-600">{s.status}</span>
+                        </div>
+                        <span className="font-bold text-slate-800">{s.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+                :<div className="text-xs text-slate-400 text-center py-4">No goals for FY {fy}</div>}
+            </div>
+          </ASection>
+
+          {/* Rentals summary */}
+          <ASection title="Rentals Revenue" sub="By category — current FY">
+            <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
+              <div className="text-center mb-3">
+                <div className="font-bold text-slate-800" style={{fontSize:"20px"}}>{adm$(totalRental,true)}</div>
+                <div className="text-xs text-slate-400 flex items-center justify-center gap-1">
+                  YTD {prevFy&&<>{arrowBadge(yoyPct(totalRental,totalRentalPrev))}</>}
+                </div>
+              </div>
+              <div className="space-y-2">
+                {RENTAL_CATS.map(cat=>{
+                  const amt=sumField(fyRentals.filter(r=>r.category===cat),"amount");
+                  if(!amt) return null;
+                  return <ABar key={cat} label={cat} value={amt} max={totalRental||1} color="#b45309" height={10} showPct/>;
+                })}
+              </div>
+            </div>
+          </ASection>
+
+          {/* Program counts from programs table */}
+          <ASection title="Programs Summary" sub="Active programs in system">
+            <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
+              {[
+                {label:"Total Active",value:programs.filter(p=>!p.is_archived).length},
+                {label:"Healthy",value:programs.filter(p=>!p.is_archived).length>0?programs.filter(p=>{
+                  const fill=p.act_capacity>0?p.act_enrollment/p.act_capacity:0;
+                  const cost=(Number(p.act_personnel||0)+Number(p.act_commodities||0)+Number(p.act_contractuals||0));
+                  const cr=cost>0?p.act_revenue/cost:0;
+                  return fill>=0.7&&cr>=1;
+                }).length:"—"},
+                {label:"Needs Redesign",value:programs.filter(p=>!p.is_archived).length>0?programs.filter(p=>{
+                  const fill=p.act_capacity>0?p.act_enrollment/p.act_capacity:0;
+                  return fill<0.6;
+                }).length:"—"},
+              ].map(r=>(
+                <div key={r.label} className="flex justify-between items-center py-2 border-b border-slate-50 last:border-0">
+                  <span className="text-xs text-slate-600">{r.label}</span>
+                  <span className="font-bold text-slate-800">{r.value}</span>
+                </div>
+              ))}
+            </div>
+          </ASection>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── FUND PERFORMANCE ────────────────────────────────────────────────────────
+function FundSection({db}){
+  const [funds,setFunds]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [fy,setFy]=useState(ADMIN_CUR);
+  const [activeFund,setActiveFund]=useState("all");
+  const [showModal,setShowModal]=useState(false);
+  const [editRow,setEditRow]=useState(null);
+  const [confirm,setConfirm]=useState(null);
+  const [form,setForm]=useState({fund_name:"",fy:ADMIN_CUR,month:"",revenue:"",expenses:"",goal:"",notes:""});
+
+  async function load(){
+    setLoading(true);
+    await seedIfEmpty(db,"admin_funds",SEED_FUNDS);
+    const {data}=await db.from("admin_funds").select("*").order("fund_name").order("month",{foreignTable:undefined});
+    setFunds(data||[]);
+    setLoading(false);
+  }
+  useEffect(()=>{load();},[]);
+
+  async function save(){
+    const d={fund_name:form.fund_name,fy:form.fy,month:form.month,
+      revenue:parseFloat(form.revenue)||0,expenses:parseFloat(form.expenses)||0,
+      goal:parseFloat(form.goal)||0,notes:form.notes};
+    if(editRow){await db.from("admin_funds").update(d).eq("id",editRow.id);}
+    else{await db.from("admin_funds").insert(d);}
+    setShowModal(false);setEditRow(null);load();
+  }
+  async function del(id){await db.from("admin_funds").delete().eq("id",id);setConfirm(null);load();}
+
+  function openEdit(r){setEditRow(r);setForm({fund_name:r.fund_name,fy:r.fy,month:r.month||"",revenue:r.revenue||"",expenses:r.expenses||"",goal:r.goal||"",notes:r.notes||""});setShowModal(true);}
+  function openAdd(){setEditRow(null);setForm({fund_name:activeFund==="all"?"":activeFund,fy,month:"",revenue:"",expenses:"",goal:"",notes:""});setShowModal(true);}
+  const f=v=>form[v];
+  const s=(k,v)=>setForm(p=>({...p,[k]:v}));
+
+  if(loading) return <div className="text-center py-20 text-slate-400">Loading…</div>;
+
+  const fyFunds=funds.filter(r=>r.fy===fy);
+  const fundNames=[...new Set(funds.map(f=>f.fund_name))].sort();
+  const displayFunds=activeFund==="all"?fundNames:[activeFund];
+
+  // All FYs trend table
+  const allFYs=ADMIN_FYS.filter(f=>funds.some(r=>r.fy===f));
+
+  return(
+    <div>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="font-bold text-slate-800" style={{fontSize:"18px"}}>Fund Performance</h2>
+          <p className="text-sm text-slate-500 mt-0.5">Revenue, expenses & goals by fund and fiscal year</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <FYPicker value={fy} onChange={setFy} include2027/>
+          <button onClick={openAdd} className="px-4 py-2 text-sm font-bold rounded-lg text-white flex items-center gap-1" style={{background:"#1e3a5f"}}>+ Add Entry</button>
+        </div>
+      </div>
+
+      {/* Fund selector tabs */}
+      <div className="flex gap-1 mb-6 flex-wrap">
+        {["all",...fundNames].map(fn=>(
+          <button key={fn} onClick={()=>setActiveFund(fn)}
+            className="px-3 py-1.5 text-xs font-semibold rounded-lg transition"
+            style={activeFund===fn?{background:fn==="all"?"#1e3a5f":FUND_COLORS[fn]||"#1e3a5f",color:"white"}:{background:"#f1f5f9",color:"#64748b"}}>
+            {fn==="all"?"All Funds":fn}
+          </button>
         ))}
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3 items-center mb-4">
-        <FYFilter value={fy} onChange={setFy}/>
-        <select value={qFilter} onChange={e=>setQFilter(e.target.value)}
-          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none">
-          <option value="All">All Quarters</option>
-          {QUARTERS.map(q=><option key={q} value={q}>{q}</option>)}
-        </select>
-        <select value={stFilter} onChange={e=>setStFilter(e.target.value)}
-          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none">
-          <option value="All">All Statuses</option>
-          {GOAL_STATUS.map(s=><option key={s} value={s}>{s}</option>)}
-        </select>
-        <select value={staffFilter} onChange={e=>setStFilter2(e.target.value)}
-          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none">
-          <option value="All">All Staff</option>
-          {staffList.map(s=><option key={s} value={s}>{s}</option>)}
-        </select>
-        <button onClick={()=>setShowArchived(v=>!v)}
-          className="px-3 py-1.5 text-xs font-bold rounded-lg border transition"
-          style={showArchived?{background:"#1e3a5f",color:"white",border:"1px solid #1e3a5f"}:{background:"white",border:"1px solid #e2e8f0",color:"#64748b"}}>
-          {showArchived?"📂 Archived":"📂 Active"}
-        </button>
-        <div className="ml-auto">
-          <button onClick={()=>setModal("new")}
-            className="px-4 py-1.5 text-xs font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>+ Add Goal</button>
-        </div>
-      </div>
-
-      {loading ? <div className="text-center py-10 text-slate-400">Loading...</div> : (
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-slate-50 text-xs font-bold text-slate-400 uppercase tracking-wide">
-                <th className="px-4 py-3 text-left">Objective</th>
-                <th className="px-4 py-3 text-left">Staff Lead</th>
-                <th className="px-4 py-3 text-left">Quarter</th>
-                <th className="px-4 py-3 text-left">Core Value</th>
-                <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3 text-left">FY</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {vis.length===0&&(
-                <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400">No goals match current filters.</td></tr>
-              )}
-              {vis.map(g=>(
-                <tr key={g.id} className="border-t border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={()=>setModal(g)}>
-                  <td className="px-4 py-3 text-sm font-medium text-slate-800 max-w-xs">
-                    <div className="truncate">{g.objective}</div>
-                    {g.updates&&<div className="text-xs text-slate-400 truncate mt-0.5">{g.updates}</div>}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-600">{g.staff_lead}</td>
-                  <td className="px-4 py-3 text-xs text-slate-500">{g.quarter}</td>
-                  <td className="px-4 py-3 text-xs text-slate-500">{g.core_value}</td>
-                  <td className="px-4 py-3"><ABadge status={g.status}/></td>
-                  <td className="px-4 py-3 text-xs text-slate-400">{g.fy}</td>
-                  <td className="px-4 py-3 text-right" onClick={e=>e.stopPropagation()}>
-                    <div className="flex gap-1 justify-end">
-                      <button onClick={()=>archive(g,!g.is_archived)} className="text-xs px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-500"
-                        title={g.is_archived?"Restore":"Archive"}>{g.is_archived?"↩":"📦"}</button>
-                      <button onClick={()=>setDelConfirm(g.id)} className="text-xs px-2 py-1 rounded bg-red-50 hover:bg-red-100 text-red-400">✕</button>
-                    </div>
-                  </td>
+      {/* YoY Summary Table (when All selected) */}
+      {activeFund==="all"&&(
+        <div className="mb-8">
+          <h3 className="font-semibold text-slate-700 text-sm mb-3">Year-over-Year Summary</h3>
+          <div className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm overflow-x-auto">
+            <table className="w-full text-sm" style={{minWidth:700}}>
+              <thead>
+                <tr style={{background:"#f8fafc"}}>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase sticky left-0 bg-slate-50" style={{minWidth:180}}>Fund</th>
+                  {allFYs.map(f=><th key={f} className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase" style={{minWidth:100}}>{f.replace("20","'")}</th>)}
+                  <th className="px-3 py-3 text-xs font-semibold text-slate-500 uppercase" style={{minWidth:80}}>Trend</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function GoalModal({initial,onSave,onClose,saving}){
-  const [g,setG] = useState({...initial});
-  const set = (k,v) => setG(p=>({...p,[k]:v}));
-  return (
-    <AModal title={g.id?"Edit Goal / Objective":"New Goal / Objective"} onClose={onClose} wide>
-      <div className="grid grid-cols-2 gap-x-4">
-        <div className="col-span-2"><AInp label="Objective (SMART)" value={g.objective} onChange={v=>set("objective",v)} rows={3} required/></div>
-        <AInp label="Staff Lead" value={g.staff_lead} onChange={v=>set("staff_lead",v)} required/>
-        <AInp label="Supporting Staff" value={g.supporting_staff} onChange={v=>set("supporting_staff",v)}/>
-        <AInp label="Fiscal Year" value={g.fy} onChange={v=>set("fy",v)} options={ADMIN_FYS}/>
-        <AInp label="Quarter" value={g.quarter} onChange={v=>set("quarter",v)} options={QUARTERS}/>
-        <AInp label="Core Value" value={g.core_value} onChange={v=>set("core_value",v)} options={CORE_VALUES}/>
-        <AInp label="Status" value={g.status} onChange={v=>set("status",v)} options={GOAL_STATUS}/>
-        <div className="col-span-2"><AInp label="Updates / Notes" value={g.updates} onChange={v=>set("updates",v)} rows={3}/></div>
-      </div>
-      <div className="flex justify-end gap-3 mt-2">
-        <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-slate-200 hover:bg-slate-50">Cancel</button>
-        <button onClick={()=>onSave(g)} disabled={saving} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>
-          {saving?"Saving…":"Save Goal"}
-        </button>
-      </div>
-    </AModal>
-  );
-}
-
-// ─── FUND PERFORMANCE ─────────────────────────────────────────────────────────
-function FundSection({db}){
-  const [records,setRecords] = useState([]);
-  const [loading,setLoading] = useState(true);
-  const [fy,setFy]           = useState(ADMIN_CUR);
-  const [fund,setFund]       = useState("All");
-  const [modal,setModal]     = useState(null);
-  const [delConfirm,setDelConfirm] = useState(null);
-  const [saving,setSaving]   = useState(false);
-  const [showArchived,setShowArchived] = useState(false);
-
-  const load = useCallback(async()=>{
-    setLoading(true);
-    const {data} = await db.from("admin_funds").select("*").order("fy",{ascending:false});
-    setRecords(data||[]); setLoading(false);
-  },[db]);
-  useEffect(()=>{ load(); },[load]);
-
-  const vis = records.filter(r=>{
-    if(r.is_archived !== showArchived) return false;
-    if(fy!=="All" && r.fy!==fy) return false;
-    if(fund!=="All" && r.fund_name!==fund) return false;
-    return true;
-  });
-
-  // Aggregate by fund for summary cards
-  const fundSummary = FUND_NAMES.map(fn=>{
-    const rows = records.filter(r=>!r.is_archived && (fy==="All"||r.fy===fy) && r.fund_name===fn);
-    const rev  = rows.reduce((a,r)=>a+(Number(r.revenue)||0),0);
-    const exp  = rows.reduce((a,r)=>a+(Number(r.expenses)||0),0);
-    const goal = rows.reduce((a,r)=>a+(Number(r.goal)||0),0);
-    return {fn, rev, exp, pl:rev-exp, goal};
-  }).filter(f=>f.rev>0||f.goal>0);
-
-  const totalRev = fundSummary.reduce((a,f)=>a+f.rev,0);
-
-  const blank = {fund_name:FUND_NAMES[0],fy:ADMIN_CUR,month:"",revenue:"",expenses:"",goal:"",notes:"",is_archived:false};
-
-  const save = async r=>{
-    setSaving(true);
-    if(r.id){ await db.from("admin_funds").update(r).eq("id",r.id); }
-    else     { await db.from("admin_funds").insert(r); }
-    await load(); setModal(null); setSaving(false);
-  };
-
-  const archive = async(r,val)=>{ await db.from("admin_funds").update({is_archived:val}).eq("id",r.id); await load(); };
-  const del     = async(id)=>{ await db.from("admin_funds").delete().eq("id",id); await load(); setDelConfirm(null); };
-
-  return (
-    <div>
-      {delConfirm&&<AConfirm message="Delete this record permanently?" onConfirm={()=>del(delConfirm)} onCancel={()=>setDelConfirm(null)}/>}
-      {modal&&<FundModal initial={modal==="new"?blank:modal} onSave={save} onClose={()=>setModal(null)} saving={saving}/>}
-
-      {/* Summary cards */}
-      {fundSummary.length>0&&(
-        <div className="grid grid-cols-2 gap-3 mb-5">
-          <ACard label="Total Revenue — All Funds" value={adminDollar(totalRev)} color="#1e3a5f"/>
-          {fundSummary.slice(0,3).map(f=>(
-            <ACard key={f.fn} label={f.fn} value={adminDollar(f.rev)}
-              sub={f.goal>0?`Goal: ${adminDollar(f.goal)} · ${f.goal>0?Math.round(f.rev/f.goal*100):0}% attained`:""}
-              color={f.goal>0&&f.rev>=f.goal?"#16a34a":f.goal>0?"#dc2626":"#1e3a5f"}/>
-          ))}
-        </div>
-      )}
-
-      {/* Bar chart vs goal */}
-      {fundSummary.length>0&&(
-        <div className="bg-white rounded-xl p-4 shadow-sm mb-5">
-          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Revenue vs Goal by Fund</div>
-          {fundSummary.map(f=>{
-            const pct = f.goal>0 ? Math.min(130,Math.round(f.rev/f.goal*100)) : 0;
-            const color = pct>=100?"#16a34a":pct>=80?"#eab308":"#dc2626";
-            return (
-              <div key={f.fn} className="flex items-center gap-3 mb-2">
-                <div className="text-xs text-slate-500 w-40 text-right truncate flex-shrink-0">{f.fn.replace("Fund 4 – ","").replace("Fitness Center (FCBG)","Fitness Ctr").replace("Clubhouse – All Sites","Clubhouse").replace("Camps – All Programs","Camps")}</div>
-                <div className="flex-1 bg-slate-100 rounded h-3 overflow-hidden relative">
-                  <div className="h-3 rounded transition-all" style={{width:`${Math.min(100,pct)}%`,background:color}}/>
-                  {pct>100&&<div className="absolute top-0 left-0 h-3 w-full border-2 border-green-400 rounded opacity-50"/>}
-                </div>
-                <div className="text-xs font-mono font-semibold w-14 flex-shrink-0" style={{color}}>{f.goal>0?`${pct}%`:"—"}</div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Filters + table */}
-      <div className="flex flex-wrap gap-3 items-center mb-4">
-        <FYFilter value={fy} onChange={setFy}/>
-        <select value={fund} onChange={e=>setFund(e.target.value)}
-          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none">
-          <option value="All">All Funds</option>
-          {FUND_NAMES.map(f=><option key={f} value={f}>{f}</option>)}
-        </select>
-        <button onClick={()=>setShowArchived(v=>!v)}
-          className="px-3 py-1.5 text-xs font-bold rounded-lg border transition"
-          style={showArchived?{background:"#1e3a5f",color:"white",border:"1px solid #1e3a5f"}:{background:"white",border:"1px solid #e2e8f0",color:"#64748b"}}>
-          {showArchived?"📂 Archived":"📂 Active"}
-        </button>
-        <div className="ml-auto">
-          <button onClick={()=>setModal("new")} className="px-4 py-1.5 text-xs font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>+ Add Entry</button>
-        </div>
-      </div>
-
-      {loading ? <div className="text-center py-10 text-slate-400">Loading...</div> : (
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-slate-50 text-xs font-bold text-slate-400 uppercase tracking-wide">
-                <th className="px-4 py-3 text-left">Fund</th>
-                <th className="px-4 py-3 text-left">FY</th>
-                <th className="px-4 py-3 text-left">Month</th>
-                <th className="px-4 py-3 text-right">Revenue</th>
-                <th className="px-4 py-3 text-right">Expenses</th>
-                <th className="px-4 py-3 text-right">P/(L)</th>
-                <th className="px-4 py-3 text-right">Goal</th>
-                <th className="px-4 py-3 text-left">Notes</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {vis.length===0&&<tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400">No records. Add an entry to get started.</td></tr>}
-              {vis.map(r=>{
-                const pl=(Number(r.revenue)||0)-(Number(r.expenses)||0);
-                return (
-                  <tr key={r.id} className="border-t border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={()=>setModal(r)}>
-                    <td className="px-4 py-3 font-semibold text-slate-700 text-xs">{r.fund_name}</td>
-                    <td className="px-4 py-3 text-xs text-slate-500">{r.fy}</td>
-                    <td className="px-4 py-3 text-xs text-slate-500">{r.month||"Annual"}</td>
-                    <td className="px-4 py-3 text-right font-mono text-sm">{adminDollar(r.revenue)}</td>
-                    <td className="px-4 py-3 text-right font-mono text-sm text-slate-500">{adminDollar(r.expenses)}</td>
-                    <td className={`px-4 py-3 text-right font-mono font-bold text-sm ${pl>=0?"text-green-600":"text-red-500"}`}>{adminDollar(pl)}</td>
-                    <td className="px-4 py-3 text-right font-mono text-sm text-slate-400">{r.goal?adminDollar(r.goal):"—"}</td>
-                    <td className="px-4 py-3 text-xs text-slate-400 max-w-xs truncate">{r.notes}</td>
-                    <td className="px-4 py-3 text-right" onClick={e=>e.stopPropagation()}>
-                      <div className="flex gap-1 justify-end">
-                        <button onClick={()=>archive(r,!r.is_archived)} className="text-xs px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-500">{r.is_archived?"↩":"📦"}</button>
-                        <button onClick={()=>setDelConfirm(r.id)} className="text-xs px-2 py-1 rounded bg-red-50 text-red-400">✕</button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function FundModal({initial,onSave,onClose,saving}){
-  const [r,setR] = useState({...initial});
-  const set=(k,v)=>setR(p=>({...p,[k]:v}));
-  return (
-    <AModal title={r.id?"Edit Fund Entry":"New Fund Entry"} onClose={onClose}>
-      <AInp label="Fund" value={r.fund_name} onChange={v=>set("fund_name",v)} options={FUND_NAMES} required/>
-      <AInp label="Fiscal Year" value={r.fy} onChange={v=>set("fy",v)} options={ADMIN_FYS} required/>
-      <AInp label="Month (leave blank for annual total)" value={r.month} onChange={v=>set("month",v)} options={["","...Annual",...MONTHS]}/>
-      <div className="grid grid-cols-3 gap-3">
-        <AInp label="Revenue ($)" value={r.revenue} onChange={v=>set("revenue",v)} type="number"/>
-        <AInp label="Expenses ($)" value={r.expenses} onChange={v=>set("expenses",v)} type="number"/>
-        <AInp label="Goal ($)" value={r.goal} onChange={v=>set("goal",v)} type="number"/>
-      </div>
-      <AInp label="Notes" value={r.notes} onChange={v=>set("notes",v)} rows={2}/>
-      <div className="flex justify-end gap-3 mt-2">
-        <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-slate-200 hover:bg-slate-50">Cancel</button>
-        <button onClick={()=>onSave(r)} disabled={saving} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>
-          {saving?"Saving…":"Save Entry"}
-        </button>
-      </div>
-    </AModal>
-  );
-}
-
-// ─── RENTALS ─────────────────────────────────────────────────────────────────
-function RentalsSection({db}){
-  const [records,setRecords] = useState([]);
-  const [loading,setLoading] = useState(true);
-  const [fy,setFy]           = useState(ADMIN_CUR);
-  const [cat,setCat]         = useState("All");
-  const [modal,setModal]     = useState(null);
-  const [delConfirm,setDelConfirm] = useState(null);
-  const [saving,setSaving]   = useState(false);
-  const [showArchived,setShowArchived] = useState(false);
-
-  const load = useCallback(async()=>{
-    setLoading(true);
-    const {data} = await db.from("admin_rentals").select("*").order("fy",{ascending:false});
-    setRecords(data||[]); setLoading(false);
-  },[db]);
-  useEffect(()=>{ load(); },[load]);
-
-  const vis = records.filter(r=>{
-    if(r.is_archived !== showArchived) return false;
-    if(fy!=="All" && r.fy!==fy) return false;
-    if(cat!=="All" && r.category!==cat) return false;
-    return true;
-  });
-
-  // Summary by category
-  const catSummary = RENTAL_CATS.map(c=>{
-    const rows = records.filter(r=>!r.is_archived && (fy==="All"||r.fy===fy) && r.category===c);
-    const rev  = rows.reduce((a,r)=>a+(Number(r.revenue)||0),0);
-    return {c, rev};
-  }).filter(f=>f.rev>0).sort((a,b)=>b.rev-a.rev);
-
-  const maxRev = catSummary.length ? catSummary[0].rev : 1;
-  const totalRentals = catSummary.reduce((a,c)=>a+c.rev,0);
-
-  const blank = {category:RENTAL_CATS[0],fy:ADMIN_CUR,month:"",revenue:"",notes:"",is_archived:false};
-
-  const save = async r=>{
-    setSaving(true);
-    if(r.id){ await db.from("admin_rentals").update(r).eq("id",r.id); }
-    else     { await db.from("admin_rentals").insert(r); }
-    await load(); setModal(null); setSaving(false);
-  };
-
-  const archive = async(r,val)=>{ await db.from("admin_rentals").update({is_archived:val}).eq("id",r.id); await load(); };
-  const del     = async(id)=>{ await db.from("admin_rentals").delete().eq("id",id); await load(); setDelConfirm(null); };
-
-  return (
-    <div>
-      {delConfirm&&<AConfirm message="Delete this record?" onConfirm={()=>del(delConfirm)} onCancel={()=>setDelConfirm(null)}/>}
-      {modal&&<RentalModal initial={modal==="new"?blank:modal} onSave={save} onClose={()=>setModal(null)} saving={saving}/>}
-
-      {/* Summary */}
-      {catSummary.length>0&&(
-        <div className="grid grid-cols-2 gap-4 mb-5">
-          <div className="bg-white rounded-xl p-4 shadow-sm">
-            <ACard label="Total Rental Revenue" value={adminDollar(totalRentals)} color="#1e3a5f"/>
-            <div className="mt-4">
-              {catSummary.map(f=>(
-                <ABar key={f.c} label={f.c} value={f.rev} max={maxRev} color="#1e3a5f"/>
-              ))}
-            </div>
-          </div>
-          <div className="bg-white rounded-xl p-4 shadow-sm">
-            <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Revenue by Category</div>
-            <table className="w-full text-xs">
-              <thead><tr className="text-slate-400"><th className="text-left pb-2">Category</th><th className="text-right pb-2">Revenue</th><th className="text-right pb-2">% of Total</th></tr></thead>
+              </thead>
               <tbody>
-                {catSummary.map(f=>(
-                  <tr key={f.c} className="border-t border-slate-50">
-                    <td className="py-1.5 font-medium">{f.c}</td>
-                    <td className="py-1.5 text-right font-mono">{adminDollar(f.rev)}</td>
-                    <td className="py-1.5 text-right font-mono text-slate-400">{totalRentals>0?`${Math.round(f.rev/totalRentals*100)}%`:"—"}</td>
-                  </tr>
-                ))}
+                {fundNames.map(fname=>{
+                  const revByFY=allFYs.map(f=>sumField(funds.filter(r=>r.fy===f&&r.fund_name===fname),"revenue"));
+                  if(revByFY.every(v=>v===0)) return null;
+                  return(
+                    <tr key={fname} className="border-t border-slate-50 hover:bg-slate-50">
+                      <td className="px-4 py-3 sticky left-0 bg-white">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2.5 h-2.5 rounded-full" style={{background:FUND_COLORS[fname]||"#94a3b8"}}/>
+                          <span className="text-xs font-semibold text-slate-700">{fname}</span>
+                        </div>
+                      </td>
+                      {revByFY.map((v,i)=>{
+                        const prev=revByFY[i-1];
+                        const pct=prev&&prev>0?((v-prev)/prev)*100:null;
+                        return(
+                          <td key={i} className="px-3 py-3 text-right">
+                            <div className="font-bold text-slate-800 text-xs">{v>0?adm$(v,true):"—"}</div>
+                            {pct!=null&&<div style={{color:pct>=0?"#16a34a":"#dc2626",fontSize:"10px"}}>{pct>=0?"▲":"▼"}{Math.abs(pct).toFixed(1)}%</div>}
+                          </td>
+                        );
+                      })}
+                      <td className="px-3 py-3 text-center"><Sparkline values={revByFY.filter(v=>v>0)} color={FUND_COLORS[fname]||"#94a3b8"} height={24}/></td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </div>
       )}
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3 items-center mb-4">
-        <FYFilter value={fy} onChange={setFy}/>
-        <select value={cat} onChange={e=>setCat(e.target.value)}
-          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none">
-          <option value="All">All Categories</option>
-          {RENTAL_CATS.map(c=><option key={c} value={c}>{c}</option>)}
-        </select>
-        <button onClick={()=>setShowArchived(v=>!v)}
-          className="px-3 py-1.5 text-xs font-bold rounded-lg border transition"
-          style={showArchived?{background:"#1e3a5f",color:"white",border:"1px solid #1e3a5f"}:{background:"white",border:"1px solid #e2e8f0",color:"#64748b"}}>
-          {showArchived?"📂 Archived":"📂 Active"}
-        </button>
-        <div className="ml-auto">
-          <button onClick={()=>setModal("new")} className="px-4 py-1.5 text-xs font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>+ Add Entry</button>
-        </div>
-      </div>
+      {/* Individual fund detail */}
+      {displayFunds.map(fname=>{
+        const rows=fyFunds.filter(r=>r.fund_name===fname);
+        const totalRev=sumField(rows,"revenue");
+        const totalExp=sumField(rows,"expenses");
+        const totalGoal=sumField(rows,"goal");
+        const allFYRows=ADMIN_FYS.map(f=>({fy:f,rev:sumField(funds.filter(r=>r.fy===f&&r.fund_name===fname),"revenue"),exp:sumField(funds.filter(r=>r.fy===f&&r.fund_name===fname),"expenses")}));
+        const prevFyRev=sumField(funds.filter(r=>r.fy===ADMIN_FYS[ADMIN_FYS.indexOf(fy)-1]&&r.fund_name===fname),"revenue");
 
-      {loading ? <div className="text-center py-10 text-slate-400">Loading...</div> : (
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
-            <thead><tr className="bg-slate-50 text-xs font-bold text-slate-400 uppercase tracking-wide">
-              <th className="px-4 py-3 text-left">Category</th>
-              <th className="px-4 py-3 text-left">FY</th>
-              <th className="px-4 py-3 text-left">Month</th>
-              <th className="px-4 py-3 text-right">Revenue</th>
-              <th className="px-4 py-3 text-left">Notes</th>
-              <th className="px-4 py-3"></th>
-            </tr></thead>
-            <tbody>
-              {vis.length===0&&<tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">No records. Add an entry to get started.</td></tr>}
-              {vis.map(r=>(
-                <tr key={r.id} className="border-t border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={()=>setModal(r)}>
-                  <td className="px-4 py-3 font-semibold text-slate-700 text-xs">{r.category}</td>
-                  <td className="px-4 py-3 text-xs text-slate-500">{r.fy}</td>
-                  <td className="px-4 py-3 text-xs text-slate-500">{r.month||"Annual"}</td>
-                  <td className="px-4 py-3 text-right font-mono text-sm">{adminDollar(r.revenue)}</td>
-                  <td className="px-4 py-3 text-xs text-slate-400 max-w-xs truncate">{r.notes}</td>
-                  <td className="px-4 py-3 text-right" onClick={e=>e.stopPropagation()}>
-                    <div className="flex gap-1 justify-end">
-                      <button onClick={()=>archive(r,!r.is_archived)} className="text-xs px-2 py-1 rounded bg-slate-100 text-slate-500">{r.is_archived?"↩":"📦"}</button>
-                      <button onClick={()=>setDelConfirm(r.id)} className="text-xs px-2 py-1 rounded bg-red-50 text-red-400">✕</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        return(
+          <div key={fname} className="mb-8 bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+            {/* Fund header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100" style={{background:"#f8fafc"}}>
+              <div className="flex items-center gap-3">
+                <div className="w-3 h-3 rounded-full" style={{background:FUND_COLORS[fname]||"#94a3b8"}}/>
+                <div>
+                  <div className="font-bold text-slate-800">{fname}</div>
+                  <div className="text-xs text-slate-500">FY {fy}</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-6">
+                <div className="text-right">
+                  <div className="text-xs text-slate-500">Revenue</div>
+                  <div className="font-bold text-slate-800">{adm$(totalRev)}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-slate-500">Expenses</div>
+                  <div className="font-bold text-slate-700">{adm$(totalExp)}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-slate-500">Net P/(L)</div>
+                  <div className="font-bold" style={{color:(totalRev-totalExp)>=0?"#16a34a":"#dc2626"}}>{adm$(totalRev-totalExp)}</div>
+                </div>
+                {prevFyRev>0&&<div className="text-right">
+                  <div className="text-xs text-slate-500">YoY</div>
+                  <div>{arrowBadge(yoyPct(totalRev,prevFyRev))}</div>
+                </div>}
+              </div>
+            </div>
+
+            {/* Monthly chart */}
+            {rows.length>0&&(
+              <div className="px-5 py-4 border-b border-slate-50">
+                <div className="text-xs font-semibold text-slate-500 mb-3 uppercase tracking-wide">Monthly Revenue vs Goal</div>
+                <div className="flex items-end gap-1" style={{height:60}}>
+                  {FY_MONTHS.map(mon=>{
+                    const r=rows.find(x=>x.month===mon);
+                    const rev=r?.revenue||0;
+                    const goal=r?.goal||0;
+                    const allRev=rows.map(x=>x.revenue||0);
+                    const maxV=Math.max(...allRev,1);
+                    const barH=Math.round((rev/maxV)*52);
+                    const goalH=goal?Math.round((goal/maxV)*52):0;
+                    return(
+                      <div key={mon} className="flex-1 flex flex-col items-center gap-0.5 relative group" title={`${mon}: Rev ${adm$(rev)} | Goal ${adm$(goal)}`}>
+                        {goal>0&&<div className="absolute w-full border-t-2 border-dashed border-amber-400" style={{bottom:goalH+2,opacity:0.7}}/>}
+                        <div className="w-full rounded-t" style={{height:barH||2,background:FUND_COLORS[fname]||"#1e3a5f",opacity:rev>0?1:0.15}}/>
+                        <div className="text-slate-400" style={{fontSize:"8px",whiteSpace:"nowrap"}}>{mon.slice(0,1)}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex gap-4 mt-2 text-xs text-slate-400">
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded inline-block" style={{background:FUND_COLORS[fname]||"#1e3a5f"}}/>Revenue</span>
+                  <span className="flex items-center gap-1"><span className="w-4 border-t-2 border-dashed border-amber-400 inline-block"/>Goal</span>
+                </div>
+              </div>
+            )}
+
+            {/* Monthly data table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr style={{background:"#f8fafc"}}>
+                    <th className="text-left px-4 py-2 text-slate-500 font-semibold">Month</th>
+                    <th className="text-right px-4 py-2 text-slate-500 font-semibold">Revenue</th>
+                    <th className="text-right px-4 py-2 text-slate-500 font-semibold">Expenses</th>
+                    <th className="text-right px-4 py-2 text-slate-500 font-semibold">Net</th>
+                    <th className="text-right px-4 py-2 text-slate-500 font-semibold">Goal</th>
+                    <th className="text-right px-4 py-2 text-slate-500 font-semibold">vs Goal</th>
+                    <th className="px-4 py-2"/>
+                  </tr>
+                </thead>
+                <tbody>
+                  {FY_MONTHS.map(mon=>{
+                    const r=rows.find(x=>x.month===mon);
+                    if(!r&&!rows.length) return null;
+                    if(!r) return(
+                      <tr key={mon} className="border-t border-slate-50 hover:bg-slate-50">
+                        <td className="px-4 py-2 text-slate-400">{mon}</td>
+                        <td className="px-4 py-2 text-right text-slate-300">—</td>
+                        <td className="px-4 py-2 text-right text-slate-300">—</td>
+                        <td className="px-4 py-2 text-right text-slate-300">—</td>
+                        <td className="px-4 py-2 text-right text-slate-300">—</td>
+                        <td className="px-4 py-2 text-right text-slate-300">—</td>
+                        <td className="px-4 py-2"/>
+                      </tr>
+                    );
+                    const net=r.revenue-r.expenses;
+                    const vsGoal=r.goal>0?((r.revenue/r.goal)*100).toFixed(0)+"%":"—";
+                    return(
+                      <tr key={mon} className="border-t border-slate-50 hover:bg-slate-50">
+                        <td className="px-4 py-2 font-medium text-slate-700">{mon}</td>
+                        <td className="px-4 py-2 text-right font-semibold text-slate-800">{adm$(r.revenue)}</td>
+                        <td className="px-4 py-2 text-right text-slate-600">{r.expenses>0?adm$(r.expenses):"—"}</td>
+                        <td className="px-4 py-2 text-right font-semibold" style={{color:net>=0?"#16a34a":"#dc2626"}}>{adm$(net)}</td>
+                        <td className="px-4 py-2 text-right text-slate-500">{r.goal>0?adm$(r.goal):"—"}</td>
+                        <td className="px-4 py-2 text-right">
+                          {r.goal>0?<span style={{color:r.revenue>=r.goal?"#16a34a":r.revenue>=r.goal*0.8?"#b45309":"#dc2626",fontWeight:700}}>{vsGoal}</span>:"—"}
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          <div className="flex gap-1 justify-end">
+                            <button onClick={()=>openEdit(r)} className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-500">✏</button>
+                            <button onClick={()=>setConfirm(r.id)} className="px-2 py-0.5 rounded bg-red-50 hover:bg-red-100 text-red-400">✕</button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-slate-200" style={{background:"#f8fafc"}}>
+                    <td className="px-4 py-2 font-bold text-slate-700">TOTAL</td>
+                    <td className="px-4 py-2 text-right font-bold text-slate-800">{adm$(totalRev)}</td>
+                    <td className="px-4 py-2 text-right font-bold text-slate-700">{adm$(totalExp)}</td>
+                    <td className="px-4 py-2 text-right font-bold" style={{color:(totalRev-totalExp)>=0?"#16a34a":"#dc2626"}}>{adm$(totalRev-totalExp)}</td>
+                    <td className="px-4 py-2 text-right font-bold text-slate-500">{totalGoal>0?adm$(totalGoal):"—"}</td>
+                    <td className="px-4 py-2 text-right font-bold">{totalGoal>0?<span style={{color:totalRev>=totalGoal?"#16a34a":"#dc2626"}}>{((totalRev/totalGoal)*100).toFixed(0)}%</span>:"—"}</td>
+                    <td className="px-4 py-2"/>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Add/Edit Modal */}
+      {showModal&&(
+        <AModal title={editRow?"Edit Fund Entry":"Add Fund Entry"} onClose={()=>setShowModal(false)}>
+          <div className="grid grid-cols-2 gap-x-4">
+            <AInp label="Fund" value={f("fund_name")} onChange={v=>s("fund_name",v)} options={FUND_LIST} required/>
+            <AInp label="Fiscal Year" value={f("fy")} onChange={v=>s("fy",v)} options={ADMIN_FYS} required/>
+            <AInp label="Month" value={f("month")} onChange={v=>s("month",v)} options={FY_MONTHS} required/>
+            <AInp label="Revenue ($)" value={f("revenue")} onChange={v=>s("revenue",v)} type="number"/>
+            <AInp label="Expenses ($)" value={f("expenses")} onChange={v=>s("expenses",v)} type="number"/>
+            <AInp label="Goal ($)" value={f("goal")} onChange={v=>s("goal",v)} type="number"/>
+          </div>
+          <AInp label="Notes" value={f("notes")} onChange={v=>s("notes",v)} rows={2}/>
+          <div className="flex gap-3 justify-end mt-2">
+            <button onClick={()=>setShowModal(false)} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600">Cancel</button>
+            <button onClick={save} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>{editRow?"Update":"Save"}</button>
+          </div>
+        </AModal>
       )}
+      {confirm&&<AConfirm message="Delete this fund entry?" onConfirm={()=>del(confirm)} onCancel={()=>setConfirm(null)}/>}
     </div>
   );
 }
 
-function RentalModal({initial,onSave,onClose,saving}){
-  const [r,setR] = useState({...initial});
-  const set=(k,v)=>setR(p=>({...p,[k]:v}));
-  return (
-    <AModal title={r.id?"Edit Rental Entry":"New Rental Entry"} onClose={onClose}>
-      <AInp label="Category" value={r.category} onChange={v=>set("category",v)} options={RENTAL_CATS} required/>
-      <AInp label="Fiscal Year" value={r.fy} onChange={v=>set("fy",v)} options={ADMIN_FYS} required/>
-      <AInp label="Month (leave blank for annual)" value={r.month} onChange={v=>set("month",v)} options={["","Annual",...MONTHS]}/>
-      <AInp label="Revenue ($)" value={r.revenue} onChange={v=>set("revenue",v)} type="number"/>
-      <AInp label="Notes" value={r.notes} onChange={v=>set("notes",v)} rows={2}/>
-      <div className="flex justify-end gap-3 mt-2">
-        <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-slate-200 hover:bg-slate-50">Cancel</button>
-        <button onClick={()=>onSave(r)} disabled={saving} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>
-          {saving?"Saving…":"Save Entry"}
-        </button>
-      </div>
-    </AModal>
-  );
-}
+// ─── GOALS & OBJECTIVES ──────────────────────────────────────────────────────
+function GoalsSection({db}){
+  const [goals,setGoals]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [fy,setFy]=useState(ADMIN_CUR);
+  const [qFilter,setQFilter]=useState("all");
+  const [sFilter,setSFilter]=useState("all");
+  const [cvFilter,setCvFilter]=useState("all");
+  const [search,setSearch]=useState("");
+  const [showModal,setShowModal]=useState(false);
+  const [editRow,setEditRow]=useState(null);
+  const [confirm,setConfirm]=useState(null);
+  const [expandedId,setExpandedId]=useState(null);
+  const emptyForm={fy:ADMIN_CUR,quarter:"Q1 (May–Aug)",staff_lead:"",supporting_staff:"",objective:"",core_value:"Excellence",status:"Not Started",updates:"",is_archived:false};
+  const [form,setForm]=useState(emptyForm);
 
-// ─── PROGRAM AREAS: Camps + Clubhouse + Special Events ───────────────────────
-function ProgramAreasSection({db}){
-  const [sub,setSub] = useState("camps");
-  const tabs = [{id:"camps",label:"⛺ Camps"},{id:"clubhouse",label:"⌂ Clubhouse"},{id:"events",label:"◎ Special Events"}];
-  return (
+  async function load(){
+    setLoading(true);
+    await seedIfEmpty(db,"admin_goals",SEED_GOALS);
+    const {data}=await db.from("admin_goals").select("*").order("quarter").order("staff_lead");
+    setGoals(data||[]);
+    setLoading(false);
+  }
+  useEffect(()=>{load();},[]);
+
+  async function save(){
+    const d={fy:form.fy,quarter:form.quarter,staff_lead:form.staff_lead,supporting_staff:form.supporting_staff,
+      objective:form.objective,core_value:form.core_value,status:form.status,updates:form.updates,is_archived:form.is_archived};
+    if(editRow){await db.from("admin_goals").update(d).eq("id",editRow.id);}
+    else{await db.from("admin_goals").insert(d);}
+    setShowModal(false);setEditRow(null);load();
+  }
+  async function del(id){await db.from("admin_goals").delete().eq("id",id);setConfirm(null);load();}
+  async function toggleArchive(r){await db.from("admin_goals").update({is_archived:!r.is_archived}).eq("id",r.id);load();}
+  async function quickStatus(id,status){await db.from("admin_goals").update({status}).eq("id",id);load();}
+
+  function openEdit(r){setEditRow(r);setForm({fy:r.fy,quarter:r.quarter,staff_lead:r.staff_lead,supporting_staff:r.supporting_staff||"",objective:r.objective,core_value:r.core_value,status:r.status,updates:r.updates||"",is_archived:r.is_archived});setShowModal(true);}
+
+  if(loading) return <div className="text-center py-20 text-slate-400">Loading…</div>;
+
+  const fyGoals=goals.filter(g=>g.fy===fy&&!g.is_archived);
+  const archivedGoals=goals.filter(g=>g.is_archived);
+  const [showArchived,setShowArchived]=useState(false);
+
+  const base=showArchived?archivedGoals:fyGoals;
+  const filtered=base.filter(g=>{
+    if(qFilter!=="all"&&g.quarter!==qFilter) return false;
+    if(sFilter!=="all"&&g.status!==sFilter) return false;
+    if(cvFilter!=="all"&&g.core_value!==cvFilter) return false;
+    if(search&&!g.objective.toLowerCase().includes(search.toLowerCase())&&!g.staff_lead.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+
+  const statusCounts=GOAL_STATUSES.reduce((a,s)=>({...a,[s]:fyGoals.filter(g=>g.status===s).length}),{});
+  const complete=statusCounts["Complete"]||0;
+  const total=fyGoals.length;
+  const completePct=total>0?Math.round((complete/total)*100):0;
+
+  return(
     <div>
-      <div className="flex gap-1 mb-5 bg-slate-100 p-1 rounded-xl w-fit">
-        {tabs.map(t=>(
-          <button key={t.id} onClick={()=>setSub(t.id)}
-            className={`px-4 py-2 text-xs font-bold rounded-lg transition ${sub===t.id?"bg-white shadow text-slate-800":"text-slate-500 hover:text-slate-700"}`}>
-            {t.label}
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="font-bold text-slate-800" style={{fontSize:"18px"}}>Goals & Objectives</h2>
+          <p className="text-sm text-slate-500 mt-0.5">Track staff goals by quarter, core value, and status</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <FYPicker value={fy} onChange={setFy}/>
+          <button onClick={()=>{setEditRow(null);setForm({...emptyForm,fy});setShowModal(true);}}
+            className="px-4 py-2 text-sm font-bold rounded-lg text-white flex items-center gap-1" style={{background:"#1e3a5f"}}>+ Add Goal</button>
+        </div>
+      </div>
+
+      {/* Status summary cards */}
+      <div className="grid gap-3 mb-6" style={{gridTemplateColumns:"repeat(5,1fr)"}}>
+        {GOAL_STATUSES.map(s=>(
+          <button key={s} onClick={()=>setSFilter(sFilter===s?"all":s)}
+            className="rounded-xl p-3 text-center transition border-2"
+            style={{background:sFilter===s?STATUS_BG[s]:"white",borderColor:sFilter===s?STATUS_CLR[s]:"#e2e8f0"}}>
+            <div className="font-bold text-2xl" style={{color:STATUS_CLR[s]}}>{statusCounts[s]||0}</div>
+            <div className="text-xs font-semibold mt-1" style={{color:STATUS_CLR[s]}}>{s}</div>
           </button>
         ))}
       </div>
-      {sub==="camps"    && <CampsDetail db={db}/>}
-      {sub==="clubhouse"&& <ClubhouseDetail db={db}/>}
-      {sub==="events"   && <EventsDetail db={db}/>}
+
+      {/* Progress bar */}
+      {total>0&&(
+        <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm mb-5">
+          <div className="flex justify-between text-sm mb-2">
+            <span className="font-semibold text-slate-700">Overall Completion — FY {fy}</span>
+            <span className="font-bold" style={{color:"#16a34a"}}>{completePct}% ({complete}/{total})</span>
+          </div>
+          <div className="h-3 rounded-full overflow-hidden" style={{background:"#f1f5f9"}}>
+            <div className="h-full rounded-full transition-all" style={{width:`${completePct}%`,background:"#16a34a"}}/>
+          </div>
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="bg-white rounded-xl border border-slate-100 p-3 shadow-sm mb-5 flex flex-wrap gap-3 items-center">
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search goals or staff…"
+          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm flex-1" style={{minWidth:160}}/>
+        <select value={qFilter} onChange={e=>setQFilter(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm">
+          <option value="all">All Quarters</option>
+          {QUARTERS_GO.map(q=><option key={q} value={q}>{q}</option>)}
+        </select>
+        <select value={cvFilter} onChange={e=>setCvFilter(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm">
+          <option value="all">All Core Values</option>
+          {CORE_VALUES.map(v=><option key={v} value={v}>{v}</option>)}
+        </select>
+        <button onClick={()=>setShowArchived(!showArchived)}
+          className="px-3 py-1.5 text-xs font-semibold rounded-lg border transition"
+          style={showArchived?{background:"#1e3a5f",color:"white",borderColor:"#1e3a5f"}:{borderColor:"#e2e8f0",color:"#64748b"}}>
+          {showArchived?`📂 Archived (${archivedGoals.length})`:"📦 View Archived"}
+        </button>
+        <span className="text-xs text-slate-400">{filtered.length} shown</span>
+      </div>
+
+      {/* Goals list grouped by quarter */}
+      {!showArchived&&QUARTERS_GO.map(q=>{
+        const qGoals=filtered.filter(g=>g.quarter===q);
+        if(qGoals.length===0&&qFilter!=="all"&&qFilter!==q) return null;
+        if(qGoals.length===0) return null;
+        const qComplete=qGoals.filter(g=>g.status==="Complete").length;
+        return(
+          <div key={q} className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold text-slate-700">{q}</h3>
+              <span className="text-xs text-slate-500">{qComplete}/{qGoals.length} complete</span>
+            </div>
+            <div className="space-y-2">
+              {qGoals.map(g=>(
+                <div key={g.id} className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+                  <div className="flex items-start gap-3 p-4 cursor-pointer" onClick={()=>setExpandedId(expandedId===g.id?null:g.id)}>
+                    <div className="flex-shrink-0 mt-0.5">
+                      <select value={g.status} onClick={e=>e.stopPropagation()}
+                        onChange={e=>quickStatus(g.id,e.target.value)}
+                        className="text-xs font-bold rounded-full px-2 py-1 border-0 cursor-pointer"
+                        style={{background:STATUS_BG[g.status],color:STATUS_CLR[g.status]}}>
+                        {GOAL_STATUSES.map(s=><option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-slate-800 leading-snug">{g.objective}</div>
+                      <div className="flex flex-wrap gap-3 mt-1.5 text-xs text-slate-500">
+                        <span>👤 {g.staff_lead}</span>
+                        {g.supporting_staff&&<span>+ {g.supporting_staff}</span>}
+                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold" style={{background:"#eff6ff",color:"#1d4ed8"}}>{g.core_value}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button onClick={e=>{e.stopPropagation();openEdit(g);}} className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500">✏</button>
+                      <button onClick={e=>{e.stopPropagation();toggleArchive(g);}} className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500" title="Archive">📦</button>
+                      <button onClick={e=>{e.stopPropagation();setConfirm(g.id);}} className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-400">✕</button>
+                      <span className="text-slate-300 text-xs ml-1">{expandedId===g.id?"▲":"▼"}</span>
+                    </div>
+                  </div>
+                  {expandedId===g.id&&(
+                    <div className="px-4 pb-4 border-t border-slate-50 pt-3">
+                      {g.updates
+                        ?<div><div className="text-xs font-semibold text-slate-500 mb-1">Progress Update</div>
+                          <div className="text-sm text-slate-700 bg-slate-50 rounded-lg p-3">{g.updates}</div></div>
+                        :<div className="text-xs text-slate-400 italic">No updates yet</div>}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Archived list */}
+      {showArchived&&(
+        <div className="space-y-2">
+          {filtered.map(g=>(
+            <div key={g.id} className="bg-slate-50 rounded-xl border border-slate-200 p-4 flex items-start gap-3">
+              <ABadge status={g.status}/>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm text-slate-600 line-through">{g.objective}</div>
+                <div className="text-xs text-slate-400 mt-1">{g.staff_lead} · {g.fy} · {g.quarter}</div>
+              </div>
+              <button onClick={()=>toggleArchive(g)} className="text-xs px-2 py-1 rounded-lg border border-slate-300 text-slate-500 hover:bg-white">↩ Restore</button>
+              <button onClick={()=>setConfirm(g.id)} className="text-xs px-2 py-1 rounded-lg bg-red-50 text-red-400 hover:bg-red-100">✕</button>
+            </div>
+          ))}
+          {filtered.length===0&&<EmptyState msg="No archived goals"/>}
+        </div>
+      )}
+
+      {filtered.length===0&&!showArchived&&<EmptyState msg="No goals match filters" action="Add Goal" onAction={()=>{setEditRow(null);setForm({...emptyForm,fy});setShowModal(true);}}/>}
+
+      {/* Modal */}
+      {showModal&&(
+        <AModal title={editRow?"Edit Goal":"Add Goal"} onClose={()=>setShowModal(false)} wide>
+          <div className="grid grid-cols-2 gap-x-4">
+            <AInp label="Fiscal Year" value={form.fy} onChange={v=>setForm(p=>({...p,fy:v}))} options={ADMIN_FYS} required/>
+            <AInp label="Quarter" value={form.quarter} onChange={v=>setForm(p=>({...p,quarter:v}))} options={QUARTERS_GO} required/>
+            <AInp label="Staff Lead" value={form.staff_lead} onChange={v=>setForm(p=>({...p,staff_lead:v}))} required/>
+            <AInp label="Supporting Staff" value={form.supporting_staff} onChange={v=>setForm(p=>({...p,supporting_staff:v}))}/>
+            <AInp label="Core Value" value={form.core_value} onChange={v=>setForm(p=>({...p,core_value:v}))} options={CORE_VALUES}/>
+            <AInp label="Status" value={form.status} onChange={v=>setForm(p=>({...p,status:v}))} options={GOAL_STATUSES}/>
+          </div>
+          <AInp label="Objective (SMART goal)" value={form.objective} onChange={v=>setForm(p=>({...p,objective:v}))} rows={3} required/>
+          <AInp label="Progress Updates" value={form.updates} onChange={v=>setForm(p=>({...p,updates:v}))} rows={3}/>
+          <div className="flex gap-3 justify-end mt-2">
+            <button onClick={()=>setShowModal(false)} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600">Cancel</button>
+            <button onClick={save} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>{editRow?"Update":"Save"}</button>
+          </div>
+        </AModal>
+      )}
+      {confirm&&<AConfirm message="Delete this goal permanently?" onConfirm={()=>del(confirm)} onCancel={()=>setConfirm(null)}/>}
+    </div>
+  );
+}
+
+// ─── RENTALS ─────────────────────────────────────────────────────────────────
+function RentalsSection({db}){
+  const [rentals,setRentals]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [fy,setFy]=useState(ADMIN_CUR);
+  const [activeCat,setActiveCat]=useState("all");
+  const [showModal,setShowModal]=useState(false);
+  const [editRow,setEditRow]=useState(null);
+  const [confirm,setConfirm]=useState(null);
+  const [form,setForm]=useState({fy:ADMIN_CUR,category:"",month:"",amount:"",is_archived:false});
+
+  async function load(){
+    setLoading(true);
+    await seedIfEmpty(db,"admin_rentals",SEED_RENTALS);
+    const {data}=await db.from("admin_rentals").select("*").eq("is_archived",false);
+    setRentals(data||[]);
+    setLoading(false);
+  }
+  useEffect(()=>{load();},[]);
+
+  async function save(){
+    const d={fy:form.fy,category:form.category,month:form.month,amount:parseFloat(form.amount)||0,is_archived:false};
+    if(editRow){await db.from("admin_rentals").update(d).eq("id",editRow.id);}
+    else{await db.from("admin_rentals").insert(d);}
+    setShowModal(false);setEditRow(null);load();
+  }
+  async function del(id){await db.from("admin_rentals").delete().eq("id",id);setConfirm(null);load();}
+  function openEdit(r){setEditRow(r);setForm({fy:r.fy,category:r.category,month:r.month||"",amount:r.amount||"",is_archived:false});setShowModal(true);}
+
+  if(loading) return <div className="text-center py-20 text-slate-400">Loading…</div>;
+
+  const fyRows=rentals.filter(r=>r.fy===fy);
+  const allFYs=ADMIN_FYS.filter(f=>rentals.some(r=>r.fy===f));
+
+  // YoY totals by FY
+  const fyTotals=allFYs.reduce((a,f)=>({...a,[f]:sumField(rentals.filter(r=>r.fy===f),"amount")}),{});
+  const fyTotalsCat=RENTAL_CATS.reduce((a,cat)=>({...a,[cat]:allFYs.reduce((b,f)=>({...b,[f]:sumField(rentals.filter(r=>r.fy===f&&r.category===cat),"amount")}),{})}),{});
+  const prevFy=ADMIN_FYS[ADMIN_FYS.indexOf(fy)-1];
+  const totalFY=sumField(fyRows,"amount");
+  const totalPrev=prevFy?sumField(rentals.filter(r=>r.fy===prevFy),"amount"):0;
+
+  const dispCats=activeCat==="all"?RENTAL_CATS:[activeCat];
+
+  return(
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="font-bold text-slate-800" style={{fontSize:"18px"}}>Rentals</h2>
+          <p className="text-sm text-slate-500 mt-0.5">Monthly rental revenue by category with YoY comparisons</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <FYPicker value={fy} onChange={setFy} include2027/>
+          <button onClick={()=>{setEditRow(null);setForm({fy,category:activeCat==="all"?"":activeCat,month:"",amount:""});setShowModal(true);}}
+            className="px-4 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>+ Add Entry</button>
+        </div>
+      </div>
+
+      {/* KPI */}
+      <div className="grid gap-3 mb-6" style={{gridTemplateColumns:"repeat(3,1fr)"}}>
+        <AKpi label="Total Rentals Revenue" value={adm$(totalFY)} sub={`FY ${fy}`} arrow={prevFy&&arrowBadge(yoyPct(totalFY,totalPrev))}/>
+        <AKpi label="YTD vs Prior Year" value={prevFy?adm$(totalFY-totalPrev,true):"—"} sub={prevFy?`Prior: ${adm$(totalPrev,true)}`:undefined}/>
+        <AKpi label="Top Category" value={RENTAL_CATS.reduce((a,c)=>{const t=sumField(fyRows.filter(r=>r.category===c),"amount");return t>a.v?{n:c,v:t}:a},{n:"—",v:0}).n} sub="by revenue"/>
+      </div>
+
+      {/* YoY Trend Table */}
+      <div className="mb-8">
+        <h3 className="font-semibold text-slate-700 text-sm mb-3">Year-over-Year by Category</h3>
+        <div className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm overflow-x-auto">
+          <table className="w-full text-xs" style={{minWidth:600}}>
+            <thead>
+              <tr style={{background:"#f8fafc"}}>
+                <th className="text-left px-4 py-3 font-semibold text-slate-500 uppercase sticky left-0 bg-slate-50" style={{minWidth:150}}>Category</th>
+                {allFYs.map(f=><th key={f} className="text-right px-3 py-3 font-semibold text-slate-500 uppercase" style={{minWidth:90}}>{f.replace("20","'")}</th>)}
+                <th className="px-3 py-3 font-semibold text-slate-500 uppercase" style={{minWidth:70}}>Trend</th>
+              </tr>
+            </thead>
+            <tbody>
+              {RENTAL_CATS.map(cat=>{
+                const byCY=allFYs.map(f=>fyTotalsCat[cat]?.[f]||0);
+                if(byCY.every(v=>v===0)) return null;
+                return(
+                  <tr key={cat} className={`border-t border-slate-50 hover:bg-slate-50 ${activeCat===cat?"bg-amber-50":""}`}
+                    onClick={()=>setActiveCat(activeCat===cat?"all":cat)} style={{cursor:"pointer"}}>
+                    <td className="px-4 py-2 font-semibold text-slate-700 sticky left-0 bg-white">{cat}</td>
+                    {byCY.map((v,i)=>{
+                      const prev=byCY[i-1];
+                      const pct=prev&&prev>0?((v-prev)/prev)*100:null;
+                      return(
+                        <td key={i} className="px-3 py-2 text-right">
+                          <div className="font-bold text-slate-800">{v>0?adm$(v,true):"—"}</div>
+                          {pct!=null&&<div style={{color:pct>=0?"#16a34a":"#dc2626",fontSize:"10px"}}>{pct>=0?"▲":"▼"}{Math.abs(pct).toFixed(1)}%</div>}
+                        </td>
+                      );
+                    })}
+                    <td className="px-3 py-2 text-center"><Sparkline values={byCY.filter(v=>v>0)} color="#b45309" height={22}/></td>
+                  </tr>
+                );
+              })}
+              <tr className="border-t-2 border-slate-200" style={{background:"#f8fafc"}}>
+                <td className="px-4 py-2 font-bold text-slate-700 sticky left-0 bg-slate-50">TOTAL</td>
+                {allFYs.map(f=>{
+                  const t=fyTotals[f]||0;
+                  return <td key={f} className="px-3 py-2 text-right font-bold text-slate-800">{t>0?adm$(t,true):"—"}</td>;
+                })}
+                <td className="px-3 py-2 text-center"><Sparkline values={allFYs.map(f=>fyTotals[f]||0)} color="#b45309" height={22}/></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Category detail */}
+      {dispCats.map(cat=>{
+        const rows=fyRows.filter(r=>r.category===cat);
+        const catTotal=sumField(rows,"amount");
+        const prevCatTotal=prevFy?sumField(rentals.filter(r=>r.fy===prevFy&&r.category===cat),"amount"):0;
+        if(activeCat==="all"&&catTotal===0) return null;
+        return(
+          <div key={cat} className="mb-6 bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100" style={{background:"#f8fafc"}}>
+              <div className="font-semibold text-slate-800">{cat}</div>
+              <div className="flex items-center gap-4 text-sm">
+                <span className="font-bold text-slate-800">{adm$(catTotal)}</span>
+                {prevFy&&prevCatTotal>0&&arrowBadge(yoyPct(catTotal,prevCatTotal))}
+              </div>
+            </div>
+            <table className="w-full text-xs">
+              <thead>
+                <tr style={{background:"#f8fafc"}}>
+                  {["Month","Amount","Actions"].map(h=><th key={h} className={`py-2 px-4 text-slate-500 font-semibold ${h==="Month"?"text-left":"text-right"}`}>{h}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {FY_MONTHS.map(mon=>{
+                  const r=rows.find(x=>x.month===mon);
+                  if(!r) return(
+                    <tr key={mon} className="border-t border-slate-50">
+                      <td className="px-4 py-2 text-slate-400">{mon}</td>
+                      <td className="px-4 py-2 text-right text-slate-300">—</td>
+                      <td className="px-4 py-2 text-right">
+                        <button onClick={()=>{setEditRow(null);setForm({fy,category:cat,month:mon,amount:""});setShowModal(true);}} className="text-xs px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-500">+ Add</button>
+                      </td>
+                    </tr>
+                  );
+                  return(
+                    <tr key={mon} className="border-t border-slate-50 hover:bg-slate-50">
+                      <td className="px-4 py-2 font-medium text-slate-700">{mon}</td>
+                      <td className="px-4 py-2 text-right font-semibold text-slate-800">{adm$(r.amount)}</td>
+                      <td className="px-4 py-2 text-right">
+                        <div className="flex gap-1 justify-end">
+                          <button onClick={()=>openEdit(r)} className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-500">✏</button>
+                          <button onClick={()=>setConfirm(r.id)} className="px-2 py-0.5 rounded bg-red-50 hover:bg-red-100 text-red-400">✕</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-slate-200" style={{background:"#f8fafc"}}>
+                  <td className="px-4 py-2 font-bold text-slate-700">TOTAL</td>
+                  <td className="px-4 py-2 text-right font-bold text-slate-800">{adm$(catTotal)}</td>
+                  <td/>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        );
+      })}
+
+      {showModal&&(
+        <AModal title={editRow?"Edit Rental Entry":"Add Rental Entry"} onClose={()=>setShowModal(false)}>
+          <AInp label="Fiscal Year" value={form.fy} onChange={v=>setForm(p=>({...p,fy:v}))} options={ADMIN_FYS} required/>
+          <AInp label="Category" value={form.category} onChange={v=>setForm(p=>({...p,category:v}))} options={RENTAL_CATS} required/>
+          <AInp label="Month" value={form.month} onChange={v=>setForm(p=>({...p,month:v}))} options={FY_MONTHS} required/>
+          <AInp label="Amount ($)" value={form.amount} onChange={v=>setForm(p=>({...p,amount:v}))} type="number" required/>
+          <div className="flex gap-3 justify-end mt-2">
+            <button onClick={()=>setShowModal(false)} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600">Cancel</button>
+            <button onClick={save} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>{editRow?"Update":"Save"}</button>
+          </div>
+        </AModal>
+      )}
+      {confirm&&<AConfirm message="Delete this rental entry?" onConfirm={()=>del(confirm)} onCancel={()=>setConfirm(null)}/>}
+    </div>
+  );
+}
+
+// ─── PROGRAM AREAS (Camps + Clubhouse + Events) ───────────────────────────────
+function ProgramAreasSection({db}){
+  const [sub,setSub]=useState("camps");
+  const tabs=[{id:"camps",l:"🏕 Camps"},{id:"clubhouse",l:"🏫 Clubhouse"},{id:"events",l:"🎉 Special Events"}];
+  return(
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="font-bold text-slate-800" style={{fontSize:"18px"}}>Program Areas</h2>
+          <p className="text-sm text-slate-500 mt-0.5">Enrollment & revenue trends for camps, clubhouse, and events</p>
+        </div>
+        <div className="flex gap-1 bg-white rounded-xl border border-slate-100 p-1 shadow-sm">
+          {tabs.map(t=>(
+            <button key={t.id} onClick={()=>setSub(t.id)}
+              className="px-4 py-1.5 text-xs font-bold rounded-lg transition"
+              style={sub===t.id?{background:"#1e3a5f",color:"white"}:{color:"#64748b"}}>
+              {t.l}
+            </button>
+          ))}
+        </div>
+      </div>
+      {sub==="camps"&&<CampsDetail db={db}/>}
+      {sub==="clubhouse"&&<ClubhouseDetail db={db}/>}
+      {sub==="events"&&<EventsDetail db={db}/>}
     </div>
   );
 }
 
 function CampsDetail({db}){
-  const [records,setRecords] = useState([]);
-  const [loading,setLoading] = useState(true);
-  const [fy,setFy]           = useState(ADMIN_CUR);
-  const [camp,setCamp]       = useState("All");
-  const [modal,setModal]     = useState(null);
-  const [delConfirm,setDelConfirm] = useState(null);
-  const [saving,setSaving]   = useState(false);
-  const [showArchived,setShowArchived] = useState(false);
+  const [camps,setCamps]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [fy,setFy]=useState("2024-2025");
+  const [showModal,setShowModal]=useState(false);
+  const [editRow,setEditRow]=useState(null);
+  const [confirm,setConfirm]=useState(null);
+  const [form,setForm]=useState({fy:"2024-2025",camp_name:"",enrollment:"",revenue:"",expenses:"",notes:""});
 
-  const load = useCallback(async()=>{
+  async function load(){
     setLoading(true);
-    const {data} = await db.from("admin_camps").select("*").order("fy",{ascending:false});
-    setRecords(data||[]); setLoading(false);
-  },[db]);
-  useEffect(()=>{ load(); },[load]);
+    await seedIfEmpty(db,"admin_camps",SEED_CAMPS);
+    const {data}=await db.from("admin_camps").select("*").order("camp_name");
+    setCamps(data||[]);
+    setLoading(false);
+  }
+  useEffect(()=>{load();},[]);
 
-  const vis = records.filter(r=>{
-    if(r.is_archived !== showArchived) return false;
-    if(fy!=="All" && r.fy!==fy) return false;
-    if(camp!=="All" && r.camp_name!==camp) return false;
-    return true;
-  });
+  async function save(){
+    const d={fy:form.fy,camp_name:form.camp_name,enrollment:parseInt(form.enrollment)||0,revenue:parseFloat(form.revenue)||0,expenses:parseFloat(form.expenses)||0,notes:form.notes||""};
+    if(editRow){await db.from("admin_camps").update(d).eq("id",editRow.id);}
+    else{await db.from("admin_camps").insert(d);}
+    setShowModal(false);setEditRow(null);load();
+  }
+  async function del(id){await db.from("admin_camps").delete().eq("id",id);setConfirm(null);load();}
+  function openEdit(r){setEditRow(r);setForm({fy:r.fy,camp_name:r.camp_name,enrollment:r.enrollment||"",revenue:r.revenue||"",expenses:r.expenses||"",notes:r.notes||""});setShowModal(true);}
 
-  const totEnroll = vis.reduce((a,r)=>a+(Number(r.total_enrollment)||0),0);
-  const totRev    = vis.reduce((a,r)=>a+(Number(r.revenue)||0),0);
-  const totExp    = vis.reduce((a,r)=>a+(Number(r.expenses)||0),0);
+  if(loading) return <div className="text-center py-12 text-slate-400">Loading…</div>;
 
-  const campSummary = CAMP_NAMES.map(cn=>{
-    const rows = records.filter(r=>!r.is_archived && (fy==="All"||r.fy===fy) && r.camp_name===cn);
-    return {cn, enroll:rows.reduce((a,r)=>a+(Number(r.total_enrollment)||0),0)};
-  }).filter(c=>c.enroll>0).sort((a,b)=>b.enroll-a.enroll);
-  const maxE = campSummary.length ? campSummary[0].enroll : 1;
+  const allFYs=ADMIN_FYS.filter(f=>camps.some(c=>c.fy===f));
+  const fyRows=camps.filter(c=>c.fy===fy&&c.camp_name!=="Camp Connection");
+  const maxEnroll=Math.max(...fyRows.map(c=>c.enrollment||0),1);
 
-  const blank = {camp_name:CAMP_NAMES[0],fy:ADMIN_CUR,total_enrollment:"",waitlist:"",revenue:"",expenses:"",notes:"",is_archived:false};
-
-  const save = async r=>{
-    setSaving(true);
-    if(r.id){ await db.from("admin_camps").update(r).eq("id",r.id); }
-    else     { await db.from("admin_camps").insert(r); }
-    await load(); setModal(null); setSaving(false);
-  };
-  const archive = async(r,val)=>{ await db.from("admin_camps").update({is_archived:val}).eq("id",r.id); await load(); };
-  const del     = async(id)=>{ await db.from("admin_camps").delete().eq("id",id); await load(); setDelConfirm(null); };
-
-  return (
+  return(
     <div>
-      {delConfirm&&<AConfirm message="Delete this camp record?" onConfirm={()=>del(delConfirm)} onCancel={()=>setDelConfirm(null)}/>}
-      {modal&&<CampModal initial={modal==="new"?blank:modal} onSave={save} onClose={()=>setModal(null)} saving={saving}/>}
-
-      {campSummary.length>0&&(
-        <div className="grid grid-cols-3 gap-3 mb-5">
-          <ACard label="Total Enrollment" value={totEnroll.toLocaleString()} color="#1e3a5f"/>
-          <ACard label="Total Revenue" value={adminDollar(totRev)} color="#16a34a"/>
-          <ACard label="Gross Margin" value={totRev>0?adminPct((totRev-totExp)/totRev):"—"} color="#d4a017"/>
-        </div>
-      )}
-      {campSummary.length>0&&(
-        <div className="bg-white rounded-xl p-4 shadow-sm mb-5">
-          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Enrollment by Camp</div>
-          {campSummary.map(c=><ABar key={c.cn} label={c.cn} value={c.enroll} max={maxE} color="#1e3a5f"/>)}
-        </div>
-      )}
-
-      <div className="flex flex-wrap gap-3 items-center mb-4">
-        <FYFilter value={fy} onChange={setFy}/>
-        <select value={camp} onChange={e=>setCamp(e.target.value)}
-          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none">
-          <option value="All">All Camps</option>
-          {CAMP_NAMES.map(c=><option key={c} value={c}>{c}</option>)}
-        </select>
-        <button onClick={()=>setShowArchived(v=>!v)}
-          className="px-3 py-1.5 text-xs font-bold rounded-lg border transition"
-          style={showArchived?{background:"#1e3a5f",color:"white",border:"1px solid #1e3a5f"}:{background:"white",border:"1px solid #e2e8f0",color:"#64748b"}}>
-          {showArchived?"📂 Archived":"📂 Active"}
-        </button>
-        <div className="ml-auto">
-          <button onClick={()=>setModal("new")} className="px-4 py-1.5 text-xs font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>+ Add Camp Record</button>
+      <div className="flex items-center justify-between mb-5">
+        <h3 className="font-semibold text-slate-700">Camps Enrollment & Revenue</h3>
+        <div className="flex items-center gap-3">
+          <FYPicker value={fy} onChange={setFy}/>
+          <button onClick={()=>{setEditRow(null);setForm({fy,camp_name:"",enrollment:"",revenue:"",expenses:"",notes:""});setShowModal(true);}}
+            className="px-3 py-1.5 text-xs font-bold rounded-lg text-white" style={{background:"#7c3aed"}}>+ Add</button>
         </div>
       </div>
 
-      {loading?<div className="text-center py-10 text-slate-400">Loading...</div>:(
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
-            <thead><tr className="bg-slate-50 text-xs font-bold text-slate-400 uppercase tracking-wide">
-              <th className="px-4 py-3 text-left">Camp</th><th className="px-4 py-3 text-left">FY</th>
-              <th className="px-4 py-3 text-right">Enrollment</th><th className="px-4 py-3 text-right">Waitlist</th>
-              <th className="px-4 py-3 text-right">Revenue</th><th className="px-4 py-3 text-right">Expenses</th>
-              <th className="px-4 py-3 text-right">Margin</th><th className="px-4 py-3 text-left">Notes</th><th className="px-4 py-3"></th>
-            </tr></thead>
-            <tbody>
-              {vis.length===0&&<tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400">No camp records. Add one to get started.</td></tr>}
-              {vis.map(r=>{
-                const gm = Number(r.revenue)>0?(Number(r.revenue)-Number(r.expenses))/Number(r.revenue):null;
-                return (
-                  <tr key={r.id} className="border-t border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={()=>setModal(r)}>
-                    <td className="px-4 py-3 font-semibold text-slate-700 text-xs">{r.camp_name}</td>
-                    <td className="px-4 py-3 text-xs text-slate-500">{r.fy}</td>
-                    <td className="px-4 py-3 text-right font-mono">{(Number(r.total_enrollment)||0).toLocaleString()}</td>
-                    <td className="px-4 py-3 text-right font-mono text-slate-400">{r.waitlist||"—"}</td>
-                    <td className="px-4 py-3 text-right font-mono">{adminDollar(r.revenue)}</td>
-                    <td className="px-4 py-3 text-right font-mono text-slate-500">{adminDollar(r.expenses)}</td>
-                    <td className={`px-4 py-3 text-right font-mono font-bold text-xs ${gm===null?"text-slate-400":gm>=0.3?"text-green-600":gm>=0?"text-yellow-600":"text-red-500"}`}>
-                      {gm!==null?adminPct(gm):"—"}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-slate-400 max-w-xs truncate">{r.notes}</td>
-                    <td className="px-4 py-3 text-right" onClick={e=>e.stopPropagation()}>
-                      <div className="flex gap-1 justify-end">
-                        <button onClick={()=>archive(r,!r.is_archived)} className="text-xs px-2 py-1 rounded bg-slate-100 text-slate-500">{r.is_archived?"↩":"📦"}</button>
-                        <button onClick={()=>setDelConfirm(r.id)} className="text-xs px-2 py-1 rounded bg-red-50 text-red-400">✕</button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {/* YoY enrollment table */}
+      <div className="mb-6 bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden overflow-x-auto">
+        <div className="px-4 py-3 border-b border-slate-100 font-semibold text-sm text-slate-700">Enrollment by Camp — Year over Year</div>
+        <table className="w-full text-xs" style={{minWidth:600}}>
+          <thead>
+            <tr style={{background:"#f8fafc"}}>
+              <th className="text-left px-4 py-2 font-semibold text-slate-500 sticky left-0 bg-slate-50" style={{minWidth:150}}>Camp</th>
+              {allFYs.map(f=><th key={f} className="text-right px-3 py-2 font-semibold text-slate-500">{f.replace("20","'")}</th>)}
+              <th className="px-3 py-2 text-slate-500 font-semibold">Trend</th>
+            </tr>
+          </thead>
+          <tbody>
+            {CAMP_LIST.filter(c=>c!=="Camp Connection").map(camp=>{
+              const vals=allFYs.map(f=>{const r=camps.find(c=>c.fy===f&&c.camp_name===camp);return r?.enrollment||null;});
+              if(vals.every(v=>!v)) return null;
+              return(
+                <tr key={camp} className="border-t border-slate-50 hover:bg-slate-50">
+                  <td className="px-4 py-2 font-semibold text-slate-700 sticky left-0 bg-white">{camp}</td>
+                  {vals.map((v,i)=>{
+                    const prev=vals[i-1];
+                    const pct=prev&&prev>0&&v?((v-prev)/prev)*100:null;
+                    return(
+                      <td key={i} className="px-3 py-2 text-right">
+                        <div className="font-bold text-slate-800">{v!=null?v:"—"}</div>
+                        {pct!=null&&<div style={{color:pct>=0?"#16a34a":"#dc2626",fontSize:"10px"}}>{pct>=0?"▲":"▼"}{Math.abs(pct).toFixed(1)}%</div>}
+                      </td>
+                    );
+                  })}
+                  <td className="px-3 py-2 text-center"><Sparkline values={vals.filter(v=>v!=null)} color="#7c3aed" height={22}/></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* FY detail bar chart */}
+      <div className="bg-white rounded-xl border border-slate-100 p-5 shadow-sm mb-6">
+        <div className="font-semibold text-sm text-slate-700 mb-4">FY {fy} — Enrollment by Camp</div>
+        <div className="space-y-2">
+          {fyRows.sort((a,b)=>(b.enrollment||0)-(a.enrollment||0)).map(c=>(
+            <div key={c.id} className="flex items-center gap-3">
+              <div className="text-xs text-slate-600 w-32 flex-shrink-0 truncate">{c.camp_name}</div>
+              <div className="flex-1 h-5 rounded-full overflow-hidden" style={{background:"#f1f5f9"}}>
+                <div className="h-full rounded-full" style={{width:`${((c.enrollment||0)/maxEnroll)*100}%`,background:"#7c3aed"}}/>
+              </div>
+              <div className="text-xs font-bold text-slate-800 w-8 text-right">{c.enrollment||0}</div>
+              <div className="flex gap-1">
+                <button onClick={()=>openEdit(c)} className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-400 text-xs">✏</button>
+                <button onClick={()=>setConfirm(c.id)} className="p-1 rounded bg-red-50 hover:bg-red-100 text-red-300 text-xs">✕</button>
+              </div>
+            </div>
+          ))}
+          {fyRows.length===0&&<div className="text-xs text-slate-400 text-center py-4">No camp data for FY {fy} — click "+ Add" to enter data</div>}
         </div>
+      </div>
+
+      {showModal&&(
+        <AModal title={editRow?"Edit Camp Record":"Add Camp Record"} onClose={()=>setShowModal(false)}>
+          <AInp label="Fiscal Year" value={form.fy} onChange={v=>setForm(p=>({...p,fy:v}))} options={ADMIN_FYS} required/>
+          <AInp label="Camp" value={form.camp_name} onChange={v=>setForm(p=>({...p,camp_name:v}))} options={CAMP_LIST} required/>
+          <div className="grid grid-cols-3 gap-x-4">
+            <AInp label="Enrollment" value={form.enrollment} onChange={v=>setForm(p=>({...p,enrollment:v}))} type="number"/>
+            <AInp label="Revenue ($)" value={form.revenue} onChange={v=>setForm(p=>({...p,revenue:v}))} type="number"/>
+            <AInp label="Expenses ($)" value={form.expenses} onChange={v=>setForm(p=>({...p,expenses:v}))} type="number"/>
+          </div>
+          <AInp label="Notes" value={form.notes} onChange={v=>setForm(p=>({...p,notes:v}))} rows={2}/>
+          <div className="flex gap-3 justify-end mt-2">
+            <button onClick={()=>setShowModal(false)} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600">Cancel</button>
+            <button onClick={save} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#7c3aed"}}>{editRow?"Update":"Save"}</button>
+          </div>
+        </AModal>
       )}
+      {confirm&&<AConfirm message="Delete this camp record?" onConfirm={()=>del(confirm)} onCancel={()=>setConfirm(null)}/>}
     </div>
-  );
-}
-
-function CampModal({initial,onSave,onClose,saving}){
-  const [r,setR]=useState({...initial});
-  const set=(k,v)=>setR(p=>({...p,[k]:v}));
-  return (
-    <AModal title={r.id?"Edit Camp Record":"New Camp Record"} onClose={onClose}>
-      <AInp label="Camp" value={r.camp_name} onChange={v=>set("camp_name",v)} options={CAMP_NAMES} required/>
-      <AInp label="Fiscal Year" value={r.fy} onChange={v=>set("fy",v)} options={ADMIN_FYS} required/>
-      <div className="grid grid-cols-2 gap-3">
-        <AInp label="Total Enrollment" value={r.total_enrollment} onChange={v=>set("total_enrollment",v)} type="number"/>
-        <AInp label="Waitlist Count" value={r.waitlist} onChange={v=>set("waitlist",v)} type="number"/>
-        <AInp label="Revenue ($)" value={r.revenue} onChange={v=>set("revenue",v)} type="number"/>
-        <AInp label="Expenses ($)" value={r.expenses} onChange={v=>set("expenses",v)} type="number"/>
-      </div>
-      <AInp label="Notes" value={r.notes} onChange={v=>set("notes",v)} rows={2}/>
-      <div className="flex justify-end gap-3 mt-2">
-        <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-slate-200">Cancel</button>
-        <button onClick={()=>onSave(r)} disabled={saving} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>
-          {saving?"Saving…":"Save"}
-        </button>
-      </div>
-    </AModal>
   );
 }
 
 function ClubhouseDetail({db}){
-  const [records,setRecords] = useState([]);
-  const [loading,setLoading] = useState(true);
-  const [fy,setFy]           = useState(ADMIN_CUR);
-  const [site,setSite]       = useState("All");
-  const [modal,setModal]     = useState(null);
-  const [delConfirm,setDelConfirm] = useState(null);
-  const [saving,setSaving]   = useState(false);
-  const [showArchived,setShowArchived] = useState(false);
+  const [rows,setRows]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [fy,setFy]=useState(ADMIN_CUR);
+  const [showModal,setShowModal]=useState(false);
+  const [editRow,setEditRow]=useState(null);
+  const [confirm,setConfirm]=useState(null);
+  const [form,setForm]=useState({fy:ADMIN_CUR,site:"",enrollment:"",revenue:"",is_archived:false});
 
-  const load = useCallback(async()=>{
+  async function load(){
     setLoading(true);
-    const {data} = await db.from("admin_clubhouse").select("*").order("fy",{ascending:false});
-    setRecords(data||[]); setLoading(false);
-  },[db]);
-  useEffect(()=>{ load(); },[load]);
+    await seedIfEmpty(db,"admin_clubhouse",SEED_CLUBHOUSE);
+    const {data}=await db.from("admin_clubhouse").select("*").eq("is_archived",false).order("site");
+    setRows(data||[]);
+    setLoading(false);
+  }
+  useEffect(()=>{load();},[]);
 
-  const vis = records.filter(r=>{
-    if(r.is_archived !== showArchived) return false;
-    if(fy!=="All" && r.fy!==fy) return false;
-    if(site!=="All" && r.site_name!==site) return false;
-    return true;
-  });
+  async function save(){
+    const d={fy:form.fy,site:form.site,enrollment:parseFloat(form.enrollment)||0,revenue:parseFloat(form.revenue)||0,is_archived:false};
+    if(editRow){await db.from("admin_clubhouse").update(d).eq("id",editRow.id);}
+    else{await db.from("admin_clubhouse").insert(d);}
+    setShowModal(false);setEditRow(null);load();
+  }
+  async function del(id){await db.from("admin_clubhouse").delete().eq("id",id);setConfirm(null);load();}
+  function openEdit(r){setEditRow(r);setForm({fy:r.fy,site:r.site,enrollment:r.enrollment||"",revenue:r.revenue||"",is_archived:false});setShowModal(true);}
 
-  const siteSummary = CLUBHOUSE_SITES.map(sn=>{
-    const rows = records.filter(r=>!r.is_archived && (fy==="All"||r.fy===fy) && r.site_name===sn);
-    return {sn, enroll:rows.reduce((a,r)=>a+(Number(r.enrollment)||0),0), rev:rows.reduce((a,r)=>a+(Number(r.revenue)||0),0)};
-  }).filter(s=>s.enroll>0||s.rev>0).sort((a,b)=>b.rev-a.rev);
-  const maxRev = siteSummary.length ? siteSummary[0].rev : 1;
+  if(loading) return <div className="text-center py-12 text-slate-400">Loading…</div>;
 
-  const blank = {site_name:CLUBHOUSE_SITES[0],fy:ADMIN_CUR,month:"",enrollment:"",revenue:"",expenses:"",notes:"",is_archived:false};
-  const save = async r=>{
-    setSaving(true);
-    if(r.id){ await db.from("admin_clubhouse").update(r).eq("id",r.id); }
-    else     { await db.from("admin_clubhouse").insert(r); }
-    await load(); setModal(null); setSaving(false);
-  };
-  const archive = async(r,val)=>{ await db.from("admin_clubhouse").update({is_archived:val}).eq("id",r.id); await load(); };
-  const del     = async(id)=>{ await db.from("admin_clubhouse").delete().eq("id",id); await load(); setDelConfirm(null); };
+  const allFYs=ADMIN_FYS.filter(f=>rows.some(r=>r.fy===f));
+  const fyRows=rows.filter(r=>r.fy===fy);
+  const maxEnroll=Math.max(...fyRows.map(r=>r.enrollment||0),1);
+  const fyTotal=sumField(fyRows,"enrollment");
+  const fyRevTotal=sumField(fyRows,"revenue");
 
-  const totRev = vis.reduce((a,r)=>a+(Number(r.revenue)||0),0);
-  const totEnroll = vis.reduce((a,r)=>a+(Number(r.enrollment)||0),0);
-
-  return (
+  return(
     <div>
-      {delConfirm&&<AConfirm message="Delete this clubhouse record?" onConfirm={()=>del(delConfirm)} onCancel={()=>setDelConfirm(null)}/>}
-      {modal&&<ClubhouseModal initial={modal==="new"?blank:modal} onSave={save} onClose={()=>setModal(null)} saving={saving}/>}
-
-      {siteSummary.length>0&&(
-        <div className="grid grid-cols-2 gap-3 mb-5">
-          <ACard label="Total Enrollment" value={totEnroll.toLocaleString()} color="#1e3a5f"/>
-          <ACard label="Total Revenue" value={adminDollar(totRev)} color="#16a34a"/>
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h3 className="font-semibold text-slate-700">Clubhouse Sites</h3>
+          {fyTotal>0&&<p className="text-xs text-slate-500 mt-0.5">FY {fy}: {fyTotal.toFixed(0)} avg total enrollment · {adm$(fyRevTotal)} revenue</p>}
         </div>
-      )}
-      {siteSummary.length>0&&(
-        <div className="bg-white rounded-xl p-4 shadow-sm mb-5">
-          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Revenue by Site</div>
-          {siteSummary.map(s=><ABar key={s.sn} label={s.sn} value={s.rev} max={maxRev} color="#2d5a9e"/>)}
-        </div>
-      )}
-
-      <div className="flex flex-wrap gap-3 items-center mb-4">
-        <FYFilter value={fy} onChange={setFy}/>
-        <select value={site} onChange={e=>setSite(e.target.value)}
-          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none">
-          <option value="All">All Sites</option>
-          {CLUBHOUSE_SITES.map(s=><option key={s} value={s}>{s}</option>)}
-        </select>
-        <button onClick={()=>setShowArchived(v=>!v)}
-          className="px-3 py-1.5 text-xs font-bold rounded-lg border transition"
-          style={showArchived?{background:"#1e3a5f",color:"white",border:"1px solid #1e3a5f"}:{background:"white",border:"1px solid #e2e8f0",color:"#64748b"}}>
-          {showArchived?"📂 Archived":"📂 Active"}
-        </button>
-        <div className="ml-auto">
-          <button onClick={()=>setModal("new")} className="px-4 py-1.5 text-xs font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>+ Add Record</button>
+        <div className="flex items-center gap-3">
+          <FYPicker value={fy} onChange={setFy}/>
+          <button onClick={()=>{setEditRow(null);setForm({fy,site:"",enrollment:"",revenue:""});setShowModal(true);}}
+            className="px-3 py-1.5 text-xs font-bold rounded-lg text-white" style={{background:"#0f766e"}}>+ Add</button>
         </div>
       </div>
 
-      {loading?<div className="text-center py-10 text-slate-400">Loading...</div>:(
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
-            <thead><tr className="bg-slate-50 text-xs font-bold text-slate-400 uppercase tracking-wide">
-              <th className="px-4 py-3 text-left">Site</th><th className="px-4 py-3 text-left">FY</th><th className="px-4 py-3 text-left">Month</th>
-              <th className="px-4 py-3 text-right">Enrollment</th><th className="px-4 py-3 text-right">Revenue</th>
-              <th className="px-4 py-3 text-right">Expenses</th><th className="px-4 py-3 text-right">Margin</th>
-              <th className="px-4 py-3 text-left">Notes</th><th className="px-4 py-3"></th>
-            </tr></thead>
-            <tbody>
-              {vis.length===0&&<tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400">No records. Add one to get started.</td></tr>}
-              {vis.map(r=>{
-                const gm=Number(r.revenue)>0?(Number(r.revenue)-Number(r.expenses))/Number(r.revenue):null;
-                return (
-                  <tr key={r.id} className="border-t border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={()=>setModal(r)}>
-                    <td className="px-4 py-3 font-semibold text-xs">{r.site_name}</td>
-                    <td className="px-4 py-3 text-xs text-slate-500">{r.fy}</td>
-                    <td className="px-4 py-3 text-xs text-slate-500">{r.month||"Annual"}</td>
-                    <td className="px-4 py-3 text-right font-mono">{(Number(r.enrollment)||0).toLocaleString()}</td>
-                    <td className="px-4 py-3 text-right font-mono">{adminDollar(r.revenue)}</td>
-                    <td className="px-4 py-3 text-right font-mono text-slate-500">{adminDollar(r.expenses)}</td>
-                    <td className={`px-4 py-3 text-right font-mono font-bold text-xs ${gm===null?"text-slate-400":gm>=0.3?"text-green-600":gm>=0?"text-yellow-600":"text-red-500"}`}>{gm!==null?adminPct(gm):"—"}</td>
-                    <td className="px-4 py-3 text-xs text-slate-400 truncate max-w-xs">{r.notes}</td>
-                    <td className="px-4 py-3 text-right" onClick={e=>e.stopPropagation()}>
-                      <div className="flex gap-1 justify-end">
-                        <button onClick={()=>archive(r,!r.is_archived)} className="text-xs px-2 py-1 rounded bg-slate-100 text-slate-500">{r.is_archived?"↩":"📦"}</button>
-                        <button onClick={()=>setDelConfirm(r.id)} className="text-xs px-2 py-1 rounded bg-red-50 text-red-400">✕</button>
-                      </div>
-                    </td>
-                  </tr>
-                );
+      {/* YoY table */}
+      <div className="mb-6 bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden overflow-x-auto">
+        <div className="px-4 py-3 border-b border-slate-100 font-semibold text-sm text-slate-700">Average Enrollment by Site — Year over Year</div>
+        <table className="w-full text-xs" style={{minWidth:500}}>
+          <thead>
+            <tr style={{background:"#f8fafc"}}>
+              <th className="text-left px-4 py-2 font-semibold text-slate-500 sticky left-0 bg-slate-50" style={{minWidth:140}}>Site</th>
+              {allFYs.map(f=><th key={f} className="text-right px-3 py-2 font-semibold text-slate-500">{f.replace("20","'")}</th>)}
+              <th className="px-3 py-2 text-slate-500 font-semibold">Trend</th>
+            </tr>
+          </thead>
+          <tbody>
+            {CLUB_SITES.map(site=>{
+              const vals=allFYs.map(f=>{const r=rows.find(x=>x.fy===f&&x.site===site);return r?.enrollment||null;});
+              if(vals.every(v=>!v)) return null;
+              return(
+                <tr key={site} className="border-t border-slate-50 hover:bg-slate-50">
+                  <td className="px-4 py-2 font-semibold text-slate-700 sticky left-0 bg-white">{site}</td>
+                  {vals.map((v,i)=>{
+                    const prev=vals[i-1];
+                    const pct=prev&&prev>0&&v?((v-prev)/prev)*100:null;
+                    return(
+                      <td key={i} className="px-3 py-2 text-right">
+                        <div className="font-bold text-slate-800">{v!=null?v.toFixed(0):"—"}</div>
+                        {pct!=null&&<div style={{color:pct>=0?"#16a34a":"#dc2626",fontSize:"10px"}}>{pct>=0?"▲":"▼"}{Math.abs(pct).toFixed(1)}%</div>}
+                      </td>
+                    );
+                  })}
+                  <td className="px-3 py-2 text-center"><Sparkline values={vals.filter(v=>v!=null)} color="#0f766e" height={22}/></td>
+                </tr>
+              );
+            })}
+            <tr className="border-t-2 border-slate-200" style={{background:"#f8fafc"}}>
+              <td className="px-4 py-2 font-bold text-slate-700 sticky left-0 bg-slate-50">TOTAL</td>
+              {allFYs.map(f=>{
+                const t=sumField(rows.filter(r=>r.fy===f),"enrollment");
+                return <td key={f} className="px-3 py-2 text-right font-bold text-slate-800">{t>0?t.toFixed(0):"—"}</td>;
               })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
+              <td/>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-function ClubhouseModal({initial,onSave,onClose,saving}){
-  const [r,setR]=useState({...initial});
-  const set=(k,v)=>setR(p=>({...p,[k]:v}));
-  return (
-    <AModal title={r.id?"Edit Clubhouse Record":"New Clubhouse Record"} onClose={onClose}>
-      <AInp label="Site" value={r.site_name} onChange={v=>set("site_name",v)} options={CLUBHOUSE_SITES} required/>
-      <AInp label="Fiscal Year" value={r.fy} onChange={v=>set("fy",v)} options={ADMIN_FYS} required/>
-      <AInp label="Month" value={r.month} onChange={v=>set("month",v)} options={["","Annual",...MONTHS]}/>
-      <div className="grid grid-cols-3 gap-3">
-        <AInp label="Enrollment" value={r.enrollment} onChange={v=>set("enrollment",v)} type="number"/>
-        <AInp label="Revenue ($)" value={r.revenue} onChange={v=>set("revenue",v)} type="number"/>
-        <AInp label="Expenses ($)" value={r.expenses} onChange={v=>set("expenses",v)} type="number"/>
+      {/* FY detail */}
+      <div className="bg-white rounded-xl border border-slate-100 p-5 shadow-sm mb-4">
+        <div className="font-semibold text-sm text-slate-700 mb-4">FY {fy} — Enrollment by Site</div>
+        <div className="grid gap-2" style={{gridTemplateColumns:"1fr 1fr"}}>
+          {CLUB_SITES.map(site=>{
+            const r=fyRows.find(x=>x.site===site);
+            const enroll=r?.enrollment||0;
+            return(
+              <div key={site} className="flex items-center gap-3">
+                <div className="text-xs text-slate-600 w-28 flex-shrink-0 truncate">{site}</div>
+                <div className="flex-1 h-4 rounded-full overflow-hidden" style={{background:"#f1f5f9"}}>
+                  <div className="h-full rounded-full" style={{width:`${(enroll/maxEnroll)*100}%`,background:"#0f766e"}}/>
+                </div>
+                <div className="text-xs font-bold text-slate-800 w-8 text-right">{enroll||"—"}</div>
+                {r&&<div className="flex gap-1">
+                  <button onClick={()=>openEdit(r)} className="p-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-400 text-xs">✏</button>
+                </div>}
+                {!r&&<button onClick={()=>{setEditRow(null);setForm({fy,site,enrollment:"",revenue:""});setShowModal(true);}} className="text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-400 hover:bg-slate-200">+</button>}
+              </div>
+            );
+          })}
+        </div>
       </div>
-      <AInp label="Notes" value={r.notes} onChange={v=>set("notes",v)} rows={2}/>
-      <div className="flex justify-end gap-3 mt-2">
-        <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-slate-200">Cancel</button>
-        <button onClick={()=>onSave(r)} disabled={saving} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>
-          {saving?"Saving…":"Save"}
-        </button>
-      </div>
-    </AModal>
+
+      {showModal&&(
+        <AModal title={editRow?"Edit Clubhouse Record":"Add Clubhouse Record"} onClose={()=>setShowModal(false)}>
+          <AInp label="Fiscal Year" value={form.fy} onChange={v=>setForm(p=>({...p,fy:v}))} options={ADMIN_FYS} required/>
+          <AInp label="Site" value={form.site} onChange={v=>setForm(p=>({...p,site:v}))} options={CLUB_SITES} required/>
+          <AInp label="Avg Enrollment" value={form.enrollment} onChange={v=>setForm(p=>({...p,enrollment:v}))} type="number"/>
+          <AInp label="Total Revenue ($)" value={form.revenue} onChange={v=>setForm(p=>({...p,revenue:v}))} type="number"/>
+          <div className="flex gap-3 justify-end mt-2">
+            <button onClick={()=>setShowModal(false)} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600">Cancel</button>
+            <button onClick={save} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#0f766e"}}>{editRow?"Update":"Save"}</button>
+          </div>
+        </AModal>
+      )}
+      {confirm&&<AConfirm message="Delete this clubhouse record?" onConfirm={()=>del(confirm)} onCancel={()=>setConfirm(null)}/>}
+    </div>
   );
 }
 
 function EventsDetail({db}){
-  const [records,setRecords] = useState([]);
-  const [loading,setLoading] = useState(true);
-  const [fy,setFy]           = useState(ADMIN_CUR);
-  const [type,setType]       = useState("All");
-  const [modal,setModal]     = useState(null);
-  const [delConfirm,setDelConfirm] = useState(null);
-  const [saving,setSaving]   = useState(false);
-  const [showArchived,setShowArchived] = useState(false);
+  const [events,setEvents]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [fy,setFy]=useState("2024-2025");
+  const [showModal,setShowModal]=useState(false);
+  const [editRow,setEditRow]=useState(null);
+  const [confirm,setConfirm]=useState(null);
+  const [form,setForm]=useState({fy:"2024-2025",event_name:"",event_type:"Summer Concert",attendance:"",revenue:"",expenses:"",notes:""});
 
-  const load = useCallback(async()=>{
+  async function load(){
     setLoading(true);
-    const {data} = await db.from("admin_events").select("*").order("event_date",{ascending:false});
-    setRecords(data||[]); setLoading(false);
-  },[db]);
-  useEffect(()=>{ load(); },[load]);
+    await seedIfEmpty(db,"admin_events",SEED_EVENTS);
+    const {data}=await db.from("admin_events").select("*").order("event_type").order("fy");
+    setEvents(data||[]);
+    setLoading(false);
+  }
+  useEffect(()=>{load();},[]);
 
-  const vis = records.filter(r=>{
-    if(r.is_archived !== showArchived) return false;
-    if(fy!=="All" && r.fy!==fy) return false;
-    if(type!=="All" && r.event_type!==type) return false;
-    return true;
-  });
+  async function save(){
+    const d={fy:form.fy,event_name:form.event_name,event_type:form.event_type,attendance:parseInt(form.attendance)||0,revenue:parseFloat(form.revenue)||0,expenses:parseFloat(form.expenses)||0,notes:form.notes||""};
+    if(editRow){await db.from("admin_events").update(d).eq("id",editRow.id);}
+    else{await db.from("admin_events").insert(d);}
+    setShowModal(false);setEditRow(null);load();
+  }
+  async function del(id){await db.from("admin_events").delete().eq("id",id);setConfirm(null);load();}
+  function openEdit(r){setEditRow(r);setForm({fy:r.fy,event_name:r.event_name,event_type:r.event_type,attendance:r.attendance||"",revenue:r.revenue||"",expenses:r.expenses||"",notes:r.notes||""});setShowModal(true);}
 
-  const totAtt = vis.reduce((a,r)=>a+(Number(r.attendance)||0),0);
-  const totRev = vis.reduce((a,r)=>a+(Number(r.revenue)||0),0);
+  if(loading) return <div className="text-center py-12 text-slate-400">Loading…</div>;
 
-  const evtSummary = [...vis].sort((a,b)=>(Number(b.attendance)||0)-(Number(a.attendance)||0)).slice(0,8);
-  const maxAtt = evtSummary.length ? (Number(evtSummary[0].attendance)||1) : 1;
+  const allFYs=ADMIN_FYS.filter(f=>events.some(e=>e.fy===f));
+  const fyRows=events.filter(e=>e.fy===fy);
+  const totalAtt=sumField(fyRows,"attendance");
 
-  const blank = {name:"",event_type:EVENT_TYPES[0],fy:ADMIN_CUR,event_date:"",attendance:"",revenue:"",expenses:"",notes:"",is_archived:false};
-  const save = async r=>{
-    setSaving(true);
-    if(r.id){ await db.from("admin_events").update(r).eq("id",r.id); }
-    else     { await db.from("admin_events").insert(r); }
-    await load(); setModal(null); setSaving(false);
-  };
-  const archive = async(r,val)=>{ await db.from("admin_events").update({is_archived:val}).eq("id",r.id); await load(); };
-  const del     = async(id)=>{ await db.from("admin_events").delete().eq("id",id); await load(); setDelConfirm(null); };
+  // YoY by event type
+  const eventTypes=[...new Set(events.map(e=>e.event_type))];
 
-  return (
+  return(
     <div>
-      {delConfirm&&<AConfirm message="Delete this event?" onConfirm={()=>del(delConfirm)} onCancel={()=>setDelConfirm(null)}/>}
-      {modal&&<EventModal initial={modal==="new"?blank:modal} onSave={save} onClose={()=>setModal(null)} saving={saving}/>}
-
-      {vis.length>0&&(
-        <div className="grid grid-cols-3 gap-3 mb-5">
-          <ACard label="Total Attendance" value={totAtt.toLocaleString()} color="#7c3aed"/>
-          <ACard label="Events Tracked" value={vis.length} color="#1e3a5f"/>
-          <ACard label="Total Revenue" value={adminDollar(totRev)} color="#16a34a"/>
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h3 className="font-semibold text-slate-700">Special Events</h3>
+          {totalAtt>0&&<p className="text-xs text-slate-500 mt-0.5">FY {fy}: {totalAtt.toLocaleString()} total attendance</p>}
         </div>
-      )}
-      {evtSummary.length>0&&(
-        <div className="bg-white rounded-xl p-4 shadow-sm mb-5">
-          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Top Events by Attendance</div>
-          {evtSummary.map(e=><ABar key={e.id} label={e.name} value={Number(e.attendance)||0} max={maxAtt} color="#7c3aed"/>)}
-        </div>
-      )}
-
-      <div className="flex flex-wrap gap-3 items-center mb-4">
-        <FYFilter value={fy} onChange={setFy}/>
-        <select value={type} onChange={e=>setType(e.target.value)}
-          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none">
-          <option value="All">All Types</option>
-          {EVENT_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
-        </select>
-        <button onClick={()=>setShowArchived(v=>!v)}
-          className="px-3 py-1.5 text-xs font-bold rounded-lg border transition"
-          style={showArchived?{background:"#1e3a5f",color:"white",border:"1px solid #1e3a5f"}:{background:"white",border:"1px solid #e2e8f0",color:"#64748b"}}>
-          {showArchived?"📂 Archived":"📂 Active"}
-        </button>
-        <div className="ml-auto">
-          <button onClick={()=>setModal("new")} className="px-4 py-1.5 text-xs font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>+ Add Event</button>
+        <div className="flex items-center gap-3">
+          <FYPicker value={fy} onChange={setFy}/>
+          <button onClick={()=>{setEditRow(null);setForm({fy,event_name:"",event_type:"Summer Concert",attendance:"",revenue:"",expenses:"",notes:""});setShowModal(true);}}
+            className="px-3 py-1.5 text-xs font-bold rounded-lg text-white" style={{background:"#b45309"}}>+ Add Event</button>
         </div>
       </div>
 
-      {loading?<div className="text-center py-10 text-slate-400">Loading...</div>:(
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
-            <thead><tr className="bg-slate-50 text-xs font-bold text-slate-400 uppercase tracking-wide">
-              <th className="px-4 py-3 text-left">Event</th><th className="px-4 py-3 text-left">Type</th>
-              <th className="px-4 py-3 text-left">Date</th><th className="px-4 py-3 text-left">FY</th>
-              <th className="px-4 py-3 text-right">Attendance</th><th className="px-4 py-3 text-right">Revenue</th>
-              <th className="px-4 py-3 text-right">Expenses</th><th className="px-4 py-3 text-left">Notes</th><th className="px-4 py-3"></th>
-            </tr></thead>
-            <tbody>
-              {vis.length===0&&<tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400">No events. Add one to get started.</td></tr>}
-              {vis.map(r=>(
-                <tr key={r.id} className="border-t border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={()=>setModal(r)}>
-                  <td className="px-4 py-3 font-semibold text-xs">{r.name}</td>
-                  <td className="px-4 py-3 text-xs"><span className="px-2 py-0.5 bg-purple-50 text-purple-700 rounded-full text-xs font-medium">{r.event_type}</span></td>
-                  <td className="px-4 py-3 text-xs text-slate-500">{r.event_date}</td>
-                  <td className="px-4 py-3 text-xs text-slate-400">{r.fy}</td>
-                  <td className="px-4 py-3 text-right font-mono">{(Number(r.attendance)||0).toLocaleString()}</td>
-                  <td className="px-4 py-3 text-right font-mono">{adminDollar(r.revenue)}</td>
-                  <td className="px-4 py-3 text-right font-mono text-slate-500">{adminDollar(r.expenses)}</td>
-                  <td className="px-4 py-3 text-xs text-slate-400 truncate max-w-xs">{r.notes}</td>
-                  <td className="px-4 py-3 text-right" onClick={e=>e.stopPropagation()}>
-                    <div className="flex gap-1 justify-end">
-                      <button onClick={()=>archive(r,!r.is_archived)} className="text-xs px-2 py-1 rounded bg-slate-100 text-slate-500">{r.is_archived?"↩":"📦"}</button>
-                      <button onClick={()=>setDelConfirm(r.id)} className="text-xs px-2 py-1 rounded bg-red-50 text-red-400">✕</button>
-                    </div>
-                  </td>
+      {/* YoY summary by event series */}
+      <div className="mb-6 bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden overflow-x-auto">
+        <div className="px-4 py-3 border-b border-slate-100 font-semibold text-sm text-slate-700">Attendance by Year</div>
+        <table className="w-full text-xs" style={{minWidth:500}}>
+          <thead>
+            <tr style={{background:"#f8fafc"}}>
+              <th className="text-left px-4 py-2 font-semibold text-slate-500" style={{minWidth:180}}>Event</th>
+              {allFYs.map(f=><th key={f} className="text-right px-3 py-2 font-semibold text-slate-500">{f.replace("20","'")}</th>)}
+              <th className="px-3 py-2 text-slate-500 font-semibold">Trend</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[...new Set(events.map(e=>e.event_name))].map(nm=>{
+              const vals=allFYs.map(f=>sumField(events.filter(e=>e.fy===f&&e.event_name===nm),"attendance")||null);
+              if(vals.every(v=>!v)) return null;
+              return(
+                <tr key={nm} className="border-t border-slate-50 hover:bg-slate-50">
+                  <td className="px-4 py-2 font-semibold text-slate-700">{nm}</td>
+                  {vals.map((v,i)=>{
+                    const prev=vals[i-1];
+                    const pct=prev&&prev>0&&v?((v-prev)/prev)*100:null;
+                    return(
+                      <td key={i} className="px-3 py-2 text-right">
+                        <div className="font-bold text-slate-800">{v||"—"}</div>
+                        {pct!=null&&<div style={{color:pct>=0?"#16a34a":"#dc2626",fontSize:"10px"}}>{pct>=0?"▲":"▼"}{Math.abs(pct).toFixed(1)}%</div>}
+                      </td>
+                    );
+                  })}
+                  <td className="px-3 py-2 text-center"><Sparkline values={vals.filter(v=>v!=null)} color="#b45309" height={22}/></td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* FY event list */}
+      <div className="space-y-2">
+        {fyRows.sort((a,b)=>(b.attendance||0)-(a.attendance||0)).map(e=>(
+          <div key={e.id} className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm flex items-center gap-4">
+            <div className="flex-1">
+              <div className="font-semibold text-slate-800 text-sm">{e.event_name}</div>
+              <div className="text-xs text-slate-500 mt-0.5 flex gap-3">
+                <span>{e.event_type}</span>
+                {e.revenue>0&&<span>{adm$(e.revenue)} revenue</span>}
+                {e.notes&&<span className="text-slate-400">{e.notes}</span>}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="font-bold text-slate-800">{(e.attendance||0).toLocaleString()}</div>
+              <div className="text-xs text-slate-500">attendees</div>
+            </div>
+            <div className="flex gap-1">
+              <button onClick={()=>openEdit(e)} className="p-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-500">✏</button>
+              <button onClick={()=>setConfirm(e.id)} className="p-1.5 rounded bg-red-50 hover:bg-red-100 text-red-400">✕</button>
+            </div>
+          </div>
+        ))}
+        {fyRows.length===0&&<EmptyState msg={`No events for FY ${fy}`} action="Add Event" onAction={()=>{setEditRow(null);setForm({fy,event_name:"",event_type:"Summer Concert",attendance:"",revenue:"",expenses:"",notes:""});setShowModal(true);}}/>}
+      </div>
+
+      {showModal&&(
+        <AModal title={editRow?"Edit Event":"Add Event"} onClose={()=>setShowModal(false)} wide>
+          <div className="grid grid-cols-2 gap-x-4">
+            <AInp label="Fiscal Year" value={form.fy} onChange={v=>setForm(p=>({...p,fy:v}))} options={ADMIN_FYS} required/>
+            <AInp label="Event Type" value={form.event_type} onChange={v=>setForm(p=>({...p,event_type:v}))} options={EVENT_TYPES}/>
+            <AInp label="Attendance" value={form.attendance} onChange={v=>setForm(p=>({...p,attendance:v}))} type="number"/>
+            <AInp label="Revenue ($)" value={form.revenue} onChange={v=>setForm(p=>({...p,revenue:v}))} type="number"/>
+            <AInp label="Expenses ($)" value={form.expenses} onChange={v=>setForm(p=>({...p,expenses:v}))} type="number"/>
+          </div>
+          <AInp label="Event Name" value={form.event_name} onChange={v=>setForm(p=>({...p,event_name:v}))} required/>
+          <AInp label="Notes" value={form.notes} onChange={v=>setForm(p=>({...p,notes:v}))} rows={2}/>
+          <div className="flex gap-3 justify-end mt-2">
+            <button onClick={()=>setShowModal(false)} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600">Cancel</button>
+            <button onClick={save} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#b45309"}}>{editRow?"Update":"Save"}</button>
+          </div>
+        </AModal>
       )}
+      {confirm&&<AConfirm message="Delete this event?" onConfirm={()=>del(confirm)} onCancel={()=>setConfirm(null)}/>}
     </div>
   );
 }
 
-function EventModal({initial,onSave,onClose,saving}){
-  const [r,setR]=useState({...initial});
-  const set=(k,v)=>setR(p=>({...p,[k]:v}));
-  return (
-    <AModal title={r.id?"Edit Event":"New Event"} onClose={onClose}>
-      <AInp label="Event Name" value={r.name} onChange={v=>set("name",v)} required/>
-      <div className="grid grid-cols-2 gap-3">
-        <AInp label="Event Type" value={r.event_type} onChange={v=>set("event_type",v)} options={EVENT_TYPES}/>
-        <AInp label="Fiscal Year" value={r.fy} onChange={v=>set("fy",v)} options={ADMIN_FYS} required/>
-        <AInp label="Event Date" value={r.event_date} onChange={v=>set("event_date",v)} type="date"/>
-        <AInp label="Attendance" value={r.attendance} onChange={v=>set("attendance",v)} type="number"/>
-        <AInp label="Revenue ($)" value={r.revenue} onChange={v=>set("revenue",v)} type="number"/>
-        <AInp label="Expenses ($)" value={r.expenses} onChange={v=>set("expenses",v)} type="number"/>
-      </div>
-      <AInp label="Notes" value={r.notes} onChange={v=>set("notes",v)} rows={2}/>
-      <div className="flex justify-end gap-3 mt-2">
-        <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-slate-200">Cancel</button>
-        <button onClick={()=>onSave(r)} disabled={saving} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>
-          {saving?"Saving…":"Save"}
-        </button>
-      </div>
-    </AModal>
-  );
-}
-
-// ─── FEE HISTORY ──────────────────────────────────────────────────────────────
+// ─── FEE HISTORY ─────────────────────────────────────────────────────────────
 function FeeHistorySection({db}){
-  const [records,setRecords] = useState([]);
-  const [loading,setLoading] = useState(true);
-  const [fy,setFy]           = useState(ADMIN_CUR);
-  const [area,setAreaF]      = useState("All");
-  const [search,setSearch]   = useState("");
-  const [modal,setModal]     = useState(null);
-  const [delConfirm,setDelConfirm] = useState(null);
-  const [saving,setSaving]   = useState(false);
-  const [showArchived,setShowArchived] = useState(false);
+  const [fees,setFees]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [fy,setFy]=useState(ADMIN_CUR);
+  const [areaF,setAreaF]=useState("all");
+  const [search,setSearch]=useState("");
+  const [showModal,setShowModal]=useState(false);
+  const [editRow,setEditRow]=useState(null);
+  const [confirm,setConfirm]=useState(null);
+  const emptyForm={fy:ADMIN_CUR,area:"",program_name:"",resident_fee:"",nonresident_fee:"",contractual:false,notes:"",is_archived:false};
+  const [form,setForm]=useState(emptyForm);
 
-  const load = useCallback(async()=>{
+  async function load(){
     setLoading(true);
-    const {data} = await db.from("admin_fees").select("*").order("fy",{ascending:false});
-    setRecords(data||[]); setLoading(false);
-  },[db]);
-  useEffect(()=>{ load(); },[load]);
+    const {data}=await db.from("admin_fees").select("*").order("area").order("program_name");
+    setFees(data||[]);
+    setLoading(false);
+  }
+  useEffect(()=>{load();},[]);
 
-  const vis = records.filter(r=>{
-    if(r.is_archived !== showArchived) return false;
-    if(fy!=="All" && r.fy!==fy) return false;
-    if(area!=="All" && r.area!==area) return false;
-    if(search && !r.program_name?.toLowerCase().includes(search.toLowerCase())) return false;
+  async function save(){
+    const d={fy:form.fy,area:form.area,program_name:form.program_name,resident_fee:form.resident_fee,nonresident_fee:form.nonresident_fee,contractual:form.contractual,notes:form.notes,is_archived:false};
+    if(editRow){await db.from("admin_fees").update(d).eq("id",editRow.id);}
+    else{await db.from("admin_fees").insert(d);}
+    setShowModal(false);setEditRow(null);load();
+  }
+  async function del(id){await db.from("admin_fees").delete().eq("id",id);setConfirm(null);load();}
+  function openEdit(r){setEditRow(r);setForm({fy:r.fy,area:r.area,program_name:r.program_name,resident_fee:r.resident_fee||"",nonresident_fee:r.nonresident_fee||"",contractual:r.contractual||false,notes:r.notes||""});setShowModal(true);}
+
+  if(loading) return <div className="text-center py-20 text-slate-400">Loading…</div>;
+
+  const fyFees=fees.filter(f=>f.fy===fy&&!f.is_archived);
+  const prevFy=ADMIN_FYS[ADMIN_FYS.indexOf(fy)-1];
+  const filtered=fyFees.filter(f=>{
+    if(areaF!=="all"&&f.area!==areaF) return false;
+    if(search&&!f.program_name.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
+  const areas=[...new Set(fees.map(f=>f.area))].filter(Boolean).sort();
 
-  const blank = {program_name:"",area:AREAS[0],fy:ADMIN_CUR,resident_fee:"",nonresident_fee:"",contractual:false,fee_notes:"",is_archived:false};
-  const save = async r=>{
-    setSaving(true);
-    if(r.id){ await db.from("admin_fees").update(r).eq("id",r.id); }
-    else     { await db.from("admin_fees").insert(r); }
-    await load(); setModal(null); setSaving(false);
-  };
-  const archive = async(r,val)=>{ await db.from("admin_fees").update({is_archived:val}).eq("id",r.id); await load(); };
-  const del     = async(id)=>{ await db.from("admin_fees").delete().eq("id",id); await load(); setDelConfirm(null); };
+  function feeChanged(f){
+    if(!prevFy) return false;
+    const prev=fees.find(p=>p.fy===prevFy&&p.program_name===f.program_name&&p.area===f.area);
+    if(!prev) return false;
+    return prev.resident_fee!==f.resident_fee||prev.nonresident_fee!==f.nonresident_fee;
+  }
 
-  // FY comparison: for each program show prev FY fee
-  const prevFy = fy!=="All" ? ADMIN_FYS[ADMIN_FYS.indexOf(fy)-1] : null;
-  const prevMap = {};
-  if(prevFy){ records.filter(r=>r.fy===prevFy).forEach(r=>{ prevMap[r.program_name+"_"+r.area]=r; }); }
-
-  return (
+  return(
     <div>
-      {delConfirm&&<AConfirm message="Delete this fee record?" onConfirm={()=>del(delConfirm)} onCancel={()=>setDelConfirm(null)}/>}
-      {modal&&<FeeModal initial={modal==="new"?blank:modal} onSave={save} onClose={()=>setModal(null)} saving={saving}/>}
-
-      <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-700 font-medium mb-5">
-        📋 Fee History tracks resident/non-resident fees per program per fiscal year. Show last 2 years to compare, create future year entries to plan ahead. Contractual programs are flagged separately.
-      </div>
-
-      <div className="flex flex-wrap gap-3 items-center mb-4">
-        <FYFilter value={fy} onChange={setFy}/>
-        <select value={area} onChange={e=>setAreaF(e.target.value)}
-          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none">
-          <option value="All">All Areas</option>
-          {AREAS.map(a=><option key={a} value={a}>{a}</option>)}
-        </select>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search program…"
-          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none"/>
-        <button onClick={()=>setShowArchived(v=>!v)}
-          className="px-3 py-1.5 text-xs font-bold rounded-lg border transition"
-          style={showArchived?{background:"#1e3a5f",color:"white",border:"1px solid #1e3a5f"}:{background:"white",border:"1px solid #e2e8f0",color:"#64748b"}}>
-          {showArchived?"📂 Archived":"📂 Active"}
-        </button>
-        <div className="ml-auto flex gap-2">
-          <span className="text-xs text-slate-400 self-center">{vis.length} records</span>
-          <button onClick={()=>setModal("new")} className="px-4 py-1.5 text-xs font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>+ Add Fee</button>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="font-bold text-slate-800" style={{fontSize:"18px"}}>Fee History</h2>
+          <p className="text-sm text-slate-500 mt-0.5">Resident & non-resident fees by program and fiscal year</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <FYPicker value={fy} onChange={setFy}/>
+          <button onClick={()=>{setEditRow(null);setForm({...emptyForm,fy});setShowModal(true);}}
+            className="px-4 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>+ Add Fee</button>
         </div>
       </div>
 
-      {loading?<div className="text-center py-10 text-slate-400">Loading...</div>:(
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+      {/* Filters */}
+      <div className="bg-white rounded-xl border border-slate-100 p-3 shadow-sm mb-5 flex gap-3 flex-wrap items-center">
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search program…"
+          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm flex-1" style={{minWidth:160}}/>
+        <select value={areaF} onChange={e=>setAreaF(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm">
+          <option value="all">All Areas</option>
+          {AREAS.map(a=><option key={a} value={a}>{a}</option>)}
+        </select>
+        <span className="text-xs text-slate-400">{filtered.length} programs</span>
+      </div>
+
+      {/* Table */}
+      {filtered.length>0?(
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="bg-slate-50 text-xs font-bold text-slate-400 uppercase tracking-wide">
-              <th className="px-4 py-3 text-left">Program</th><th className="px-4 py-3 text-left">Area</th>
-              <th className="px-4 py-3 text-left">FY</th><th className="px-4 py-3 text-right">Resident Fee</th>
-              <th className="px-4 py-3 text-right">Non-Resident</th>{prevFy&&<th className="px-4 py-3 text-right">Prior Year (R)</th>}
-              <th className="px-4 py-3 text-left">Contractual</th><th className="px-4 py-3 text-left">Notes</th><th className="px-4 py-3"></th>
-            </tr></thead>
+            <thead>
+              <tr style={{background:"#f8fafc"}}>
+                {["Area","Program","Resident Fee","Non-Res Fee","Contractual","Prior Year","Notes",""].map(h=>(
+                  <th key={h} className={`px-4 py-3 text-xs font-semibold text-slate-500 uppercase ${h==="Area"||h==="Program"?"text-left":"text-right"}`}>{h}</th>
+                ))}
+              </tr>
+            </thead>
             <tbody>
-              {vis.length===0&&<tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400">No fee records. Add one to start tracking.</td></tr>}
-              {vis.map(r=>{
-                const prev = prevMap[r.program_name+"_"+r.area];
-                const changed = prev && prev.resident_fee !== r.resident_fee;
-                return (
-                  <tr key={r.id} className="border-t border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={()=>setModal(r)}>
-                    <td className="px-4 py-3 font-semibold text-xs">{r.program_name}</td>
-                    <td className="px-4 py-3 text-xs text-slate-500">{r.area}</td>
-                    <td className="px-4 py-3 text-xs text-slate-400">{r.fy}</td>
-                    <td className={`px-4 py-3 text-right font-mono text-sm font-bold ${changed?"text-amber-600":""}`}>{r.resident_fee||"—"}</td>
-                    <td className="px-4 py-3 text-right font-mono text-sm text-slate-500">{r.nonresident_fee||"—"}</td>
-                    {prevFy&&<td className="px-4 py-3 text-right font-mono text-xs text-slate-400">{prev?prev.resident_fee||"—":"—"}</td>}
-                    <td className="px-4 py-3 text-xs">{r.contractual?<span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs font-bold">X</span>:""}</td>
-                    <td className="px-4 py-3 text-xs text-slate-400 max-w-xs truncate">{r.fee_notes}</td>
-                    <td className="px-4 py-3 text-right" onClick={e=>e.stopPropagation()}>
+              {filtered.map(f=>{
+                const changed=feeChanged(f);
+                const prevF=prevFy?fees.find(p=>p.fy===prevFy&&p.program_name===f.program_name&&p.area===f.area):null;
+                return(
+                  <tr key={f.id} className={`border-t border-slate-50 hover:bg-slate-50 ${changed?"":""}` } style={changed?{background:"#fffbeb"}:{}}>
+                    <td className="px-4 py-2.5 text-xs text-slate-500">{f.area}</td>
+                    <td className="px-4 py-2.5 font-medium text-slate-800">{f.program_name}</td>
+                    <td className="px-4 py-2.5 text-right font-semibold text-slate-800">{f.resident_fee||"—"}</td>
+                    <td className="px-4 py-2.5 text-right text-slate-700">{f.nonresident_fee||"—"}</td>
+                    <td className="px-4 py-2.5 text-center">{f.contractual&&<span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold">C</span>}</td>
+                    <td className="px-4 py-2.5 text-right text-xs text-slate-400">
+                      {prevF?<span className={changed?"font-semibold text-amber-700":""}>{prevF.resident_fee||"—"}</span>:"—"}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-slate-400 max-w-xs truncate">{f.notes}</td>
+                    <td className="px-4 py-2.5">
                       <div className="flex gap-1 justify-end">
-                        <button onClick={()=>archive(r,!r.is_archived)} className="text-xs px-2 py-1 rounded bg-slate-100 text-slate-500">{r.is_archived?"↩":"📦"}</button>
-                        <button onClick={()=>setDelConfirm(r.id)} className="text-xs px-2 py-1 rounded bg-red-50 text-red-400">✕</button>
+                        <button onClick={()=>openEdit(f)} className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-500 text-xs">✏</button>
+                        <button onClick={()=>setConfirm(f.id)} className="px-2 py-1 rounded bg-red-50 hover:bg-red-100 text-red-400 text-xs">✕</button>
                       </div>
                     </td>
                   </tr>
@@ -3562,223 +4498,66 @@ function FeeHistorySection({db}){
             </tbody>
           </table>
         </div>
-      )}
-    </div>
-  );
-}
-
-function FeeModal({initial,onSave,onClose,saving}){
-  const [r,setR]=useState({...initial});
-  const set=(k,v)=>setR(p=>({...p,[k]:v}));
-  return (
-    <AModal title={r.id?"Edit Fee Record":"New Fee Record"} onClose={onClose}>
-      <AInp label="Program Name" value={r.program_name} onChange={v=>set("program_name",v)} required/>
-      <div className="grid grid-cols-2 gap-3">
-        <AInp label="Area" value={r.area} onChange={v=>set("area",v)} options={AREAS} required/>
-        <AInp label="Fiscal Year" value={r.fy} onChange={v=>set("fy",v)} options={ADMIN_FYS} required/>
-        <AInp label="Resident Fee" value={r.resident_fee} onChange={v=>set("resident_fee",v)} hint="e.g. $65/$75 or 65"/>
-        <AInp label="Non-Resident Fee" value={r.nonresident_fee} onChange={v=>set("nonresident_fee",v)}/>
-      </div>
-      <div className="flex items-center gap-3 mb-3">
-        <input type="checkbox" id="contractual" checked={!!r.contractual} onChange={e=>set("contractual",e.target.checked)} className="w-4 h-4"/>
-        <label htmlFor="contractual" className="text-sm font-medium text-slate-600">Contractual Program</label>
-      </div>
-      <AInp label="Notes / Comments" value={r.fee_notes} onChange={v=>set("fee_notes",v)} rows={2}/>
-      <div className="flex justify-end gap-3 mt-2">
-        <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-slate-200">Cancel</button>
-        <button onClick={()=>onSave(r)} disabled={saving} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>
-          {saving?"Saving…":"Save Fee"}
-        </button>
-      </div>
-    </AModal>
-  );
-}
-
-// ─── EXECUTIVE SUMMARY ────────────────────────────────────────────────────────
-function ExecSummary({programs,db}){
-  const [fy,setFy]     = useState(ADMIN_CUR);
-  const [goals,setGoals]   = useState([]);
-  const [funds,setFunds]   = useState([]);
-  const [rentals,setRentals] = useState([]);
-  const [camps,setCamps]   = useState([]);
-  const [events,setEvents] = useState([]);
-
-  useEffect(()=>{
-    const load = async()=>{
-      const [g,f,r,c,e] = await Promise.all([
-        db.from("admin_goals").select("*"),
-        db.from("admin_funds").select("*"),
-        db.from("admin_rentals").select("*"),
-        db.from("admin_camps").select("*"),
-        db.from("admin_events").select("*"),
-      ]);
-      setGoals(g.data||[]); setFunds(f.data||[]); setRentals(r.data||[]); setCamps(c.data||[]); setEvents(e.data||[]);
-    };
-    load();
-  },[db]);
-
-  // Program KPIs from main programs table
-  const progVis = programs.filter(p=>!p.is_archived);
-  const progKPIs = progVis.map(p=>{ const k=calcKPIs(p); return {...p,...k}; });
-  const healthy = progKPIs.filter(p=>p.status==="Healthy").length;
-  const monitor = progKPIs.filter(p=>p.status==="Monitor").length;
-  const redesign= progKPIs.filter(p=>p.status==="Needs Redesign").length;
-  const avgFill = progKPIs.length ? progKPIs.reduce((a,p)=>a+p.fillRate,0)/progKPIs.length : 0;
-  const avgCR   = progKPIs.length ? progKPIs.reduce((a,p)=>a+p.costRecovery,0)/progKPIs.length : 0;
-  const healthScore = progKPIs.length ? Math.round((avgFill*0.4+Math.min(avgCR,2)/2*0.4+(healthy/progKPIs.length)*0.2)*100) : 0;
-
-  // Fund aggregates
-  const fyFunds = funds.filter(f=>!f.is_archived && f.fy===fy);
-  const totalFundRev = fyFunds.reduce((a,f)=>a+(Number(f.revenue)||0),0);
-  const totalFundExp = fyFunds.reduce((a,f)=>a+(Number(f.expenses)||0),0);
-
-  // Goals stats
-  const fyGoals = goals.filter(g=>!g.is_archived && (g.fy===fy||fy==="All"));
-  const goalsComplete = fyGoals.filter(g=>g.status==="Complete").length;
-  const goalsNotComplete = fyGoals.filter(g=>g.status==="Not Complete").length;
-  const goalsPct = fyGoals.length ? Math.round(goalsComplete/fyGoals.length*100) : 0;
-
-  // Rentals
-  const fyRentals = rentals.filter(r=>!r.is_archived && r.fy===fy);
-  const totalRentalsRev = fyRentals.reduce((a,r)=>a+(Number(r.revenue)||0),0);
-
-  // Camps
-  const fyCamps = camps.filter(c=>!c.is_archived && c.fy===fy);
-  const totalCampEnroll = fyCamps.reduce((a,c)=>a+(Number(c.total_enrollment)||0),0);
-
-  // Events
-  const fyEvents = events.filter(e=>!e.is_archived && e.fy===fy);
-  const totalEventAtt = fyEvents.reduce((a,e)=>a+(Number(e.attendance)||0),0);
-
-  // G&O alert
-  const needsAttention = goals.filter(g=>!g.is_archived && g.fy===fy && (g.status==="Not Complete"||g.status==="Paused"));
-
-  return (
-    <div>
-      <div className="flex items-center gap-4 mb-5">
-        <FYFilter value={fy} onChange={setFy}/>
-        <div className="text-xs text-slate-400">All data below filtered by selected FY</div>
-      </div>
-
-      {/* Alert strip */}
-      {needsAttention.length>0&&(
-        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800 font-medium mb-5 flex gap-2 items-start">
-          <span>⚠</span>
-          <span><strong>{needsAttention.length} goal{needsAttention.length>1?"s":""}</strong> flagged as Not Complete or Paused in {fyLabel(fy)}: {needsAttention.slice(0,2).map(g=>g.staff_lead).join(", ")}{needsAttention.length>2?` +${needsAttention.length-2} more`:""}</span>
-        </div>
+      ):(
+        <EmptyState msg={`No fees for FY ${fy}${search?` matching "${search}"`:""}. Import from the Master Fee Report or add manually.`} action="Add Fee" onAction={()=>{setEditRow(null);setForm({...emptyForm,fy});setShowModal(true);}}/>
       )}
 
-      {/* Headline row */}
-      <div className="grid grid-cols-3 gap-3 mb-5">
-        <ACard label="Health Score (Programs)" value={`${healthScore}/100`}
-          color={healthScore>=75?"#16a34a":healthScore>=50?"#b45309":"#dc2626"}
-          sub={`${progKPIs.length} active programs · ${healthy} healthy`}/>
-        <ACard label="Total Fund Revenue" value={adminDollar(totalFundRev)}
-          color="#1e3a5f" sub={`Expenses: ${adminDollar(totalFundExp)}`}/>
-        <ACard label="G&O Completion" value={`${goalsPct}%`}
-          color={goalsPct>=80?"#16a34a":goalsPct>=50?"#b45309":"#dc2626"}
-          sub={`${goalsComplete} complete · ${goalsNotComplete} not complete`}/>
-      </div>
-
-      {/* Program status row */}
-      <div className="grid grid-cols-4 gap-3 mb-5">
-        <div className="bg-white rounded-xl p-4 shadow-sm border-t-4" style={{borderTopColor:"#16a34a"}}>
-          <div className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">Healthy Programs</div>
-          <div className="text-3xl font-extrabold text-green-600" style={{fontFamily:"monospace"}}>{healthy}</div>
-          <div className="text-xs text-slate-400 mt-1">{progKPIs.length>0?`${Math.round(healthy/progKPIs.length*100)}% of portfolio`:""}</div>
-        </div>
-        <div className="bg-white rounded-xl p-4 shadow-sm border-t-4" style={{borderTopColor:"#eab308"}}>
-          <div className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">Monitor</div>
-          <div className="text-3xl font-extrabold text-amber-600" style={{fontFamily:"monospace"}}>{monitor}</div>
-        </div>
-        <div className="bg-white rounded-xl p-4 shadow-sm border-t-4" style={{borderTopColor:"#dc2626"}}>
-          <div className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">Needs Redesign</div>
-          <div className="text-3xl font-extrabold text-red-500" style={{fontFamily:"monospace"}}>{redesign}</div>
-        </div>
-        <div className="bg-white rounded-xl p-4 shadow-sm border-t-4" style={{borderTopColor:"#7c3aed"}}>
-          <div className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">Avg Cost Recovery</div>
-          <div className="text-3xl font-extrabold" style={{fontFamily:"monospace",color:avgCR>=1?"#16a34a":"#dc2626"}}>{adminPct(avgCR)}</div>
-        </div>
-      </div>
-
-      {/* Area-specific KPIs */}
-      <div className="grid grid-cols-3 gap-3 mb-5">
-        <ACard label="Total Rentals Revenue" value={adminDollar(totalRentalsRev)} color="#d4a017" sub={`${fyRentals.length} entries · ${fyLabel(fy)}`}/>
-        <ACard label="Camp Enrollment" value={totalCampEnroll.toLocaleString()} color="#2d5a9e" sub={`${fyCamps.length} camp records · ${fyLabel(fy)}`}/>
-        <ACard label="Special Event Attendance" value={totalEventAtt.toLocaleString()} color="#7c3aed" sub={`${fyEvents.length} events · ${fyLabel(fy)}`}/>
-      </div>
-
-      {/* Fund breakdown bars */}
-      {fyFunds.length>0&&(
-        <div className="bg-white rounded-xl p-4 shadow-sm mb-5">
-          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Fund Revenue — {fyLabel(fy)}</div>
-          {FUND_NAMES.map(fn=>{
-            const rows=fyFunds.filter(f=>f.fund_name===fn);
-            const rev=rows.reduce((a,f)=>a+(Number(f.revenue)||0),0);
-            const goal=rows.reduce((a,f)=>a+(Number(f.goal)||0),0);
-            if(!rev&&!goal) return null;
-            return <ABar key={fn} label={fn.replace("Fund 4 – ","F4: ").replace("Fitness Center (FCBG)","Fitness Ctr").replace("Clubhouse – All Sites","Clubhouse").replace("Camps – All Programs","Camps")} value={rev} max={Math.max(totalFundRev,1)} color="#1e3a5f"/>;
-          })}
-        </div>
-      )}
-
-      {/* G&O quick view */}
-      {fyGoals.length>0&&(
-        <div className="bg-white rounded-xl p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">Goals & Objectives — {fyLabel(fy)}</div>
-            <div className="flex gap-2">
-              {["Complete","Not Complete","Ongoing","Paused"].map(s=>(
-                <span key={s} className="text-xs text-slate-500">{s}: <strong>{fyGoals.filter(g=>g.status===s).length}</strong></span>
-              ))}
-            </div>
+      {showModal&&(
+        <AModal title={editRow?"Edit Fee":"Add Fee"} onClose={()=>setShowModal(false)} wide>
+          <div className="grid grid-cols-2 gap-x-4">
+            <AInp label="Fiscal Year" value={form.fy} onChange={v=>setForm(p=>({...p,fy:v}))} options={ADMIN_FYS} required/>
+            <AInp label="Area" value={form.area} onChange={v=>setForm(p=>({...p,area:v}))} options={AREAS} required/>
           </div>
-          {fyGoals.filter(g=>g.status==="Not Complete"||g.status==="Paused").slice(0,5).map(g=>(
-            <div key={g.id} className="flex items-center gap-3 py-2 border-t border-slate-50">
-              <ABadge status={g.status}/>
-              <div className="flex-1 text-xs text-slate-700 truncate">{g.objective}</div>
-              <div className="text-xs text-slate-400 flex-shrink-0">{g.staff_lead}</div>
-            </div>
-          ))}
-          {fyGoals.filter(g=>g.status==="Not Complete"||g.status==="Paused").length===0&&(
-            <div className="text-xs text-green-600 font-semibold py-2">✓ All goals complete or on track for {fyLabel(fy)}</div>
-          )}
-        </div>
+          <AInp label="Program Name" value={form.program_name} onChange={v=>setForm(p=>({...p,program_name:v}))} required/>
+          <div className="grid grid-cols-2 gap-x-4">
+            <AInp label="Resident Fee" value={form.resident_fee} onChange={v=>setForm(p=>({...p,resident_fee:v}))} hint="e.g. $45 or $40/$50"/>
+            <AInp label="Non-Resident Fee" value={form.nonresident_fee} onChange={v=>setForm(p=>({...p,nonresident_fee:v}))}/>
+          </div>
+          <div className="flex items-center gap-2 mb-4">
+            <input type="checkbox" checked={form.contractual} onChange={e=>setForm(p=>({...p,contractual:e.target.checked}))} id="contractual" className="w-4 h-4"/>
+            <label htmlFor="contractual" className="text-sm text-slate-700">Contractual program</label>
+          </div>
+          <AInp label="Notes" value={form.notes} onChange={v=>setForm(p=>({...p,notes:v}))} rows={2}/>
+          <div className="flex gap-3 justify-end mt-2">
+            <button onClick={()=>setShowModal(false)} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600">Cancel</button>
+            <button onClick={save} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>{editRow?"Update":"Save"}</button>
+          </div>
+        </AModal>
       )}
+      {confirm&&<AConfirm message="Delete this fee record?" onConfirm={()=>del(confirm)} onCancel={()=>setConfirm(null)}/>}
     </div>
   );
 }
 
-// ─── ADMIN CONTAINER ──────────────────────────────────────────────────────────
+// ─── ADMIN CONTAINER ─────────────────────────────────────────────────────────
 function AdminView({programs,db}){
-  const [sub,setSub] = useState("summary");
-  const tabs = [
-    {id:"summary",  label:"★ Executive Summary"},
-    {id:"funds",    label:"$ Fund Performance"},
-    {id:"goals",    label:"✓ Goals & Objectives"},
-    {id:"rentals",  label:"⌂ Rentals"},
-    {id:"areas",    label:"◎ Program Areas"},
-    {id:"fees",     label:"◈ Fee History"},
+  const [sub,setSub]=useState("summary");
+  const tabs=[
+    {id:"summary",l:"★ Executive Summary"},
+    {id:"funds",  l:"$ Fund Performance"},
+    {id:"goals",  l:"✓ Goals & Objectives"},
+    {id:"rentals",l:"⌂ Rentals"},
+    {id:"areas",  l:"◎ Program Areas"},
+    {id:"fees",   l:"◈ Fee History"},
   ];
-  return (
+  return(
     <div>
-      {/* Admin tab strip */}
-      <div className="flex gap-0 mb-6 overflow-x-auto bg-white rounded-xl shadow-sm border border-slate-100 p-1">
+      <div className="flex gap-1 mb-6 bg-white rounded-xl shadow-sm border border-slate-100 p-1 overflow-x-auto">
         {tabs.map(t=>(
           <button key={t.id} onClick={()=>setSub(t.id)}
-            className={`px-4 py-2 text-xs font-bold rounded-lg transition whitespace-nowrap ${sub===t.id?"text-white":"text-slate-500 hover:text-slate-700 hover:bg-slate-50"}`}
-            style={sub===t.id?{background:"#1e3a5f"}:{}}>
-            {t.label}
+            className="px-4 py-2 text-xs font-bold rounded-lg transition whitespace-nowrap"
+            style={sub===t.id?{background:"#1e3a5f",color:"white"}:{color:"#64748b"}}>
+            {t.l}
           </button>
         ))}
       </div>
       <div className="min-h-96">
-        {sub==="summary" && <ExecSummary programs={programs} db={db}/>}
-        {sub==="funds"   && <FundSection db={db}/>}
-        {sub==="goals"   && <GoalsSection db={db}/>}
-        {sub==="rentals" && <RentalsSection db={db}/>}
-        {sub==="areas"   && <ProgramAreasSection db={db}/>}
-        {sub==="fees"    && <FeeHistorySection db={db}/>}
+        {sub==="summary"&&<ExecSummary programs={programs} db={db}/>}
+        {sub==="funds"  &&<FundSection db={db}/>}
+        {sub==="goals"  &&<GoalsSection db={db}/>}
+        {sub==="rentals"&&<RentalsSection db={db}/>}
+        {sub==="areas"  &&<ProgramAreasSection db={db}/>}
+        {sub==="fees"   &&<FeeHistorySection db={db}/>}
       </div>
     </div>
   );
