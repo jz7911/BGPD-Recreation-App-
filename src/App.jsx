@@ -27,8 +27,8 @@ const PROGRAM_TYPES = [
 const ADMIN_OVERHEAD_RATE  = 0.1;
 const FT_ANNUAL_SALARY     = 97700;
 const FACILITY_COST_PER_HR = 3;
-const MANAGER_NAMES        = ["admin","manager","joe zimmermann","erika strojinc","dan stanczak","brian o'malley","chris eckert","chuck burgess","diana clayson","amanda busch"];
-const ADMIN_NAMES          = ["admin","joe zimmermann"]; // Director-level: sees ★ Admin tab
+const MANAGER_NAMES        = ["","manager","joe zimmermann","erika strojinc","dan stanczak","brian o'malley","chris eckert","chuck burgess","diana clayson","amanda busch"];
+const ADMIN_NAMES          = ["admin","joe zimmermann","erika strojinc","dan stanczak"]; // Director-level: sees ★ Admin tab
 
 
 // Service category cost recovery targets
