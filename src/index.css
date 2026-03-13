@@ -4,7 +4,10 @@
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
 * { font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif; }
 
-#season-report { display: none; }
+/* Hide season report on screen — only shown during print */
+@media screen {
+  #season-report { display: none !important; }
+}
 
 @media print {
   body > * { display: none !important; }
