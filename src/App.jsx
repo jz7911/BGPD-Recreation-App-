@@ -4070,15 +4070,6 @@ export default function App() {
     {id:"programs",label:"Programs"},
     {id:"history",label:"Multi-Season"},
     {id:"kpi",label:"Reference"},
-    ...(effectiveManager?[
-      {id:"fund4",   label:"Fund 4"},
-      {id:"fitness", label:"Fitness"},
-      {id:"clubhouse",label:"Clubhouse"},
-      {id:"goals",   label:"Goals"},
-      {id:"rentals", label:"Rentals"},
-      {id:"events",  label:"Events"},
-      {id:"fees",    label:"Fees"},
-    ]:[]),
   ];
   const showingForm = editingProgram||addingProgram;
 
@@ -4169,13 +4160,6 @@ export default function App() {
               <MultiSeasonView programs={programs} onEdit={p=>{setEditingProgram(p);setTab("programs");}}/>
             )}
             {tab==="kpi"&&<Reference isManager={effectiveManager} db={supabase} programs={programs}/>}
-            {tab==="fund4"   &&effectiveManager&&<Fund4Dashboard db={supabase}/>}
-            {tab==="fitness" &&effectiveManager&&<FitnessDashboard db={supabase}/>}
-            {tab==="clubhouse"&&effectiveManager&&<ClubhouseDashboard db={supabase}/>}
-            {tab==="goals"   &&effectiveManager&&<GoalsDashboard db={supabase}/>}
-            {tab==="rentals" &&effectiveManager&&<RentalsDashboard db={supabase}/>}
-            {tab==="events"  &&effectiveManager&&<EventsDashboard db={supabase}/>}
-            {tab==="fees"    &&effectiveManager&&<FeeDashboard db={supabase}/>}
           </>
         )}
       </main>
