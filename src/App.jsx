@@ -2051,11 +2051,11 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
     revenue:"",direct_costs:"",cost_recovery:"",prior_cr:"",
     below_50_cr:false,cr_action:"",fs_acceptable:true,fs_notes:"",fs_strengths:"",fs_concerns:"",
     // Data
-    fill_rate:"",prior_fill_rate:"",participant_satisfaction:"",consecutive_weak:"0",
-    below_60_fill:false,two_weak_seasons:false,weak_action:"",trend:"Stable",nps:"",
+    fill_rate:"",prior_fill_rate:"",seasons_below_threshold:"0",
+    below_60_fill:false,needs_review:false,review_action:"",trend:"Stable",nps:"",
     da_notes:"",da_strengths:"",da_concerns:"",
     // Community
-    enrollment:"",capacity:"",waitlist:"",repeat_participant_pct:"",
+    enrollment:"",capacity:"",waitlist:"",
     retention_trend:"Stable",clear_audience:true,community_benefit:true,
     documented_need:false,ci_notes:"",ci_strengths:"",ci_concerns:"",
     // Space
@@ -2102,8 +2102,8 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   // Auto-match program from programs list when name changes
   function handleProgramName(name){
     s("program_name",name);
-    if(!programs||!programs.length) return;
-    const match=programs.find(p=>p.name?.toLowerCase()===name.toLowerCase());
+    if(!reviewablePrograms||!reviewablePrograms.length) return;
+    const match=reviewablePrograms.find(p=>p.name?.toLowerCase()===name.toLowerCase());
     if(match){
       const kpis=calcKPIs(match);
       setMatchedProgram(match);
@@ -2130,10 +2130,10 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
 
   // Prior season lookup
   function priorSeasonData(name,season,fy){
-    if(!programs||!name) return null;
+    if(!reviewablePrograms||!name) return null;
     const fyIdx=ADMIN_FYS.indexOf(fy);
     const priorFY=fyIdx>0?ADMIN_FYS[fyIdx-1]:null;
-    const prior=programs.find(p=>
+    const prior=reviewablePrograms.find(p=>
       p.name?.toLowerCase()===name.toLowerCase()&&
       p.season===season&&
       p.year===priorFY?.slice(0,4)
@@ -2157,7 +2157,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   function computePillars(f){
     const cr=parseFloat(f.cost_recovery)||0;
     const fr=parseFloat(f.fill_rate)||0;
-    const wk=parseInt(f.consecutive_weak)||0;
+    const wk=parseInt(f.seasons_below_threshold)||0;
     const p1=f.fs_acceptable&&cr>=50;
     const p2=fr>=60&&wk<2;
     const p3=f.clear_audience&&f.community_benefit;
@@ -2186,13 +2186,12 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
       prior_cr:parseFloat(form.prior_cr)||0,
       fill_rate:parseFloat(form.fill_rate)||0,
       prior_fill_rate:parseFloat(form.prior_fill_rate)||0,
-      cancellation_rate:parseFloat(form.participant_satisfaction)||0,
-      consecutive_weak:parseInt(form.consecutive_weak)||0,
+      seasons_below_threshold:parseInt(form.seasons_below_threshold)||0,
       nps:form.nps?parseInt(form.nps):null,
       enrollment:parseInt(form.enrollment)||0,
       capacity:parseInt(form.capacity)||0,
       waitlist:parseInt(form.waitlist)||0,
-      retention_rate:form.repeat_participant_pct?parseFloat(form.repeat_participant_pct):null,
+      
       pillars_met:pillarsStr,
     };
     if(editRow){await db.from("admin_reviews").update(d).eq("id",editRow.id);}
@@ -2202,7 +2201,11 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
 
   async function del(id){await db.from("admin_reviews").delete().eq("id",id);setConfirm(null);load();}
 
-  function startNew(){setEditRow(null);setForm(emptyForm);setActiveStep(0);setMatchedProgram(null);setView("form");}
+  function startNew(){
+    setEditRow(null);
+    setForm({...emptyForm, supervisor: isManager ? "" : staffName});
+    setActiveStep(0);setMatchedProgram(null);setView("form");
+  }
   function startEdit(r){
     setEditRow(r);
     setForm({...emptyForm,...r,
@@ -2213,19 +2216,24 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
       enrollment:r.enrollment||"",capacity:r.capacity||"",
       waitlist:r.waitlist||"",nps:r.nps||"",
       retention_rate:r.retention_rate||"",
-      repeat_participant_pct:r.repeat_participant_pct||"",
-      consecutive_weak:r.consecutive_weak!=null?String(r.consecutive_weak):"0",
+      seasons_below_threshold:r.seasons_below_threshold!=null?String(r.seasons_below_threshold):"0",
     });
     setActiveStep(0);setView("form");
   }
 
   const filtered=reviews.filter(r=>{
+    // Staff only see reviews for programs they created
     if(!isManager && staffName && r.supervisor?.toLowerCase().trim()!==staffName.toLowerCase().trim()) return false;
     if(fyFilter!=="all"&&r.fy!==fyFilter) return false;
     if(decFilter!=="all"&&r.decision!==decFilter) return false;
     if(search&&!r.program_name?.toLowerCase().includes(search.toLowerCase())&&!r.supervisor?.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
+
+  // Programs this person can review: staff see only their own, managers see all
+  const reviewablePrograms = isManager
+    ? (programs||[])
+    : (programs||[]).filter(p=>p.staff_name?.toLowerCase().trim()===staffName.toLowerCase().trim());
 
   // ── Helper sub-components ──────────────────────────────────────────────────
   const inp=(label,key,type="text",opts=null,req=false,hint="")=>(
@@ -2303,7 +2311,11 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="font-bold text-slate-800" style={{fontSize:"18px"}}>Program Review Checklist</h2>
-          <p className="text-sm text-slate-400 mt-0.5">{isManager?"All manager reviews — shared across supervisors":`Your program reviews — logged for programs you supervise`}</p>
+          <p className="text-sm text-slate-400 mt-0.5">
+            {isManager
+              ? "All program reviews — visible to all managers"
+              : `Reviews for your programs — only you can see and create these`}
+          </p>
         </div>
         <button onClick={startNew} className="px-4 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>
           + New Review
@@ -2350,7 +2362,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
         <div className="bg-white rounded-xl border border-slate-100 p-12 text-center text-slate-400">
           <div className="text-4xl mb-3">📋</div>
           <div className="font-semibold text-slate-600 mb-1">No reviews yet</div>
-          <div className="text-sm">Click "+ New Review" to log your first quarterly program review.</div>
+          <div className="text-sm">{isManager ? 'Click "+ New Review" to log the first review.' : 'Click "+ New Review" to review one of your programs.'}</div>
         </div>
       ):(
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
@@ -2372,7 +2384,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                       {frDelta!==null&&<span style={{color:frDelta>=0?"#16a34a":"#dc2626",marginLeft:"3px"}}>{frDelta>=0?"▲":"▼"}{Math.abs(frDelta).toFixed(0)}pp</span>}
                     </span>
                     <span className="text-slate-500">CR: <span className="font-bold">{r.cost_recovery||0}%</span></span>
-                    {r.consecutive_weak>0&&<span className="font-semibold" style={{color:r.consecutive_weak>=2?"#dc2626":"#d4a017"}}>{r.consecutive_weak} weak season{r.consecutive_weak>1?"s":""}</span>}
+                    {r.seasons_below_threshold>0&&<span className="font-semibold" style={{color:r.seasons_below_threshold>=2?"#dc2626":"#d4a017"}}>{r.seasons_below_threshold} season{r.seasons_below_threshold>1?"s":""} below threshold</span>}
                     <span style={{color:pMet>=3?"#16a34a":"#dc2626"}} className="font-semibold">{pMet}/5 pillars</span>
                     {r.next_review&&<span className="text-slate-400">→ {r.next_review}</span>}
                   </div>
@@ -2443,7 +2455,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                 {label:"Fill Rate",cur:r.fill_rate,prior:r.prior_fill_rate,suffix:"%"},
                 {label:"Cost Recovery",cur:r.cost_recovery,prior:r.prior_cr,suffix:"%"},
                 {label:"Enrollment",cur:r.enrollment?`${r.enrollment}/${r.capacity}`:"—",prior:null},
-                {label:"Consecutive Weak",cur:r.consecutive_weak||0,prior:null,alert:r.consecutive_weak>=2},
+                {label:"Seasons Below Threshold",cur:r.seasons_below_threshold||0,prior:null,alert:r.seasons_below_threshold>=2},
               ].map(m=>(
                 <div key={m.label} className="rounded-lg bg-slate-50 border border-slate-100 p-3">
                   <div className="text-xs text-slate-400 mb-1">{m.label}</div>
@@ -2479,11 +2491,10 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                 <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">📊 Data</div>
                 <Row k="Fill Rate" v={r.fill_rate?`${r.fill_rate}%`:null}/>
                 <Row k="Prior Fill Rate" v={r.prior_fill_rate?`${r.prior_fill_rate}%`:null}/>
-                <Row k="Participant Satisfaction" v={r.participant_satisfaction||r.cancellation_rate||null}/>
                 <Row k="NPS" v={r.nps}/>
                 <Row k="Trend" v={r.trend}/>
-                <Row k="Consecutive Weak Seasons" v={r.consecutive_weak}/>
-                {r.weak_action&&<Row k="Weak Season Action" v={r.weak_action}/>}
+                <Row k="Seasons Below Threshold" v={r.seasons_below_threshold}/>
+                {r.review_action&&<Row k="Review Action" v={r.review_action}/>}
                 <SCP s={r.da_strengths} c={r.da_concerns}/>
                 <Note label="Notes" val={r.da_notes}/>
               </div>
@@ -2492,8 +2503,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                 <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">🤝 Community</div>
                 <Row k="Enrollment / Capacity" v={r.enrollment?`${r.enrollment} / ${r.capacity}`:"—"}/>
                 <Row k="Waitlist" v={r.waitlist||0}/>
-                <Row k="Repeat Participant % (est.)" v={r.repeat_participant_pct?`${r.repeat_participant_pct}%`:null}/>
-                <Row k="Repeat Participant Trend" v={r.retention_trend}/>
+                <Row k="Participant Trend" v={r.retention_trend}/>
                 <Row k="Target Age Group" v={r.target_age}/>
                 <Row k="Clear Audience?" v={r.clear_audience?"Yes":"No"}/>
                 <Row k="Community Benefit Documented?" v={r.community_benefit?"Yes":"No"}/>
@@ -2618,7 +2628,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               <input value={form.program_name} onChange={e=>handleProgramName(e.target.value)}
                 list="program-list" className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2"/>
               <datalist id="program-list">
-                {[...new Set((programs||[]).map(p=>p.name).filter(Boolean))].map(n=><option key={n} value={n}/>)}
+                {[...new Set((reviewablePrograms||[]).map(p=>p.name).filter(Boolean))].map(n=><option key={n} value={n}/>)}
               </datalist>
               {matchedProgram&&(
                 <div className="mt-1.5 px-3 py-2 rounded-lg bg-blue-50 border border-blue-100 text-xs text-blue-700 flex items-center gap-2">
@@ -2717,7 +2727,6 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               {inp("Fill Rate (%)","fill_rate","number","",false,"Actual enrollment ÷ capacity")}
               {inp("Prior Season Fill (%)","prior_fill_rate","number","",false,"Last season for comparison")}
               {inp("NPS Score (0–100)","nps","number","",false,"Leave blank if not collected")}
-              {inp("Participant Satisfaction","participant_satisfaction","number","",false,"Survey score or rating (e.g. 1–5 scale)")}
             </div>
 
             {form.fill_rate&&form.prior_fill_rate&&(
@@ -2729,18 +2738,18 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {inp("Trend Direction","trend",null,TRENDS)}
-              {inp("Consecutive Weak Seasons","consecutive_weak",null,WEAK_OPTS,"","Seasons below fill or CR threshold in a row")}
+              {inp("Seasons Below Threshold","seasons_below_threshold",null,WEAK_OPTS,"","Number of seasons below fill rate or cost recovery target")}
             </div>
 
             <div className="space-y-2">
-              {chk("Currently below 60% fill rate","below_60_fill")}
-              {chk("Two or more consecutive weak seasons","two_weak_seasons","Redesign plan or sunset review required per district policy")}
-              {form.two_weak_seasons&&inp("Required Action","weak_action",null,["Redesign plan in progress","Sunset review scheduled"])}
+              {chk("Fill rate is currently below 60%","below_60_fill")}
+              {chk("Program needs additional review this season","needs_review","Triggers a required follow-up plan")}
+              {form.needs_review&&inp("Follow-Up Action","review_action",null,["Redesign plan in progress","Sunset review scheduled","Schedule planning conversation"])}
             </div>
 
-            {parseInt(form.consecutive_weak)>=2&&(
-              <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-xs text-red-700 font-medium">
-                ⚠ {form.consecutive_weak} consecutive weak seasons — formal redesign plan or sunset review required per district policy.
+            {parseInt(form.seasons_below_threshold)>=2&&(
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-800 font-medium">
+                📋 {form.seasons_below_threshold} seasons below threshold — a follow-up plan is recommended per district policy.
               </div>
             )}
 
@@ -2769,10 +2778,6 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                 {parseFloat(form.waitlist)>0&&<span className="ml-4 text-amber-600 font-semibold">{form.waitlist} on waitlist — expansion opportunity?</span>}
               </div>
             )}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {inp("Repeat Participant % (est.)","repeat_participant_pct","number","",false,"Rough % of participants who also attended a prior season — estimate is fine")}
-              {inp("Repeat Participant Trend","retention_trend",null,RETENTION_OPTS)}
-            </div>
             <div className="space-y-2">
               {chk("Clear target audience identified","clear_audience","Program has a defined population it serves")}
               {chk("Community benefit is documented","community_benefit","Evidence of value beyond enrollment numbers — feedback, outcomes, mission alignment")}
@@ -2956,7 +2961,7 @@ function Reference({isManager,db,programs,staffName}) {
           {id:"philosophy",label:"🏛 Philosophy"},
           {id:"guide",label:"Dashboard Guide"},
           {id:"training",label:"📋 Training Guide"},
-          ...(isManager?[{id:"review",label:"📋 Program Review"}]:[]),
+          {id:"review",label:"📋 Program Review"},
         ].map(s=>(
           <button key={s.id} onClick={()=>setSec(s.id)}
             className={`px-5 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition ${sec===s.id?"text-slate-800":"border-transparent text-slate-400 hover:text-slate-600"}`}
@@ -3477,7 +3482,7 @@ function Reference({isManager,db,programs,staffName}) {
         </div>
       )}
 
-      {sec==="review"&&isManager&&(
+      {sec==="review"&&(
         <ProgramReviewSection db={db} programs={programs} staffName={staffName} isManager={isManager}/>
       )}
 
