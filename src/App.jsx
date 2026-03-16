@@ -2023,8 +2023,537 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
   );
 }
 
+// ─── Program Review Checklist ─────────────────────────────────────────────────
+function ProgramReviewSection({db}){
+  const [reviews,setReviews]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [view,setView]=useState("list"); // "list" | "form" | "detail"
+  const [editRow,setEditRow]=useState(null);
+  const [detailRow,setDetailRow]=useState(null);
+  const [confirm,setConfirm]=useState(null);
+  const [fyFilter,setFyFilter]=useState("all");
+  const [search,setSearch]=useState("");
+
+  const emptyForm={
+    program_name:"",supervisor:"",season:"",fy:ADMIN_CUR,review_date:new Date().toISOString().slice(0,10),
+    // Financial
+    revenue:"",direct_costs:"",cost_recovery:"",classification:"Community Driven",
+    below_50_cr:false,cr_action:"",fs_acceptable:true,fs_notes:"",
+    // Data
+    fill_rate:"",below_60_fill:false,two_weak_seasons:false,weak_action:"",trend:"Stable",da_notes:"",
+    // Community
+    enrollment:"",capacity:"",waitlist:"",retention_trend:"Stable",
+    clear_audience:true,community_benefit:true,
+    // Space
+    prime_time_use:"Strong",time_improvable:false,ratio_appropriate:true,
+    // Innovation
+    is_pilot:false,met_enrollment:false,met_financial:false,
+    // Final
+    decision:"Continue",decision_reason:"",next_review:"",pillars_met:"",
+  };
+  const [form,setForm]=useState(emptyForm);
+  const [activeStep,setActiveStep]=useState(0);
+
+  async function load(){
+    setLoading(true);
+    const {data}=await db.from("admin_reviews").select("*").order("created_at",{ascending:false});
+    setReviews(data||[]);
+    setLoading(false);
+  }
+  useEffect(()=>{load();},[]);
+
+  function s(k,v){setForm(p=>({...p,[k]:v}));}
+
+  // Auto-compute pillar scores
+  function computePillars(f){
+    const p1 = f.fs_acceptable;
+    const p2 = parseFloat(f.fill_rate)>=60 && !f.two_weak_seasons;
+    const p3 = f.clear_audience && f.community_benefit;
+    const p4 = f.prime_time_use!=="Underutilized" && f.ratio_appropriate;
+    const p5 = !f.is_pilot || (f.met_enrollment && f.met_financial);
+    return [{n:1,label:"Fiscal Sustainability",met:p1,required:true},
+            {n:2,label:"Data & Accountability",met:p2,required:true},
+            {n:3,label:"Community Impact",met:p3,required:false},
+            {n:4,label:"Space Optimization",met:p4,required:false},
+            {n:5,label:"Innovation",met:p5,required:false}];
+  }
+
+  const pillars = computePillars(form);
+  const metCount = pillars.filter(p=>p.met).length;
+  const requiredMet = pillars.filter(p=>p.required).every(p=>p.met);
+  const overallPass = metCount>=3 && requiredMet;
+
+  async function save(){
+    const pillarsStr = pillars.filter(p=>p.met).map(p=>p.n).join(",");
+    const d={...form,
+      revenue:parseFloat(form.revenue)||0,
+      direct_costs:parseFloat(form.direct_costs)||0,
+      cost_recovery:parseFloat(form.cost_recovery)||0,
+      fill_rate:parseFloat(form.fill_rate)||0,
+      enrollment:parseInt(form.enrollment)||0,
+      capacity:parseInt(form.capacity)||0,
+      waitlist:parseInt(form.waitlist)||0,
+      pillars_met:pillarsStr,
+    };
+    if(editRow){await db.from("admin_reviews").update(d).eq("id",editRow.id);}
+    else{await db.from("admin_reviews").insert(d);}
+    setView("list");setEditRow(null);setForm(emptyForm);setActiveStep(0);load();
+  }
+  async function del(id){await db.from("admin_reviews").delete().eq("id",id);setConfirm(null);load();}
+
+  function startNew(){setEditRow(null);setForm(emptyForm);setActiveStep(0);setView("form");}
+  function startEdit(r){
+    setEditRow(r);
+    setForm({...emptyForm,...r,
+      revenue:r.revenue||"",direct_costs:r.direct_costs||"",
+      cost_recovery:r.cost_recovery||"",fill_rate:r.fill_rate||"",
+      enrollment:r.enrollment||"",capacity:r.capacity||"",waitlist:r.waitlist||"",
+    });
+    setActiveStep(0);setView("form");
+  }
+
+  const filtered=reviews.filter(r=>{
+    if(fyFilter!=="all"&&r.fy!==fyFilter) return false;
+    if(search&&!r.program_name?.toLowerCase().includes(search.toLowerCase())&&!r.supervisor?.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+
+  const DECISIONS=["Continue","Adjust","Redesign","Expand","Pilot Again","Sunset Review"];
+  const CLASSIFICATIONS=["Community Driven","Both","Revenue Driven"];
+  const TRENDS=["Growing","Stable","Declining"];
+  const PRIME=["Strong","Moderate","Underutilized"];
+  const RETENTION=["Improving","Stable","Declining"];
+
+  const STEPS=[
+    {label:"Program Info",icon:"📋"},
+    {label:"Financial",icon:"💰"},
+    {label:"Data",icon:"📊"},
+    {label:"Community",icon:"🤝"},
+    {label:"Space",icon:"🏢"},
+    {label:"Innovation",icon:"💡"},
+    {label:"Decision",icon:"✅"},
+  ];
+
+  const dcColor={
+    "Continue":"#16a34a","Adjust":"#d4a017","Redesign":"#dc2626",
+    "Expand":"#0369a1","Pilot Again":"#7c3aed","Sunset Review":"#991b1b",
+  };
+
+  if(loading) return <div className="text-center py-20 text-slate-400">Loading reviews…</div>;
+
+  /* ── LIST VIEW ── */
+  if(view==="list") return(
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="font-bold text-slate-800" style={{fontSize:"18px"}}>Program Review Checklist</h2>
+          <p className="text-sm text-slate-400 mt-0.5">Quarterly supervisor reviews — visible to all managers</p>
+        </div>
+        <button onClick={startNew} className="px-4 py-2 text-sm font-bold rounded-lg text-white flex items-center gap-2" style={{background:"#1e3a5f"}}>
+          + New Review
+        </button>
+      </div>
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-6">
+        {[
+          {label:"Total Reviews",value:reviews.length,accent:"#1e3a5f"},
+          {label:"Continue",value:reviews.filter(r=>r.decision==="Continue").length,accent:"#16a34a"},
+          {label:"Redesign",value:reviews.filter(r=>r.decision==="Redesign"||r.decision==="Sunset Review").length,accent:"#dc2626"},
+          {label:"This FY",value:reviews.filter(r=>r.fy===ADMIN_CUR).length,accent:"#d4a017"},
+        ].map(c=>(
+          <div key={c.label} className="bg-white rounded-xl border border-slate-100 shadow-sm p-4">
+            <div className="text-xs text-slate-400 mb-1">{c.label}</div>
+            <div className="text-2xl font-black" style={{color:c.accent}}>{c.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 flex flex-wrap gap-3 items-center mb-5">
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search program or supervisor…"
+          className="flex-1 min-w-48 text-sm rounded-lg border border-slate-200 px-3 py-1.5"/>
+        <select value={fyFilter} onChange={e=>setFyFilter(e.target.value)} className="text-sm rounded-lg border border-slate-200 px-3 py-1.5 bg-white">
+          <option value="all">All FYs</option>
+          {ADMIN_FYS.map(f=><option key={f} value={f}>{f}</option>)}
+        </select>
+      </div>
+
+      {/* Reviews list */}
+      {filtered.length===0 ? (
+        <div className="bg-white rounded-xl border border-slate-100 p-12 text-center text-slate-400">
+          <div className="text-4xl mb-3">📋</div>
+          <div className="font-semibold text-slate-600 mb-1">No reviews yet</div>
+          <div className="text-sm">Click "+ New Review" to log your first quarterly program review.</div>
+        </div>
+      ):(
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+          {filtered.map((r,i)=>{
+            const pMet=(r.pillars_met||"").split(",").filter(Boolean).length;
+            const dc=dcColor[r.decision]||"#64748b";
+            return(
+              <div key={r.id} className={`${i>0?"border-t border-slate-50":""} px-4 py-4 flex items-start gap-4 hover:bg-slate-50 transition`}>
+                <div className="shrink-0 mt-0.5">
+                  <span className="inline-block px-2 py-1 rounded text-xs font-bold text-white" style={{background:dc}}>{r.decision||"—"}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-slate-800">{r.program_name}</div>
+                  <div className="text-xs text-slate-400 mt-0.5">{r.supervisor} · {r.season} {r.fy} · Reviewed {r.review_date}</div>
+                  <div className="flex items-center gap-3 mt-2 text-xs">
+                    <span className="text-slate-500">Fill: <span className="font-bold">{r.fill_rate||0}%</span></span>
+                    <span className="text-slate-500">CR: <span className="font-bold">{r.cost_recovery||0}%</span></span>
+                    <span className="text-slate-500">Pillars: <span className="font-bold" style={{color:pMet>=3?"#16a34a":"#dc2626"}}>{pMet}/5</span></span>
+                    {r.next_review&&<span className="text-slate-400">Next review: {r.next_review}</span>}
+                  </div>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button onClick={()=>{setDetailRow(r);setView("detail");}} className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs text-slate-500">👁 View</button>
+                  <button onClick={()=>startEdit(r)} className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs text-slate-500">✏ Edit</button>
+                  <button onClick={()=>setConfirm(r.id)} className="p-2 rounded-lg bg-red-50 hover:bg-red-100 text-xs text-red-400">✕</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {confirm&&<AConfirm message="Delete this review?" onConfirm={()=>del(confirm)} onCancel={()=>setConfirm(null)}/>}
+    </div>
+  );
+
+  /* ── DETAIL VIEW ── */
+  if(view==="detail"&&detailRow){
+    const r=detailRow;
+    const pMet=(r.pillars_met||"").split(",").filter(Boolean);
+    const pillarLabels={1:"Fiscal Sustainability",2:"Data & Accountability",3:"Community Impact",4:"Space Optimization",5:"Innovation"};
+    const pillarRequired={1:true,2:true,3:false,4:false,5:false};
+    const pillarColor={1:"#1e3a5f",2:"#1e3a5f",3:"#0f766e",4:"#7c3aed",5:"#b45309"};
+    return(
+      <div>
+        <button onClick={()=>setView("list")} className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 mb-5">← Back to all reviews</button>
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+          {/* Header */}
+          <div className="px-6 py-5 border-b border-slate-100" style={{background:"linear-gradient(135deg,#1e3a5f,#0f2d4a)"}}>
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="text-xl font-black text-white">{r.program_name}</div>
+                <div className="text-sm opacity-70 text-white mt-1">{r.supervisor} · {r.season} {r.fy} · Reviewed {r.review_date}</div>
+              </div>
+              <span className="px-3 py-1.5 rounded-lg text-sm font-bold text-white" style={{background:dcColor[r.decision]||"#64748b"}}>{r.decision}</span>
+            </div>
+            {/* Pillar badges */}
+            <div className="flex flex-wrap gap-2 mt-4">
+              {[1,2,3,4,5].map(n=>{
+                const met=pMet.includes(String(n));
+                return(
+                  <span key={n} className="text-xs font-bold px-2 py-1 rounded-full" style={{
+                    background:met?pillarColor[n]:"rgba(255,255,255,0.1)",
+                    color:"white",
+                    opacity:met?1:0.4,
+                  }}>
+                    {met?"✓":"○"} {pillarLabels[n]}{pillarRequired[n]?" (req)":""}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+          <div className="p-6 grid grid-cols-1 gap-6 sm:grid-cols-2">
+            {/* Financial */}
+            <div>
+              <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Financial Stewardship</div>
+              <div className="space-y-2 text-sm">
+                {[["Revenue",`$${(r.revenue||0).toLocaleString()}`],["Direct Costs",`$${(r.direct_costs||0).toLocaleString()}`],["Cost Recovery",`${r.cost_recovery||0}%`],["Classification",r.classification],["Acceptable?",r.fs_acceptable?"Yes":"No — Redesign Required"]].map(([k,v])=>(
+                  <div key={k} className="flex justify-between"><span className="text-slate-400">{k}</span><span className="font-semibold text-slate-700">{v}</span></div>
+                ))}
+                {r.fs_notes&&<div className="text-xs text-slate-400 italic mt-1">{r.fs_notes}</div>}
+              </div>
+            </div>
+            {/* Data */}
+            <div>
+              <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Data & Accountability</div>
+              <div className="space-y-2 text-sm">
+                {[["Fill Rate",`${r.fill_rate||0}%`],["Below 60%?",r.below_60_fill?"Yes":"No"],["Two Weak Seasons?",r.two_weak_seasons?"Yes":"No"],["Trend",r.trend]].map(([k,v])=>(
+                  <div key={k} className="flex justify-between"><span className="text-slate-400">{k}</span><span className="font-semibold text-slate-700">{v}</span></div>
+                ))}
+                {r.da_notes&&<div className="text-xs text-slate-400 italic mt-1">{r.da_notes}</div>}
+              </div>
+            </div>
+            {/* Community */}
+            <div>
+              <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Community Impact</div>
+              <div className="space-y-2 text-sm">
+                {[["Enrollment",`${r.enrollment||0} / ${r.capacity||0}`],["Waitlist",r.waitlist||0],["Retention",r.retention_trend],["Clear Audience?",r.clear_audience?"Yes":"No"]].map(([k,v])=>(
+                  <div key={k} className="flex justify-between"><span className="text-slate-400">{k}</span><span className="font-semibold text-slate-700">{v}</span></div>
+                ))}
+              </div>
+            </div>
+            {/* Space + Innovation */}
+            <div>
+              <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Space & Innovation</div>
+              <div className="space-y-2 text-sm">
+                {[["Prime Time Use",r.prime_time_use],["Ratio Appropriate?",r.ratio_appropriate?"Yes":"No"],["Is Pilot?",r.is_pilot?"Yes":"No"]].map(([k,v])=>(
+                  <div key={k} className="flex justify-between"><span className="text-slate-400">{k}</span><span className="font-semibold text-slate-700">{v}</span></div>
+                ))}
+              </div>
+            </div>
+          </div>
+          {/* Decision */}
+          {r.decision_reason&&(
+            <div className="px-6 pb-6">
+              <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">Decision Reason</div>
+              <div className="text-sm text-slate-600 bg-slate-50 rounded-lg p-3">{r.decision_reason}</div>
+            </div>
+          )}
+          {r.next_review&&(
+            <div className="px-6 pb-6">
+              <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Next Review Date</div>
+              <div className="text-sm font-semibold text-slate-700">{r.next_review}</div>
+            </div>
+          )}
+          <div className="px-6 pb-6 flex gap-3">
+            <button onClick={()=>startEdit(r)} className="px-4 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>✏ Edit Review</button>
+            <button onClick={()=>setView("list")} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600">Close</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── FORM VIEW ── */
+  const inp=(label,key,type="text",opts=null,req=false)=>(
+    <div>
+      <label className="block text-xs font-semibold text-slate-500 mb-1">{label}{req&&<span className="text-red-400 ml-0.5">*</span>}</label>
+      {opts?(
+        <select value={form[key]} onChange={e=>s(key,e.target.value)} className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
+          {opts.map(o=><option key={o}>{o}</option>)}
+        </select>
+      ):(
+        <input type={type} value={form[key]} onChange={e=>s(key,type==="number"?parseFloat(e.target.value)||"":e.target.value)}
+          className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2"/>
+      )}
+    </div>
+  );
+  const chk=(label,key,detail="")=>(
+    <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg border border-slate-100 hover:bg-slate-50">
+      <input type="checkbox" checked={!!form[key]} onChange={e=>s(key,e.target.checked)} className="mt-0.5"/>
+      <div><div className="text-sm font-medium text-slate-700">{label}</div>{detail&&<div className="text-xs text-slate-400 mt-0.5">{detail}</div>}</div>
+    </label>
+  );
+  const textarea=(label,key)=>(
+    <div>
+      <label className="block text-xs font-semibold text-slate-500 mb-1">{label}</label>
+      <textarea value={form[key]||""} onChange={e=>s(key,e.target.value)} rows={2}
+        className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 resize-none"/>
+    </div>
+  );
+
+  return(
+    <div>
+      <button onClick={()=>{setView("list");setActiveStep(0);}} className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 mb-5">← Back to all reviews</button>
+
+      <div className="mb-6">
+        <h2 className="font-bold text-slate-800 text-lg">{editRow?"Edit Review":"New Program Review"}</h2>
+        <p className="text-sm text-slate-400 mt-0.5">Program Review Checklist — complete all sections, then submit</p>
+      </div>
+
+      {/* Step nav */}
+      <div className="flex gap-1 mb-6 overflow-x-auto pb-1">
+        {STEPS.map((st,i)=>{
+          const done=i<activeStep;
+          const active=i===activeStep;
+          return(
+            <button key={i} onClick={()=>setActiveStep(i)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap shrink-0"
+              style={active?{background:"#1e3a5f",color:"white"}:done?{background:"#dcfce7",color:"#166534"}:{background:"#f1f5f9",color:"#94a3b8"}}>
+              <span>{done?"✓":st.icon}</span>{st.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Pillar progress bar */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 mb-5">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-xs font-bold text-slate-600 uppercase tracking-widest">Pillar Score</div>
+          <div className={`text-sm font-bold ${overallPass?"text-green-600":"text-red-500"}`}>
+            {metCount}/5 pillars met — {overallPass?"✓ Passes":"✗ Does not meet minimum (3 required, both required pillars must be met)"}
+          </div>
+        </div>
+        <div className="flex gap-1.5">
+          {pillars.map(p=>(
+            <div key={p.n} className="flex-1 text-center">
+              <div className="h-2 rounded-full mb-1" style={{background:p.met?(p.required?"#1e3a5f":"#16a34a"):"#e2e8f0"}}/>
+              <div className="text-xs truncate" style={{color:p.met?"#1e3a5f":"#94a3b8",fontSize:"9px"}}>{p.n}{p.required?"★":""}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6 space-y-5">
+
+        {/* Step 0: Program Info */}
+        {activeStep===0&&(
+          <>
+            <div className="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2 mb-4">Program Information</div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {inp("Program Name","program_name","text",null,true)}
+              {inp("Supervisor","supervisor","text",null,true)}
+              {inp("Season","season",null,["Spring","Summer","Fall","Winter","Annual"])}
+              {inp("Fiscal Year","fy",null,ADMIN_FYS)}
+              {inp("Review Date","review_date","date")}
+              {inp("Classification","classification",null,CLASSIFICATIONS)}
+            </div>
+          </>
+        )}
+
+        {/* Step 1: Financial */}
+        {activeStep===1&&(
+          <>
+            <div className="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2 mb-4">💰 Financial Stewardship <span className="text-xs font-normal text-red-500 ml-2">Required Pillar</span></div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {inp("Program Revenue ($)","revenue","number")}
+              {inp("Direct Program Costs ($)","direct_costs","number")}
+              {inp("Cost Recovery (%)","cost_recovery","number")}
+            </div>
+            {(form.revenue&&form.direct_costs)&&(
+              <div className="rounded-lg bg-slate-50 border border-slate-100 px-4 py-3 text-sm">
+                <span className="text-slate-500">Calculated Net: </span>
+                <span className={`font-bold ${parseFloat(form.revenue)-parseFloat(form.direct_costs)>=0?"text-green-600":"text-red-600"}`}>
+                  ${(parseFloat(form.revenue||0)-parseFloat(form.direct_costs||0)).toLocaleString()}
+                </span>
+              </div>
+            )}
+            <div className="space-y-2">
+              {chk("Below 50% cost recovery?","below_50_cr","Programs below 50% CR require redesign or documented intentional subsidy")}
+              {form.below_50_cr&&inp("Action Required","cr_action",null,["Redesign required","Intentional Community subsidy (documented)"])}
+              {chk("Financial performance is acceptable for this program's classification","fs_acceptable")}
+            </div>
+            {textarea("Notes","fs_notes")}
+          </>
+        )}
+
+        {/* Step 2: Data */}
+        {activeStep===2&&(
+          <>
+            <div className="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2 mb-4">📊 Data & Accountability <span className="text-xs font-normal text-red-500 ml-2">Required Pillar</span></div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {inp("Fill Rate (%)","fill_rate","number")}
+              {inp("Trend Direction","trend",null,TRENDS)}
+            </div>
+            <div className="space-y-2">
+              {chk("Below 60% fill rate?","below_60_fill")}
+              {chk("Two consecutive weak seasons?","two_weak_seasons","If yes, a redesign plan or sunset review is required")}
+              {form.two_weak_seasons&&inp("Action","weak_action",null,["Redesign plan required","Sunset review"])}
+            </div>
+            {textarea("Notes","da_notes")}
+          </>
+        )}
+
+        {/* Step 3: Community */}
+        {activeStep===3&&(
+          <>
+            <div className="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2 mb-4">🤝 Participation & Community Impact</div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {inp("Enrollment","enrollment","number")}
+              {inp("Capacity","capacity","number")}
+              {inp("Waitlist","waitlist","number")}
+            </div>
+            {inp("Retention Trend","retention_trend",null,RETENTION)}
+            <div className="space-y-2">
+              {chk("Clear target audience identified","clear_audience")}
+              {chk("Community benefit documented","community_benefit")}
+            </div>
+          </>
+        )}
+
+        {/* Step 4: Space */}
+        {activeStep===4&&(
+          <>
+            <div className="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2 mb-4">🏢 Space & Operational Efficiency</div>
+            {inp("Prime Time Use","prime_time_use",null,PRIME)}
+            <div className="space-y-2">
+              {chk("Could time or location be improved?","time_improvable")}
+              {chk("Participant to staff ratio is appropriate","ratio_appropriate")}
+            </div>
+          </>
+        )}
+
+        {/* Step 5: Innovation */}
+        {activeStep===5&&(
+          <>
+            <div className="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2 mb-4">💡 Innovation & Responsiveness</div>
+            {chk("This is a new or pilot program","is_pilot")}
+            {form.is_pilot&&(
+              <div className="space-y-2 ml-4">
+                {chk("Met enrollment expectations","met_enrollment")}
+                {chk("Met financial expectations","met_financial")}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Step 6: Decision */}
+        {activeStep===6&&(
+          <>
+            <div className="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2 mb-4">✅ Final Decision</div>
+
+            {/* Pillar summary before decision */}
+            <div className="rounded-lg border border-slate-100 overflow-hidden mb-4">
+              <div className="px-4 py-2 bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-widest">Pillar Summary</div>
+              {pillars.map(p=>(
+                <div key={p.n} className="flex items-center gap-3 px-4 py-2 border-t border-slate-50">
+                  <span className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0`} style={{background:p.met?"#16a34a":"#e2e8f0",color:p.met?"white":"#94a3b8"}}>
+                    {p.met?"✓":"○"}
+                  </span>
+                  <span className="text-sm text-slate-600">{p.label}</span>
+                  {p.required&&<span className="text-xs text-red-500 font-semibold">Required</span>}
+                </div>
+              ))}
+              <div className="px-4 py-2.5 border-t border-slate-100" style={{background:overallPass?"#f0fdf4":"#fef2f2"}}>
+                <span className={`text-sm font-bold ${overallPass?"text-green-700":"text-red-600"}`}>
+                  {overallPass?"✓ Program meets the 3-pillar minimum":"✗ Program does not meet minimum — redesign or sunset review recommended"}
+                </span>
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-slate-500 mb-2">Decision</label>
+              <div className="grid grid-cols-3 gap-2">
+                {DECISIONS.map(d=>(
+                  <button key={d} onClick={()=>s("decision",d)}
+                    className="py-2 px-3 rounded-lg text-xs font-bold border-2 transition"
+                    style={form.decision===d?{background:dcColor[d],color:"white",borderColor:dcColor[d]}:{borderColor:"#e2e8f0",color:"#64748b"}}>
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {textarea("Reason for Decision","decision_reason")}
+            {inp("Next Review Date","next_review","date")}
+          </>
+        )}
+
+        {/* Step nav buttons */}
+        <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+          <button onClick={()=>setActiveStep(s=>Math.max(0,s-1))} disabled={activeStep===0}
+            className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600 disabled:opacity-30">← Back</button>
+          {activeStep<STEPS.length-1?(
+            <button onClick={()=>setActiveStep(s=>s+1)}
+              className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>Next →</button>
+          ):(
+            <button onClick={save}
+              className="px-6 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#16a34a"}}>
+              {editRow?"Update Review":"Save Review"}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 // ─── Reference Tab ────────────────────────────────────────────────────────────
-function Reference({isManager}) {
+function Reference({isManager,db}) {
   const [sec,setSec] = useState("standards");
   const workload = [
     {activity:"Program planning & management", pct:"45-50%"},
@@ -2085,8 +2614,10 @@ function Reference({isManager}) {
         {[
           {id:"standards",label:"District Standards"},
           {id:"kpis",label:"KPI Menu"},
+          {id:"philosophy",label:"🏛 Philosophy"},
           {id:"guide",label:"Dashboard Guide"},
           {id:"training",label:"📋 Training Guide"},
+          ...(isManager?[{id:"review",label:"📋 Program Review"}]:[]),
         ].map(s=>(
           <button key={s.id} onClick={()=>setSec(s.id)}
             className={`px-5 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition ${sec===s.id?"text-slate-800":"border-transparent text-slate-400 hover:text-slate-600"}`}
@@ -2370,6 +2901,247 @@ function Reference({isManager}) {
 
         </div>
       )}
+      {sec==="philosophy"&&(
+        <div className="p-5 space-y-6">
+          {!isManager ? (
+            /* ─────────────────── STAFF VIEW ─────────────────── */
+            <>
+              <div className="rounded-xl p-6 text-white" style={{background:"linear-gradient(135deg,#1e3a5f 0%,#0f2d4a 100%)"}}>
+                <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{color:"#d4a017"}}>BGPD Recreation</div>
+                <div className="text-2xl font-black mb-2">Recreation Programming Philosophy</div>
+                <div className="text-sm opacity-80">Our goal is to offer great programs while using our resources responsibly. Every program should support at least three of the five pillars below — including both required pillars.</div>
+              </div>
+
+              {/* Required badge */}
+              <div className="flex items-center gap-2">
+                <div className="h-px flex-1 bg-slate-200"/>
+                <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Five Pillars</span>
+                <div className="h-px flex-1 bg-slate-200"/>
+              </div>
+
+              <div className="space-y-3">
+                {[
+                  {n:"1",label:"Fiscal Sustainability",required:true,color:"#1e3a5f",icon:"💰",
+                    what:"Programs should cover their costs when possible, be priced appropriately, and use staff and resources efficiently.",
+                    simple:"Avoid unintentional losses. Some programs may be intentionally subsidized because they serve the community — that's okay when it's a deliberate choice."},
+                  {n:"2",label:"Data Driven Decisions",required:true,color:"#1e3a5f",icon:"📊",
+                    what:"Decisions are guided by measurable data: fill rate, enrollment trend, waitlist volume, participant satisfaction, and retention rate.",
+                    simple:"Most programs should reach at least 60% enrollment. Programs that struggle multiple seasons should be redesigned or reconsidered."},
+                  {n:"3",label:"Community Impact",required:false,color:"#0f766e",icon:"🤝",
+                    what:"Strong programs serve a clear audience, attract participants, and provide meaningful experiences.",
+                    simple:"Mission-driven programs remain important even if they require subsidy — as long as the community benefit is clear and intentional."},
+                  {n:"4",label:"Space Optimization",required:false,color:"#7c3aed",icon:"🏢",
+                    what:"Programs should use prime time space effectively, align staffing with participation, and improve scheduling when possible.",
+                    simple:"Use space and staff wisely. A program running at 30% in a peak-demand room is a scheduling opportunity."},
+                  {n:"5",label:"Innovation",required:false,color:"#b45309",icon:"💡",
+                    what:"Staff are encouraged to test new ideas. Pilot programs are supported when they address community interests, have clear goals, and stay within budget.",
+                    simple:"Try new things responsibly. Pilots need a goal and a plan — not just an idea."},
+                ].map(p=>(
+                  <div key={p.n} className="rounded-xl border border-slate-100 overflow-hidden shadow-sm">
+                    <div className="px-4 py-3 flex items-center gap-3" style={{background:p.color}}>
+                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-sm font-black shrink-0" style={{color:p.color}}>{p.n}</div>
+                      <div className="flex-1">
+                        <div className="font-bold text-white text-sm">{p.label}</div>
+                      </div>
+                      {p.required&&<span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{background:"#d4a017",color:"#1e3a5f"}}>REQUIRED</span>}
+                      <span className="text-xl">{p.icon}</span>
+                    </div>
+                    <div className="p-4 space-y-2">
+                      <p className="text-sm text-slate-700 font-medium">{p.what}</p>
+                      <p className="text-xs text-slate-400 italic">{p.simple}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Bottom summary */}
+              <div className="rounded-xl bg-slate-50 border border-slate-100 p-5">
+                <div className="font-bold text-slate-700 text-sm mb-3">What we're aiming for</div>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {["Intentional","Well attended","Financially responsible","Valuable to the community"].map(v=>(
+                    <div key={v} className="flex items-center gap-2 text-sm text-slate-600">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{background:"#d4a017"}}/>
+                      {v}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-400 mt-3">The goal is not to eliminate programs. The goal is to ensure every program is intentional and aligned with the District's long-term health.</p>
+              </div>
+            </>
+          ) : (
+            /* ─────────────────── MANAGER VIEW ─────────────────── */
+            <>
+              <div className="rounded-xl p-6 text-white" style={{background:"linear-gradient(135deg,#1e3a5f 0%,#7c3aed 100%)"}}>
+                <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{color:"#d4a017"}}>Manager Reference</div>
+                <div className="text-2xl font-black mb-2">Recreation Programming Philosophy</div>
+                <div className="text-sm opacity-80">The framework for evaluating, improving, and managing recreation programs as a unified service offering — not isolated decisions. Programs must align with at least 3 of 5 pillars, including both required pillars.</div>
+              </div>
+
+              {/* Purpose */}
+              <GuideSection title="Purpose & Financial Goals" accent="#1e3a5f">
+                <p className="text-sm text-slate-600 mb-4">This framework ensures programming decisions are intentional, data-informed, and aligned with the District's long-term financial health. The broader goal is to move overall program margin from 6–7% today toward <span className="font-bold text-slate-700">10–12% over several years</span> — generating meaningful capital capacity internally.</p>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {[
+                    {label:"Improve financial sustainability",icon:"📈"},
+                    {label:"Reduce unintentional program losses",icon:"🛡"},
+                    {label:"Protect long-term capital stability",icon:"🏛"},
+                    {label:"Maintain mission-driven programming",icon:"❤️"},
+                  ].map(g=>(
+                    <div key={g.label} className="rounded-lg bg-slate-50 border border-slate-100 p-3 text-center">
+                      <div className="text-2xl mb-1">{g.icon}</div>
+                      <div className="text-xs text-slate-600 font-medium">{g.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </GuideSection>
+
+              {/* Five Pillars — detailed */}
+              <GuideSection title="The Five Pillars — Full Detail" accent="#1e3a5f">
+                <div className="space-y-4">
+                  {[
+                    {n:"1",label:"Fiscal Sustainability",required:true,color:"#1e3a5f",
+                      expectations:[
+                        "Programs must align with assigned cost recovery bands (see District Standards tab)",
+                        "Program surplus or loss must be understood and tracked — not just reported",
+                        "Programs below 50% cost recovery require redesign unless intentionally subsidized with documentation",
+                        "Pricing and staffing should reflect actual demand",
+                      ],
+                      note:"Community-driven programs may operate below market recovery levels — but subsidy must be intentional and documented. Unintentional loss should always be corrected."},
+                    {n:"2",label:"Data Driven Decisions",required:true,color:"#1e3a5f",
+                      expectations:[
+                        "Minimum 60% fill rate to run most programs — below this triggers a review conversation",
+                        "Programs with two consecutive weak seasons require a documented redesign plan",
+                        "Programs with three weak seasons require a formal sunset review",
+                        "Participation trends, feedback, and retention data should inform every renewal decision",
+                      ],
+                      note:"'Weak season' means below fill rate or cost recovery thresholds. One off-season can happen. Two in a row is a pattern. Three requires a decision."},
+                    {n:"3",label:"Community Impact",required:false,color:"#0f766e",
+                      expectations:[
+                        "Program must serve a clear, identifiable audience",
+                        "Enrollment relative to capacity should be tracked and improving",
+                        "Waitlists signal expansion opportunities — document and act on them",
+                        "Retention trends indicate whether the program is delivering ongoing value",
+                      ],
+                      note:"Mission-driven programs can justify subsidy when community benefit is clearly documented. 'We've always offered it' is not sufficient justification."},
+                    {n:"4",label:"Space Optimization",required:false,color:"#7c3aed",
+                      expectations:[
+                        "Prime-time slots should be occupied by high-demand, revenue-appropriate programs",
+                        "Participant-to-staff ratios should align with actual enrollment — not budgeted enrollment",
+                        "Scheduling reviews should happen at least annually per program area",
+                        "Underutilized high-demand spaces represent a direct financial opportunity",
+                      ],
+                      note:"Scheduling changes can improve both participation and financial sustainability simultaneously — it's not always about pricing or programming."},
+                    {n:"5",label:"Innovation",required:false,color:"#b45309",
+                      expectations:[
+                        "Pilot programs must have defined goals and a measurement plan before launch",
+                        "Pilot spending should remain within approved budget limits",
+                        "Success is measured by participation AND financial performance together",
+                        "Pilots not meeting targets should be modified or sunset, not carried forward indefinitely",
+                      ],
+                      note:"Innovation should support both community needs and long-term sustainability. A great idea that loses money without a path to viability is not a sustainable pilot."},
+                  ].map(p=>(
+                    <div key={p.n} className="rounded-xl border border-slate-100 overflow-hidden">
+                      <div className="px-4 py-3 flex items-center gap-3" style={{background:p.color}}>
+                        <div className="w-7 h-7 rounded-full bg-white flex items-center justify-center text-xs font-black shrink-0" style={{color:p.color}}>{p.n}</div>
+                        <span className="font-bold text-white">{p.label}</span>
+                        {p.required&&<span className="ml-auto text-xs font-bold px-2 py-0.5 rounded-full" style={{background:"#d4a017",color:"#1e3a5f"}}>REQUIRED</span>}
+                      </div>
+                      <div className="p-4">
+                        <div className="space-y-1.5 mb-3">
+                          {p.expectations.map((e,i)=>(
+                            <div key={i} className="flex gap-2 text-xs text-slate-600">
+                              <span className="shrink-0 mt-0.5 font-bold" style={{color:p.color}}>›</span>
+                              {e}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="rounded-lg px-3 py-2 text-xs text-slate-500 italic border-l-2" style={{borderColor:p.color,background:"#f8fafc"}}>{p.note}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </GuideSection>
+
+              {/* Service Offering Management */}
+              <GuideSection title="Managing Programs as a Service Offering" accent="#0f766e">
+                <p className="text-sm text-slate-600 mb-4">The Recreation Department manages programs as a <span className="font-bold text-slate-700">service offering portfolio</span> — not isolated decisions. Annual targets for the portfolio:</p>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-4">
+                  {[
+                    {label:"Improve overall program margin",icon:"📈"},
+                    {label:"Improve cost recovery distribution",icon:"⚖️"},
+                    {label:"Redesign or retire ~5% of programs annually",icon:"🔄"},
+                    {label:"Strengthen capital reserve via net contribution",icon:"🏦"},
+                  ].map(g=>(
+                    <div key={g.label} className="rounded-lg bg-slate-50 border border-slate-100 p-3">
+                      <div className="text-xl mb-1">{g.icon}</div>
+                      <div className="text-xs text-slate-600">{g.label}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-800">
+                  <span className="font-bold">Capital link:</span> Improving program margin from 6–7% to 10–12% over several years directly supports operating reserves, deferred maintenance reduction, facility reinvestment, and capital reserve strengthening. Program discipline is infrastructure investment.
+                </div>
+              </GuideSection>
+
+              {/* Quarterly Review */}
+              <GuideSection title="Quarterly Review Process" accent="#d4a017">
+                <p className="text-sm text-slate-600 mb-3">Rec Admin conducts quarterly program reviews focusing on five areas. Use the Program Review tab to log reviews for individual programs.</p>
+                <div className="space-y-2">
+                  {[
+                    {item:"Margin movement",detail:"Which programs improved or declined? Are the right programs growing?"},
+                    {item:"Programs below thresholds",detail:"Any new programs crossing into Monitor or Needs Redesign? What's the plan?"},
+                    {item:"Redesign plans",detail:"Status check on programs that were flagged last quarter. Are changes being made?"},
+                    {item:"Innovation pilots",detail:"How are pilots performing? Continue, modify, or sunset?"},
+                    {item:"Service offering balance",detail:"Is the portfolio mix still aligned with the district's mission and financial targets?"},
+                  ].map((r,i)=>(
+                    <div key={i} className="flex gap-3 p-3 rounded-lg border border-slate-100">
+                      <span className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0 mt-0.5" style={{background:"#d4a017",color:"#1e3a5f"}}>{i+1}</span>
+                      <div>
+                        <div className="text-sm font-bold text-slate-700">{r.item}</div>
+                        <div className="text-xs text-slate-400">{r.detail}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </GuideSection>
+
+              {/* Action thresholds quick ref */}
+              <GuideSection title="Action Thresholds — Quick Reference" accent="#dc2626">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead><tr className="bg-slate-50 text-xs text-slate-400 uppercase">
+                      <th className="px-4 py-2 text-left font-semibold">Condition</th>
+                      <th className="px-4 py-2 text-left font-semibold">Trigger</th>
+                      <th className="px-4 py-2 text-left font-semibold">Required Action</th>
+                    </tr></thead>
+                    <tbody>
+                      {[
+                        {cond:"Cost recovery below 50%",  trigger:"Any season",            action:"Redesign required OR document intentional subsidy",color:"#fee2e2"},
+                        {cond:"Fill rate below 60%",      trigger:"Any season",            action:"Review conversation with supervisor",              color:"#fef9c3"},
+                        {cond:"Two weak seasons",         trigger:"Consecutive",           action:"Documented redesign plan required",               color:"#fef3c7"},
+                        {cond:"Three weak seasons",       trigger:"Consecutive",           action:"Formal sunset review required",                   color:"#fee2e2"},
+                        {cond:"Pilot misses targets",     trigger:"End of pilot season",   action:"Modify or sunset — do not carry forward",         color:"#fef9c3"},
+                        {cond:"Prime time underutilized", trigger:"Scheduling review",     action:"Reschedule or replace with higher-demand program", color:"#f1f5f9"},
+                      ].map((r,i)=>(
+                        <tr key={i} className="border-t border-slate-50" style={{background:r.color}}>
+                          <td className="px-4 py-2.5 font-semibold text-slate-700 text-xs">{r.cond}</td>
+                          <td className="px-4 py-2.5 text-xs text-slate-500">{r.trigger}</td>
+                          <td className="px-4 py-2.5 text-xs text-slate-600 font-medium">{r.action}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </GuideSection>
+            </>
+          )}
+        </div>
+      )}
+
+      {sec==="review"&&isManager&&(
+        <ProgramReviewSection db={db}/>
+      )}
+
       {sec==="training"&&(
         <div className="p-5 space-y-6">
           {!isManager ? (
@@ -2449,7 +3221,7 @@ function Reference({isManager}) {
                         {field:"Area",tip:"Pick the closest match from the dropdown (Aquatics, Camps, Dance, etc.). This groups your programs with similar ones in department reports."},
                         {field:"Season & Year",tip:"The season when this program runs — Spring, Summer, Fall, or Winter. Use the year it starts. Summer 2026 = June 2026 start."},
                         {field:"Staff Name",tip:"Your name, typed exactly as you entered it when you logged in. If you manage this program with someone else, enter the primary responsible person."},
-                        {field:"Classification",tip:"Community Driven = offered for public benefit even at a subsidy. Revenue Driven = expected to cover costs (e.g. fitness classes, swimming lessons). Not sure? Ask your manager."},
+                        {field:"Classification",tip:"Community Driven = offered for public benefit even at a subsidy (e.g. teen drop-ins, adaptive programs). Revenue Driven = expected to cover costs (e.g. fitness classes, swimming lessons). Not sure? Ask your manager."},
                       ].map(r=>(
                         <div key={r.field} className="text-sm">
                           <div className="font-semibold text-slate-700 mb-0.5">{r.field}</div>
@@ -2563,7 +3335,7 @@ function Reference({isManager}) {
                     <p>Cost recovery tells you what percentage of the program's cost was covered by what participants paid. 100% means break-even — fees covered every dollar of cost. Below 100% means the district subsidized the rest.</p>
                     <p><span className="font-semibold text-slate-700">Example:</span> Your program cost $1,500 to run and brought in $1,200 in fees. Cost recovery = 80%. The district covered the remaining $300.</p>
                     <p className="font-semibold text-slate-700">Important context:</p>
-                    <p>Not every program is expected to reach 100%. Community Driven programs (free events) may have a target of 0–20% by design — the district intentionally subsidizes them because they serve the community. Check the District Standards tab for your specific program category's target.</p>
+                    <p>Not every program is expected to reach 100%. Community Driven programs (adaptive rec, teen drop-ins, free events) may have a target of 0–20% by design — the district intentionally subsidizes them because they serve the community. Check the District Standards tab for your specific program category's target.</p>
                     <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-blue-800 mt-2">
                       <span className="font-bold">Low cost recovery does not mean your program was bad.</span> It depends entirely on what type of program it is. A swim lesson class should cover its costs. A free family event is not expected to.
                     </div>
@@ -5710,6 +6482,419 @@ function FeeHistorySection({db}){
 }
 
 // ─── ADMIN CONTAINER ─────────────────────────────────────────────────────────
+
+// ─── STANDALONE DASHBOARD SHELL ──────────────────────────────────────────────
+// Shared header + accent bar used by every standalone dashboard tab
+function DashShell({title,sub,accent,icon,children}){
+  return(
+    <div>
+      <div className="rounded-xl mb-6 px-6 py-5 flex items-center gap-4 text-white shadow-sm"
+        style={{background:`linear-gradient(135deg,${accent} 0%,${accent}cc 100%)`}}>
+        <div className="text-3xl">{icon}</div>
+        <div>
+          <div className="text-xs font-bold uppercase tracking-widest mb-0.5" style={{color:"rgba(255,255,255,0.65)"}}>Standalone Dashboard</div>
+          <div className="text-xl font-black leading-tight">{title}</div>
+          {sub&&<div className="text-sm mt-0.5" style={{color:"rgba(255,255,255,0.75)"}}>{sub}</div>}
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// ─── FUND 4 DASHBOARD ────────────────────────────────────────────────────────
+function Fund4Dashboard({db}){
+  const [funds,setFunds]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [fy,setFy]=useState(ADMIN_CUR);
+  const [showModal,setShowModal]=useState(false);
+  const [editRow,setEditRow]=useState(null);
+  const [confirm,setConfirm]=useState(null);
+  const FNAME="Fund 4 – Recreation";
+  const COLOR="#1e3a5f";
+  const [form,setForm]=useState({fund_name:FNAME,fy:ADMIN_CUR,month:"",revenue:"",expenses:"",goal:"",notes:""});
+  const f=v=>form[v]; const s=(k,v)=>setForm(p=>({...p,[k]:v}));
+
+  async function load(){
+    setLoading(true);
+    await seedIfEmpty(db,"admin_funds",SEED_FUNDS);
+    const {data}=await db.from("admin_funds").select("*").eq("fund_name",FNAME).order("fy").order("month");
+    setFunds(data||[]); setLoading(false);
+  }
+  useEffect(()=>{load();},[]);
+
+  async function save(){
+    const d={fund_name:FNAME,fy:form.fy,month:form.month,revenue:parseFloat(form.revenue)||0,expenses:parseFloat(form.expenses)||0,goal:parseFloat(form.goal)||0,notes:form.notes};
+    if(editRow){await db.from("admin_funds").update(d).eq("id",editRow.id);}
+    else{await db.from("admin_funds").insert(d);}
+    setShowModal(false);setEditRow(null);load();
+  }
+  async function del(id){await db.from("admin_funds").delete().eq("id",id);setConfirm(null);load();}
+  function openEdit(r){setEditRow(r);setForm({fund_name:FNAME,fy:r.fy,month:r.month||"",revenue:r.revenue||"",expenses:r.expenses||"",goal:r.goal||"",notes:r.notes||""});setShowModal(true);}
+
+  if(loading) return <div className="text-center py-20 text-slate-400">Loading…</div>;
+
+  const allFYs=ADMIN_FYS.filter(f=>funds.some(r=>r.fy===f));
+  const fyRows=funds.filter(r=>r.fy===fy);
+  const totalRev=sumField(fyRows,"revenue");
+  const totalExp=sumField(fyRows,"expenses");
+  const totalGoal=sumField(fyRows,"goal");
+  const prevFyRev=sumField(funds.filter(r=>r.fy===ADMIN_FYS[ADMIN_FYS.indexOf(fy)-1]),"revenue");
+  const net=totalRev-totalExp;
+
+  return(
+    <DashShell title="Fund 4 — Recreation" sub="Monthly revenue, expenses & goals" accent={COLOR} icon="🏛">
+
+      {/* KPI row */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-6">
+        <AKpi label="Total Revenue" val={adm$(totalRev)} accent={COLOR}/>
+        <AKpi label="Total Expenses" val={adm$(totalExp)} accent="#64748b"/>
+        <AKpi label="Net P/(L)" val={adm$(net)} accent={net>=0?"#16a34a":"#dc2626"}/>
+        <AKpi label="vs Goal" val={totalGoal>0?admPct(totalRev/totalGoal):"—"} accent={totalRev>=totalGoal?"#16a34a":"#b45309"}/>
+      </div>
+
+      {/* YoY sparkline table */}
+      {allFYs.length>1&&(
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm mb-6 overflow-hidden overflow-x-auto">
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+            <div className="font-semibold text-sm text-slate-700">Year-over-Year Revenue</div>
+          </div>
+          <table className="w-full text-xs" style={{minWidth:560}}>
+            <thead><tr style={{background:"#f8fafc"}}>
+              <th className="text-left px-4 py-2 text-slate-500 font-semibold">FY</th>
+              <th className="text-right px-4 py-2 text-slate-500 font-semibold">Revenue</th>
+              <th className="text-right px-4 py-2 text-slate-500 font-semibold">Expenses</th>
+              <th className="text-right px-4 py-2 text-slate-500 font-semibold">Net</th>
+              <th className="text-right px-4 py-2 text-slate-500 font-semibold">YoY</th>
+              <th className="px-4 py-2 text-slate-500 font-semibold">Trend</th>
+            </tr></thead>
+            <tbody>
+              {allFYs.map((f,i)=>{
+                const rev=sumField(funds.filter(r=>r.fy===f),"revenue");
+                const exp=sumField(funds.filter(r=>r.fy===f),"expenses");
+                const prevRev=i>0?sumField(funds.filter(r=>r.fy===allFYs[i-1]),"revenue"):null;
+                const pct=prevRev&&prevRev>0?((rev-prevRev)/prevRev)*100:null;
+                return(
+                  <tr key={f} className={`border-t border-slate-50 ${f===fy?"bg-blue-50":""}`}>
+                    <td className="px-4 py-2.5 font-semibold text-slate-700">{f}</td>
+                    <td className="px-4 py-2.5 text-right font-bold text-slate-800">{adm$(rev,true)}</td>
+                    <td className="px-4 py-2.5 text-right text-slate-600">{adm$(exp,true)}</td>
+                    <td className="px-4 py-2.5 text-right font-semibold" style={{color:(rev-exp)>=0?"#16a34a":"#dc2626"}}>{adm$(rev-exp,true)}</td>
+                    <td className="px-4 py-2.5 text-right">{pct!=null?arrowBadge(pct):"—"}</td>
+                    <td className="px-4 py-2.5"><Sparkline values={FY_MONTHS.map(m=>{const r=funds.find(x=>x.fy===f&&x.month===m);return r?.revenue||0;}).filter(v=>v>0)} color={COLOR} height={22}/></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* FY selector + chart */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="font-semibold text-slate-700">FY {fy} — Monthly Detail</div>
+        <div className="flex items-center gap-3">
+          <FYPicker value={fy} onChange={setFy} include2027/>
+          <button onClick={()=>{setEditRow(null);setForm({fund_name:FNAME,fy,month:"",revenue:"",expenses:"",goal:"",notes:""});setShowModal(true);}}
+            className="px-3 py-1.5 text-xs font-bold rounded-lg text-white" style={{background:COLOR}}>+ Add Entry</button>
+        </div>
+      </div>
+
+      {fyRows.length>0&&<FundMonthChart rows={fyRows} fname={FNAME} fy={fy} allFunds={funds}/>}
+
+      {/* Monthly table */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+        <table className="w-full text-xs">
+          <thead><tr style={{background:"#f8fafc"}}>
+            <th className="text-left px-4 py-2 text-slate-500 font-semibold">Month</th>
+            <th className="text-right px-4 py-2 text-slate-500 font-semibold">Revenue</th>
+            <th className="text-right px-4 py-2 text-slate-500 font-semibold">Expenses</th>
+            <th className="text-right px-4 py-2 text-slate-500 font-semibold">Net</th>
+            <th className="text-right px-4 py-2 text-slate-500 font-semibold">Goal</th>
+            <th className="text-right px-4 py-2 text-slate-500 font-semibold">Attainment</th>
+            <th className="px-2 py-2"/>
+          </tr></thead>
+          <tbody>
+            {FY_MONTHS.map(mon=>{
+              const r=fyRows.find(x=>x.month===mon);
+              if(!r) return(
+                <tr key={mon} className="border-t border-slate-50">
+                  <td className="px-4 py-2 text-slate-400">{mon}</td>
+                  {[...Array(5)].map((_,i)=><td key={i} className="px-4 py-2 text-right text-slate-200">—</td>)}
+                  <td className="px-4 py-2 text-right">
+                    <button onClick={()=>{setEditRow(null);setForm({fund_name:FNAME,fy,month:mon,revenue:"",expenses:"",goal:"",notes:""});setShowModal(true);}}
+                      className="text-xs px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-400">+</button>
+                  </td>
+                </tr>
+              );
+              const net=r.revenue-r.expenses;
+              return(
+                <tr key={mon} className="border-t border-slate-50 hover:bg-slate-50">
+                  <td className="px-4 py-2 font-medium text-slate-700">{mon}</td>
+                  <td className="px-4 py-2 text-right font-semibold text-slate-800">{adm$(r.revenue)}</td>
+                  <td className="px-4 py-2 text-right text-slate-600">{r.expenses>0?adm$(r.expenses):"—"}</td>
+                  <td className="px-4 py-2 text-right font-semibold" style={{color:net>=0?"#16a34a":"#dc2626"}}>{adm$(net)}</td>
+                  <td className="px-4 py-2 text-right text-slate-500">{r.goal>0?adm$(r.goal):"—"}</td>
+                  <td className="px-4 py-2 text-right">{r.goal>0?<span style={{color:r.revenue>=r.goal?"#16a34a":r.revenue>=r.goal*0.8?"#b45309":"#dc2626",fontWeight:700}}>{((r.revenue/r.goal)*100).toFixed(0)}%</span>:"—"}</td>
+                  <td className="px-4 py-2">
+                    <div className="flex gap-1 justify-end">
+                      <button onClick={()=>openEdit(r)} className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-500 text-xs">✏</button>
+                      <button onClick={()=>setConfirm(r.id)} className="px-2 py-0.5 rounded bg-red-50 hover:bg-red-100 text-red-400 text-xs">✕</button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot><tr className="border-t-2 border-slate-200" style={{background:"#f8fafc"}}>
+            <td className="px-4 py-2.5 font-bold text-slate-700">TOTAL</td>
+            <td className="px-4 py-2.5 text-right font-bold text-slate-800">{adm$(totalRev)}</td>
+            <td className="px-4 py-2.5 text-right font-bold text-slate-600">{adm$(totalExp)}</td>
+            <td className="px-4 py-2.5 text-right font-bold" style={{color:net>=0?"#16a34a":"#dc2626"}}>{adm$(net)}</td>
+            <td className="px-4 py-2.5 text-right font-bold text-slate-500">{totalGoal>0?adm$(totalGoal):"—"}</td>
+            <td className="px-4 py-2.5 text-right font-bold">{totalGoal>0?<span style={{color:totalRev>=totalGoal?"#16a34a":"#dc2626"}}>{((totalRev/totalGoal)*100).toFixed(0)}%</span>:"—"}</td>
+            <td/>
+          </tr></tfoot>
+        </table>
+      </div>
+
+      {showModal&&(
+        <AModal title={editRow?"Edit Entry":"Add Entry"} onClose={()=>setShowModal(false)}>
+          <div className="grid grid-cols-2 gap-x-4">
+            <AInp label="Fiscal Year" value={f("fy")} onChange={v=>s("fy",v)} options={ADMIN_FYS} required/>
+            <AInp label="Month" value={f("month")} onChange={v=>s("month",v)} options={FY_MONTHS} required/>
+            <AInp label="Revenue ($)" value={f("revenue")} onChange={v=>s("revenue",v)} type="number"/>
+            <AInp label="Expenses ($)" value={f("expenses")} onChange={v=>s("expenses",v)} type="number"/>
+            <AInp label="Goal ($)" value={f("goal")} onChange={v=>s("goal",v)} type="number"/>
+          </div>
+          <AInp label="Notes" value={f("notes")} onChange={v=>s("notes",v)} rows={2}/>
+          <div className="flex gap-3 justify-end mt-2">
+            <button onClick={()=>setShowModal(false)} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600">Cancel</button>
+            <button onClick={save} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:COLOR}}>{editRow?"Update":"Save"}</button>
+          </div>
+        </AModal>
+      )}
+      {confirm&&<AConfirm message="Delete this entry?" onConfirm={()=>del(confirm)} onCancel={()=>setConfirm(null)}/>}
+    </DashShell>
+  );
+}
+
+// ─── FUND 21 / FITNESS CENTER DASHBOARD ──────────────────────────────────────
+function FitnessDashboard({db}){
+  const [funds,setFunds]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [fy,setFy]=useState(ADMIN_CUR);
+  const [showModal,setShowModal]=useState(false);
+  const [editRow,setEditRow]=useState(null);
+  const [confirm,setConfirm]=useState(null);
+  const FNAME="Fitness Center (FCBG)";
+  const COLOR="#0369a1";
+  const [form,setForm]=useState({fund_name:FNAME,fy:ADMIN_CUR,month:"",revenue:"",expenses:"",goal:"",notes:""});
+  const f=v=>form[v]; const s=(k,v)=>setForm(p=>({...p,[k]:v}));
+
+  async function load(){
+    setLoading(true);
+    await seedIfEmpty(db,"admin_funds",SEED_FUNDS);
+    const {data}=await db.from("admin_funds").select("*").eq("fund_name",FNAME).order("fy").order("month");
+    setFunds(data||[]); setLoading(false);
+  }
+  useEffect(()=>{load();},[]);
+
+  async function save(){
+    const d={fund_name:FNAME,fy:form.fy,month:form.month,revenue:parseFloat(form.revenue)||0,expenses:parseFloat(form.expenses)||0,goal:parseFloat(form.goal)||0,notes:form.notes};
+    if(editRow){await db.from("admin_funds").update(d).eq("id",editRow.id);}
+    else{await db.from("admin_funds").insert(d);}
+    setShowModal(false);setEditRow(null);load();
+  }
+  async function del(id){await db.from("admin_funds").delete().eq("id",id);setConfirm(null);load();}
+  function openEdit(r){setEditRow(r);setForm({fund_name:FNAME,fy:r.fy,month:r.month||"",revenue:r.revenue||"",expenses:r.expenses||"",goal:r.goal||"",notes:r.notes||""});setShowModal(true);}
+
+  if(loading) return <div className="text-center py-20 text-slate-400">Loading…</div>;
+
+  const allFYs=ADMIN_FYS.filter(f=>funds.some(r=>r.fy===f));
+  const fyRows=funds.filter(r=>r.fy===fy);
+  const totalRev=sumField(fyRows,"revenue");
+  const totalExp=sumField(fyRows,"expenses");
+  const totalGoal=sumField(fyRows,"goal");
+  const net=totalRev-totalExp;
+
+  return(
+    <DashShell title="Fund 21 — Fitness Center (FCBG)" sub="Monthly revenue, expenses & membership trends" accent={COLOR} icon="🏋">
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-6">
+        <AKpi label="Total Revenue" val={adm$(totalRev)} accent={COLOR}/>
+        <AKpi label="Total Expenses" val={adm$(totalExp)} accent="#64748b"/>
+        <AKpi label="Net P/(L)" val={adm$(net)} accent={net>=0?"#16a34a":"#dc2626"}/>
+        <AKpi label="vs Goal" val={totalGoal>0?admPct(totalRev/totalGoal):"—"} accent={totalRev>=totalGoal?"#16a34a":"#b45309"}/>
+      </div>
+
+      {allFYs.length>1&&(
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm mb-6 overflow-hidden overflow-x-auto">
+          <div className="px-4 py-3 border-b border-slate-100 font-semibold text-sm text-slate-700">Year-over-Year Revenue</div>
+          <table className="w-full text-xs" style={{minWidth:560}}>
+            <thead><tr style={{background:"#f8fafc"}}>
+              <th className="text-left px-4 py-2 text-slate-500 font-semibold">FY</th>
+              <th className="text-right px-4 py-2 text-slate-500 font-semibold">Revenue</th>
+              <th className="text-right px-4 py-2 text-slate-500 font-semibold">Expenses</th>
+              <th className="text-right px-4 py-2 text-slate-500 font-semibold">Net</th>
+              <th className="text-right px-4 py-2 text-slate-500 font-semibold">YoY</th>
+              <th className="px-4 py-2 text-slate-500 font-semibold">Trend</th>
+            </tr></thead>
+            <tbody>
+              {allFYs.map((f,i)=>{
+                const rev=sumField(funds.filter(r=>r.fy===f),"revenue");
+                const exp=sumField(funds.filter(r=>r.fy===f),"expenses");
+                const prevRev=i>0?sumField(funds.filter(r=>r.fy===allFYs[i-1]),"revenue"):null;
+                const pct=prevRev&&prevRev>0?((rev-prevRev)/prevRev)*100:null;
+                return(
+                  <tr key={f} className={`border-t border-slate-50 ${f===fy?"bg-blue-50":""}`}>
+                    <td className="px-4 py-2.5 font-semibold text-slate-700">{f}</td>
+                    <td className="px-4 py-2.5 text-right font-bold text-slate-800">{adm$(rev,true)}</td>
+                    <td className="px-4 py-2.5 text-right text-slate-600">{adm$(exp,true)}</td>
+                    <td className="px-4 py-2.5 text-right font-semibold" style={{color:(rev-exp)>=0?"#16a34a":"#dc2626"}}>{adm$(rev-exp,true)}</td>
+                    <td className="px-4 py-2.5 text-right">{pct!=null?arrowBadge(pct):"—"}</td>
+                    <td className="px-4 py-2.5"><Sparkline values={FY_MONTHS.map(m=>{const r=funds.find(x=>x.fy===f&&x.month===m);return r?.revenue||0;}).filter(v=>v>0)} color={COLOR} height={22}/></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between mb-4">
+        <div className="font-semibold text-slate-700">FY {fy} — Monthly Detail</div>
+        <div className="flex items-center gap-3">
+          <FYPicker value={fy} onChange={setFy} include2027/>
+          <button onClick={()=>{setEditRow(null);setForm({fund_name:FNAME,fy,month:"",revenue:"",expenses:"",goal:"",notes:""});setShowModal(true);}}
+            className="px-3 py-1.5 text-xs font-bold rounded-lg text-white" style={{background:COLOR}}>+ Add Entry</button>
+        </div>
+      </div>
+
+      {fyRows.length>0&&<FundMonthChart rows={fyRows} fname={FNAME} fy={fy} allFunds={funds}/>}
+
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+        <table className="w-full text-xs">
+          <thead><tr style={{background:"#f8fafc"}}>
+            <th className="text-left px-4 py-2 text-slate-500 font-semibold">Month</th>
+            <th className="text-right px-4 py-2 text-slate-500 font-semibold">Revenue</th>
+            <th className="text-right px-4 py-2 text-slate-500 font-semibold">Expenses</th>
+            <th className="text-right px-4 py-2 text-slate-500 font-semibold">Net</th>
+            <th className="text-right px-4 py-2 text-slate-500 font-semibold">Goal</th>
+            <th className="text-right px-4 py-2 text-slate-500 font-semibold">Attainment</th>
+            <th className="px-2 py-2"/>
+          </tr></thead>
+          <tbody>
+            {FY_MONTHS.map(mon=>{
+              const r=fyRows.find(x=>x.month===mon);
+              if(!r) return(
+                <tr key={mon} className="border-t border-slate-50">
+                  <td className="px-4 py-2 text-slate-400">{mon}</td>
+                  {[...Array(5)].map((_,i)=><td key={i} className="px-4 py-2 text-right text-slate-200">—</td>)}
+                  <td className="px-4 py-2 text-right">
+                    <button onClick={()=>{setEditRow(null);setForm({fund_name:FNAME,fy,month:mon,revenue:"",expenses:"",goal:"",notes:""});setShowModal(true);}}
+                      className="text-xs px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-400">+</button>
+                  </td>
+                </tr>
+              );
+              const net=r.revenue-r.expenses;
+              return(
+                <tr key={mon} className="border-t border-slate-50 hover:bg-slate-50">
+                  <td className="px-4 py-2 font-medium text-slate-700">{mon}</td>
+                  <td className="px-4 py-2 text-right font-semibold text-slate-800">{adm$(r.revenue)}</td>
+                  <td className="px-4 py-2 text-right text-slate-600">{r.expenses>0?adm$(r.expenses):"—"}</td>
+                  <td className="px-4 py-2 text-right font-semibold" style={{color:net>=0?"#16a34a":"#dc2626"}}>{adm$(net)}</td>
+                  <td className="px-4 py-2 text-right text-slate-500">{r.goal>0?adm$(r.goal):"—"}</td>
+                  <td className="px-4 py-2 text-right">{r.goal>0?<span style={{color:r.revenue>=r.goal?"#16a34a":r.revenue>=r.goal*0.8?"#b45309":"#dc2626",fontWeight:700}}>{((r.revenue/r.goal)*100).toFixed(0)}%</span>:"—"}</td>
+                  <td className="px-4 py-2">
+                    <div className="flex gap-1 justify-end">
+                      <button onClick={()=>openEdit(r)} className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-500 text-xs">✏</button>
+                      <button onClick={()=>setConfirm(r.id)} className="px-2 py-0.5 rounded bg-red-50 hover:bg-red-100 text-red-400 text-xs">✕</button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot><tr className="border-t-2 border-slate-200" style={{background:"#f8fafc"}}>
+            <td className="px-4 py-2.5 font-bold text-slate-700">TOTAL</td>
+            <td className="px-4 py-2.5 text-right font-bold text-slate-800">{adm$(totalRev)}</td>
+            <td className="px-4 py-2.5 text-right font-bold text-slate-600">{adm$(totalExp)}</td>
+            <td className="px-4 py-2.5 text-right font-bold" style={{color:net>=0?"#16a34a":"#dc2626"}}>{adm$(net)}</td>
+            <td className="px-4 py-2.5 text-right font-bold text-slate-500">{totalGoal>0?adm$(totalGoal):"—"}</td>
+            <td className="px-4 py-2.5 text-right font-bold">{totalGoal>0?<span style={{color:totalRev>=totalGoal?"#16a34a":"#dc2626"}}>{((totalRev/totalGoal)*100).toFixed(0)}%</span>:"—"}</td>
+            <td/>
+          </tr></tfoot>
+        </table>
+      </div>
+
+      {showModal&&(
+        <AModal title={editRow?"Edit Entry":"Add Entry"} onClose={()=>setShowModal(false)}>
+          <div className="grid grid-cols-2 gap-x-4">
+            <AInp label="Fiscal Year" value={f("fy")} onChange={v=>s("fy",v)} options={ADMIN_FYS} required/>
+            <AInp label="Month" value={f("month")} onChange={v=>s("month",v)} options={FY_MONTHS} required/>
+            <AInp label="Revenue ($)" value={f("revenue")} onChange={v=>s("revenue",v)} type="number"/>
+            <AInp label="Expenses ($)" value={f("expenses")} onChange={v=>s("expenses",v)} type="number"/>
+            <AInp label="Goal ($)" value={f("goal")} onChange={v=>s("goal",v)} type="number"/>
+          </div>
+          <AInp label="Notes" value={f("notes")} onChange={v=>s("notes",v)} rows={2}/>
+          <div className="flex gap-3 justify-end mt-2">
+            <button onClick={()=>setShowModal(false)} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600">Cancel</button>
+            <button onClick={save} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:COLOR}}>{editRow?"Update":"Save"}</button>
+          </div>
+        </AModal>
+      )}
+      {confirm&&<AConfirm message="Delete this entry?" onConfirm={()=>del(confirm)} onCancel={()=>setConfirm(null)}/>}
+    </DashShell>
+  );
+}
+
+// ─── CLUBHOUSE DASHBOARD ──────────────────────────────────────────────────────
+function ClubhouseDashboard({db}){
+  return(
+    <DashShell title="Clubhouse Dashboard" sub="Enrollment & revenue across all sites, year over year" accent="#0f766e" icon="🏫">
+      <ClubhouseDetail db={db}/>
+    </DashShell>
+  );
+}
+
+// ─── GOALS DASHBOARD ─────────────────────────────────────────────────────────
+function GoalsDashboard({db}){
+  return(
+    <DashShell title="Goals & Objectives" sub="Department G&Os — track, update, and archive by quarter" accent="#7c3aed" icon="✓">
+      <GoalsSection db={db}/>
+    </DashShell>
+  );
+}
+
+// ─── RENTALS DASHBOARD ───────────────────────────────────────────────────────
+function RentalsDashboard({db}){
+  return(
+    <DashShell title="Rentals Dashboard" sub="Revenue by category and month, year over year" accent="#b45309" icon="🏠">
+      <RentalsSection db={db}/>
+    </DashShell>
+  );
+}
+
+// ─── SPECIAL EVENTS DASHBOARD ────────────────────────────────────────────────
+function EventsDashboard({db}){
+  return(
+    <DashShell title="Special Events Dashboard" sub="Attendance & revenue trends by event type and fiscal year" accent="#dc2626" icon="🎉">
+      <EventsDetail db={db}/>
+    </DashShell>
+  );
+}
+
+// ─── FEE REPORT DASHBOARD ────────────────────────────────────────────────────
+function FeeDashboard({db}){
+  return(
+    <DashShell title="Fee Report" sub="Program fees by area and fiscal year — amber highlights show changes" accent="#64748b" icon="💲">
+      <FeeHistorySection db={db}/>
+    </DashShell>
+  );
+}
+
+
 function AdminView({programs,db}){
   const [sub,setSub]=useState("summary");
   const tabs=[
@@ -5829,6 +7014,15 @@ export default function App() {
     {id:"programs",label:"Programs"},
     {id:"history",label:"Multi-Season"},
     {id:"kpi",label:"Reference"},
+    ...(effectiveManager?[
+      {id:"fund4",   label:"Fund 4"},
+      {id:"fitness", label:"Fitness"},
+      {id:"clubhouse",label:"Clubhouse"},
+      {id:"goals",   label:"Goals"},
+      {id:"rentals", label:"Rentals"},
+      {id:"events",  label:"Events"},
+      {id:"fees",    label:"Fees"},
+    ]:[]),
     ...(isAdmin?[{id:"admin",label:"★ Admin"}]:[]),
   ];
   const showingForm = editingProgram||addingProgram;
@@ -5919,7 +7113,14 @@ export default function App() {
             {tab==="history"&&(
               <MultiSeasonView programs={programs} onEdit={p=>{setEditingProgram(p);setTab("programs");}}/>
             )}
-            {tab==="kpi"&&<Reference isManager={effectiveManager}/>}
+            {tab==="kpi"&&<Reference isManager={effectiveManager} db={supabase}/>}
+            {tab==="fund4"   &&effectiveManager&&<Fund4Dashboard db={supabase}/>}
+            {tab==="fitness" &&effectiveManager&&<FitnessDashboard db={supabase}/>}
+            {tab==="clubhouse"&&effectiveManager&&<ClubhouseDashboard db={supabase}/>}
+            {tab==="goals"   &&effectiveManager&&<GoalsDashboard db={supabase}/>}
+            {tab==="rentals" &&effectiveManager&&<RentalsDashboard db={supabase}/>}
+            {tab==="events"  &&effectiveManager&&<EventsDashboard db={supabase}/>}
+            {tab==="fees"    &&effectiveManager&&<FeeDashboard db={supabase}/>}
             {tab==="admin"&&isAdmin&&<AdminView programs={programs} db={supabase}/>}
           </>
         )}
