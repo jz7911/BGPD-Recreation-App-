@@ -28,7 +28,6 @@ const ADMIN_OVERHEAD_RATE  = 0.1;
 const FT_ANNUAL_SALARY     = 97700;
 const FACILITY_COST_PER_HR = 3;
 const MANAGER_NAMES        = ["admin","manager","joe zimmermann","erika strojinc","dan stanczak","brian o'malley","chris eckert","chuck burgess","diana clayson","amanda busch"];
-const ADMIN_NAMES          = ["admin","joe zimmermann"]; // Director-level: sees ★ Admin tab
 
 
 // Service category cost recovery targets
@@ -2023,106 +2022,57 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
   );
 }
 
+const ADMIN_FYS = ["2021-2022","2022-2023","2023-2024","2024-2025","2025-2026","2026-2027"];
+const ADMIN_CUR = "2025-2026";
+
 // ─── Program Review Checklist ─────────────────────────────────────────────────
-function ProgramReviewSection({db}){
+function ProgramReviewSection({db,programs=[]}){
   const [reviews,setReviews]=useState([]);
   const [loading,setLoading]=useState(true);
-  const [view,setView]=useState("list"); // "list" | "form" | "detail"
+  const [view,setView]=useState("list");
   const [editRow,setEditRow]=useState(null);
   const [detailRow,setDetailRow]=useState(null);
   const [confirm,setConfirm]=useState(null);
   const [fyFilter,setFyFilter]=useState("all");
+  const [decFilter,setDecFilter]=useState("all");
   const [search,setSearch]=useState("");
+  const [matchedProgram,setMatchedProgram]=useState(null);
 
   const emptyForm={
+    // Info
     program_name:"",supervisor:"",season:"",fy:ADMIN_CUR,review_date:new Date().toISOString().slice(0,10),
+    classification:"Community Driven",target_age:"",seasons_offered:"",area:"",
     // Financial
-    revenue:"",direct_costs:"",cost_recovery:"",classification:"Community Driven",
-    below_50_cr:false,cr_action:"",fs_acceptable:true,fs_notes:"",
+    revenue:"",direct_costs:"",cost_recovery:"",prior_cr:"",
+    below_50_cr:false,cr_action:"",fs_acceptable:true,fs_notes:"",fs_strengths:"",fs_concerns:"",
     // Data
-    fill_rate:"",below_60_fill:false,two_weak_seasons:false,weak_action:"",trend:"Stable",da_notes:"",
+    fill_rate:"",prior_fill_rate:"",cancellation_rate:"",consecutive_weak:"0",
+    below_60_fill:false,two_weak_seasons:false,weak_action:"",trend:"Stable",nps:"",
+    da_notes:"",da_strengths:"",da_concerns:"",
     // Community
-    enrollment:"",capacity:"",waitlist:"",retention_trend:"Stable",
-    clear_audience:true,community_benefit:true,
+    enrollment:"",capacity:"",waitlist:"",retention_rate:"",
+    retention_trend:"Stable",clear_audience:true,community_benefit:true,
+    documented_need:false,ci_notes:"",ci_strengths:"",ci_concerns:"",
     // Space
-    prime_time_use:"Strong",time_improvable:false,ratio_appropriate:true,
+    prime_time_use:"Strong",time_improvable:false,ratio_appropriate:true,space_notes:"",
     // Innovation
-    is_pilot:false,met_enrollment:false,met_financial:false,
-    // Final
-    decision:"Continue",decision_reason:"",next_review:"",pillars_met:"",
+    is_pilot:false,met_enrollment:false,met_financial:false,innovation_notes:"",
+    // Decision
+    decision:"Continue",decision_reason:"",action_items:"",next_review:"",pillars_met:"",
   };
   const [form,setForm]=useState(emptyForm);
   const [activeStep,setActiveStep]=useState(0);
 
-  async function load(){
-    setLoading(true);
-    const {data}=await db.from("admin_reviews").select("*").order("created_at",{ascending:false});
-    setReviews(data||[]);
-    setLoading(false);
-  }
-  useEffect(()=>{load();},[]);
-
-  function s(k,v){setForm(p=>({...p,[k]:v}));}
-
-  // Auto-compute pillar scores
-  function computePillars(f){
-    const p1 = f.fs_acceptable;
-    const p2 = parseFloat(f.fill_rate)>=60 && !f.two_weak_seasons;
-    const p3 = f.clear_audience && f.community_benefit;
-    const p4 = f.prime_time_use!=="Underutilized" && f.ratio_appropriate;
-    const p5 = !f.is_pilot || (f.met_enrollment && f.met_financial);
-    return [{n:1,label:"Fiscal Sustainability",met:p1,required:true},
-            {n:2,label:"Data & Accountability",met:p2,required:true},
-            {n:3,label:"Community Impact",met:p3,required:false},
-            {n:4,label:"Space Optimization",met:p4,required:false},
-            {n:5,label:"Innovation",met:p5,required:false}];
-  }
-
-  const pillars = computePillars(form);
-  const metCount = pillars.filter(p=>p.met).length;
-  const requiredMet = pillars.filter(p=>p.required).every(p=>p.met);
-  const overallPass = metCount>=3 && requiredMet;
-
-  async function save(){
-    const pillarsStr = pillars.filter(p=>p.met).map(p=>p.n).join(",");
-    const d={...form,
-      revenue:parseFloat(form.revenue)||0,
-      direct_costs:parseFloat(form.direct_costs)||0,
-      cost_recovery:parseFloat(form.cost_recovery)||0,
-      fill_rate:parseFloat(form.fill_rate)||0,
-      enrollment:parseInt(form.enrollment)||0,
-      capacity:parseInt(form.capacity)||0,
-      waitlist:parseInt(form.waitlist)||0,
-      pillars_met:pillarsStr,
-    };
-    if(editRow){await db.from("admin_reviews").update(d).eq("id",editRow.id);}
-    else{await db.from("admin_reviews").insert(d);}
-    setView("list");setEditRow(null);setForm(emptyForm);setActiveStep(0);load();
-  }
-  async function del(id){await db.from("admin_reviews").delete().eq("id",id);setConfirm(null);load();}
-
-  function startNew(){setEditRow(null);setForm(emptyForm);setActiveStep(0);setView("form");}
-  function startEdit(r){
-    setEditRow(r);
-    setForm({...emptyForm,...r,
-      revenue:r.revenue||"",direct_costs:r.direct_costs||"",
-      cost_recovery:r.cost_recovery||"",fill_rate:r.fill_rate||"",
-      enrollment:r.enrollment||"",capacity:r.capacity||"",waitlist:r.waitlist||"",
-    });
-    setActiveStep(0);setView("form");
-  }
-
-  const filtered=reviews.filter(r=>{
-    if(fyFilter!=="all"&&r.fy!==fyFilter) return false;
-    if(search&&!r.program_name?.toLowerCase().includes(search.toLowerCase())&&!r.supervisor?.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
-
+  const AGE_GROUPS=["All Ages","Youth (Under 12)","Tweens (10–14)","Teens (13–18)","Adults (18+)","Seniors (55+)","Family","Adults & Seniors","Youth & Teens","Adaptive/Inclusive"];
+  const AREAS=["Adult General","Adult Sports","Aquatics","Camps","Clubhouse","Dance","Fitness","Golf Dome","Museum","Performing Arts","Seniors","Special Events","Youth General","Youth Sports","Other"];
+  const SEASONS_LIST=["Spring","Summer","Fall","Winter","Annual","Year-Round"];
   const DECISIONS=["Continue","Adjust","Redesign","Expand","Pilot Again","Sunset Review"];
   const CLASSIFICATIONS=["Community Driven","Both","Revenue Driven"];
   const TRENDS=["Growing","Stable","Declining"];
   const PRIME=["Strong","Moderate","Underutilized"];
-  const RETENTION=["Improving","Stable","Declining"];
+  const RETENTION_OPTS=["Improving","Stable","Declining","N/A – First Season"];
+  const WEAK_OPTS=["0","1","2","3+"];
+  const dcColor={"Continue":"#16a34a","Adjust":"#d4a017","Redesign":"#dc2626","Expand":"#0369a1","Pilot Again":"#7c3aed","Sunset Review":"#991b1b"};
 
   const STEPS=[
     {label:"Program Info",icon:"📋"},
@@ -2134,37 +2084,237 @@ function ProgramReviewSection({db}){
     {label:"Decision",icon:"✅"},
   ];
 
-  const dcColor={
-    "Continue":"#16a34a","Adjust":"#d4a017","Redesign":"#dc2626",
-    "Expand":"#0369a1","Pilot Again":"#7c3aed","Sunset Review":"#991b1b",
+  async function load(){
+    setLoading(true);
+    const {data}=await db.from("admin_reviews").select("*").order("created_at",{ascending:false});
+    setReviews(data||[]);
+    setLoading(false);
+  }
+  useEffect(()=>{load();},[]);
+
+  function s(k,v){setForm(p=>({...p,[k]:v}));}
+
+  // Auto-match program from programs list when name changes
+  function handleProgramName(name){
+    s("program_name",name);
+    if(!programs||!programs.length) return;
+    const match=programs.find(p=>p.name?.toLowerCase()===name.toLowerCase());
+    if(match){
+      const kpis=calcKPIs(match);
+      setMatchedProgram(match);
+      setForm(prev=>({
+        ...prev,
+        program_name:name,
+        supervisor:match.staff_name||prev.supervisor,
+        area:match.area||prev.area,
+        season:match.season||prev.season,
+        classification:match.classification||prev.classification,
+        fill_rate:kpis.fillRate?Math.round(kpis.fillRate*100):"",
+        cost_recovery:kpis.costRecovery?Math.round(kpis.costRecovery*100):"",
+        revenue:match.act_revenue||"",
+        enrollment:match.act_enrollment||"",
+        capacity:match.act_capacity||"",
+        waitlist:match.waitlist||"",
+        nps:match.nps||"",
+        trend:match.trend||"Stable",
+      }));
+    } else {
+      setMatchedProgram(null);
+    }
+  }
+
+  // Prior season lookup
+  function priorSeasonData(name,season,fy){
+    if(!programs||!name) return null;
+    const fyIdx=ADMIN_FYS.indexOf(fy);
+    const priorFY=fyIdx>0?ADMIN_FYS[fyIdx-1]:null;
+    const prior=programs.find(p=>
+      p.name?.toLowerCase()===name.toLowerCase()&&
+      p.season===season&&
+      p.year===priorFY?.slice(0,4)
+    );
+    if(!prior) return null;
+    const kpis=calcKPIs(prior);
+    return{
+      fill_rate:kpis.fillRate?Math.round(kpis.fillRate*100):null,
+      cost_recovery:kpis.costRecovery?Math.round(kpis.costRecovery*100):null,
+      enrollment:prior.act_enrollment,
+      fy:priorFY,
+    };
+  }
+
+  // History from past reviews
+  function reviewHistory(name){
+    return reviews.filter(r=>r.program_name?.toLowerCase()===name?.toLowerCase())
+      .sort((a,b)=>new Date(b.review_date)-new Date(a.review_date));
+  }
+
+  function computePillars(f){
+    const cr=parseFloat(f.cost_recovery)||0;
+    const fr=parseFloat(f.fill_rate)||0;
+    const wk=parseInt(f.consecutive_weak)||0;
+    const p1=f.fs_acceptable&&cr>=50;
+    const p2=fr>=60&&wk<2;
+    const p3=f.clear_audience&&f.community_benefit;
+    const p4=f.prime_time_use!=="Underutilized"&&f.ratio_appropriate;
+    const p5=!f.is_pilot||(f.met_enrollment&&f.met_financial);
+    return[
+      {n:1,label:"Fiscal Sustainability",met:p1,required:true,color:"#1e3a5f"},
+      {n:2,label:"Data & Accountability",met:p2,required:true,color:"#1e3a5f"},
+      {n:3,label:"Community Impact",met:p3,required:false,color:"#0f766e"},
+      {n:4,label:"Space Optimization",met:p4,required:false,color:"#7c3aed"},
+      {n:5,label:"Innovation",met:p5,required:false,color:"#b45309"},
+    ];
+  }
+
+  const pillars=computePillars(form);
+  const metCount=pillars.filter(p=>p.met).length;
+  const requiredMet=pillars.filter(p=>p.required).every(p=>p.met);
+  const overallPass=metCount>=3&&requiredMet;
+
+  async function save(){
+    const pillarsStr=pillars.filter(p=>p.met).map(p=>p.n).join(",");
+    const d={...form,
+      revenue:parseFloat(form.revenue)||0,
+      direct_costs:parseFloat(form.direct_costs)||0,
+      cost_recovery:parseFloat(form.cost_recovery)||0,
+      prior_cr:parseFloat(form.prior_cr)||0,
+      fill_rate:parseFloat(form.fill_rate)||0,
+      prior_fill_rate:parseFloat(form.prior_fill_rate)||0,
+      cancellation_rate:parseFloat(form.cancellation_rate)||0,
+      consecutive_weak:parseInt(form.consecutive_weak)||0,
+      nps:form.nps?parseInt(form.nps):null,
+      enrollment:parseInt(form.enrollment)||0,
+      capacity:parseInt(form.capacity)||0,
+      waitlist:parseInt(form.waitlist)||0,
+      retention_rate:form.retention_rate?parseFloat(form.retention_rate):null,
+      pillars_met:pillarsStr,
+    };
+    if(editRow){await db.from("admin_reviews").update(d).eq("id",editRow.id);}
+    else{await db.from("admin_reviews").insert(d);}
+    setView("list");setEditRow(null);setForm(emptyForm);setActiveStep(0);setMatchedProgram(null);load();
+  }
+
+  async function del(id){await db.from("admin_reviews").delete().eq("id",id);setConfirm(null);load();}
+
+  function startNew(){setEditRow(null);setForm(emptyForm);setActiveStep(0);setMatchedProgram(null);setView("form");}
+  function startEdit(r){
+    setEditRow(r);
+    setForm({...emptyForm,...r,
+      revenue:r.revenue||"",direct_costs:r.direct_costs||"",
+      cost_recovery:r.cost_recovery||"",prior_cr:r.prior_cr||"",
+      fill_rate:r.fill_rate||"",prior_fill_rate:r.prior_fill_rate||"",
+      cancellation_rate:r.cancellation_rate||"",
+      enrollment:r.enrollment||"",capacity:r.capacity||"",
+      waitlist:r.waitlist||"",nps:r.nps||"",
+      retention_rate:r.retention_rate||"",
+      consecutive_weak:r.consecutive_weak!=null?String(r.consecutive_weak):"0",
+    });
+    setActiveStep(0);setView("form");
+  }
+
+  const filtered=reviews.filter(r=>{
+    if(fyFilter!=="all"&&r.fy!==fyFilter) return false;
+    if(decFilter!=="all"&&r.decision!==decFilter) return false;
+    if(search&&!r.program_name?.toLowerCase().includes(search.toLowerCase())&&!r.supervisor?.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+
+  // ── Helper sub-components ──────────────────────────────────────────────────
+  const inp=(label,key,type="text",opts=null,req=false,hint="")=>(
+    <div>
+      <label className="block text-xs font-semibold text-slate-500 mb-1">{label}{req&&<span className="text-red-400 ml-0.5">*</span>}</label>
+      {opts?(
+        <select value={form[key]||""} onChange={e=>s(key,e.target.value)} className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
+          {opts.map(o=><option key={o}>{o}</option>)}
+        </select>
+      ):(
+        <input type={type} value={form[key]||""} onChange={e=>s(key,type==="number"?e.target.value:e.target.value)}
+          className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2"/>
+      )}
+      {hint&&<div className="text-xs text-slate-400 mt-0.5">{hint}</div>}
+    </div>
+  );
+
+  const chk=(label,key,detail="")=>(
+    <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg border border-slate-100 hover:bg-slate-50">
+      <input type="checkbox" checked={!!form[key]} onChange={e=>s(key,e.target.checked)} className="mt-0.5 shrink-0"/>
+      <div><div className="text-sm font-medium text-slate-700">{label}</div>{detail&&<div className="text-xs text-slate-400 mt-0.5">{detail}</div>}</div>
+    </label>
+  );
+
+  const ta=(label,key,rows=2,placeholder="")=>(
+    <div>
+      <label className="block text-xs font-semibold text-slate-500 mb-1">{label}</label>
+      <textarea value={form[key]||""} onChange={e=>s(key,e.target.value)} rows={rows} placeholder={placeholder}
+        className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 resize-none"/>
+    </div>
+  );
+
+  const scPair=(sKey,cKey)=>(
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mt-1">
+      <div>
+        <label className="block text-xs font-semibold text-green-700 mb-1">✓ Strengths</label>
+        <textarea value={form[sKey]||""} onChange={e=>s(sKey,e.target.value)} rows={2}
+          placeholder="What is working well…"
+          className="w-full text-sm rounded-lg border border-green-100 bg-green-50 px-3 py-2 resize-none"/>
+      </div>
+      <div>
+        <label className="block text-xs font-semibold text-amber-700 mb-1">⚠ Concerns</label>
+        <textarea value={form[cKey]||""} onChange={e=>s(cKey,e.target.value)} rows={2}
+          placeholder="What needs attention…"
+          className="w-full text-sm rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 resize-none"/>
+      </div>
+    </div>
+  );
+
+  const divider=(label)=>(
+    <div className="flex items-center gap-2 my-1">
+      <div className="h-px flex-1 bg-slate-100"/>
+      <span className="text-xs text-slate-400 font-semibold uppercase tracking-widest">{label}</span>
+      <div className="h-px flex-1 bg-slate-100"/>
+    </div>
+  );
+
+  const delta=(cur,prior,suffix="%",invert=false)=>{
+    if(cur===""||cur===null||prior===""||prior===null) return null;
+    const diff=parseFloat(cur)-parseFloat(prior);
+    if(isNaN(diff)) return null;
+    const good=invert?diff<=0:diff>=0;
+    return(
+      <span className="text-xs font-bold ml-1" style={{color:good?"#16a34a":"#dc2626"}}>
+        {diff>=0?"+":""}{diff.toFixed(1)}{suffix} vs prior
+      </span>
+    );
   };
 
-  if(loading) return <div className="text-center py-20 text-slate-400">Loading reviews…</div>;
-
-  /* ── LIST VIEW ── */
+  // ── LIST VIEW ─────────────────────────────────────────────────────────────
   if(view==="list") return(
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="font-bold text-slate-800" style={{fontSize:"18px"}}>Program Review Checklist</h2>
-          <p className="text-sm text-slate-400 mt-0.5">Quarterly supervisor reviews — visible to all managers</p>
+          <p className="text-sm text-slate-400 mt-0.5">Quarterly supervisor reviews — shared across all managers</p>
         </div>
-        <button onClick={startNew} className="px-4 py-2 text-sm font-bold rounded-lg text-white flex items-center gap-2" style={{background:"#1e3a5f"}}>
+        <button onClick={startNew} className="px-4 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>
           + New Review
         </button>
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-6">
+      <div className="grid grid-cols-3 gap-3 sm:grid-cols-6 mb-6">
         {[
-          {label:"Total Reviews",value:reviews.length,accent:"#1e3a5f"},
+          {label:"Total",value:reviews.length,accent:"#1e3a5f"},
           {label:"Continue",value:reviews.filter(r=>r.decision==="Continue").length,accent:"#16a34a"},
-          {label:"Redesign",value:reviews.filter(r=>r.decision==="Redesign"||r.decision==="Sunset Review").length,accent:"#dc2626"},
-          {label:"This FY",value:reviews.filter(r=>r.fy===ADMIN_CUR).length,accent:"#d4a017"},
+          {label:"Adjust",value:reviews.filter(r=>r.decision==="Adjust").length,accent:"#d4a017"},
+          {label:"Expand",value:reviews.filter(r=>r.decision==="Expand").length,accent:"#0369a1"},
+          {label:"Redesign",value:reviews.filter(r=>r.decision==="Redesign").length,accent:"#dc2626"},
+          {label:"Sunset",value:reviews.filter(r=>r.decision==="Sunset Review").length,accent:"#991b1b"},
         ].map(c=>(
-          <div key={c.label} className="bg-white rounded-xl border border-slate-100 shadow-sm p-4">
-            <div className="text-xs text-slate-400 mb-1">{c.label}</div>
+          <div key={c.label} className="bg-white rounded-xl border border-slate-100 shadow-sm p-3 text-center cursor-pointer hover:border-slate-200 transition"
+            onClick={()=>setDecFilter(decFilter===c.label||(c.label==="Total"&&decFilter==="all")?"all":c.label==="Total"?"all":c.label)}>
             <div className="text-2xl font-black" style={{color:c.accent}}>{c.value}</div>
+            <div className="text-xs text-slate-400 mt-0.5">{c.label}</div>
           </div>
         ))}
       </div>
@@ -2175,12 +2325,19 @@ function ProgramReviewSection({db}){
           className="flex-1 min-w-48 text-sm rounded-lg border border-slate-200 px-3 py-1.5"/>
         <select value={fyFilter} onChange={e=>setFyFilter(e.target.value)} className="text-sm rounded-lg border border-slate-200 px-3 py-1.5 bg-white">
           <option value="all">All FYs</option>
-          {ADMIN_FYS.map(f=><option key={f} value={f}>{f}</option>)}
+          {ADMIN_FYS.map(f=><option key={f}>{f}</option>)}
         </select>
+        <select value={decFilter} onChange={e=>setDecFilter(e.target.value)} className="text-sm rounded-lg border border-slate-200 px-3 py-1.5 bg-white">
+          <option value="all">All Decisions</option>
+          {DECISIONS.map(d=><option key={d}>{d}</option>)}
+        </select>
+        {(search||fyFilter!=="all"||decFilter!=="all")&&(
+          <button onClick={()=>{setSearch("");setFyFilter("all");setDecFilter("all");}} className="text-xs text-slate-400 hover:text-slate-600">Clear</button>
+        )}
+        <span className="text-xs text-slate-400 ml-auto">{filtered.length} review{filtered.length!==1?"s":""}</span>
       </div>
 
-      {/* Reviews list */}
-      {filtered.length===0 ? (
+      {filtered.length===0?(
         <div className="bg-white rounded-xl border border-slate-100 p-12 text-center text-slate-400">
           <div className="text-4xl mb-3">📋</div>
           <div className="font-semibold text-slate-600 mb-1">No reviews yet</div>
@@ -2191,24 +2348,32 @@ function ProgramReviewSection({db}){
           {filtered.map((r,i)=>{
             const pMet=(r.pillars_met||"").split(",").filter(Boolean).length;
             const dc=dcColor[r.decision]||"#64748b";
+            const frDelta=r.prior_fill_rate?r.fill_rate-r.prior_fill_rate:null;
             return(
               <div key={r.id} className={`${i>0?"border-t border-slate-50":""} px-4 py-4 flex items-start gap-4 hover:bg-slate-50 transition`}>
-                <div className="shrink-0 mt-0.5">
-                  <span className="inline-block px-2 py-1 rounded text-xs font-bold text-white" style={{background:dc}}>{r.decision||"—"}</span>
+                <div className="shrink-0 mt-0.5 w-24 text-center">
+                  <span className="inline-block px-2 py-1 rounded text-xs font-bold text-white w-full" style={{background:dc}}>{r.decision||"—"}</span>
+                  <div className="text-xs text-slate-400 mt-1">{r.season} {r.fy?.slice(2,4)}</div>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-slate-800">{r.program_name}</div>
-                  <div className="text-xs text-slate-400 mt-0.5">{r.supervisor} · {r.season} {r.fy} · Reviewed {r.review_date}</div>
-                  <div className="flex items-center gap-3 mt-2 text-xs">
-                    <span className="text-slate-500">Fill: <span className="font-bold">{r.fill_rate||0}%</span></span>
+                  <div className="text-xs text-slate-400 mt-0.5">{r.supervisor}{r.area?` · ${r.area}`:""} · {r.review_date}</div>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs">
+                    <span className="text-slate-500">Fill: <span className="font-bold">{r.fill_rate||0}%</span>
+                      {frDelta!==null&&<span style={{color:frDelta>=0?"#16a34a":"#dc2626",marginLeft:"3px"}}>{frDelta>=0?"▲":"▼"}{Math.abs(frDelta).toFixed(0)}pp</span>}
+                    </span>
                     <span className="text-slate-500">CR: <span className="font-bold">{r.cost_recovery||0}%</span></span>
-                    <span className="text-slate-500">Pillars: <span className="font-bold" style={{color:pMet>=3?"#16a34a":"#dc2626"}}>{pMet}/5</span></span>
-                    {r.next_review&&<span className="text-slate-400">Next review: {r.next_review}</span>}
+                    {r.consecutive_weak>0&&<span className="font-semibold" style={{color:r.consecutive_weak>=2?"#dc2626":"#d4a017"}}>{r.consecutive_weak} weak season{r.consecutive_weak>1?"s":""}</span>}
+                    <span style={{color:pMet>=3?"#16a34a":"#dc2626"}} className="font-semibold">{pMet}/5 pillars</span>
+                    {r.next_review&&<span className="text-slate-400">→ {r.next_review}</span>}
                   </div>
+                  {r.action_items&&(
+                    <div className="mt-1.5 text-xs text-slate-500 italic truncate">Action: {r.action_items}</div>
+                  )}
                 </div>
                 <div className="flex gap-2 shrink-0">
-                  <button onClick={()=>{setDetailRow(r);setView("detail");}} className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs text-slate-500">👁 View</button>
-                  <button onClick={()=>startEdit(r)} className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs text-slate-500">✏ Edit</button>
+                  <button onClick={()=>{setDetailRow(r);setView("detail");}} className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs text-slate-500">👁</button>
+                  <button onClick={()=>startEdit(r)} className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs text-slate-500">✏</button>
                   <button onClick={()=>setConfirm(r.id)} className="p-2 rounded-lg bg-red-50 hover:bg-red-100 text-xs text-red-400">✕</button>
                 </div>
               </div>
@@ -2220,97 +2385,161 @@ function ProgramReviewSection({db}){
     </div>
   );
 
-  /* ── DETAIL VIEW ── */
+  // ── DETAIL VIEW ───────────────────────────────────────────────────────────
   if(view==="detail"&&detailRow){
     const r=detailRow;
     const pMet=(r.pillars_met||"").split(",").filter(Boolean);
-    const pillarLabels={1:"Fiscal Sustainability",2:"Data & Accountability",3:"Community Impact",4:"Space Optimization",5:"Innovation"};
-    const pillarRequired={1:true,2:true,3:false,4:false,5:false};
-    const pillarColor={1:"#1e3a5f",2:"#1e3a5f",3:"#0f766e",4:"#7c3aed",5:"#b45309"};
+    const pillarMeta={1:{label:"Fiscal Sustainability",color:"#1e3a5f",req:true},2:{label:"Data & Accountability",color:"#1e3a5f",req:true},3:{label:"Community Impact",color:"#0f766e",req:false},4:{label:"Space Optimization",color:"#7c3aed",req:false},5:{label:"Innovation",color:"#b45309",req:false}};
+    const history=reviewHistory(r.program_name).filter(h=>h.id!==r.id);
+    const Row=({k,v})=>v!=null&&v!==""&&v!==false?(<div className="flex justify-between py-1 border-b border-slate-50"><span className="text-slate-400 text-xs">{k}</span><span className="font-semibold text-slate-700 text-xs text-right max-w-48">{String(v)}</span></div>):null;
+    const Note=({label,val,color="#64748b"})=>val?(<div className="mt-2 p-2.5 rounded-lg bg-slate-50 text-xs text-slate-500"><span className="font-bold" style={{color}}>{label}: </span>{val}</div>):null;
+    const SCP=({s,c})=>(s||c)?(
+      <div className="grid grid-cols-2 gap-2 mt-2">
+        {s&&<div className="p-2.5 rounded-lg bg-green-50 text-xs"><span className="font-bold text-green-700">Strengths: </span>{s}</div>}
+        {c&&<div className="p-2.5 rounded-lg bg-amber-50 text-xs"><span className="font-bold text-amber-700">Concerns: </span>{c}</div>}
+      </div>
+    ):null;
+
     return(
       <div>
-        <button onClick={()=>setView("list")} className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 mb-5">← Back to all reviews</button>
+        <button onClick={()=>setView("list")} className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 mb-5">← All reviews</button>
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
           {/* Header */}
-          <div className="px-6 py-5 border-b border-slate-100" style={{background:"linear-gradient(135deg,#1e3a5f,#0f2d4a)"}}>
-            <div className="flex items-start justify-between">
+          <div className="px-6 py-5" style={{background:"linear-gradient(135deg,#1e3a5f,#0f2d4a)"}}>
+            <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-xl font-black text-white">{r.program_name}</div>
-                <div className="text-sm opacity-70 text-white mt-1">{r.supervisor} · {r.season} {r.fy} · Reviewed {r.review_date}</div>
+                <div className="text-sm opacity-70 text-white mt-1">
+                  {r.supervisor}{r.area?` · ${r.area}`:""} · {r.season} {r.fy} · Reviewed {r.review_date}
+                </div>
+                {r.target_age&&<div className="text-xs opacity-60 text-white mt-0.5">Target: {r.target_age}</div>}
               </div>
-              <span className="px-3 py-1.5 rounded-lg text-sm font-bold text-white" style={{background:dcColor[r.decision]||"#64748b"}}>{r.decision}</span>
+              <div className="text-right shrink-0">
+                <span className="inline-block px-3 py-1.5 rounded-lg text-sm font-bold text-white mb-1" style={{background:dcColor[r.decision]||"#64748b"}}>{r.decision}</span>
+                {r.seasons_offered&&<div className="text-xs opacity-60 text-white">{r.seasons_offered} seasons offered</div>}
+              </div>
             </div>
-            {/* Pillar badges */}
             <div className="flex flex-wrap gap-2 mt-4">
               {[1,2,3,4,5].map(n=>{
-                const met=pMet.includes(String(n));
-                return(
-                  <span key={n} className="text-xs font-bold px-2 py-1 rounded-full" style={{
-                    background:met?pillarColor[n]:"rgba(255,255,255,0.1)",
-                    color:"white",
-                    opacity:met?1:0.4,
-                  }}>
-                    {met?"✓":"○"} {pillarLabels[n]}{pillarRequired[n]?" (req)":""}
-                  </span>
-                );
+                const m=pillarMeta[n]; const met=pMet.includes(String(n));
+                return <span key={n} className="text-xs font-bold px-2 py-1 rounded-full" style={{background:met?m.color:"rgba(255,255,255,0.1)",color:"white",opacity:met?1:0.45}}>{met?"✓":"○"} {m.label}{m.req?" ★":""}</span>;
               })}
             </div>
           </div>
-          <div className="p-6 grid grid-cols-1 gap-6 sm:grid-cols-2">
-            {/* Financial */}
-            <div>
-              <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Financial Stewardship</div>
-              <div className="space-y-2 text-sm">
-                {[["Revenue",`$${(r.revenue||0).toLocaleString()}`],["Direct Costs",`$${(r.direct_costs||0).toLocaleString()}`],["Cost Recovery",`${r.cost_recovery||0}%`],["Classification",r.classification],["Acceptable?",r.fs_acceptable?"Yes":"No — Redesign Required"]].map(([k,v])=>(
-                  <div key={k} className="flex justify-between"><span className="text-slate-400">{k}</span><span className="font-semibold text-slate-700">{v}</span></div>
-                ))}
-                {r.fs_notes&&<div className="text-xs text-slate-400 italic mt-1">{r.fs_notes}</div>}
+
+          <div className="p-6 space-y-6">
+            {/* Key metrics row */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                {label:"Fill Rate",cur:r.fill_rate,prior:r.prior_fill_rate,suffix:"%"},
+                {label:"Cost Recovery",cur:r.cost_recovery,prior:r.prior_cr,suffix:"%"},
+                {label:"Enrollment",cur:r.enrollment?`${r.enrollment}/${r.capacity}`:"—",prior:null},
+                {label:"Consecutive Weak",cur:r.consecutive_weak||0,prior:null,alert:r.consecutive_weak>=2},
+              ].map(m=>(
+                <div key={m.label} className="rounded-lg bg-slate-50 border border-slate-100 p-3">
+                  <div className="text-xs text-slate-400 mb-1">{m.label}</div>
+                  <div className="text-lg font-black" style={{color:m.alert?"#dc2626":"#1e3a5f"}}>{m.cur}</div>
+                  {m.prior!=null&&m.prior!=""&&(
+                    <div className="text-xs text-slate-400">
+                      Prior: {m.prior}{m.suffix}
+                      <span style={{color:(m.cur-m.prior)>=0?"#16a34a":"#dc2626",marginLeft:"4px"}}>
+                        {(m.cur-m.prior)>=0?"▲":"▼"}{Math.abs(m.cur-m.prior).toFixed(0)}pp
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              {/* Financial */}
+              <div>
+                <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">💰 Financial</div>
+                <Row k="Revenue" v={r.revenue?`$${Number(r.revenue).toLocaleString()}`:null}/>
+                <Row k="Direct Costs" v={r.direct_costs?`$${Number(r.direct_costs).toLocaleString()}`:null}/>
+                <Row k="Cost Recovery" v={r.cost_recovery?`${r.cost_recovery}%`:null}/>
+                <Row k="Prior CR" v={r.prior_cr?`${r.prior_cr}%`:null}/>
+                <Row k="Classification" v={r.classification}/>
+                <Row k="Financial Acceptable?" v={r.fs_acceptable?"Yes":"No — Redesign Required"}/>
+                {r.cr_action&&<Row k="CR Action" v={r.cr_action}/>}
+                <SCP s={r.fs_strengths} c={r.fs_concerns}/>
+                <Note label="Notes" val={r.fs_notes}/>
+              </div>
+              {/* Data */}
+              <div>
+                <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">📊 Data</div>
+                <Row k="Fill Rate" v={r.fill_rate?`${r.fill_rate}%`:null}/>
+                <Row k="Prior Fill Rate" v={r.prior_fill_rate?`${r.prior_fill_rate}%`:null}/>
+                <Row k="Cancellation Rate" v={r.cancellation_rate?`${r.cancellation_rate}%`:null}/>
+                <Row k="Consecutive Weak Seasons" v={r.consecutive_weak}/>
+                <Row k="Trend" v={r.trend}/>
+                <Row k="NPS" v={r.nps}/>
+                {r.weak_action&&<Row k="Weak Season Action" v={r.weak_action}/>}
+                <SCP s={r.da_strengths} c={r.da_concerns}/>
+                <Note label="Notes" val={r.da_notes}/>
+              </div>
+              {/* Community */}
+              <div>
+                <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">🤝 Community</div>
+                <Row k="Enrollment / Capacity" v={r.enrollment?`${r.enrollment} / ${r.capacity}`:"—"}/>
+                <Row k="Waitlist" v={r.waitlist||0}/>
+                <Row k="Retention Rate" v={r.retention_rate?`${r.retention_rate}%`:null}/>
+                <Row k="Retention Trend" v={r.retention_trend}/>
+                <Row k="Target Age Group" v={r.target_age}/>
+                <Row k="Clear Audience?" v={r.clear_audience?"Yes":"No"}/>
+                <Row k="Community Benefit Documented?" v={r.community_benefit?"Yes":"No"}/>
+                <Row k="Documented Community Need?" v={r.documented_need?"Yes":"No"}/>
+                <SCP s={r.ci_strengths} c={r.ci_concerns}/>
+                <Note label="Notes" val={r.ci_notes}/>
+              </div>
+              {/* Space + Innovation */}
+              <div>
+                <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">🏢 Space & Innovation</div>
+                <Row k="Prime Time Use" v={r.prime_time_use}/>
+                <Row k="Time/Location Improvable?" v={r.time_improvable?"Yes":"No"}/>
+                <Row k="Staff Ratio Appropriate?" v={r.ratio_appropriate?"Yes":"No"}/>
+                <Note label="Space Notes" val={r.space_notes}/>
+                <div className="mt-3"/>
+                <Row k="Is Pilot?" v={r.is_pilot?"Yes":"No"}/>
+                {r.is_pilot&&<>
+                  <Row k="Met Enrollment?" v={r.met_enrollment?"Yes":"No"}/>
+                  <Row k="Met Financial?" v={r.met_financial?"Yes":"No"}/>
+                </>}
+                <Note label="Innovation Notes" val={r.innovation_notes}/>
               </div>
             </div>
-            {/* Data */}
-            <div>
-              <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Data & Accountability</div>
-              <div className="space-y-2 text-sm">
-                {[["Fill Rate",`${r.fill_rate||0}%`],["Below 60%?",r.below_60_fill?"Yes":"No"],["Two Weak Seasons?",r.two_weak_seasons?"Yes":"No"],["Trend",r.trend]].map(([k,v])=>(
-                  <div key={k} className="flex justify-between"><span className="text-slate-400">{k}</span><span className="font-semibold text-slate-700">{v}</span></div>
-                ))}
-                {r.da_notes&&<div className="text-xs text-slate-400 italic mt-1">{r.da_notes}</div>}
+
+            {/* Decision + Action items */}
+            <div className="rounded-xl border border-slate-100 overflow-hidden">
+              <div className="px-4 py-3 flex items-center justify-between" style={{background:dcColor[r.decision]||"#64748b"}}>
+                <span className="font-bold text-white">Decision: {r.decision}</span>
+                {r.next_review&&<span className="text-xs text-white opacity-80">Next review: {r.next_review}</span>}
               </div>
+              {r.decision_reason&&<div className="px-4 py-3 text-sm text-slate-600 border-b border-slate-50"><span className="font-semibold text-slate-700">Reason: </span>{r.decision_reason}</div>}
+              {r.action_items&&<div className="px-4 py-3 text-sm text-slate-600"><span className="font-semibold text-slate-700">Action Items: </span>{r.action_items}</div>}
             </div>
-            {/* Community */}
-            <div>
-              <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Community Impact</div>
-              <div className="space-y-2 text-sm">
-                {[["Enrollment",`${r.enrollment||0} / ${r.capacity||0}`],["Waitlist",r.waitlist||0],["Retention",r.retention_trend],["Clear Audience?",r.clear_audience?"Yes":"No"]].map(([k,v])=>(
-                  <div key={k} className="flex justify-between"><span className="text-slate-400">{k}</span><span className="font-semibold text-slate-700">{v}</span></div>
-                ))}
+
+            {/* History */}
+            {history.length>0&&(
+              <div>
+                <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Review History — {r.program_name}</div>
+                <div className="space-y-2">
+                  {history.slice(0,5).map((h,i)=>(
+                    <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100 text-xs">
+                      <span className="px-2 py-0.5 rounded font-bold text-white" style={{background:dcColor[h.decision]||"#64748b"}}>{h.decision}</span>
+                      <span className="text-slate-500">{h.season} {h.fy}</span>
+                      <span className="text-slate-500">Fill: <span className="font-bold">{h.fill_rate||0}%</span></span>
+                      <span className="text-slate-500">CR: <span className="font-bold">{h.cost_recovery||0}%</span></span>
+                      <span className="text-slate-400 ml-auto">{h.review_date}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-            {/* Space + Innovation */}
-            <div>
-              <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Space & Innovation</div>
-              <div className="space-y-2 text-sm">
-                {[["Prime Time Use",r.prime_time_use],["Ratio Appropriate?",r.ratio_appropriate?"Yes":"No"],["Is Pilot?",r.is_pilot?"Yes":"No"]].map(([k,v])=>(
-                  <div key={k} className="flex justify-between"><span className="text-slate-400">{k}</span><span className="font-semibold text-slate-700">{v}</span></div>
-                ))}
-              </div>
-            </div>
+            )}
           </div>
-          {/* Decision */}
-          {r.decision_reason&&(
-            <div className="px-6 pb-6">
-              <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">Decision Reason</div>
-              <div className="text-sm text-slate-600 bg-slate-50 rounded-lg p-3">{r.decision_reason}</div>
-            </div>
-          )}
-          {r.next_review&&(
-            <div className="px-6 pb-6">
-              <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Next Review Date</div>
-              <div className="text-sm font-semibold text-slate-700">{r.next_review}</div>
-            </div>
-          )}
-          <div className="px-6 pb-6 flex gap-3">
-            <button onClick={()=>startEdit(r)} className="px-4 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>✏ Edit Review</button>
+
+          <div className="px-6 pb-6 flex gap-3 border-t border-slate-100 pt-4">
+            <button onClick={()=>startEdit(r)} className="px-4 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>✏ Edit</button>
             <button onClick={()=>setView("list")} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600">Close</button>
           </div>
         </div>
@@ -2318,48 +2547,22 @@ function ProgramReviewSection({db}){
     );
   }
 
-  /* ── FORM VIEW ── */
-  const inp=(label,key,type="text",opts=null,req=false)=>(
-    <div>
-      <label className="block text-xs font-semibold text-slate-500 mb-1">{label}{req&&<span className="text-red-400 ml-0.5">*</span>}</label>
-      {opts?(
-        <select value={form[key]} onChange={e=>s(key,e.target.value)} className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
-          {opts.map(o=><option key={o}>{o}</option>)}
-        </select>
-      ):(
-        <input type={type} value={form[key]} onChange={e=>s(key,type==="number"?parseFloat(e.target.value)||"":e.target.value)}
-          className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2"/>
-      )}
-    </div>
-  );
-  const chk=(label,key,detail="")=>(
-    <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg border border-slate-100 hover:bg-slate-50">
-      <input type="checkbox" checked={!!form[key]} onChange={e=>s(key,e.target.checked)} className="mt-0.5"/>
-      <div><div className="text-sm font-medium text-slate-700">{label}</div>{detail&&<div className="text-xs text-slate-400 mt-0.5">{detail}</div>}</div>
-    </label>
-  );
-  const textarea=(label,key)=>(
-    <div>
-      <label className="block text-xs font-semibold text-slate-500 mb-1">{label}</label>
-      <textarea value={form[key]||""} onChange={e=>s(key,e.target.value)} rows={2}
-        className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 resize-none"/>
-    </div>
-  );
+  // ── FORM VIEW ─────────────────────────────────────────────────────────────
+  const prior=priorSeasonData(form.program_name,form.season,form.fy);
+  const hist=reviewHistory(form.program_name).filter(r=>!editRow||r.id!==editRow.id);
 
   return(
     <div>
-      <button onClick={()=>{setView("list");setActiveStep(0);}} className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 mb-5">← Back to all reviews</button>
-
-      <div className="mb-6">
+      <button onClick={()=>{setView("list");setActiveStep(0);setMatchedProgram(null);}} className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 mb-5">← All reviews</button>
+      <div className="mb-5">
         <h2 className="font-bold text-slate-800 text-lg">{editRow?"Edit Review":"New Program Review"}</h2>
-        <p className="text-sm text-slate-400 mt-0.5">Program Review Checklist — complete all sections, then submit</p>
+        <p className="text-sm text-slate-400 mt-0.5">Complete all sections, then submit</p>
       </div>
 
       {/* Step nav */}
-      <div className="flex gap-1 mb-6 overflow-x-auto pb-1">
+      <div className="flex gap-1 mb-5 overflow-x-auto pb-1">
         {STEPS.map((st,i)=>{
-          const done=i<activeStep;
-          const active=i===activeStep;
+          const done=i<activeStep; const active=i===activeStep;
           return(
             <button key={i} onClick={()=>setActiveStep(i)}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap shrink-0"
@@ -2370,19 +2573,19 @@ function ProgramReviewSection({db}){
         })}
       </div>
 
-      {/* Pillar progress bar */}
+      {/* Live pillar bar */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 mb-5">
         <div className="flex items-center justify-between mb-2">
           <div className="text-xs font-bold text-slate-600 uppercase tracking-widest">Pillar Score</div>
           <div className={`text-sm font-bold ${overallPass?"text-green-600":"text-red-500"}`}>
-            {metCount}/5 pillars met — {overallPass?"✓ Passes":"✗ Does not meet minimum (3 required, both required pillars must be met)"}
+            {metCount}/5 — {overallPass?"✓ Passes":"✗ Needs 3+ pillars incl. both required"}
           </div>
         </div>
         <div className="flex gap-1.5">
           {pillars.map(p=>(
             <div key={p.n} className="flex-1 text-center">
-              <div className="h-2 rounded-full mb-1" style={{background:p.met?(p.required?"#1e3a5f":"#16a34a"):"#e2e8f0"}}/>
-              <div className="text-xs truncate" style={{color:p.met?"#1e3a5f":"#94a3b8",fontSize:"9px"}}>{p.n}{p.required?"★":""}</div>
+              <div className="h-2 rounded-full mb-1 transition-all" style={{background:p.met?p.color:"#e2e8f0"}}/>
+              <div style={{fontSize:"9px",color:p.met?p.color:"#94a3b8"}}>{p.n}{p.required?"★":""}</div>
             </div>
           ))}
         </div>
@@ -2390,97 +2593,188 @@ function ProgramReviewSection({db}){
 
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6 space-y-5">
 
-        {/* Step 0: Program Info */}
+        {/* ── STEP 0: Program Info ── */}
         {activeStep===0&&(
           <>
-            <div className="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2 mb-4">Program Information</div>
+            <div className="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2">📋 Program Information</div>
+
+            {/* Program name with auto-match */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Program Name <span className="text-red-400">*</span></label>
+              <input value={form.program_name} onChange={e=>handleProgramName(e.target.value)}
+                list="program-list" className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2"/>
+              <datalist id="program-list">
+                {[...new Set((programs||[]).map(p=>p.name).filter(Boolean))].map(n=><option key={n} value={n}/>)}
+              </datalist>
+              {matchedProgram&&(
+                <div className="mt-1.5 px-3 py-2 rounded-lg bg-blue-50 border border-blue-100 text-xs text-blue-700 flex items-center gap-2">
+                  <span>✓ Matched in app — </span>
+                  <span>Fill: <b>{Math.round((calcKPIs(matchedProgram).fillRate||0)*100)}%</b></span>
+                  <span>CR: <b>{Math.round((calcKPIs(matchedProgram).costRecovery||0)*100)}%</b></span>
+                  <span>Status: <b>{calcKPIs(matchedProgram).status}</b></span>
+                  <span className="text-blue-500">Fields pre-filled ↓</span>
+                </div>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {inp("Program Name","program_name","text",null,true)}
               {inp("Supervisor","supervisor","text",null,true)}
-              {inp("Season","season",null,["Spring","Summer","Fall","Winter","Annual"])}
+              {inp("Program Area","area",null,[""].concat(AREAS))}
+              {inp("Season","season",null,SEASONS_LIST)}
               {inp("Fiscal Year","fy",null,ADMIN_FYS)}
               {inp("Review Date","review_date","date")}
               {inp("Classification","classification",null,CLASSIFICATIONS)}
+              {inp("Target Age Group","target_age",null,AGE_GROUPS)}
+              {inp("Seasons Offered (total)","seasons_offered","number","",false,"How many seasons has this program run in total?")}
             </div>
+
+            {/* Prior season snapshot if available */}
+            {prior&&(
+              <div className="rounded-lg bg-slate-50 border border-slate-100 p-4">
+                <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Prior Season Data — {prior.fy}</div>
+                <div className="flex gap-6 text-sm">
+                  <div><span className="text-slate-400">Fill Rate: </span><span className="font-bold text-slate-700">{prior.fill_rate}%</span></div>
+                  <div><span className="text-slate-400">Cost Recovery: </span><span className="font-bold text-slate-700">{prior.cost_recovery}%</span></div>
+                  {prior.enrollment&&<div><span className="text-slate-400">Enrollment: </span><span className="font-bold text-slate-700">{prior.enrollment}</span></div>}
+                </div>
+              </div>
+            )}
+
+            {/* Review history */}
+            {hist.length>0&&(
+              <div className="rounded-lg border border-slate-100 overflow-hidden">
+                <div className="px-4 py-2 bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-widest">Past Reviews — {form.program_name||"this program"}</div>
+                {hist.slice(0,3).map((h,i)=>(
+                  <div key={i} className="px-4 py-2.5 border-t border-slate-50 flex items-center gap-3 text-xs">
+                    <span className="px-2 py-0.5 rounded font-bold text-white" style={{background:dcColor[h.decision]||"#64748b"}}>{h.decision}</span>
+                    <span className="text-slate-500">{h.season} {h.fy}</span>
+                    <span>Fill: <b>{h.fill_rate||0}%</b></span>
+                    <span>CR: <b>{h.cost_recovery||0}%</b></span>
+                    {h.action_items&&<span className="text-slate-400 truncate ml-2">→ {h.action_items}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         )}
 
-        {/* Step 1: Financial */}
+        {/* ── STEP 1: Financial ── */}
         {activeStep===1&&(
           <>
-            <div className="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2 mb-4">💰 Financial Stewardship <span className="text-xs font-normal text-red-500 ml-2">Required Pillar</span></div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              {inp("Program Revenue ($)","revenue","number")}
-              {inp("Direct Program Costs ($)","direct_costs","number")}
+            <div className="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2">💰 Financial Stewardship <span className="text-xs font-normal text-red-500 ml-2">Required Pillar</span></div>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              {inp("Revenue ($)","revenue","number")}
+              {inp("Direct Costs ($)","direct_costs","number")}
               {inp("Cost Recovery (%)","cost_recovery","number")}
+              {inp("Prior Season CR (%)","prior_cr","number","",false,"Last season's cost recovery for comparison")}
             </div>
-            {(form.revenue&&form.direct_costs)&&(
-              <div className="rounded-lg bg-slate-50 border border-slate-100 px-4 py-3 text-sm">
-                <span className="text-slate-500">Calculated Net: </span>
-                <span className={`font-bold ${parseFloat(form.revenue)-parseFloat(form.direct_costs)>=0?"text-green-600":"text-red-600"}`}>
-                  ${(parseFloat(form.revenue||0)-parseFloat(form.direct_costs||0)).toLocaleString()}
-                </span>
+            {form.revenue&&form.direct_costs&&(
+              <div className="rounded-lg bg-slate-50 border border-slate-100 px-4 py-3 flex items-center gap-6 text-sm">
+                <div><span className="text-slate-400">Net: </span>
+                  <span className={`font-bold ${parseFloat(form.revenue)-parseFloat(form.direct_costs)>=0?"text-green-600":"text-red-600"}`}>
+                    ${(parseFloat(form.revenue||0)-parseFloat(form.direct_costs||0)).toLocaleString()}
+                  </span>
+                </div>
+                {form.prior_cr&&form.cost_recovery&&(
+                  <div><span className="text-slate-400">CR Change: </span>{delta(form.cost_recovery,form.prior_cr)}</div>
+                )}
               </div>
             )}
             <div className="space-y-2">
-              {chk("Below 50% cost recovery?","below_50_cr","Programs below 50% CR require redesign or documented intentional subsidy")}
-              {form.below_50_cr&&inp("Action Required","cr_action",null,["Redesign required","Intentional Community subsidy (documented)"])}
-              {chk("Financial performance is acceptable for this program's classification","fs_acceptable")}
+              {chk("Below 50% cost recovery?","below_50_cr","Requires redesign or documented intentional subsidy")}
+              {form.below_50_cr&&inp("Required Action","cr_action",null,["Redesign required","Intentional Community subsidy (documented)"])}
+              {chk("Financial performance is acceptable for this classification","fs_acceptable")}
             </div>
-            {textarea("Notes","fs_notes")}
+            {divider("Reflection")}
+            {scPair("fs_strengths","fs_concerns")}
+            {ta("Additional Notes","fs_notes",2,"Any context on revenue, cost drivers, pricing changes…")}
           </>
         )}
 
-        {/* Step 2: Data */}
+        {/* ── STEP 2: Data ── */}
         {activeStep===2&&(
           <>
-            <div className="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2 mb-4">📊 Data & Accountability <span className="text-xs font-normal text-red-500 ml-2">Required Pillar</span></div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2">📊 Data & Accountability <span className="text-xs font-normal text-red-500 ml-2">Required Pillar</span></div>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               {inp("Fill Rate (%)","fill_rate","number")}
+              {inp("Prior Season Fill (%)","prior_fill_rate","number","",false,"Last season's fill rate for YoY comparison")}
+              {inp("Cancellation Rate (%)","cancellation_rate","number","",false,"% of registrants who dropped before start")}
+              {inp("NPS Score","nps","number","",false,"Leave blank if not collected")}
+            </div>
+            {form.fill_rate&&form.prior_fill_rate&&(
+              <div className="rounded-lg bg-slate-50 border border-slate-100 px-4 py-3 text-sm">
+                <span className="text-slate-400">Fill Rate Change: </span>{delta(form.fill_rate,form.prior_fill_rate)}
+                {parseFloat(form.fill_rate)<60&&<span className="ml-4 font-bold text-red-600">⚠ Below 60% threshold</span>}
+              </div>
+            )}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {inp("Trend Direction","trend",null,TRENDS)}
+              {inp("Consecutive Weak Seasons","consecutive_weak",null,WEAK_OPTS,"","")}
             </div>
             <div className="space-y-2">
-              {chk("Below 60% fill rate?","below_60_fill")}
-              {chk("Two consecutive weak seasons?","two_weak_seasons","If yes, a redesign plan or sunset review is required")}
-              {form.two_weak_seasons&&inp("Action","weak_action",null,["Redesign plan required","Sunset review"])}
+              {chk("Currently below 60% fill rate","below_60_fill")}
+              {chk("Two or more consecutive weak seasons","two_weak_seasons","Redesign plan or sunset review required")}
+              {form.two_weak_seasons&&inp("Required Action","weak_action",null,["Redesign plan in progress","Sunset review scheduled"])}
             </div>
-            {textarea("Notes","da_notes")}
+            {parseInt(form.consecutive_weak)>=2&&(
+              <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-xs text-red-700 font-medium">
+                ⚠ {form.consecutive_weak} consecutive weak seasons — a formal redesign plan or sunset review is required per district policy.
+              </div>
+            )}
+            {divider("Reflection")}
+            {scPair("da_strengths","da_concerns")}
+            {ta("Additional Notes","da_notes",2,"Enrollment context, data quality notes, known anomalies…")}
           </>
         )}
 
-        {/* Step 3: Community */}
+        {/* ── STEP 3: Community ── */}
         {activeStep===3&&(
           <>
-            <div className="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2 mb-4">🤝 Participation & Community Impact</div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2">🤝 Participation & Community Impact</div>
+            <div className="grid grid-cols-3 gap-4">
               {inp("Enrollment","enrollment","number")}
               {inp("Capacity","capacity","number")}
               {inp("Waitlist","waitlist","number")}
             </div>
-            {inp("Retention Trend","retention_trend",null,RETENTION)}
-            <div className="space-y-2">
-              {chk("Clear target audience identified","clear_audience")}
-              {chk("Community benefit documented","community_benefit")}
+            {form.enrollment&&form.capacity&&(
+              <div className="rounded-lg bg-slate-50 border border-slate-100 px-4 py-3 text-sm">
+                <span className="text-slate-400">Fill: </span>
+                <span className="font-bold text-slate-700">{Math.round((parseFloat(form.enrollment)/parseFloat(form.capacity))*100)}%</span>
+                {parseFloat(form.waitlist)>0&&<span className="ml-4 text-amber-600 font-semibold">{form.waitlist} on waitlist — expansion opportunity?</span>}
+              </div>
+            )}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {inp("Retention Rate (%)","retention_rate","number","",false,"% of participants who returned from prior season")}
+              {inp("Retention Trend","retention_trend",null,RETENTION_OPTS)}
             </div>
+            <div className="space-y-2">
+              {chk("Clear target audience identified","clear_audience","Program has a defined population it serves")}
+              {chk("Community benefit is documented","community_benefit","Evidence of community value beyond enrollment numbers")}
+              {chk("Documented community need or request drives this program","documented_need","E.g. community survey, resident request, needs assessment")}
+            </div>
+            {divider("Reflection")}
+            {scPair("ci_strengths","ci_concerns")}
+            {ta("Additional Notes","ci_notes",2,"Participant feedback, demographic notes, community relationships…")}
           </>
         )}
 
-        {/* Step 4: Space */}
+        {/* ── STEP 4: Space ── */}
         {activeStep===4&&(
           <>
-            <div className="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2 mb-4">🏢 Space & Operational Efficiency</div>
-            {inp("Prime Time Use","prime_time_use",null,PRIME)}
+            <div className="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2">🏢 Space & Operational Efficiency</div>
+            {inp("Prime Time Space Use","prime_time_use",null,PRIME)}
             <div className="space-y-2">
-              {chk("Could time or location be improved?","time_improvable")}
-              {chk("Participant to staff ratio is appropriate","ratio_appropriate")}
+              {chk("Time or location could be improved","time_improvable","Rescheduling or relocating could boost attendance or efficiency")}
+              {chk("Participant-to-staff ratio is appropriate","ratio_appropriate","Ratio aligns with actual enrollment, not just budgeted")}
             </div>
+            {ta("Space & Operations Notes","space_notes",2,"Facility constraints, scheduling opportunities, ratio adjustments…")}
           </>
         )}
 
-        {/* Step 5: Innovation */}
+        {/* ── STEP 5: Innovation ── */}
         {activeStep===5&&(
           <>
-            <div className="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2 mb-4">💡 Innovation & Responsiveness</div>
+            <div className="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2">💡 Innovation & Responsiveness</div>
             {chk("This is a new or pilot program","is_pilot")}
             {form.is_pilot&&(
               <div className="space-y-2 ml-4">
@@ -2488,56 +2782,59 @@ function ProgramReviewSection({db}){
                 {chk("Met financial expectations","met_financial")}
               </div>
             )}
+            {ta("Innovation Notes","innovation_notes",2,"What was tried, what was learned, what would you change…")}
           </>
         )}
 
-        {/* Step 6: Decision */}
+        {/* ── STEP 6: Decision ── */}
         {activeStep===6&&(
           <>
-            <div className="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2 mb-4">✅ Final Decision</div>
+            <div className="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2">✅ Final Decision</div>
 
-            {/* Pillar summary before decision */}
-            <div className="rounded-lg border border-slate-100 overflow-hidden mb-4">
+            {/* Pillar summary */}
+            <div className="rounded-lg border border-slate-100 overflow-hidden">
               <div className="px-4 py-2 bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-widest">Pillar Summary</div>
               {pillars.map(p=>(
-                <div key={p.n} className="flex items-center gap-3 px-4 py-2 border-t border-slate-50">
-                  <span className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0`} style={{background:p.met?"#16a34a":"#e2e8f0",color:p.met?"white":"#94a3b8"}}>
-                    {p.met?"✓":"○"}
-                  </span>
-                  <span className="text-sm text-slate-600">{p.label}</span>
-                  {p.required&&<span className="text-xs text-red-500 font-semibold">Required</span>}
+                <div key={p.n} className="flex items-center gap-3 px-4 py-2.5 border-t border-slate-50">
+                  <span className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                    style={{background:p.met?p.color:"#e2e8f0",color:p.met?"white":"#94a3b8"}}>{p.met?"✓":"○"}</span>
+                  <span className="text-sm text-slate-600 flex-1">{p.label}</span>
+                  {p.required&&<span className="text-xs text-red-500 font-semibold shrink-0">Required</span>}
                 </div>
               ))}
-              <div className="px-4 py-2.5 border-t border-slate-100" style={{background:overallPass?"#f0fdf4":"#fef2f2"}}>
+              <div className="px-4 py-3 border-t" style={{background:overallPass?"#f0fdf4":"#fef2f2"}}>
                 <span className={`text-sm font-bold ${overallPass?"text-green-700":"text-red-600"}`}>
-                  {overallPass?"✓ Program meets the 3-pillar minimum":"✗ Program does not meet minimum — redesign or sunset review recommended"}
+                  {overallPass?"✓ Meets 3-pillar minimum":"✗ Does not meet minimum — redesign or sunset recommended"}
                 </span>
               </div>
             </div>
 
-            <div className="mb-4">
+            {/* Decision buttons */}
+            <div>
               <label className="block text-xs font-semibold text-slate-500 mb-2">Decision</label>
               <div className="grid grid-cols-3 gap-2">
                 {DECISIONS.map(d=>(
                   <button key={d} onClick={()=>s("decision",d)}
-                    className="py-2 px-3 rounded-lg text-xs font-bold border-2 transition"
+                    className="py-2.5 px-3 rounded-lg text-xs font-bold border-2 transition"
                     style={form.decision===d?{background:dcColor[d],color:"white",borderColor:dcColor[d]}:{borderColor:"#e2e8f0",color:"#64748b"}}>
                     {d}
                   </button>
                 ))}
               </div>
             </div>
-            {textarea("Reason for Decision","decision_reason")}
+
+            {ta("Reason for Decision","decision_reason",2,"Why this decision was made, what context drove it…")}
+            {ta("Action Items","action_items",3,"Specific next steps, who is responsible, and any deadlines. One item per line recommended.")}
             {inp("Next Review Date","next_review","date")}
           </>
         )}
 
-        {/* Step nav buttons */}
+        {/* Nav buttons */}
         <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-          <button onClick={()=>setActiveStep(s=>Math.max(0,s-1))} disabled={activeStep===0}
+          <button onClick={()=>setActiveStep(a=>Math.max(0,a-1))} disabled={activeStep===0}
             className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600 disabled:opacity-30">← Back</button>
           {activeStep<STEPS.length-1?(
-            <button onClick={()=>setActiveStep(s=>s+1)}
+            <button onClick={()=>setActiveStep(a=>a+1)}
               className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>Next →</button>
           ):(
             <button onClick={save}
@@ -2553,7 +2850,7 @@ function ProgramReviewSection({db}){
 
 
 // ─── Reference Tab ────────────────────────────────────────────────────────────
-function Reference({isManager,db}) {
+function Reference({isManager,db,programs}) {
   const [sec,setSec] = useState("standards");
   const workload = [
     {activity:"Program planning & management", pct:"45-50%"},
@@ -3139,7 +3436,7 @@ function Reference({isManager,db}) {
       )}
 
       {sec==="review"&&isManager&&(
-        <ProgramReviewSection db={db}/>
+        <ProgramReviewSection db={db} programs={programs}/>
       )}
 
       {sec==="training"&&(
@@ -3529,7 +3826,6 @@ function Reference({isManager,db}) {
                     {icon:"🚨",label:"Needs Attention queue",desc:"Auto-surfaced programs falling below thresholds. Your weekly action list — sorted worst first."},
                     {icon:"↕",label:"Year-over-year comparison",desc:"Each program row shows how fill rate and cost recovery changed vs. the same season last year."},
                     {icon:"💰",label:"Subsidy Burden",desc:"Total dollar amount the district subsidizes — the sum of all program deficits. Useful for budget conversations."},
-                    {icon:"⭐",label:"Admin tab (★)",desc:"Fund-level financials, G&O tracking, rental history, and historical KPIs. Directors and managers only."},
                   ].map(c=>(
                     <div key={c.label} className="flex gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100">
                       <div className="text-xl shrink-0">{c.icon}</div>
@@ -3620,24 +3916,7 @@ function Reference({isManager,db}) {
               </GuideSection>
 
               {/* ── ADMIN TAB ── */}
-              <GuideSection title="The Admin Tab — Fund-Level KPIs" accent="#0f766e">
-                <p className="text-sm text-slate-600 mb-3">The ★ Admin tab contains financial and operational data above the program level — organized by fund and tracked year over year.</p>
-                <div className="space-y-2">
-                  {[
-                    {tab:"★ Executive Summary",desc:"FY-level overview: total revenue, expenses, net P/(L), and goal completion across all funds. YoY tables for Fund 4, Fitness, Clubhouse, and Camps with sparklines. Use for board prep and annual reporting."},
-                    {tab:"$ Fund Performance",desc:"Monthly revenue and expenses by fund, compared against monthly goal. Select any fund for a bar chart and full data table. Entries can be added or edited directly here, or they can sync from Google Sheets automatically."},
-                    {tab:"✓ Goals & Objectives",desc:"All department G&Os for the current FY. Filter by quarter, core value, or status. Update status inline without opening a modal. Archive completed goals to keep the view clean."},
-                    {tab:"⌂ Rentals",desc:"Year-over-year rental revenue by category (Alcott, CAC, Birthdays, Outdoor, etc.). Click any category row to drill into monthly detail and add or edit individual months."},
-                    {tab:"◎ Program Areas",desc:"Enrollment and revenue trends for Camps, Clubhouse, and Special Events — year-over-year tables with sparklines and bar charts per FY."},
-                    {tab:"◈ Fee History",desc:"Complete fee schedule across fiscal years. Amber highlights show changes vs. prior year. Search by program name or filter by area. Contractual items flagged separately."},
-                  ].map((r,i)=>(
-                    <div key={i} className="flex gap-3 p-3 rounded-lg border border-slate-100 bg-slate-50">
-                      <div className="shrink-0"><span className="inline-block font-mono text-xs font-bold text-white px-2 py-0.5 rounded" style={{background:"#1e3a5f"}}>{r.tab}</span></div>
-                      <div className="text-xs text-slate-500">{r.desc}</div>
-                    </div>
-                  ))}
-                </div>
-              </GuideSection>
+
 
               {/* ── COACHING STAFF ── */}
               <GuideSection title="Coaching Staff on Data Quality" accent="#7c3aed">
@@ -3705,3228 +3984,6 @@ function GuideSection({title,accent,children}) {
 // ADMIN MODULE — Complete Rebuild with Real Data
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const ADMIN_FYS   = ["2021-2022","2022-2023","2023-2024","2024-2025","2025-2026","2026-2027"];
-const ADMIN_CUR   = "2025-2026";
-const FY_MONTHS   = ["May","June","July","August","September","October","November","December","January","February","March","April"];
-const QUARTERS_GO = ["Q1 (May–Aug)","Q2 (Sep–Dec)","Q3 (Jan–Mar)","Q4 (Apr)"];
-const CORE_VALUES = ["Character","Excellence","Stewardship","Innovation","Community"];
-const GOAL_STATUSES = ["Complete","Not Complete","Ongoing","Paused","Not Started"];
-const CAMP_LIST   = ["Preschool 2s","Preschool 3s","Preschool 4s & 5s","Kinder Camp","Safety Stars","Adventure","Fun & Games","Grove","Sports Camp","Cycle & Surf","Xtreme Teens","Star Makers","Broadway Bound","Dance","CIT","Camp Connection","Post Camp"];
-const CLUB_SITES  = ["Country Meadows","Ivy Hall","Kildeer","Kilmer","Longfellow","Meridian","Prairie","Pritchett","Tripp","Willow Grove"];
-const RENTAL_CATS = ["Alcott Center","CAC","Birthdays","Outdoor/FCS","Fields & Courts","Shelters","Amphitheater","Dog Park","Spray N Play","Willow Stream Pool"];
-const FUND_LIST   = ["Fund 4 – Recreation","Fitness Center (FCBG)","Clubhouse – All Sites","Camps – All Programs","Special Events","Golf Dome","Museum","Aquatics"];
-const EVENT_TYPES = ["Summer Concert","Movie Under the Stars","Holiday Event","Community Festival","Sports Tournament","Special Event","Other"];
-const STATUS_CLR  = {"Complete":"#16a34a","Not Complete":"#dc2626","Ongoing":"#b45309","Paused":"#64748b","Not Started":"#94a3b8"};
-const STATUS_BG   = {"Complete":"#dcfce7","Not Complete":"#fee2e2","Ongoing":"#fef9c3","Paused":"#f1f5f9","Not Started":"#f8fafc"};
-const FUND_COLORS = {
-  "Fund 4 – Recreation":"#1e3a5f",
-  "Fitness Center (FCBG)":"#0369a1",
-  "Clubhouse – All Sites":"#0f766e",
-  "Camps – All Programs":"#7c3aed",
-  "Special Events":"#b45309",
-  "Golf Dome":"#15803d",
-  "Museum":"#9f1239",
-  "Aquatics":"#0284c7",
-};
-
-// ─── Seed data from spreadsheets ─────────────────────────────────────────────
-const SEED_GOALS = [
-  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Aly Stanczak",supporting_staff:"Jenn Foreman",objective:"By June 15, 2025, Aly & Jen will research and order reusable icepacks for performing arts camps to reduce injuries and single-use plastics.",core_value:"Stewardship",status:"Complete",updates:"All camps at the CAC have had access to the reusable ice packs and have been using them throughout the summer.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Aly Stanczak",supporting_staff:"",objective:"Aly will create a new digital dance pamphlet containing the full schedule, dress code, and guidelines for all dance programming.",core_value:"Innovation",status:"Complete",updates:"The new digital dance pamphlet is complete and accessible by QR code in the park district's catalog.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Amanda Busch",supporting_staff:"Shannon McClure",objective:"Amanda and Shannon will design and implement a new organization system for Clubhouse registration that ensures accurate deposit tracking.",core_value:"Excellence",status:"Complete",updates:"We developed a streamlined system that ensured deposit payments were processed properly for all Clubhouse sites.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Ann Marie Shipstad-Schwartz",supporting_staff:"",objective:"Ann Marie will meet with staff from Chicago Kiln to implement ceramic offerings for the art room.",core_value:"Innovation",status:"Complete",updates:"A meeting was held in early June with Carl Mankert from Chicago Kiln. After touring the facility, a partnership plan was established.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Brian O'Malley",supporting_staff:"",objective:"Brian will improve office security by replacing the shared office code with unique codes for each part-time staff member.",core_value:"Excellence",status:"Complete",updates:"The shared office code has been removed, and fall staff have been issued unique codes.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Carol Lucido",supporting_staff:"",objective:"Create a comprehensive backup of all relevant membership and program data before SmartRec go-live.",core_value:"Excellence",status:"Complete",updates:"Reports run and archived representing all memberships, programs, and financial history.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Carol Lucido",supporting_staff:"",objective:"Beginning on the date of the RT data download, maintain a running log of all data adjustments made during the SmartRec migration.",core_value:"Innovation",status:"Complete",updates:"We have been keeping track of all adjustments throughout the transition period.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Carol Lucido",supporting_staff:"",objective:"Establish a clear and enforceable Freeze and Cancellation policy for membership holds in SmartRec.",core_value:"Excellence",status:"Complete",updates:"A new policy was put in place and an email notification system created for members.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Chris Eckert",supporting_staff:"",objective:"Enhance member satisfaction by gathering qualitative feedback from at least 10 Fitness Center members through structured interviews.",core_value:"Excellence",status:"Not Complete",updates:"Ongoing - met with a couple of members to gather feedback. Will continue through Q2.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Chuck Burgess",supporting_staff:"Dani Hoefle",objective:"Review and revise the Bills Youth Football affiliate agreement to reflect current operations and standards.",core_value:"Excellence",status:"Not Complete",updates:"Paused as we wait for the BGRA agreement to be finalized first.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Chuck Burgess",supporting_staff:"",objective:"Develop a facility rental dashboard to track key performance metrics across all rental categories monthly.",core_value:"Innovation",status:"Complete",updates:"Chuck built two dashboards (2025-2026 and 2026-2027) tracking all rental categories on a monthly basis.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Debbie Fandrei",supporting_staff:"",objective:"Debbie will research park district–foundation agreements to identify best practices and a model for BGPD.",core_value:"Excellence",status:"Ongoing",updates:"Found a good example MOU with the Naperville Park Foundation. Continuing research.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Debbie Fandrei",supporting_staff:"",objective:"Debbie will develop a series of eight educational plant social media posts for the district's parks.",core_value:"Innovation",status:"Complete",updates:"Eleven Plant of the Week social media posts were created and published throughout the summer.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Diana Clayson",supporting_staff:"Greg Ney",objective:"Diana will work with Greg to create an Inclusion folder in the shared drive for all adaptive recreation materials.",core_value:"Innovation",status:"Complete",updates:"Folder created and discussed with the Recreation team. All adaptive materials are now centrally accessible.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Diana Clayson",supporting_staff:"",objective:"By July 31, 2025, implement a monthly check-in meeting schedule for Inclusion program staff.",core_value:"Character",status:"Complete",updates:"Meetings scheduled for August. A template was created for consistent check-in structure.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Jimmy Mix",supporting_staff:"Shannon McClure",objective:"Develop and implement a daily checklist for camp supervisors to ensure consistent facility readiness.",core_value:"Excellence",status:"Complete",updates:"Completed the daily checklist and shared it with camp leadership for implementation.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Jimmy Mix",supporting_staff:"Chris Eckert",objective:"Reorganize the golf dome garage to enhance accessibility and efficiency for seasonal equipment storage.",core_value:"Excellence",status:"Not Complete",updates:"Scheduled for August 22. Will complete before end of Q1.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Joe Zimmermann",supporting_staff:"",objective:"Oversee the successful district-wide transition to SmartRec registration and membership system.",core_value:"Innovation",status:"Complete",updates:"Successfully went live with SmartRec at the start of the fiscal year. All staff trained.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Joe Zimmermann",supporting_staff:"",objective:"Develop and facilitate a Fiscal Sustainability training for all recreation supervisors.",core_value:"Excellence",status:"Complete",updates:"Completed the first training session and sent a follow-up resource guide to all supervisors.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Marina Mayne",supporting_staff:"",objective:"Marina will complete the CPRP examination to achieve professional certification.",core_value:"Excellence",status:"Complete",updates:"Passed the CPRP exam on the first attempt.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Marina Mayne",supporting_staff:"",objective:"Marina will complete a partial inventory of the Museum collection to improve accessibility and tracking.",core_value:"Excellence",status:"Not Complete",updates:"Inventory is now 90% complete, with new inventory system being tested.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Mike Pfeiffer",supporting_staff:"",objective:"Mike will contact a skateboarding instructor to explore the possibility of structured skateboard programming.",core_value:"Community",status:"Not Complete",updates:"Ongoing — reached out to Asylum Skate Park, waiting on response.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q1 (May–Aug)",staff_lead:"Shannon McClure",supporting_staff:"",objective:"Partner with local law enforcement to co-develop and deliver a safety training for all camp staff.",core_value:"Excellence",status:"Complete",updates:"Officer Chad conducted a comprehensive training session for all camp staff before summer began.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q2 (Sep–Dec)",staff_lead:"Aly Stanczak",supporting_staff:"",objective:"Aly will open Nutcracker staff roles—like choreographers and rehearsal directors—to new candidates via audition process.",core_value:"Character",status:"Complete",updates:"Three new staff brought on as choreographers through the audition process.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q2 (Sep–Dec)",staff_lead:"Joe Zimmermann",supporting_staff:"",objective:"Finalize and implement a formal agreement with the BGRA outlining mutual responsibilities and expectations.",core_value:"Excellence",status:"Ongoing",updates:"A draft has been created and will be presented to the BGRA board in Q3.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q2 (Sep–Dec)",staff_lead:"Joe Zimmermann",supporting_staff:"",objective:"Develop a standardized monthly report using SmartRec data for all recreation program areas.",core_value:"Stewardship",status:"Ongoing",updates:"Still working with superintendents to define the reporting format and key metrics.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q2 (Sep–Dec)",staff_lead:"Joe Zimmermann",supporting_staff:"",objective:"Lead the full classification of all recreation services into the Fiscal Sustainability framework by December 2025.",core_value:"Stewardship",status:"Ongoing",updates:"First FS exercise completed in October. Working toward full classification by end of Q2.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q2 (Sep–Dec)",staff_lead:"Carol Lucido",supporting_staff:"",objective:"Create a partnership with The Clove to offer a special membership discount for Fitness Center members.",core_value:"Stewardship",status:"Not Complete",updates:"Pushing to Q3 due to SmartRec transition demands.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q2 (Sep–Dec)",staff_lead:"Chris Eckert",supporting_staff:"",objective:"Onboard the new Group Exercise Manager with a structured 90-day onboarding and training plan.",core_value:"Character",status:"Not Complete",updates:"Allison started August 4. Continuing onboarding process through Q2.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q2 (Sep–Dec)",staff_lead:"Chuck Burgess",supporting_staff:"",objective:"Complete an audit of all current field and court rental contracts to identify gaps and pricing inconsistencies.",core_value:"Stewardship",status:"Ongoing",updates:"Audit underway. Several contracts identified for renegotiation.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q2 (Sep–Dec)",staff_lead:"Diana Clayson",supporting_staff:"",objective:"Develop a resource guide for staff working with participants with disabilities across all program areas.",core_value:"Community",status:"Ongoing",updates:"Draft resource guide created. Gathering feedback from program staff.",is_archived:false},
-  {fy:"2025-2026",quarter:"Q3 (Jan–Mar)",staff_lead:"Joe Zimmermann",supporting_staff:"",objective:"Present the fiscal year department budget recommendation to the Board of Commissioners.",core_value:"Stewardship",status:"Not Started",updates:"",is_archived:false},
-  {fy:"2025-2026",quarter:"Q3 (Jan–Mar)",staff_lead:"Carol Lucido",supporting_staff:"",objective:"Launch the redesigned fitness membership tiers in SmartRec with updated pricing and benefits.",core_value:"Excellence",status:"Not Started",updates:"",is_archived:false},
-  {fy:"2025-2026",quarter:"Q3 (Jan–Mar)",staff_lead:"Shannon McClure",supporting_staff:"Amanda Busch",objective:"Complete spring camp registration planning and ensure all camp programs are fully staffed by April 1.",core_value:"Excellence",status:"Not Started",updates:"",is_archived:false},
-];
-
-const SEED_RENTALS = [
-  // 2024-2025
-  {fy:"2024-2025",category:"Alcott Center",month:"May",amount:5819,is_archived:false},
-  {fy:"2024-2025",category:"Alcott Center",month:"June",amount:1635,is_archived:false},
-  {fy:"2024-2025",category:"Alcott Center",month:"July",amount:2015,is_archived:false},
-  {fy:"2024-2025",category:"Alcott Center",month:"August",amount:1380,is_archived:false},
-  {fy:"2024-2025",category:"Alcott Center",month:"September",amount:2777,is_archived:false},
-  {fy:"2024-2025",category:"Alcott Center",month:"October",amount:3717,is_archived:false},
-  {fy:"2024-2025",category:"Alcott Center",month:"November",amount:2544,is_archived:false},
-  {fy:"2024-2025",category:"Alcott Center",month:"December",amount:2293,is_archived:false},
-  {fy:"2024-2025",category:"Alcott Center",month:"January",amount:3180,is_archived:false},
-  {fy:"2024-2025",category:"Alcott Center",month:"February",amount:4080,is_archived:false},
-  {fy:"2024-2025",category:"Alcott Center",month:"March",amount:4641,is_archived:false},
-  {fy:"2024-2025",category:"Alcott Center",month:"April",amount:5071,is_archived:false},
-  {fy:"2024-2025",category:"CAC",month:"May",amount:15293,is_archived:false},
-  {fy:"2024-2025",category:"CAC",month:"June",amount:12639,is_archived:false},
-  {fy:"2024-2025",category:"CAC",month:"July",amount:5704,is_archived:false},
-  {fy:"2024-2025",category:"CAC",month:"August",amount:10054,is_archived:false},
-  {fy:"2024-2025",category:"CAC",month:"September",amount:25828,is_archived:false},
-  {fy:"2024-2025",category:"CAC",month:"October",amount:5170,is_archived:false},
-  {fy:"2024-2025",category:"CAC",month:"November",amount:16757,is_archived:false},
-  {fy:"2024-2025",category:"CAC",month:"December",amount:9743,is_archived:false},
-  {fy:"2024-2025",category:"CAC",month:"January",amount:7841,is_archived:false},
-  {fy:"2024-2025",category:"CAC",month:"February",amount:18459,is_archived:false},
-  {fy:"2024-2025",category:"CAC",month:"March",amount:13850,is_archived:false},
-  {fy:"2024-2025",category:"CAC",month:"April",amount:9707,is_archived:false},
-  {fy:"2024-2025",category:"Birthdays",month:"May",amount:5384,is_archived:false},
-  {fy:"2024-2025",category:"Birthdays",month:"June",amount:5494,is_archived:false},
-  {fy:"2024-2025",category:"Birthdays",month:"July",amount:2718,is_archived:false},
-  {fy:"2024-2025",category:"Birthdays",month:"August",amount:5802,is_archived:false},
-  {fy:"2024-2025",category:"Birthdays",month:"September",amount:4496,is_archived:false},
-  {fy:"2024-2025",category:"Birthdays",month:"October",amount:4885,is_archived:false},
-  {fy:"2024-2025",category:"Birthdays",month:"November",amount:6963,is_archived:false},
-  {fy:"2024-2025",category:"Birthdays",month:"December",amount:4124,is_archived:false},
-  {fy:"2024-2025",category:"Birthdays",month:"January",amount:4348,is_archived:false},
-  {fy:"2024-2025",category:"Birthdays",month:"February",amount:5300,is_archived:false},
-  {fy:"2024-2025",category:"Birthdays",month:"March",amount:3119,is_archived:false},
-  {fy:"2024-2025",category:"Birthdays",month:"April",amount:6053,is_archived:false},
-  {fy:"2024-2025",category:"Outdoor/FCS",month:"May",amount:6280,is_archived:false},
-  {fy:"2024-2025",category:"Outdoor/FCS",month:"June",amount:1425,is_archived:false},
-  {fy:"2024-2025",category:"Outdoor/FCS",month:"July",amount:5210,is_archived:false},
-  {fy:"2024-2025",category:"Outdoor/FCS",month:"August",amount:2280,is_archived:false},
-  {fy:"2024-2025",category:"Outdoor/FCS",month:"September",amount:3150,is_archived:false},
-  {fy:"2024-2025",category:"Outdoor/FCS",month:"October",amount:50,is_archived:false},
-  {fy:"2024-2025",category:"Outdoor/FCS",month:"February",amount:1020,is_archived:false},
-  {fy:"2024-2025",category:"Outdoor/FCS",month:"March",amount:22720,is_archived:false},
-  {fy:"2024-2025",category:"Outdoor/FCS",month:"April",amount:3455,is_archived:false},
-  {fy:"2024-2025",category:"Dog Park",month:"May",amount:261,is_archived:false},
-  {fy:"2024-2025",category:"Dog Park",month:"June",amount:388,is_archived:false},
-  {fy:"2024-2025",category:"Dog Park",month:"July",amount:488,is_archived:false},
-  {fy:"2024-2025",category:"Dog Park",month:"August",amount:488,is_archived:false},
-  {fy:"2024-2025",category:"Dog Park",month:"September",amount:537,is_archived:false},
-  {fy:"2024-2025",category:"Dog Park",month:"October",amount:657,is_archived:false},
-  {fy:"2024-2025",category:"Dog Park",month:"November",amount:594,is_archived:false},
-  {fy:"2024-2025",category:"Dog Park",month:"December",amount:624,is_archived:false},
-  {fy:"2024-2025",category:"Dog Park",month:"January",amount:640,is_archived:false},
-  {fy:"2024-2025",category:"Dog Park",month:"February",amount:599,is_archived:false},
-  {fy:"2024-2025",category:"Dog Park",month:"March",amount:753,is_archived:false},
-  {fy:"2024-2025",category:"Dog Park",month:"April",amount:925,is_archived:false},
-  {fy:"2024-2025",category:"Willow Stream Pool",month:"May",amount:200,is_archived:false},
-  {fy:"2024-2025",category:"Willow Stream Pool",month:"June",amount:1035,is_archived:false},
-  {fy:"2024-2025",category:"Willow Stream Pool",month:"July",amount:400,is_archived:false},
-  // 2025-2026
-  {fy:"2025-2026",category:"Alcott Center",month:"May",amount:3238,is_archived:false},
-  {fy:"2025-2026",category:"Alcott Center",month:"June",amount:400,is_archived:false},
-  {fy:"2025-2026",category:"Alcott Center",month:"July",amount:2978,is_archived:false},
-  {fy:"2025-2026",category:"Alcott Center",month:"August",amount:2870,is_archived:false},
-  {fy:"2025-2026",category:"Alcott Center",month:"September",amount:1763,is_archived:false},
-  {fy:"2025-2026",category:"Alcott Center",month:"October",amount:4256,is_archived:false},
-  {fy:"2025-2026",category:"Alcott Center",month:"November",amount:4664,is_archived:false},
-  {fy:"2025-2026",category:"Alcott Center",month:"December",amount:1638,is_archived:false},
-  {fy:"2025-2026",category:"Alcott Center",month:"January",amount:5626,is_archived:false},
-  {fy:"2025-2026",category:"CAC",month:"May",amount:14631,is_archived:false},
-  {fy:"2025-2026",category:"CAC",month:"June",amount:6561,is_archived:false},
-  {fy:"2025-2026",category:"CAC",month:"July",amount:9664,is_archived:false},
-  {fy:"2025-2026",category:"CAC",month:"August",amount:7315,is_archived:false},
-  {fy:"2025-2026",category:"CAC",month:"September",amount:6933,is_archived:false},
-  {fy:"2025-2026",category:"CAC",month:"October",amount:7823,is_archived:false},
-  {fy:"2025-2026",category:"CAC",month:"November",amount:14358,is_archived:false},
-  {fy:"2025-2026",category:"CAC",month:"December",amount:12322,is_archived:false},
-  {fy:"2025-2026",category:"CAC",month:"January",amount:10234,is_archived:false},
-  {fy:"2025-2026",category:"Birthdays",month:"May",amount:4170,is_archived:false},
-  {fy:"2025-2026",category:"Birthdays",month:"June",amount:3190,is_archived:false},
-  {fy:"2025-2026",category:"Birthdays",month:"July",amount:2718,is_archived:false},
-  {fy:"2025-2026",category:"Birthdays",month:"August",amount:5052,is_archived:false},
-  {fy:"2025-2026",category:"Birthdays",month:"September",amount:2295,is_archived:false},
-  {fy:"2025-2026",category:"Birthdays",month:"October",amount:3949,is_archived:false},
-  {fy:"2025-2026",category:"Birthdays",month:"November",amount:4071,is_archived:false},
-  {fy:"2025-2026",category:"Birthdays",month:"December",amount:5197,is_archived:false},
-  {fy:"2025-2026",category:"Birthdays",month:"January",amount:5498,is_archived:false},
-  {fy:"2025-2026",category:"Outdoor/FCS",month:"May",amount:1480,is_archived:false},
-  {fy:"2025-2026",category:"Outdoor/FCS",month:"June",amount:599,is_archived:false},
-  {fy:"2025-2026",category:"Outdoor/FCS",month:"July",amount:2285,is_archived:false},
-  {fy:"2025-2026",category:"Outdoor/FCS",month:"August",amount:1338,is_archived:false},
-  {fy:"2025-2026",category:"Outdoor/FCS",month:"September",amount:1545,is_archived:false},
-  {fy:"2025-2026",category:"Outdoor/FCS",month:"October",amount:780,is_archived:false},
-  {fy:"2025-2026",category:"Outdoor/FCS",month:"November",amount:940,is_archived:false},
-  {fy:"2025-2026",category:"Outdoor/FCS",month:"December",amount:850,is_archived:false},
-  {fy:"2025-2026",category:"Outdoor/FCS",month:"January",amount:995,is_archived:false},
-  {fy:"2025-2026",category:"Dog Park",month:"May",amount:315,is_archived:false},
-  {fy:"2025-2026",category:"Dog Park",month:"June",amount:75,is_archived:false},
-  {fy:"2025-2026",category:"Dog Park",month:"July",amount:760,is_archived:false},
-  {fy:"2025-2026",category:"Dog Park",month:"August",amount:494,is_archived:false},
-  {fy:"2025-2026",category:"Dog Park",month:"September",amount:554,is_archived:false},
-  {fy:"2025-2026",category:"Dog Park",month:"October",amount:586,is_archived:false},
-  {fy:"2025-2026",category:"Dog Park",month:"November",amount:596,is_archived:false},
-  {fy:"2025-2026",category:"Dog Park",month:"December",amount:597,is_archived:false},
-  {fy:"2025-2026",category:"Dog Park",month:"January",amount:238,is_archived:false},
-  {fy:"2025-2026",category:"Spray N Play",month:"May",amount:3668,is_archived:false},
-  {fy:"2025-2026",category:"Spray N Play",month:"June",amount:2546,is_archived:false},
-  {fy:"2025-2026",category:"Spray N Play",month:"July",amount:8403,is_archived:false},
-  {fy:"2025-2026",category:"Spray N Play",month:"August",amount:7188,is_archived:false},
-  {fy:"2025-2026",category:"Willow Stream Pool",month:"July",amount:935,is_archived:false},
-  {fy:"2025-2026",category:"Willow Stream Pool",month:"August",amount:1150,is_archived:false},
-];
-
-const SEED_FUNDS = [
-  // Fund 4 Recreation — full actual data from spreadsheet
-  {fund_name:"Fund 4 – Recreation",fy:"2022-2023",month:"May",revenue:237576,expenses:167547,goal:200000},
-  {fund_name:"Fund 4 – Recreation",fy:"2022-2023",month:"June",revenue:1256921,expenses:187267,goal:1100000},
-  {fund_name:"Fund 4 – Recreation",fy:"2022-2023",month:"July",revenue:990937,expenses:195467,goal:900000},
-  {fund_name:"Fund 4 – Recreation",fy:"2022-2023",month:"August",revenue:332899,expenses:259792,goal:300000},
-  {fund_name:"Fund 4 – Recreation",fy:"2022-2023",month:"September",revenue:793427,expenses:199562,goal:700000},
-  {fund_name:"Fund 4 – Recreation",fy:"2022-2023",month:"October",revenue:381879,expenses:183537,goal:350000},
-  {fund_name:"Fund 4 – Recreation",fy:"2022-2023",month:"November",revenue:359311,expenses:177339,goal:330000},
-  {fund_name:"Fund 4 – Recreation",fy:"2022-2023",month:"December",revenue:368073,expenses:186387,goal:340000},
-  {fund_name:"Fund 4 – Recreation",fy:"2022-2023",month:"January",revenue:429191,expenses:258541,goal:400000},
-  {fund_name:"Fund 4 – Recreation",fy:"2022-2023",month:"February",revenue:319745,expenses:195022,goal:300000},
-  {fund_name:"Fund 4 – Recreation",fy:"2022-2023",month:"March",revenue:463157,expenses:210000,goal:430000},
-  {fund_name:"Fund 4 – Recreation",fy:"2022-2023",month:"April",revenue:438576,expenses:220000,goal:400000},
-  {fund_name:"Fund 4 – Recreation",fy:"2023-2024",month:"May",revenue:266127,expenses:180476,goal:240000},
-  {fund_name:"Fund 4 – Recreation",fy:"2023-2024",month:"June",revenue:1496810,expenses:230598,goal:1350000},
-  {fund_name:"Fund 4 – Recreation",fy:"2023-2024",month:"July",revenue:1058615,expenses:317929,goal:980000},
-  {fund_name:"Fund 4 – Recreation",fy:"2023-2024",month:"August",revenue:339328,expenses:181172,goal:310000},
-  {fund_name:"Fund 4 – Recreation",fy:"2023-2024",month:"September",revenue:855746,expenses:197168,goal:800000},
-  {fund_name:"Fund 4 – Recreation",fy:"2023-2024",month:"October",revenue:423240,expenses:190943,goal:390000},
-  {fund_name:"Fund 4 – Recreation",fy:"2023-2024",month:"November",revenue:505936,expenses:177779,goal:470000},
-  {fund_name:"Fund 4 – Recreation",fy:"2023-2024",month:"December",revenue:455301,expenses:189418,goal:420000},
-  {fund_name:"Fund 4 – Recreation",fy:"2023-2024",month:"January",revenue:293481,expenses:258084,goal:270000},
-  {fund_name:"Fund 4 – Recreation",fy:"2023-2024",month:"February",revenue:400851,expenses:211380,goal:370000},
-  {fund_name:"Fund 4 – Recreation",fy:"2023-2024",month:"March",revenue:572257,expenses:230000,goal:530000},
-  {fund_name:"Fund 4 – Recreation",fy:"2023-2024",month:"April",revenue:359000,expenses:210000,goal:330000},
-  {fund_name:"Fund 4 – Recreation",fy:"2024-2025",month:"May",revenue:309130,expenses:394890,goal:280000},
-  {fund_name:"Fund 4 – Recreation",fy:"2024-2025",month:"June",revenue:1649705,expenses:662758,goal:1550000},
-  {fund_name:"Fund 4 – Recreation",fy:"2024-2025",month:"July",revenue:1267791,expenses:1312805,goal:1100000},
-  {fund_name:"Fund 4 – Recreation",fy:"2024-2025",month:"August",revenue:499625,expenses:644635,goal:350000},
-  {fund_name:"Fund 4 – Recreation",fy:"2024-2025",month:"September",revenue:1010077,expenses:507796,goal:860000},
-  {fund_name:"Fund 4 – Recreation",fy:"2024-2025",month:"October",revenue:368228,expenses:520674,goal:400000},
-  {fund_name:"Fund 4 – Recreation",fy:"2024-2025",month:"November",revenue:337919,expenses:430820,goal:360000},
-  {fund_name:"Fund 4 – Recreation",fy:"2024-2025",month:"December",revenue:271777,expenses:312400,goal:310000},
-  {fund_name:"Fund 4 – Recreation",fy:"2024-2025",month:"January",revenue:331901,expenses:380100,goal:350000},
-  {fund_name:"Fund 4 – Recreation",fy:"2024-2025",month:"February",revenue:445183,expenses:398200,goal:400000},
-  {fund_name:"Fund 4 – Recreation",fy:"2024-2025",month:"March",revenue:592346,expenses:524100,goal:550000},
-  {fund_name:"Fund 4 – Recreation",fy:"2024-2025",month:"April",revenue:960768,expenses:820300,goal:900000},
-  {fund_name:"Fund 4 – Recreation",fy:"2025-2026",month:"May",revenue:376796,expenses:352100,goal:350000},
-  {fund_name:"Fund 4 – Recreation",fy:"2025-2026",month:"June",revenue:906101,expenses:718400,goal:950000},
-  {fund_name:"Fund 4 – Recreation",fy:"2025-2026",month:"July",revenue:1886507,expenses:798200,goal:1400000},
-  {fund_name:"Fund 4 – Recreation",fy:"2025-2026",month:"August",revenue:262596,expenses:622300,goal:520000},
-  {fund_name:"Fund 4 – Recreation",fy:"2025-2026",month:"September",revenue:863761,expenses:614800,goal:1060000},
-  {fund_name:"Fund 4 – Recreation",fy:"2025-2026",month:"October",revenue:511072,expenses:592100,goal:400000},
-  {fund_name:"Fund 4 – Recreation",fy:"2025-2026",month:"November",revenue:361152,expenses:498400,goal:360000},
-  {fund_name:"Fund 4 – Recreation",fy:"2025-2026",month:"December",revenue:381880,expenses:412000,goal:310000},
-  {fund_name:"Fund 4 – Recreation",fy:"2025-2026",month:"January",revenue:574044,expenses:480000,goal:350000},
-  // Fitness Center — full actuals
-  {fund_name:"Fitness Center (FCBG)",fy:"2022-2023",month:"May",revenue:166045,expenses:120000,goal:128675},
-  {fund_name:"Fitness Center (FCBG)",fy:"2022-2023",month:"June",revenue:155482,expenses:110000,goal:143675},
-  {fund_name:"Fitness Center (FCBG)",fy:"2022-2023",month:"July",revenue:155173,expenses:108000,goal:128675},
-  {fund_name:"Fitness Center (FCBG)",fy:"2022-2023",month:"August",revenue:176045,expenses:122000,goal:128675},
-  {fund_name:"Fitness Center (FCBG)",fy:"2022-2023",month:"September",revenue:152517,expenses:106000,goal:158775},
-  {fund_name:"Fitness Center (FCBG)",fy:"2022-2023",month:"October",revenue:145587,expenses:103000,goal:138775},
-  {fund_name:"Fitness Center (FCBG)",fy:"2022-2023",month:"November",revenue:221890,expenses:150000,goal:194275},
-  {fund_name:"Fitness Center (FCBG)",fy:"2022-2023",month:"December",revenue:189750,expenses:132000,goal:168775},
-  {fund_name:"Fitness Center (FCBG)",fy:"2022-2023",month:"January",revenue:197030,expenses:137000,goal:169179},
-  {fund_name:"Fitness Center (FCBG)",fy:"2022-2023",month:"February",revenue:182000,expenses:127000,goal:165000},
-  {fund_name:"Fitness Center (FCBG)",fy:"2022-2023",month:"March",revenue:195000,expenses:136000,goal:175000},
-  {fund_name:"Fitness Center (FCBG)",fy:"2022-2023",month:"April",revenue:148186,expenses:103000,goal:130000},
-  {fund_name:"Fitness Center (FCBG)",fy:"2023-2024",month:"May",revenue:237870,expenses:164000,goal:177226},
-  {fund_name:"Fitness Center (FCBG)",fy:"2023-2024",month:"June",revenue:194710,expenses:136000,goal:169562},
-  {fund_name:"Fitness Center (FCBG)",fy:"2023-2024",month:"July",revenue:226756,expenses:158000,goal:153627},
-  {fund_name:"Fitness Center (FCBG)",fy:"2023-2024",month:"August",revenue:208336,expenses:146000,goal:156656},
-  {fund_name:"Fitness Center (FCBG)",fy:"2023-2024",month:"September",revenue:194294,expenses:136000,goal:161634},
-  {fund_name:"Fitness Center (FCBG)",fy:"2023-2024",month:"October",revenue:188850,expenses:133000,goal:166292},
-  {fund_name:"Fitness Center (FCBG)",fy:"2023-2024",month:"November",revenue:261994,expenses:183000,goal:245457},
-  {fund_name:"Fitness Center (FCBG)",fy:"2023-2024",month:"December",revenue:239722,expenses:168000,goal:204820},
-  {fund_name:"Fitness Center (FCBG)",fy:"2023-2024",month:"January",revenue:219448,expenses:154000,goal:200144},
-  {fund_name:"Fitness Center (FCBG)",fy:"2023-2024",month:"February",revenue:225000,expenses:158000,goal:205000},
-  {fund_name:"Fitness Center (FCBG)",fy:"2023-2024",month:"March",revenue:241000,expenses:169000,goal:218000},
-  {fund_name:"Fitness Center (FCBG)",fy:"2023-2024",month:"April",revenue:202718,expenses:142000,goal:183000},
-  {fund_name:"Fitness Center (FCBG)",fy:"2024-2025",month:"May",revenue:275071,expenses:195000,goal:231757},
-  {fund_name:"Fitness Center (FCBG)",fy:"2024-2025",month:"June",revenue:235495,expenses:178000,goal:221734},
-  {fund_name:"Fitness Center (FCBG)",fy:"2024-2025",month:"July",revenue:231537,expenses:172000,goal:200896},
-  {fund_name:"Fitness Center (FCBG)",fy:"2024-2025",month:"August",revenue:254942,expenses:188000,goal:204858},
-  {fund_name:"Fitness Center (FCBG)",fy:"2024-2025",month:"September",revenue:230880,expenses:175000,goal:207815},
-  {fund_name:"Fitness Center (FCBG)",fy:"2024-2025",month:"October",revenue:219457,expenses:168000,goal:213803},
-  {fund_name:"Fitness Center (FCBG)",fy:"2024-2025",month:"November",revenue:311867,expenses:225000,goal:276138},
-  {fund_name:"Fitness Center (FCBG)",fy:"2024-2025",month:"December",revenue:263664,expenses:195000,goal:243224},
-  {fund_name:"Fitness Center (FCBG)",fy:"2024-2025",month:"January",revenue:276432,expenses:200000,goal:237671},
-  {fund_name:"Fitness Center (FCBG)",fy:"2024-2025",month:"February",revenue:253513,expenses:185000,goal:237852},
-  {fund_name:"Fitness Center (FCBG)",fy:"2024-2025",month:"March",revenue:238930,expenses:176000,goal:223991},
-  {fund_name:"Fitness Center (FCBG)",fy:"2024-2025",month:"April",revenue:260830,expenses:186000,goal:240000},
-  {fund_name:"Fitness Center (FCBG)",fy:"2025-2026",month:"May",revenue:311570,expenses:218000,goal:316331},
-  {fund_name:"Fitness Center (FCBG)",fy:"2025-2026",month:"June",revenue:266827,expenses:192000,goal:270819},
-  {fund_name:"Fitness Center (FCBG)",fy:"2025-2026",month:"July",revenue:256526,expenses:186000,goal:266267},
-  {fund_name:"Fitness Center (FCBG)",fy:"2025-2026",month:"August",revenue:272138,expenses:196000,goal:293183},
-  {fund_name:"Fitness Center (FCBG)",fy:"2025-2026",month:"September",revenue:257846,expenses:188000,goal:265512},
-  {fund_name:"Fitness Center (FCBG)",fy:"2025-2026",month:"October",revenue:243886,expenses:178000,goal:252375},
-  {fund_name:"Fitness Center (FCBG)",fy:"2025-2026",month:"November",revenue:340422,expenses:241000,goal:358647},
-  {fund_name:"Fitness Center (FCBG)",fy:"2025-2026",month:"December",revenue:316697,expenses:228000,goal:303213},
-  {fund_name:"Fitness Center (FCBG)",fy:"2025-2026",month:"January",revenue:320561,expenses:231000,goal:317897},
-];
-
-const SEED_CAMPS = [
-  {fy:"2021-2022",camp_name:"Adventure",enrollment:0,revenue:0,expenses:0,notes:"COVID recovery year"},
-  {fy:"2021-2022",camp_name:"Fun & Games",enrollment:571,revenue:0,expenses:0,notes:""},
-  {fy:"2021-2022",camp_name:"Kinder Camp",enrollment:90,revenue:0,expenses:0,notes:""},
-  {fy:"2021-2022",camp_name:"CIT",enrollment:16,revenue:0,expenses:0,notes:""},
-  {fy:"2022-2023",camp_name:"Preschool 3s",enrollment:45,revenue:0,expenses:0,notes:""},
-  {fy:"2022-2023",camp_name:"Preschool 4s & 5s",enrollment:95,revenue:0,expenses:0,notes:""},
-  {fy:"2022-2023",camp_name:"Kinder Camp",enrollment:94,revenue:0,expenses:0,notes:""},
-  {fy:"2022-2023",camp_name:"Safety Stars",enrollment:18,revenue:0,expenses:0,notes:""},
-  {fy:"2022-2023",camp_name:"Adventure",enrollment:296,revenue:0,expenses:0,notes:""},
-  {fy:"2022-2023",camp_name:"Fun & Games",enrollment:192,revenue:0,expenses:0,notes:""},
-  {fy:"2022-2023",camp_name:"Grove",enrollment:192,revenue:0,expenses:0,notes:""},
-  {fy:"2022-2023",camp_name:"Sports Camp",enrollment:254,revenue:0,expenses:0,notes:""},
-  {fy:"2022-2023",camp_name:"Cycle & Surf",enrollment:94,revenue:0,expenses:0,notes:""},
-  {fy:"2022-2023",camp_name:"Star Makers",enrollment:62,revenue:0,expenses:0,notes:""},
-  {fy:"2022-2023",camp_name:"Broadway Bound",enrollment:160,revenue:0,expenses:0,notes:""},
-  {fy:"2022-2023",camp_name:"Dance",enrollment:172,revenue:0,expenses:0,notes:""},
-  {fy:"2022-2023",camp_name:"CIT",enrollment:41,revenue:0,expenses:0,notes:""},
-  {fy:"2022-2023",camp_name:"Camp Connection",enrollment:1861,revenue:0,expenses:0,notes:"Day-use"},
-  {fy:"2022-2023",camp_name:"Post Camp",enrollment:243,revenue:0,expenses:0,notes:""},
-  {fy:"2023-2024",camp_name:"Preschool 3s",enrollment:48,revenue:28892,expenses:0,notes:""},
-  {fy:"2023-2024",camp_name:"Preschool 4s & 5s",enrollment:97,revenue:55948,expenses:0,notes:""},
-  {fy:"2023-2024",camp_name:"Kinder Camp",enrollment:117,revenue:66892,expenses:0,notes:""},
-  {fy:"2023-2024",camp_name:"Safety Stars",enrollment:24,revenue:0,expenses:0,notes:""},
-  {fy:"2023-2024",camp_name:"Adventure",enrollment:514,revenue:0,expenses:0,notes:""},
-  {fy:"2023-2024",camp_name:"Fun & Games",enrollment:187,revenue:0,expenses:0,notes:""},
-  {fy:"2023-2024",camp_name:"Grove",enrollment:205,revenue:0,expenses:0,notes:""},
-  {fy:"2023-2024",camp_name:"Sports Camp",enrollment:242,revenue:0,expenses:0,notes:""},
-  {fy:"2023-2024",camp_name:"Cycle & Surf",enrollment:96,revenue:0,expenses:0,notes:""},
-  {fy:"2023-2024",camp_name:"Xtreme Teens",enrollment:0,revenue:0,expenses:0,notes:"Did not run"},
-  {fy:"2023-2024",camp_name:"Star Makers",enrollment:91,revenue:0,expenses:0,notes:""},
-  {fy:"2023-2024",camp_name:"Broadway Bound",enrollment:196,revenue:0,expenses:0,notes:""},
-  {fy:"2023-2024",camp_name:"Dance",enrollment:186,revenue:0,expenses:0,notes:""},
-  {fy:"2023-2024",camp_name:"CIT",enrollment:43,revenue:0,expenses:0,notes:""},
-  {fy:"2023-2024",camp_name:"Camp Connection",enrollment:2469,revenue:0,expenses:0,notes:"Day-use"},
-  {fy:"2023-2024",camp_name:"Post Camp",enrollment:253,revenue:0,expenses:0,notes:""},
-  {fy:"2024-2025",camp_name:"Preschool 2s",enrollment:19,revenue:7225,expenses:2500,notes:"New program"},
-  {fy:"2024-2025",camp_name:"Preschool 3s",enrollment:43,revenue:0,expenses:0,notes:""},
-  {fy:"2024-2025",camp_name:"Preschool 4s & 5s",enrollment:52,revenue:0,expenses:0,notes:""},
-  {fy:"2024-2025",camp_name:"Kinder Camp",enrollment:88,revenue:65105,expenses:0,notes:""},
-  {fy:"2024-2025",camp_name:"Safety Stars",enrollment:21,revenue:0,expenses:0,notes:""},
-  {fy:"2024-2025",camp_name:"Adventure",enrollment:531,revenue:0,expenses:0,notes:""},
-  {fy:"2024-2025",camp_name:"Fun & Games",enrollment:202,revenue:0,expenses:0,notes:""},
-  {fy:"2024-2025",camp_name:"Grove",enrollment:209,revenue:0,expenses:0,notes:""},
-  {fy:"2024-2025",camp_name:"Sports Camp",enrollment:204,revenue:0,expenses:0,notes:""},
-  {fy:"2024-2025",camp_name:"Cycle & Surf",enrollment:96,revenue:0,expenses:0,notes:""},
-  {fy:"2024-2025",camp_name:"Xtreme Teens",enrollment:139,revenue:0,expenses:0,notes:"Returned after hiatus"},
-  {fy:"2024-2025",camp_name:"Star Makers",enrollment:91,revenue:0,expenses:0,notes:""},
-  {fy:"2024-2025",camp_name:"Broadway Bound",enrollment:181,revenue:0,expenses:0,notes:""},
-  {fy:"2024-2025",camp_name:"Dance",enrollment:192,revenue:0,expenses:0,notes:""},
-  {fy:"2024-2025",camp_name:"CIT",enrollment:22,revenue:0,expenses:0,notes:""},
-  {fy:"2024-2025",camp_name:"Camp Connection",enrollment:2298,revenue:0,expenses:0,notes:"Day-use"},
-  {fy:"2024-2025",camp_name:"Post Camp",enrollment:446,revenue:0,expenses:0,notes:""},
-];
-
-const SEED_CLUBHOUSE = [
-  {fy:"2022-2023",site:"Country Meadows",enrollment:24,revenue:41863,is_archived:false},
-  {fy:"2022-2023",site:"Ivy Hall",enrollment:68,revenue:127992,is_archived:false},
-  {fy:"2022-2023",site:"Kildeer",enrollment:56,revenue:86786,is_archived:false},
-  {fy:"2022-2023",site:"Kilmer",enrollment:19,revenue:41753,is_archived:false},
-  {fy:"2022-2023",site:"Longfellow",enrollment:99,revenue:208469,is_archived:false},
-  {fy:"2022-2023",site:"Meridian",enrollment:45,revenue:86434,is_archived:false},
-  {fy:"2022-2023",site:"Prairie",enrollment:75,revenue:130880,is_archived:false},
-  {fy:"2022-2023",site:"Pritchett",enrollment:59,revenue:0,is_archived:false},
-  {fy:"2022-2023",site:"Tripp",enrollment:81,revenue:0,is_archived:false},
-  {fy:"2022-2023",site:"Willow Grove",enrollment:51,revenue:0,is_archived:false},
-  {fy:"2023-2024",site:"Country Meadows",enrollment:39,revenue:96538,is_archived:false},
-  {fy:"2023-2024",site:"Ivy Hall",enrollment:81,revenue:205214,is_archived:false},
-  {fy:"2023-2024",site:"Kildeer",enrollment:66,revenue:148566,is_archived:false},
-  {fy:"2023-2024",site:"Kilmer",enrollment:19,revenue:44122,is_archived:false},
-  {fy:"2023-2024",site:"Longfellow",enrollment:116,revenue:295076,is_archived:false},
-  {fy:"2023-2024",site:"Meridian",enrollment:46,revenue:89351,is_archived:false},
-  {fy:"2023-2024",site:"Prairie",enrollment:72,revenue:169340,is_archived:false},
-  {fy:"2023-2024",site:"Pritchett",enrollment:58,revenue:0,is_archived:false},
-  {fy:"2023-2024",site:"Tripp",enrollment:71,revenue:0,is_archived:false},
-  {fy:"2023-2024",site:"Willow Grove",enrollment:47,revenue:0,is_archived:false},
-  {fy:"2024-2025",site:"Country Meadows",enrollment:50.5,revenue:114970,is_archived:false},
-  {fy:"2024-2025",site:"Ivy Hall",enrollment:92.6,revenue:233765,is_archived:false},
-  {fy:"2024-2025",site:"Kildeer",enrollment:71.8,revenue:172083,is_archived:false},
-  {fy:"2024-2025",site:"Kilmer",enrollment:32.2,revenue:74263,is_archived:false},
-  {fy:"2024-2025",site:"Longfellow",enrollment:121.2,revenue:348483,is_archived:false},
-  {fy:"2024-2025",site:"Meridian",enrollment:61.3,revenue:103644,is_archived:false},
-  {fy:"2024-2025",site:"Prairie",enrollment:82,revenue:171253,is_archived:false},
-  {fy:"2024-2025",site:"Pritchett",enrollment:63.2,revenue:0,is_archived:false},
-  {fy:"2024-2025",site:"Tripp",enrollment:79.3,revenue:0,is_archived:false},
-  {fy:"2024-2025",site:"Willow Grove",enrollment:52.4,revenue:0,is_archived:false},
-  {fy:"2025-2026",site:"Country Meadows",enrollment:43,revenue:0,is_archived:false},
-  {fy:"2025-2026",site:"Ivy Hall",enrollment:90,revenue:0,is_archived:false},
-  {fy:"2025-2026",site:"Kildeer",enrollment:63,revenue:0,is_archived:false},
-  {fy:"2025-2026",site:"Kilmer",enrollment:35,revenue:0,is_archived:false},
-  {fy:"2025-2026",site:"Longfellow",enrollment:125,revenue:0,is_archived:false},
-  {fy:"2025-2026",site:"Meridian",enrollment:47,revenue:0,is_archived:false},
-  {fy:"2025-2026",site:"Prairie",enrollment:65,revenue:0,is_archived:false},
-  {fy:"2025-2026",site:"Pritchett",enrollment:39,revenue:0,is_archived:false},
-  {fy:"2025-2026",site:"Tripp",enrollment:67,revenue:0,is_archived:false},
-  {fy:"2025-2026",site:"Willow Grove",enrollment:48,revenue:0,is_archived:false},
-];
-
-const SEED_EVENTS = [
-  {fy:"2022-2023",event_name:"Summer Concert Series",event_type:"Summer Concert",attendance:6281,revenue:0,expenses:0,notes:"8 concerts total"},
-  {fy:"2022-2023",event_name:"Movies Under the Stars",event_type:"Movie Under the Stars",attendance:1648,revenue:0,expenses:0,notes:"3 movies"},
-  {fy:"2022-2023",event_name:"Bow Wow",event_type:"Community Festival",attendance:245,revenue:0,expenses:0,notes:""},
-  {fy:"2023-2024",event_name:"Summer Concert — Pino Farina Band",event_type:"Summer Concert",attendance:330,revenue:0,expenses:0,notes:""},
-  {fy:"2023-2024",event_name:"Summer Concert — Members Only",event_type:"Summer Concert",attendance:967,revenue:0,expenses:0,notes:""},
-  {fy:"2023-2024",event_name:"Summer Concert — Triadd",event_type:"Summer Concert",attendance:240,revenue:0,expenses:0,notes:""},
-  {fy:"2023-2024",event_name:"Summer Concert — Yankee Cowboy",event_type:"Summer Concert",attendance:409,revenue:0,expenses:0,notes:""},
-  {fy:"2023-2024",event_name:"Summer Concert — Classical Beat",event_type:"Summer Concert",attendance:608,revenue:0,expenses:0,notes:""},
-  {fy:"2023-2024",event_name:"Summer Concert — Industrial Drive",event_type:"Summer Concert",attendance:736,revenue:0,expenses:0,notes:""},
-  {fy:"2023-2024",event_name:"Summer Concert — Serendipity",event_type:"Summer Concert",attendance:2200,revenue:0,expenses:0,notes:"Highest attended"},
-  {fy:"2023-2024",event_name:"Movie Under the Stars — Sonic the Hedgehog",event_type:"Movie Under the Stars",attendance:623,revenue:0,expenses:0,notes:""},
-  {fy:"2023-2024",event_name:"Movie Under the Stars — DC Leagues of Super-Pets",event_type:"Movie Under the Stars",attendance:113,revenue:0,expenses:0,notes:""},
-  {fy:"2023-2024",event_name:"Movie Under the Stars — Puss in Boots",event_type:"Movie Under the Stars",attendance:387,revenue:0,expenses:0,notes:""},
-  {fy:"2023-2024",event_name:"Kite Fly",event_type:"Community Festival",attendance:556,revenue:0,expenses:0,notes:""},
-  {fy:"2023-2024",event_name:"Bow Wow",event_type:"Community Festival",attendance:290,revenue:0,expenses:0,notes:""},
-  {fy:"2023-2024",event_name:"Trick or Treat Trail",event_type:"Holiday Event",attendance:500,revenue:0,expenses:0,notes:""},
-  {fy:"2024-2025",event_name:"Summer Concert 1",event_type:"Summer Concert",attendance:400,revenue:0,expenses:0,notes:""},
-  {fy:"2024-2025",event_name:"Summer Concert 2",event_type:"Summer Concert",attendance:440,revenue:0,expenses:0,notes:""},
-  {fy:"2024-2025",event_name:"Movie Under the Stars — Elemental",event_type:"Movie Under the Stars",attendance:208,revenue:0,expenses:0,notes:""},
-  {fy:"2024-2025",event_name:"Kite Fly",event_type:"Community Festival",attendance:760,revenue:0,expenses:0,notes:"YoY growth from 556"},
-  {fy:"2024-2025",event_name:"Bow Wow",event_type:"Community Festival",attendance:198,revenue:0,expenses:0,notes:"Declined from 290"},
-  {fy:"2024-2025",event_name:"Parks and Public Lands",event_type:"Community Festival",attendance:733,revenue:0,expenses:0,notes:"New event"},
-];
-
-// ─── Shared admin utilities ───────────────────────────────────────────────────
-function adm$(v,compact){
-  const n=Number(v)||0;
-  const abs=Math.abs(Math.round(n));
-  const s=compact&&abs>=1000000?`$${(abs/1000000).toFixed(1)}M`:compact&&abs>=1000?`$${(abs/1000).toFixed(0)}K`:`$${abs.toLocaleString()}`;
-  return n<0?`(${s})`:s;
-}
-function admPct(v){return `${((Number(v)||0)*100).toFixed(1)}%`;}
-function fyLabel(fy){return fy?`FY ${fy}`:"All Years";}
-function sumField(arr,key){return arr.reduce((a,r)=>a+(Number(r[key])||0),0);}
-function yoyPct(cur,prev){if(!prev)return null;return ((cur-prev)/prev)*100;}
-function arrowBadge(pct){
-  if(pct===null)return null;
-  const pos=pct>=0;
-  return <span style={{color:pos?"#16a34a":"#dc2626",fontSize:"11px",fontWeight:700}}>{pos?"▲":"▼"}{Math.abs(pct).toFixed(1)}%</span>;
-}
-
-// ─── Admin UI primitives ─────────────────────────────────────────────────────
-function AModal({title,onClose,children,wide,extraWide}){
-  return(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:"rgba(0,0,0,0.5)"}}>
-      <div className="bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden" style={{width:extraWide?"900px":wide?"680px":"480px",maxWidth:"95vw",maxHeight:"90vh"}}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h3 className="font-bold text-slate-800" style={{fontSize:"15px"}}>{title}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl leading-none">✕</button>
-        </div>
-        <div className="overflow-y-auto p-6 flex-1">{children}</div>
-      </div>
-    </div>
-  );
-}
-
-function AInp({label,value,onChange,type="text",options,hint,rows,required,half,className=""}){
-  const base="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300";
-  return(
-    <div className={`mb-4 ${half?"":"w-full"} ${className}`}>
-      {label&&<label className="block text-xs font-semibold text-slate-500 mb-1">{label}{required&&<span className="text-red-400 ml-1">*</span>}</label>}
-      {options
-        ?<select value={value} onChange={e=>onChange(e.target.value)} className={base}>
-            <option value="">— Select —</option>
-            {options.map(o=><option key={o} value={o}>{o}</option>)}
-          </select>
-        :rows
-          ?<textarea value={value} onChange={e=>onChange(e.target.value)} rows={rows} className={base}/>
-          :<input type={type} value={value} onChange={e=>onChange(e.target.value)} className={base}/>
-      }
-      {hint&&<p className="text-xs text-slate-400 mt-1">{hint}</p>}
-    </div>
-  );
-}
-
-function AConfirm({message,onConfirm,onCancel,label="Delete",color="#ef4444"}){
-  return(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:"rgba(0,0,0,0.4)"}}>
-      <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full">
-        <p className="text-sm text-slate-700 mb-5">{message}</p>
-        <div className="flex gap-3 justify-end">
-          <button onClick={onCancel} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">{" Cancel"}</button>
-          <button onClick={onConfirm} className="px-4 py-2 text-sm rounded-lg text-white font-semibold" style={{background:color}}>{label}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AKpi({label,value,sub,color,arrow}){
-  return(
-    <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-      <div className="text-xs text-slate-500 font-semibold mb-1 uppercase tracking-wide">{label}</div>
-      <div className="font-bold text-slate-800 flex items-baseline gap-2" style={{fontSize:"22px"}}>
-        {value}
-        {arrow}
-      </div>
-      {sub&&<div className="text-xs text-slate-400 mt-1">{sub}</div>}
-    </div>
-  );
-}
-
-function ABar({label,value,max,color="#1e3a5f",height=18,showPct,suffix=""}){
-  const pct=max>0?Math.min((value/max)*100,100):0;
-  return(
-    <div className="w-full">
-      {label&&<div className="flex justify-between text-xs text-slate-600 mb-1"><span>{label}</span><span className="font-semibold">{suffix||adm$(value,true)}{showPct&&max>0&&<span className="text-slate-400 ml-1">({pct.toFixed(0)}%)</span>}</span></div>}
-      <div className="rounded-full overflow-hidden" style={{background:"#f1f5f9",height}}>
-        <div className="h-full rounded-full transition-all" style={{width:`${pct}%`,background:color}}/>
-      </div>
-    </div>
-  );
-}
-
-function ASection({title,sub,children,action}){
-  return(
-    <div className="mb-8">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="font-bold text-slate-800" style={{fontSize:"15px"}}>{title}</h3>
-          {sub&&<p className="text-xs text-slate-500 mt-0.5">{sub}</p>}
-        </div>
-        {action}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function FYPicker({value,onChange,include2027=false}){
-  const fys=ADMIN_FYS.filter(f=>include2027||f!=="2026-2027");
-  return(
-    <select value={value} onChange={e=>onChange(e.target.value)}
-      className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300">
-      {fys.map(f=><option key={f} value={f}>{f}</option>)}
-    </select>
-  );
-}
-
-function ABadge({status}){
-  return(
-    <span className="px-2 py-0.5 rounded-full text-xs font-bold" style={{background:STATUS_BG[status]||"#f1f5f9",color:STATUS_CLR[status]||"#64748b"}}>
-      {status}
-    </span>
-  );
-}
-
-function EmptyState({msg,action,onAction}){
-  return(
-    <div className="text-center py-12 text-slate-400">
-      <div className="text-3xl mb-2">📋</div>
-      <div className="text-sm mb-4">{msg}</div>
-      {onAction&&<button onClick={onAction} className="px-4 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>{action}</button>}
-    </div>
-  );
-}
-
-// ─── SEED HELPER ─────────────────────────────────────────────────────────────
-// Track which tables have been seeded this session
-const _seeded=new Set();
-async function seedIfEmpty(db,table,data){
-  if(_seeded.has(table)) return false;
-  _seeded.add(table);
-  try{
-    const {count}=await db.from(table).select("*",{count:"exact",head:true});
-    if((count||0)===0 && data.length>0){
-      // Insert in batches of 50 to avoid payload limits
-      for(let i=0;i<data.length;i+=50){
-        await db.from(table).insert(data.slice(i,i+50));
-      }
-      return true;
-    }
-  }catch(e){console.warn("seed error",table,e);}
-  return false;
-}
-
-// ─── YoY SPARKLINE ───────────────────────────────────────────────────────────
-function Sparkline({values,color="#1e3a5f",height=32,labels}){
-  if(!values||values.length<2) return null;
-  const valid=values.filter(v=>v!=null&&!isNaN(v));
-  if(valid.length<2) return null;
-  const min=Math.min(...valid), max=Math.max(...valid);
-  const range=max-min||1;
-  const w=80, h=height;
-  const pts=values.map((v,i)=>{
-    const x=(i/(values.length-1))*w;
-    const y=v!=null?h-((v-min)/range)*(h-4)-2:null;
-    return {x,y};
-  }).filter(p=>p.y!=null);
-  const d=pts.map((p,i)=>`${i===0?"M":"L"}${p.x},${p.y}`).join(" ");
-  return(
-    <svg width={w} height={h} style={{overflow:"visible"}}>
-      <path d={d} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-      {pts.map((p,i)=><circle key={i} cx={p.x} cy={p.y} r="2.5" fill={color}/>)}
-    </svg>
-  );
-}
-
-// ─── EXECUTIVE SUMMARY ───────────────────────────────────────────────────────
-function ExecSummary({programs,db}){
-  const [fy,setFy]=useState(ADMIN_CUR);
-  const [funds,setFunds]=useState([]);
-  const [goals,setGoals]=useState([]);
-  const [rentals,setRentals]=useState([]);
-  const [camps,setCamps]=useState([]);
-  const [clubhouse,setClubhouse]=useState([]);
-  const [loading,setLoading]=useState(true);
-
-  useEffect(()=>{
-    async function load(){
-      setLoading(true);
-      await Promise.all([
-        seedIfEmpty(db,"admin_funds",SEED_FUNDS),
-        seedIfEmpty(db,"admin_goals",SEED_GOALS),
-        seedIfEmpty(db,"admin_rentals",SEED_RENTALS),
-        seedIfEmpty(db,"admin_camps",SEED_CAMPS),
-        seedIfEmpty(db,"admin_clubhouse",SEED_CLUBHOUSE),
-      ]);
-      const [f,g,r,c,ch]=await Promise.all([
-        db.from("admin_funds").select("*"),
-        db.from("admin_goals").select("*"),
-        db.from("admin_rentals").select("*"),
-        db.from("admin_camps").select("*"),
-        db.from("admin_clubhouse").select("*"),
-      ]);
-      setFunds(f.data||[]);
-      setGoals(g.data||[]);
-      setRentals(r.data||[]);
-      setCamps(c.data||[]);
-      setClubhouse(ch.data||[]);
-      setLoading(false);
-    }
-    load();
-  },[]);
-
-  if(loading) return <div className="text-center py-20 text-slate-400">Loading Executive Summary…</div>;
-
-  const prevFy=ADMIN_FYS[ADMIN_FYS.indexOf(fy)-1];
-
-  // Programs KPIs
-  const progFy=programs.filter(p=>!p.is_archived&&p.year&&fy.includes(p.year.split("-")[0]||p.year));
-  const progPrev=prevFy?programs.filter(p=>!p.is_archived&&p.year&&prevFy.includes(p.year.split("-")[0]||p.year)):[];
-
-  // Fund totals for selected FY
-  const fyFunds=funds.filter(f=>f.fy===fy);
-  const prevFunds=prevFy?funds.filter(f=>f.fy===prevFy):[];
-  const totalRev=sumField(fyFunds,"revenue");
-  const totalExp=sumField(fyFunds,"expenses");
-  const totalRevPrev=sumField(prevFunds,"revenue");
-  const totalExpPrev=sumField(prevFunds,"expenses");
-
-  // Goals
-  const fyGoals=goals.filter(g=>g.fy===fy&&!g.is_archived);
-  const complete=fyGoals.filter(g=>g.status==="Complete").length;
-  const total=fyGoals.length;
-
-  // Rentals
-  const fyRentals=rentals.filter(r=>r.fy===fy);
-  const prevRentals=prevFy?rentals.filter(r=>r.fy===prevFy):[];
-  const totalRental=sumField(fyRentals,"amount");
-  const totalRentalPrev=sumField(prevRentals,"amount");
-
-  // Camps
-  const fyCamps=camps.filter(c=>c.fy===fy);
-  const prevCamps=prevFy?camps.filter(c=>c.fy===prevFy):[];
-  const campEnroll=sumField(fyCamps.filter(c=>c.camp_name!=="Camp Connection"),"enrollment");
-  const campEnrollPrev=sumField(prevCamps.filter(c=>c.camp_name!=="Camp Connection"),"enrollment");
-
-  // Clubhouse
-  const fyClub=clubhouse.filter(c=>c.fy===fy);
-  const prevClub=prevFy?clubhouse.filter(c=>c.fy===prevFy):[];
-  const clubEnroll=sumField(fyClub,"enrollment");
-  const clubEnrollPrev=sumField(prevClub,"enrollment");
-
-  // Fund P&L by fund name for selected FY
-  const fundNames=[...new Set(funds.map(f=>f.fund_name))];
-  const fundSummary=fundNames.map(name=>{
-    const rows=fyFunds.filter(f=>f.fund_name===name);
-    const prev=prevFunds.filter(f=>f.fund_name===name);
-    const rev=sumField(rows,"revenue");
-    const exp=sumField(rows,"expenses");
-    const goal=sumField(rows,"goal");
-    const prevRev=sumField(prev,"revenue");
-    return {name,rev,exp,pl:rev-exp,goal,prevRev,yoy:yoyPct(rev,prevRev)};
-  }).filter(f=>f.rev>0||f.exp>0);
-
-  // Goals by status
-  const statusCounts=GOAL_STATUSES.map(s=>({status:s,count:fyGoals.filter(g=>g.status===s).length}));
-
-  // YoY revenue trend (last 4 FYs)
-  const trendFYs=ADMIN_FYS.slice(1,6);
-  const f4Trend=trendFYs.map(f=>sumField(funds.filter(x=>x.fy===f&&x.fund_name==="Fund 4 – Recreation"),"revenue"));
-  const fitTrend=trendFYs.map(f=>sumField(funds.filter(x=>x.fy===f&&x.fund_name==="Fitness Center (FCBG)"),"revenue"));
-
-  return(
-    <div>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="font-bold text-slate-800" style={{fontSize:"18px"}}>Executive Summary</h2>
-          <p className="text-sm text-slate-500 mt-0.5">District-wide performance overview</p>
-        </div>
-        <FYPicker value={fy} onChange={setFy} include2027/>
-      </div>
-
-      {/* Top KPI row */}
-      <div className="grid grid-cols-2 gap-3 mb-6" style={{gridTemplateColumns:"repeat(4,1fr)"}}>
-        <AKpi label="Total Revenue" value={adm$(totalRev,true)} sub={prevFy?`${adm$(totalRevPrev,true)} prior year`:undefined} arrow={arrowBadge(yoyPct(totalRev,totalRevPrev))}/>
-        <AKpi label="Total Expenses" value={adm$(totalExp,true)} sub={prevFy?`${adm$(totalExpPrev,true)} prior year`:undefined} arrow={arrowBadge(yoyPct(totalExp,totalExpPrev))}/>
-        <AKpi label="Net P/(L)" value={adm$(totalRev-totalExp,true)} sub={(totalRev-totalExp)>=0?"Surplus":"Deficit"}/>
-        <AKpi label="Goals Complete" value={total>0?`${complete}/${total}`:"—"} sub={total>0?`${((complete/total)*100).toFixed(0)}% completion rate`:undefined}/>
-      </div>
-
-      <div className="grid gap-6" style={{gridTemplateColumns:"2fr 1fr"}}>
-        {/* Left column */}
-        <div>
-          {/* Fund P&L table */}
-          <ASection title="Fund Performance" sub={`FY ${fy} — Revenue, Expenses & Net by fund`}>
-            <div className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr style={{background:"#f8fafc"}}>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Fund</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Revenue</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Expenses</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Net P/(L)</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">YoY</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase" style={{minWidth:100}}>vs Goal</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {fundSummary.map((f,i)=>{
-                    const vsGoal=f.goal>0?(f.rev/f.goal)*100:null;
-                    return(
-                      <tr key={f.name} className="border-t border-slate-50 hover:bg-slate-50">
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{background:FUND_COLORS[f.name]||"#94a3b8"}}/>
-                            <span className="font-medium text-slate-700 text-xs">{f.name}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-right font-semibold text-slate-800">{adm$(f.rev,true)}</td>
-                        <td className="px-4 py-3 text-right text-slate-600">{adm$(f.exp,true)}</td>
-                        <td className="px-4 py-3 text-right font-semibold" style={{color:f.pl>=0?"#16a34a":"#dc2626"}}>{adm$(f.pl,true)}</td>
-                        <td className="px-4 py-3 text-right">{f.yoy!=null?arrowBadge(f.yoy):<span className="text-slate-300 text-xs">—</span>}</td>
-                        <td className="px-4 py-3">
-                          {vsGoal!=null
-                            ?<div>
-                                <div className="flex justify-between text-xs mb-1">
-                                  <span style={{color:vsGoal>=100?"#16a34a":vsGoal>=80?"#b45309":"#dc2626"}}>{vsGoal.toFixed(0)}%</span>
-                                </div>
-                                <div className="h-1.5 rounded-full overflow-hidden" style={{background:"#f1f5f9"}}>
-                                  <div className="h-full rounded-full" style={{width:`${Math.min(vsGoal,100)}%`,background:vsGoal>=100?"#16a34a":vsGoal>=80?"#f59e0b":"#dc2626"}}/>
-                                </div>
-                              </div>
-                            :<span className="text-slate-300 text-xs">—</span>}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-slate-200" style={{background:"#f8fafc"}}>
-                    <td className="px-4 py-3 text-xs font-bold text-slate-700">TOTAL</td>
-                    <td className="px-4 py-3 text-right font-bold text-slate-800">{adm$(totalRev,true)}</td>
-                    <td className="px-4 py-3 text-right font-bold text-slate-700">{adm$(totalExp,true)}</td>
-                    <td className="px-4 py-3 text-right font-bold" style={{color:(totalRev-totalExp)>=0?"#16a34a":"#dc2626"}}>{adm$(totalRev-totalExp,true)}</td>
-                    <td className="px-4 py-3 text-right">{arrowBadge(yoyPct(totalRev,totalRevPrev))}</td>
-                    <td className="px-4 py-3"/>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </ASection>
-
-          {/* YoY Revenue Trend */}
-          <ASection title="Revenue Trend" sub="Fund 4 & Fitness Center year-over-year (annual totals)">
-            <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-              <div className="flex gap-4 mb-4 text-xs">
-                <span className="flex items-center gap-1"><span className="w-3 h-1 rounded inline-block" style={{background:"#1e3a5f"}}/>Fund 4</span>
-                <span className="flex items-center gap-1"><span className="w-3 h-1 rounded inline-block" style={{background:"#0369a1"}}/>Fitness</span>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr>
-                      <td className="py-2 font-semibold text-slate-500 pr-4">Fund</td>
-                      {trendFYs.map(f=><td key={f} className="py-2 text-center font-semibold text-slate-500 px-2">{f.replace("20","'")}</td>)}
-                      <td className="py-2 text-center font-semibold text-slate-500 px-2">Trend</td>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-t border-slate-100">
-                      <td className="py-3 font-semibold text-slate-700 pr-4 flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{background:"#1e3a5f"}}/>Fund 4</td>
-                      {f4Trend.map((v,i)=>{
-                        const prev=f4Trend[i-1];
-                        const chg=prev&&prev>0?((v-prev)/prev)*100:null;
-                        return(
-                          <td key={i} className="py-3 text-center px-2">
-                            <div className="font-bold text-slate-800">{v>0?adm$(v,true):"—"}</div>
-                            {chg!=null&&<div style={{color:chg>=0?"#16a34a":"#dc2626",fontSize:"10px"}}>{chg>=0?"▲":"▼"}{Math.abs(chg).toFixed(1)}%</div>}
-                          </td>
-                        );
-                      })}
-                      <td className="py-3 px-2 text-center"><Sparkline values={f4Trend} color="#1e3a5f" height={28}/></td>
-                    </tr>
-                    <tr className="border-t border-slate-100">
-                      <td className="py-3 font-semibold text-slate-700 pr-4 flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{background:"#0369a1"}}/>Fitness</td>
-                      {fitTrend.map((v,i)=>{
-                        const prev=fitTrend[i-1];
-                        const chg=prev&&prev>0?((v-prev)/prev)*100:null;
-                        return(
-                          <td key={i} className="py-3 text-center px-2">
-                            <div className="font-bold text-slate-800">{v>0?adm$(v,true):"—"}</div>
-                            {chg!=null&&<div style={{color:chg>=0?"#16a34a":"#dc2626",fontSize:"10px"}}>{chg>=0?"▲":"▼"}{Math.abs(chg).toFixed(1)}%</div>}
-                          </td>
-                        );
-                      })}
-                      <td className="py-3 px-2 text-center"><Sparkline values={fitTrend} color="#0369a1" height={28}/></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </ASection>
-
-          {/* Clubhouse YoY Trend */}
-          <ASection title="Clubhouse — Year over Year" sub="Avg enrollment & revenue by site across fiscal years">
-            <div className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm overflow-x-auto">
-              <table className="w-full text-xs" style={{minWidth:620}}>
-                <thead>
-                  <tr style={{background:"#f8fafc"}}>
-                    <th className="text-left px-4 py-2.5 font-semibold text-slate-500 uppercase sticky left-0 bg-slate-50" style={{minWidth:140}}>Site</th>
-                    {ADMIN_FYS.filter(f=>clubhouse.some(c=>c.fy===f)).map(f=>(
-                      <th key={f} className="text-right px-3 py-2.5 font-semibold text-slate-500 uppercase" style={{minWidth:80}}>{f.replace("20","'")}</th>
-                    ))}
-                    <th className="px-3 py-2.5 font-semibold text-slate-500 uppercase" style={{minWidth:70}}>Trend</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {CLUB_SITES.map(site=>{
-                    const clFYs=ADMIN_FYS.filter(f=>clubhouse.some(c=>c.fy===f));
-                    const vals=clFYs.map(f=>{const r=clubhouse.find(c=>c.fy===f&&c.site===site);return r?.enrollment||null;});
-                    const revVals=clFYs.map(f=>{const r=clubhouse.find(c=>c.fy===f&&c.site===site);return r?.revenue||null;});
-                    if(vals.every(v=>!v)) return null;
-                    return(
-                      <tr key={site} className="border-t border-slate-50 hover:bg-slate-50">
-                        <td className="px-4 py-2 font-semibold text-slate-700 sticky left-0 bg-white">{site}</td>
-                        {vals.map((v,i)=>{
-                          const prev=vals[i-1];
-                          const pct=prev&&prev>0&&v?((v-prev)/prev)*100:null;
-                          const rev=revVals[i];
-                          return(
-                            <td key={i} className="px-3 py-2 text-right">
-                              <div className="font-bold text-slate-800">{v!=null?v.toFixed(0):"—"}</div>
-                              {rev>0&&<div className="text-slate-400" style={{fontSize:"10px"}}>{adm$(rev,true)}</div>}
-                              {pct!=null&&<div style={{color:pct>=0?"#16a34a":"#dc2626",fontSize:"10px"}}>{pct>=0?"▲":"▼"}{Math.abs(pct).toFixed(1)}%</div>}
-                            </td>
-                          );
-                        })}
-                        <td className="px-3 py-2 text-center"><Sparkline values={vals.filter(v=>v!=null)} color="#0f766e" height={22}/></td>
-                      </tr>
-                    );
-                  })}
-                  {/* Totals row */}
-                  {(()=>{
-                    const clFYs=ADMIN_FYS.filter(f=>clubhouse.some(c=>c.fy===f));
-                    return(
-                      <tr className="border-t-2 border-slate-200" style={{background:"#f8fafc"}}>
-                        <td className="px-4 py-2 font-bold text-slate-700 sticky left-0 bg-slate-50">TOTAL</td>
-                        {clFYs.map(f=>{
-                          const totEnroll=sumField(clubhouse.filter(c=>c.fy===f),"enrollment");
-                          const totRev=sumField(clubhouse.filter(c=>c.fy===f),"revenue");
-                          return(
-                            <td key={f} className="px-3 py-2 text-right">
-                              <div className="font-bold text-slate-800">{totEnroll>0?totEnroll.toFixed(0):"—"}</div>
-                              {totRev>0&&<div className="text-slate-400" style={{fontSize:"10px"}}>{adm$(totRev,true)}</div>}
-                            </td>
-                          );
-                        })}
-                        <td className="px-3 py-2 text-center">
-                          <Sparkline values={clFYs.map(f=>sumField(clubhouse.filter(c=>c.fy===f),"enrollment")).filter(v=>v>0)} color="#0f766e" height={22}/>
-                        </td>
-                      </tr>
-                    );
-                  })()}
-                </tbody>
-              </table>
-            </div>
-          </ASection>
-
-          {/* Program Areas Quick View */}
-          <div className="grid gap-4" style={{gridTemplateColumns:"1fr 1fr"}}>
-            <ASection title="Camps Enrollment" sub={`By camp — FY ${fy}`}>
-              <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm space-y-2">
-                {fyCamps.filter(c=>c.camp_name!=="Camp Connection").sort((a,b)=>b.enrollment-a.enrollment).slice(0,8).map(c=>{
-                  const max=Math.max(...fyCamps.map(x=>x.enrollment||0),1);
-                  return <ABar key={c.camp_name} label={c.camp_name} value={c.enrollment} max={max} color="#7c3aed" height={12} suffix={` ${c.enrollment}`}/>;
-                })}
-                {fyCamps.length===0&&<div className="text-xs text-slate-400 text-center py-4">No camp data for FY {fy}</div>}
-              </div>
-            </ASection>
-            <ASection title="Clubhouse Sites" sub={`Avg enrollment — FY ${fy}`}>
-              <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm space-y-2">
-                {fyClub.sort((a,b)=>b.enrollment-a.enrollment).map(c=>{
-                  const max=Math.max(...fyClub.map(x=>x.enrollment||0),1);
-                  return(
-                    <div key={c.site}>
-                      <ABar label={c.site} value={c.enrollment} max={max} color="#0f766e" height={12} suffix={` ${c.enrollment}`}/>
-                      {c.revenue>0&&<div className="text-right text-xs text-slate-400 -mt-0.5">{adm$(c.revenue,true)}</div>}
-                    </div>
-                  );
-                })}
-                {fyClub.length===0&&<div className="text-xs text-slate-400 text-center py-4">No clubhouse data for FY {fy}</div>}
-              </div>
-            </ASection>
-          </div>
-        </div>
-
-        {/* Right column */}
-        <div>
-          {/* Goals status */}
-          <ASection title="Goals & Objectives" sub={`FY ${fy} completion`}>
-            <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-              {total>0
-                ?<>
-                  <div className="flex items-center justify-center mb-4">
-                    <div className="relative" style={{width:80,height:80}}>
-                      <svg width="80" height="80" style={{transform:"rotate(-90deg)"}}>
-                        <circle cx="40" cy="40" r="32" fill="none" stroke="#f1f5f9" strokeWidth="10"/>
-                        <circle cx="40" cy="40" r="32" fill="none" stroke="#16a34a" strokeWidth="10"
-                          strokeDasharray={`${2*Math.PI*32*complete/total} ${2*Math.PI*32}`}
-                          strokeLinecap="round"/>
-                      </svg>
-                      <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <div className="font-bold text-slate-800" style={{fontSize:"18px"}}>{((complete/total)*100).toFixed(0)}%</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    {statusCounts.filter(s=>s.count>0).map(s=>(
-                      <div key={s.status} className="flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full" style={{background:STATUS_CLR[s.status]}}/>
-                          <span className="text-slate-600">{s.status}</span>
-                        </div>
-                        <span className="font-bold text-slate-800">{s.count}</span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-                :<div className="text-xs text-slate-400 text-center py-4">No goals for FY {fy}</div>}
-            </div>
-          </ASection>
-
-          {/* Rentals summary */}
-          <ASection title="Rentals Revenue" sub="By category — current FY">
-            <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-              <div className="text-center mb-3">
-                <div className="font-bold text-slate-800" style={{fontSize:"20px"}}>{adm$(totalRental,true)}</div>
-                <div className="text-xs text-slate-400 flex items-center justify-center gap-1">
-                  YTD {prevFy&&<>{arrowBadge(yoyPct(totalRental,totalRentalPrev))}</>}
-                </div>
-              </div>
-              <div className="space-y-2">
-                {RENTAL_CATS.map(cat=>{
-                  const amt=sumField(fyRentals.filter(r=>r.category===cat),"amount");
-                  if(!amt) return null;
-                  return <ABar key={cat} label={cat} value={amt} max={totalRental||1} color="#b45309" height={10} showPct/>;
-                })}
-              </div>
-            </div>
-          </ASection>
-
-          {/* Program counts from programs table */}
-          <ASection title="Programs Summary" sub="Active programs in system">
-            <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-              {[
-                {label:"Total Active",value:programs.filter(p=>!p.is_archived).length},
-                {label:"Healthy",value:programs.filter(p=>!p.is_archived).length>0?programs.filter(p=>{
-                  const fill=p.act_capacity>0?p.act_enrollment/p.act_capacity:0;
-                  const cost=(Number(p.act_personnel||0)+Number(p.act_commodities||0)+Number(p.act_contractuals||0));
-                  const cr=cost>0?p.act_revenue/cost:0;
-                  return fill>=0.7&&cr>=1;
-                }).length:"—"},
-                {label:"Needs Redesign",value:programs.filter(p=>!p.is_archived).length>0?programs.filter(p=>{
-                  const fill=p.act_capacity>0?p.act_enrollment/p.act_capacity:0;
-                  return fill<0.6;
-                }).length:"—"},
-              ].map(r=>(
-                <div key={r.label} className="flex justify-between items-center py-2 border-b border-slate-50 last:border-0">
-                  <span className="text-xs text-slate-600">{r.label}</span>
-                  <span className="font-bold text-slate-800">{r.value}</span>
-                </div>
-              ))}
-            </div>
-          </ASection>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── FUND MONTH CHART (proper component so hooks are valid) ─────────────────
-function FundMonthChart({rows,fname,fy,allFunds}){
-  const [showYoY,setShowYoY]=useState(false);
-  const prevFy=ADMIN_FYS[ADMIN_FYS.indexOf(fy)-1];
-  const prevRows=prevFy?allFunds.filter(r=>r.fund_name===fname&&r.fy===prevFy):[];
-  const allRevVals=[...rows.map(x=>x.revenue||0),...(showYoY?prevRows.map(x=>x.revenue||0):[])];
-  const maxV=Math.max(...allRevVals,1);
-  return(
-    <div className="px-5 py-4 border-b border-slate-50">
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Monthly Revenue vs Goal</div>
-        {prevRows.length>0&&<button onClick={()=>setShowYoY(s=>!s)}
-          className="text-xs px-2 py-1 rounded-lg border font-semibold transition"
-          style={showYoY?{background:FUND_COLORS[fname]||"#1e3a5f",color:"white",borderColor:FUND_COLORS[fname]||"#1e3a5f"}:{borderColor:"#e2e8f0",color:"#64748b"}}>
-          {showYoY?"Hide":"+"} Prior Year ({prevFy})
-        </button>}
-      </div>
-      <div className="flex items-end gap-1" style={{height:64}}>
-        {FY_MONTHS.map(mon=>{
-          const r=rows.find(x=>x.month===mon);
-          const prev=prevRows.find(x=>x.month===mon);
-          const rev=r?.revenue||0;
-          const goal=r?.goal||0;
-          const prevRev=prev?.revenue||0;
-          const barH=Math.round((rev/maxV)*52);
-          const prevH=showYoY&&prevRev?Math.round((prevRev/maxV)*52):0;
-          const goalH=goal?Math.round((goal/maxV)*52):0;
-          return(
-            <div key={mon} className="flex-1 relative flex flex-col justify-end" style={{height:60}}
-              title={`${mon}: ${adm$(rev)}${showYoY&&prevRev?" | Prior: "+adm$(prevRev):""}${goal?" | Goal: "+adm$(goal):""}`}>
-              {goal>0&&<div className="absolute w-full border-t-2 border-dashed border-amber-400 pointer-events-none" style={{bottom:goalH+4,opacity:0.8,zIndex:2}}/>}
-              <div className="absolute bottom-4 w-full flex items-end gap-px px-px">
-                {showYoY&&<div className="flex-1 rounded-t" style={{height:prevH||1,background:FUND_COLORS[fname]||"#1e3a5f",opacity:0.3}}/>}
-                <div className={showYoY?"flex-1 rounded-t":"w-full rounded-t"} style={{height:barH||2,background:FUND_COLORS[fname]||"#1e3a5f",opacity:rev>0?1:0.12}}/>
-              </div>
-              <div className="absolute bottom-0 w-full text-center" style={{color:"#94a3b8",fontSize:"8px"}}>{mon.slice(0,1)}</div>
-            </div>
-          );
-        })}
-      </div>
-      <div className="flex gap-4 mt-2 text-xs text-slate-400">
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded inline-block" style={{background:FUND_COLORS[fname]||"#1e3a5f"}}/>Revenue</span>
-        {showYoY&&<span className="flex items-center gap-1"><span className="w-2 h-2 rounded inline-block opacity-30" style={{background:FUND_COLORS[fname]||"#1e3a5f"}}/>Prior Year</span>}
-        <span className="flex items-center gap-1"><span className="w-4 border-t-2 border-dashed border-amber-400 inline-block"/>Goal</span>
-      </div>
-    </div>
-  );
-}
-
-// ─── CLUBHOUSE ENROLL CHART (proper component) ───────────────────────────────
-function ClubEnrollChart({fyRows,allRows,fy,maxEnroll,onEdit,onAdd}){
-  const [showYoY,setShowYoY]=useState(false);
-  const prevFy=ADMIN_FYS[ADMIN_FYS.indexOf(fy)-1];
-  const prevRows=prevFy?allRows.filter(r=>r.fy===prevFy):[];
-  const allMax=Math.max(maxEnroll,...(showYoY?prevRows.map(r=>r.enrollment||0):[]),1);
-  return(
-    <div className="bg-white rounded-xl border border-slate-100 p-5 shadow-sm mb-4">
-      <div className="flex items-center justify-between mb-4">
-        <div className="font-semibold text-sm text-slate-700">FY {fy} — Enrollment by Site</div>
-        {prevRows.length>0&&<button onClick={()=>setShowYoY(s=>!s)}
-          className="text-xs px-2 py-1 rounded-lg border font-semibold transition"
-          style={showYoY?{background:"#0f766e",color:"white",borderColor:"#0f766e"}:{borderColor:"#e2e8f0",color:"#64748b"}}>
-          {showYoY?"Hide":"+"} Prior Year ({prevFy})
-        </button>}
-      </div>
-      <div className="space-y-2">
-        {CLUB_SITES.map(site=>{
-          const r=fyRows.find(x=>x.site===site);
-          const prevR=prevRows.find(x=>x.site===site);
-          const enroll=r?.enrollment||0;
-          const prevEnroll=prevR?.enrollment||0;
-          const pct=yoyPct(enroll,prevEnroll);
-          return(
-            <div key={site} className="flex items-center gap-3">
-              <div className="text-xs text-slate-600 w-28 flex-shrink-0 truncate">{site}</div>
-              <div className="flex-1 relative h-4" style={{background:"#f1f5f9",borderRadius:9999}}>
-                {showYoY&&prevEnroll>0&&<div className="absolute inset-y-0 left-0 rounded-full" style={{width:`${(prevEnroll/allMax)*100}%`,background:"#0f766e",opacity:0.28}}/>}
-                {enroll>0&&<div className="absolute inset-y-0 left-0 rounded-full" style={{width:`${(enroll/allMax)*100}%`,background:"#0f766e"}}/>}
-              </div>
-              <div className="text-xs font-bold text-slate-800 w-8 text-right">{enroll||"—"}</div>
-              {showYoY&&pct!==null&&enroll>0&&<div className="w-12 text-right flex-shrink-0" style={{fontSize:"10px",color:pct>=0?"#16a34a":"#dc2626"}}>{pct>=0?"▲":"▼"}{Math.abs(pct).toFixed(0)}%</div>}
-              {r?<button onClick={()=>onEdit(r)} className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-400 text-xs flex-shrink-0">✏</button>
-                :<button onClick={()=>onAdd(site)} className="text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-400 hover:bg-slate-200 flex-shrink-0">+</button>}
-            </div>
-          );
-        })}
-      </div>
-      {showYoY&&<div className="flex gap-4 mt-3 text-xs text-slate-400">
-        <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded inline-block" style={{background:"#0f766e"}}/>Current FY</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded inline-block opacity-30" style={{background:"#0f766e"}}/>Prior FY ({prevFy})</span>
-      </div>}
-    </div>
-  );
-}
-
-// ─── FUND PERFORMANCE ────────────────────────────────────────────────────────
-function FundSection({db}){
-  const [funds,setFunds]=useState([]);
-  const [loading,setLoading]=useState(true);
-  const [fy,setFy]=useState(ADMIN_CUR);
-  const [activeFund,setActiveFund]=useState("all");
-  const [showModal,setShowModal]=useState(false);
-  const [editRow,setEditRow]=useState(null);
-  const [confirm,setConfirm]=useState(null);
-  const [form,setForm]=useState({fund_name:"",fy:ADMIN_CUR,month:"",revenue:"",expenses:"",goal:"",notes:""});
-
-  async function load(){
-    setLoading(true);
-    await seedIfEmpty(db,"admin_funds",SEED_FUNDS);
-    const {data}=await db.from("admin_funds").select("*").order("fund_name").order("month",{foreignTable:undefined});
-    setFunds(data||[]);
-    setLoading(false);
-  }
-  useEffect(()=>{load();},[]);
-
-  async function save(){
-    const d={fund_name:form.fund_name,fy:form.fy,month:form.month,
-      revenue:parseFloat(form.revenue)||0,expenses:parseFloat(form.expenses)||0,
-      goal:parseFloat(form.goal)||0,notes:form.notes};
-    if(editRow){await db.from("admin_funds").update(d).eq("id",editRow.id);}
-    else{await db.from("admin_funds").insert(d);}
-    setShowModal(false);setEditRow(null);load();
-  }
-  async function del(id){await db.from("admin_funds").delete().eq("id",id);setConfirm(null);load();}
-
-  function openEdit(r){setEditRow(r);setForm({fund_name:r.fund_name,fy:r.fy,month:r.month||"",revenue:r.revenue||"",expenses:r.expenses||"",goal:r.goal||"",notes:r.notes||""});setShowModal(true);}
-  function openAdd(){setEditRow(null);setForm({fund_name:activeFund==="all"?"":activeFund,fy,month:"",revenue:"",expenses:"",goal:"",notes:""});setShowModal(true);}
-  const f=v=>form[v];
-  const s=(k,v)=>setForm(p=>({...p,[k]:v}));
-
-  if(loading) return <div className="text-center py-20 text-slate-400">Loading…</div>;
-
-  const fyFunds=funds.filter(r=>r.fy===fy);
-  const fundNames=[...new Set(funds.map(f=>f.fund_name))].sort();
-  const displayFunds=activeFund==="all"?fundNames:[activeFund];
-
-  // All FYs trend table
-  const allFYs=ADMIN_FYS.filter(f=>funds.some(r=>r.fy===f));
-
-  return(
-    <div>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="font-bold text-slate-800" style={{fontSize:"18px"}}>Fund Performance</h2>
-          <p className="text-sm text-slate-500 mt-0.5">Revenue, expenses & goals by fund and fiscal year</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <FYPicker value={fy} onChange={setFy} include2027/>
-          <button onClick={openAdd} className="px-4 py-2 text-sm font-bold rounded-lg text-white flex items-center gap-1" style={{background:"#1e3a5f"}}>+ Add Entry</button>
-        </div>
-      </div>
-
-      {/* Fund selector tabs */}
-      <div className="flex gap-1 mb-6 flex-wrap">
-        {["all",...fundNames].map(fn=>(
-          <button key={fn} onClick={()=>setActiveFund(fn)}
-            className="px-3 py-1.5 text-xs font-semibold rounded-lg transition"
-            style={activeFund===fn?{background:fn==="all"?"#1e3a5f":FUND_COLORS[fn]||"#1e3a5f",color:"white"}:{background:"#f1f5f9",color:"#64748b"}}>
-            {fn==="all"?"All Funds":fn}
-          </button>
-        ))}
-      </div>
-
-      {/* YoY Summary Table (when All selected) */}
-      {activeFund==="all"&&(
-        <div className="mb-8">
-          <h3 className="font-semibold text-slate-700 text-sm mb-3">Year-over-Year Summary</h3>
-          <div className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm overflow-x-auto">
-            <table className="w-full text-sm" style={{minWidth:700}}>
-              <thead>
-                <tr style={{background:"#f8fafc"}}>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase sticky left-0 bg-slate-50" style={{minWidth:180}}>Fund</th>
-                  {allFYs.map(f=><th key={f} className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase" style={{minWidth:100}}>{f.replace("20","'")}</th>)}
-                  <th className="px-3 py-3 text-xs font-semibold text-slate-500 uppercase" style={{minWidth:80}}>Trend</th>
-                </tr>
-              </thead>
-              <tbody>
-                {fundNames.map(fname=>{
-                  const revByFY=allFYs.map(f=>sumField(funds.filter(r=>r.fy===f&&r.fund_name===fname),"revenue"));
-                  if(revByFY.every(v=>v===0)) return null;
-                  return(
-                    <tr key={fname} className="border-t border-slate-50 hover:bg-slate-50">
-                      <td className="px-4 py-3 sticky left-0 bg-white">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2.5 h-2.5 rounded-full" style={{background:FUND_COLORS[fname]||"#94a3b8"}}/>
-                          <span className="text-xs font-semibold text-slate-700">{fname}</span>
-                        </div>
-                      </td>
-                      {revByFY.map((v,i)=>{
-                        const prev=revByFY[i-1];
-                        const pct=prev&&prev>0?((v-prev)/prev)*100:null;
-                        return(
-                          <td key={i} className="px-3 py-3 text-right">
-                            <div className="font-bold text-slate-800 text-xs">{v>0?adm$(v,true):"—"}</div>
-                            {pct!=null&&<div style={{color:pct>=0?"#16a34a":"#dc2626",fontSize:"10px"}}>{pct>=0?"▲":"▼"}{Math.abs(pct).toFixed(1)}%</div>}
-                          </td>
-                        );
-                      })}
-                      <td className="px-3 py-3 text-center"><Sparkline values={revByFY.filter(v=>v>0)} color={FUND_COLORS[fname]||"#94a3b8"} height={24}/></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Individual fund detail */}
-      {displayFunds.map(fname=>{
-        const rows=fyFunds.filter(r=>r.fund_name===fname);
-        const totalRev=sumField(rows,"revenue");
-        const totalExp=sumField(rows,"expenses");
-        const totalGoal=sumField(rows,"goal");
-        const allFYRows=ADMIN_FYS.map(f=>({fy:f,rev:sumField(funds.filter(r=>r.fy===f&&r.fund_name===fname),"revenue"),exp:sumField(funds.filter(r=>r.fy===f&&r.fund_name===fname),"expenses")}));
-        const prevFyRev=sumField(funds.filter(r=>r.fy===ADMIN_FYS[ADMIN_FYS.indexOf(fy)-1]&&r.fund_name===fname),"revenue");
-
-        return(
-          <div key={fname} className="mb-8 bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
-            {/* Fund header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100" style={{background:"#f8fafc"}}>
-              <div className="flex items-center gap-3">
-                <div className="w-3 h-3 rounded-full" style={{background:FUND_COLORS[fname]||"#94a3b8"}}/>
-                <div>
-                  <div className="font-bold text-slate-800">{fname}</div>
-                  <div className="text-xs text-slate-500">FY {fy}</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-6">
-                <div className="text-right">
-                  <div className="text-xs text-slate-500">Revenue</div>
-                  <div className="font-bold text-slate-800">{adm$(totalRev)}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-xs text-slate-500">Expenses</div>
-                  <div className="font-bold text-slate-700">{adm$(totalExp)}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-xs text-slate-500">Net P/(L)</div>
-                  <div className="font-bold" style={{color:(totalRev-totalExp)>=0?"#16a34a":"#dc2626"}}>{adm$(totalRev-totalExp)}</div>
-                </div>
-                {prevFyRev>0&&<div className="text-right">
-                  <div className="text-xs text-slate-500">YoY</div>
-                  <div>{arrowBadge(yoyPct(totalRev,prevFyRev))}</div>
-                </div>}
-              </div>
-            </div>
-
-            {/* Monthly chart with YoY */}
-            {rows.length>0&&<FundMonthChart rows={rows} fname={fname} fy={fy} allFunds={funds}/>}
-
-            {/* Monthly data table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr style={{background:"#f8fafc"}}>
-                    <th className="text-left px-4 py-2 text-slate-500 font-semibold">Month</th>
-                    <th className="text-right px-4 py-2 text-slate-500 font-semibold">Revenue</th>
-                    <th className="text-right px-4 py-2 text-slate-500 font-semibold">Expenses</th>
-                    <th className="text-right px-4 py-2 text-slate-500 font-semibold">Net</th>
-                    <th className="text-right px-4 py-2 text-slate-500 font-semibold">Goal</th>
-                    <th className="text-right px-4 py-2 text-slate-500 font-semibold">vs Goal</th>
-                    <th className="px-4 py-2"/>
-                  </tr>
-                </thead>
-                <tbody>
-                  {FY_MONTHS.map(mon=>{
-                    const r=rows.find(x=>x.month===mon);
-                    if(!r&&!rows.length) return null;
-                    if(!r) return(
-                      <tr key={mon} className="border-t border-slate-50 hover:bg-slate-50">
-                        <td className="px-4 py-2 text-slate-400">{mon}</td>
-                        <td className="px-4 py-2 text-right text-slate-300">—</td>
-                        <td className="px-4 py-2 text-right text-slate-300">—</td>
-                        <td className="px-4 py-2 text-right text-slate-300">—</td>
-                        <td className="px-4 py-2 text-right text-slate-300">—</td>
-                        <td className="px-4 py-2 text-right text-slate-300">—</td>
-                        <td className="px-4 py-2"/>
-                      </tr>
-                    );
-                    const net=r.revenue-r.expenses;
-                    const vsGoal=r.goal>0?((r.revenue/r.goal)*100).toFixed(0)+"%":"—";
-                    return(
-                      <tr key={mon} className="border-t border-slate-50 hover:bg-slate-50">
-                        <td className="px-4 py-2 font-medium text-slate-700">{mon}</td>
-                        <td className="px-4 py-2 text-right font-semibold text-slate-800">{adm$(r.revenue)}</td>
-                        <td className="px-4 py-2 text-right text-slate-600">{r.expenses>0?adm$(r.expenses):"—"}</td>
-                        <td className="px-4 py-2 text-right font-semibold" style={{color:net>=0?"#16a34a":"#dc2626"}}>{adm$(net)}</td>
-                        <td className="px-4 py-2 text-right text-slate-500">{r.goal>0?adm$(r.goal):"—"}</td>
-                        <td className="px-4 py-2 text-right">
-                          {r.goal>0?<span style={{color:r.revenue>=r.goal?"#16a34a":r.revenue>=r.goal*0.8?"#b45309":"#dc2626",fontWeight:700}}>{vsGoal}</span>:"—"}
-                        </td>
-                        <td className="px-4 py-2 text-right">
-                          <div className="flex gap-1 justify-end">
-                            <button onClick={()=>openEdit(r)} className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-500">✏</button>
-                            <button onClick={()=>setConfirm(r.id)} className="px-2 py-0.5 rounded bg-red-50 hover:bg-red-100 text-red-400">✕</button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-slate-200" style={{background:"#f8fafc"}}>
-                    <td className="px-4 py-2 font-bold text-slate-700">TOTAL</td>
-                    <td className="px-4 py-2 text-right font-bold text-slate-800">{adm$(totalRev)}</td>
-                    <td className="px-4 py-2 text-right font-bold text-slate-700">{adm$(totalExp)}</td>
-                    <td className="px-4 py-2 text-right font-bold" style={{color:(totalRev-totalExp)>=0?"#16a34a":"#dc2626"}}>{adm$(totalRev-totalExp)}</td>
-                    <td className="px-4 py-2 text-right font-bold text-slate-500">{totalGoal>0?adm$(totalGoal):"—"}</td>
-                    <td className="px-4 py-2 text-right font-bold">{totalGoal>0?<span style={{color:totalRev>=totalGoal?"#16a34a":"#dc2626"}}>{((totalRev/totalGoal)*100).toFixed(0)}%</span>:"—"}</td>
-                    <td className="px-4 py-2"/>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </div>
-        );
-      })}
-
-      {/* Add/Edit Modal */}
-      {showModal&&(
-        <AModal title={editRow?"Edit Fund Entry":"Add Fund Entry"} onClose={()=>setShowModal(false)}>
-          <div className="grid grid-cols-2 gap-x-4">
-            <AInp label="Fund" value={f("fund_name")} onChange={v=>s("fund_name",v)} options={FUND_LIST} required/>
-            <AInp label="Fiscal Year" value={f("fy")} onChange={v=>s("fy",v)} options={ADMIN_FYS} required/>
-            <AInp label="Month" value={f("month")} onChange={v=>s("month",v)} options={FY_MONTHS} required/>
-            <AInp label="Revenue ($)" value={f("revenue")} onChange={v=>s("revenue",v)} type="number"/>
-            <AInp label="Expenses ($)" value={f("expenses")} onChange={v=>s("expenses",v)} type="number"/>
-            <AInp label="Goal ($)" value={f("goal")} onChange={v=>s("goal",v)} type="number"/>
-          </div>
-          <AInp label="Notes" value={f("notes")} onChange={v=>s("notes",v)} rows={2}/>
-          <div className="flex gap-3 justify-end mt-2">
-            <button onClick={()=>setShowModal(false)} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600">Cancel</button>
-            <button onClick={save} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>{editRow?"Update":"Save"}</button>
-          </div>
-        </AModal>
-      )}
-      {confirm&&<AConfirm message="Delete this fund entry?" onConfirm={()=>del(confirm)} onCancel={()=>setConfirm(null)}/>}
-    </div>
-  );
-}
-
-// ─── GOALS & OBJECTIVES ──────────────────────────────────────────────────────
-function GoalsSection({db}){
-  const [goals,setGoals]=useState([]);
-  const [loading,setLoading]=useState(true);
-  const [fy,setFy]=useState(ADMIN_CUR);
-  const [qFilter,setQFilter]=useState("all");
-  const [sFilter,setSFilter]=useState("all");
-  const [cvFilter,setCvFilter]=useState("all");
-  const [search,setSearch]=useState("");
-  const [showModal,setShowModal]=useState(false);
-  const [editRow,setEditRow]=useState(null);
-  const [confirm,setConfirm]=useState(null);
-  const [expandedId,setExpandedId]=useState(null);
-  const [showArchived,setShowArchived]=useState(false);
-  const emptyForm={fy:ADMIN_CUR,quarter:"Q1 (May–Aug)",staff_lead:"",supporting_staff:"",objective:"",core_value:"Excellence",status:"Not Started",updates:"",is_archived:false};
-  const [form,setForm]=useState(emptyForm);
-
-  async function load(){
-    setLoading(true);
-    await seedIfEmpty(db,"admin_goals",SEED_GOALS);
-    const {data}=await db.from("admin_goals").select("*").order("quarter").order("staff_lead");
-    setGoals(data||[]);
-    setLoading(false);
-  }
-  useEffect(()=>{load();},[]);
-
-  async function save(){
-    const d={fy:form.fy,quarter:form.quarter,staff_lead:form.staff_lead,supporting_staff:form.supporting_staff,
-      objective:form.objective,core_value:form.core_value,status:form.status,updates:form.updates,is_archived:form.is_archived};
-    if(editRow){await db.from("admin_goals").update(d).eq("id",editRow.id);}
-    else{await db.from("admin_goals").insert(d);}
-    setShowModal(false);setEditRow(null);load();
-  }
-  async function del(id){await db.from("admin_goals").delete().eq("id",id);setConfirm(null);load();}
-  async function toggleArchive(r){await db.from("admin_goals").update({is_archived:!r.is_archived}).eq("id",r.id);load();}
-  async function quickStatus(id,status){await db.from("admin_goals").update({status}).eq("id",id);load();}
-
-  function openEdit(r){setEditRow(r);setForm({fy:r.fy,quarter:r.quarter,staff_lead:r.staff_lead,supporting_staff:r.supporting_staff||"",objective:r.objective,core_value:r.core_value,status:r.status,updates:r.updates||"",is_archived:r.is_archived});setShowModal(true);}
-
-  if(loading) return <div className="text-center py-20 text-slate-400">Loading…</div>;
-
-  const fyGoals=goals.filter(g=>g.fy===fy&&!g.is_archived);
-  const archivedGoals=goals.filter(g=>g.is_archived);
-
-  const base=showArchived?archivedGoals:fyGoals;
-  const filtered=base.filter(g=>{
-    if(qFilter!=="all"&&g.quarter!==qFilter) return false;
-    if(sFilter!=="all"&&g.status!==sFilter) return false;
-    if(cvFilter!=="all"&&g.core_value!==cvFilter) return false;
-    if(search&&!g.objective.toLowerCase().includes(search.toLowerCase())&&!g.staff_lead.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
-
-  const statusCounts=GOAL_STATUSES.reduce((a,s)=>({...a,[s]:fyGoals.filter(g=>g.status===s).length}),{});
-  const complete=statusCounts["Complete"]||0;
-  const total=fyGoals.length;
-  const completePct=total>0?Math.round((complete/total)*100):0;
-
-  return(
-    <div>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="font-bold text-slate-800" style={{fontSize:"18px"}}>Goals & Objectives</h2>
-          <p className="text-sm text-slate-500 mt-0.5">Track staff goals by quarter, core value, and status</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <FYPicker value={fy} onChange={setFy}/>
-          <button onClick={()=>{setEditRow(null);setForm({...emptyForm,fy});setShowModal(true);}}
-            className="px-4 py-2 text-sm font-bold rounded-lg text-white flex items-center gap-1" style={{background:"#1e3a5f"}}>+ Add Goal</button>
-        </div>
-      </div>
-
-      {/* Status summary cards */}
-      <div className="grid gap-3 mb-6" style={{gridTemplateColumns:"repeat(5,1fr)"}}>
-        {GOAL_STATUSES.map(s=>(
-          <button key={s} onClick={()=>setSFilter(sFilter===s?"all":s)}
-            className="rounded-xl p-3 text-center transition border-2"
-            style={{background:sFilter===s?STATUS_BG[s]:"white",borderColor:sFilter===s?STATUS_CLR[s]:"#e2e8f0"}}>
-            <div className="font-bold text-2xl" style={{color:STATUS_CLR[s]}}>{statusCounts[s]||0}</div>
-            <div className="text-xs font-semibold mt-1" style={{color:STATUS_CLR[s]}}>{s}</div>
-          </button>
-        ))}
-      </div>
-
-      {/* Progress bar */}
-      {total>0&&(
-        <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm mb-5">
-          <div className="flex justify-between text-sm mb-2">
-            <span className="font-semibold text-slate-700">Overall Completion — FY {fy}</span>
-            <span className="font-bold" style={{color:"#16a34a"}}>{completePct}% ({complete}/{total})</span>
-          </div>
-          <div className="h-3 rounded-full overflow-hidden" style={{background:"#f1f5f9"}}>
-            <div className="h-full rounded-full transition-all" style={{width:`${completePct}%`,background:"#16a34a"}}/>
-          </div>
-        </div>
-      )}
-
-      {/* Filters */}
-      <div className="bg-white rounded-xl border border-slate-100 p-3 shadow-sm mb-5 flex flex-wrap gap-3 items-center">
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search goals or staff…"
-          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm flex-1" style={{minWidth:160}}/>
-        <select value={qFilter} onChange={e=>setQFilter(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm">
-          <option value="all">All Quarters</option>
-          {QUARTERS_GO.map(q=><option key={q} value={q}>{q}</option>)}
-        </select>
-        <select value={cvFilter} onChange={e=>setCvFilter(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm">
-          <option value="all">All Core Values</option>
-          {CORE_VALUES.map(v=><option key={v} value={v}>{v}</option>)}
-        </select>
-        <button onClick={()=>setShowArchived(!showArchived)}
-          className="px-3 py-1.5 text-xs font-semibold rounded-lg border transition"
-          style={showArchived?{background:"#1e3a5f",color:"white",borderColor:"#1e3a5f"}:{borderColor:"#e2e8f0",color:"#64748b"}}>
-          {showArchived?`📂 Archived (${archivedGoals.length})`:"📦 View Archived"}
-        </button>
-        <span className="text-xs text-slate-400">{filtered.length} shown</span>
-      </div>
-
-      {/* Goals list grouped by quarter */}
-      {!showArchived&&QUARTERS_GO.map(q=>{
-        const qGoals=filtered.filter(g=>g.quarter===q);
-        if(qGoals.length===0&&qFilter!=="all"&&qFilter!==q) return null;
-        if(qGoals.length===0) return null;
-        const qComplete=qGoals.filter(g=>g.status==="Complete").length;
-        return(
-          <div key={q} className="mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-bold text-slate-700">{q}</h3>
-              <span className="text-xs text-slate-500">{qComplete}/{qGoals.length} complete</span>
-            </div>
-            <div className="space-y-2">
-              {qGoals.map(g=>(
-                <div key={g.id} className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
-                  <div className="flex items-start gap-3 p-4 cursor-pointer" onClick={()=>setExpandedId(expandedId===g.id?null:g.id)}>
-                    <div className="flex-shrink-0 mt-0.5">
-                      <select value={g.status} onClick={e=>e.stopPropagation()}
-                        onChange={e=>quickStatus(g.id,e.target.value)}
-                        className="text-xs font-bold rounded-full px-2 py-1 border-0 cursor-pointer"
-                        style={{background:STATUS_BG[g.status],color:STATUS_CLR[g.status]}}>
-                        {GOAL_STATUSES.map(s=><option key={s} value={s}>{s}</option>)}
-                      </select>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-slate-800 leading-snug">{g.objective}</div>
-                      <div className="flex flex-wrap gap-3 mt-1.5 text-xs text-slate-500">
-                        <span>👤 {g.staff_lead}</span>
-                        {g.supporting_staff&&<span>+ {g.supporting_staff}</span>}
-                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold" style={{background:"#eff6ff",color:"#1d4ed8"}}>{g.core_value}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <button onClick={e=>{e.stopPropagation();openEdit(g);}} className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500">✏</button>
-                      <button onClick={e=>{e.stopPropagation();toggleArchive(g);}} className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500" title="Archive">📦</button>
-                      <button onClick={e=>{e.stopPropagation();setConfirm(g.id);}} className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-400">✕</button>
-                      <span className="text-slate-300 text-xs ml-1">{expandedId===g.id?"▲":"▼"}</span>
-                    </div>
-                  </div>
-                  {expandedId===g.id&&(
-                    <div className="px-4 pb-4 border-t border-slate-50 pt-3">
-                      {g.updates
-                        ?<div><div className="text-xs font-semibold text-slate-500 mb-1">Progress Update</div>
-                          <div className="text-sm text-slate-700 bg-slate-50 rounded-lg p-3">{g.updates}</div></div>
-                        :<div className="text-xs text-slate-400 italic">No updates yet</div>}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })}
-
-      {/* Archived list */}
-      {showArchived&&(
-        <div className="space-y-2">
-          {filtered.map(g=>(
-            <div key={g.id} className="bg-slate-50 rounded-xl border border-slate-200 p-4 flex items-start gap-3">
-              <ABadge status={g.status}/>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm text-slate-600 line-through">{g.objective}</div>
-                <div className="text-xs text-slate-400 mt-1">{g.staff_lead} · {g.fy} · {g.quarter}</div>
-              </div>
-              <button onClick={()=>toggleArchive(g)} className="text-xs px-2 py-1 rounded-lg border border-slate-300 text-slate-500 hover:bg-white">↩ Restore</button>
-              <button onClick={()=>setConfirm(g.id)} className="text-xs px-2 py-1 rounded-lg bg-red-50 text-red-400 hover:bg-red-100">✕</button>
-            </div>
-          ))}
-          {filtered.length===0&&<EmptyState msg="No archived goals"/>}
-        </div>
-      )}
-
-      {filtered.length===0&&!showArchived&&<EmptyState msg="No goals match filters" action="Add Goal" onAction={()=>{setEditRow(null);setForm({...emptyForm,fy});setShowModal(true);}}/>}
-
-      {/* Modal */}
-      {showModal&&(
-        <AModal title={editRow?"Edit Goal":"Add Goal"} onClose={()=>setShowModal(false)} wide>
-          <div className="grid grid-cols-2 gap-x-4">
-            <AInp label="Fiscal Year" value={form.fy} onChange={v=>setForm(p=>({...p,fy:v}))} options={ADMIN_FYS} required/>
-            <AInp label="Quarter" value={form.quarter} onChange={v=>setForm(p=>({...p,quarter:v}))} options={QUARTERS_GO} required/>
-            <AInp label="Staff Lead" value={form.staff_lead} onChange={v=>setForm(p=>({...p,staff_lead:v}))} required/>
-            <AInp label="Supporting Staff" value={form.supporting_staff} onChange={v=>setForm(p=>({...p,supporting_staff:v}))}/>
-            <AInp label="Core Value" value={form.core_value} onChange={v=>setForm(p=>({...p,core_value:v}))} options={CORE_VALUES}/>
-            <AInp label="Status" value={form.status} onChange={v=>setForm(p=>({...p,status:v}))} options={GOAL_STATUSES}/>
-          </div>
-          <AInp label="Objective (SMART goal)" value={form.objective} onChange={v=>setForm(p=>({...p,objective:v}))} rows={3} required/>
-          <AInp label="Progress Updates" value={form.updates} onChange={v=>setForm(p=>({...p,updates:v}))} rows={3}/>
-          <div className="flex gap-3 justify-end mt-2">
-            <button onClick={()=>setShowModal(false)} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600">Cancel</button>
-            <button onClick={save} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>{editRow?"Update":"Save"}</button>
-          </div>
-        </AModal>
-      )}
-      {confirm&&<AConfirm message="Delete this goal permanently?" onConfirm={()=>del(confirm)} onCancel={()=>setConfirm(null)}/>}
-    </div>
-  );
-}
-
-// ─── RENTALS ─────────────────────────────────────────────────────────────────
-function RentalsSection({db}){
-  const [rentals,setRentals]=useState([]);
-  const [loading,setLoading]=useState(true);
-  const [fy,setFy]=useState(ADMIN_CUR);
-  const [activeCat,setActiveCat]=useState("all");
-  const [showModal,setShowModal]=useState(false);
-  const [editRow,setEditRow]=useState(null);
-  const [confirm,setConfirm]=useState(null);
-  const [form,setForm]=useState({fy:ADMIN_CUR,category:"",month:"",amount:"",is_archived:false});
-
-  async function load(){
-    setLoading(true);
-    await seedIfEmpty(db,"admin_rentals",SEED_RENTALS);
-    const {data}=await db.from("admin_rentals").select("*").eq("is_archived",false);
-    setRentals(data||[]);
-    setLoading(false);
-  }
-  useEffect(()=>{load();},[]);
-
-  async function save(){
-    const d={fy:form.fy,category:form.category,month:form.month,amount:parseFloat(form.amount)||0,is_archived:false};
-    if(editRow){await db.from("admin_rentals").update(d).eq("id",editRow.id);}
-    else{await db.from("admin_rentals").insert(d);}
-    setShowModal(false);setEditRow(null);load();
-  }
-  async function del(id){await db.from("admin_rentals").delete().eq("id",id);setConfirm(null);load();}
-  function openEdit(r){setEditRow(r);setForm({fy:r.fy,category:r.category,month:r.month||"",amount:r.amount||"",is_archived:false});setShowModal(true);}
-
-  if(loading) return <div className="text-center py-20 text-slate-400">Loading…</div>;
-
-  const fyRows=rentals.filter(r=>r.fy===fy);
-  const allFYs=ADMIN_FYS.filter(f=>rentals.some(r=>r.fy===f));
-
-  // YoY totals by FY
-  const fyTotals=allFYs.reduce((a,f)=>({...a,[f]:sumField(rentals.filter(r=>r.fy===f),"amount")}),{});
-  const fyTotalsCat=RENTAL_CATS.reduce((a,cat)=>({...a,[cat]:allFYs.reduce((b,f)=>({...b,[f]:sumField(rentals.filter(r=>r.fy===f&&r.category===cat),"amount")}),{})}),{});
-  const prevFy=ADMIN_FYS[ADMIN_FYS.indexOf(fy)-1];
-  const totalFY=sumField(fyRows,"amount");
-  const totalPrev=prevFy?sumField(rentals.filter(r=>r.fy===prevFy),"amount"):0;
-
-  const dispCats=activeCat==="all"?RENTAL_CATS:[activeCat];
-
-  return(
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="font-bold text-slate-800" style={{fontSize:"18px"}}>Rentals</h2>
-          <p className="text-sm text-slate-500 mt-0.5">Monthly rental revenue by category with YoY comparisons</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <FYPicker value={fy} onChange={setFy} include2027/>
-          <button onClick={()=>{setEditRow(null);setForm({fy,category:activeCat==="all"?"":activeCat,month:"",amount:""});setShowModal(true);}}
-            className="px-4 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>+ Add Entry</button>
-        </div>
-      </div>
-
-      {/* KPI */}
-      <div className="grid gap-3 mb-6" style={{gridTemplateColumns:"repeat(3,1fr)"}}>
-        <AKpi label="Total Rentals Revenue" value={adm$(totalFY)} sub={`FY ${fy}`} arrow={prevFy&&arrowBadge(yoyPct(totalFY,totalPrev))}/>
-        <AKpi label="YTD vs Prior Year" value={prevFy?adm$(totalFY-totalPrev,true):"—"} sub={prevFy?`Prior: ${adm$(totalPrev,true)}`:undefined}/>
-        <AKpi label="Top Category" value={RENTAL_CATS.reduce((a,c)=>{const t=sumField(fyRows.filter(r=>r.category===c),"amount");return t>a.v?{n:c,v:t}:a},{n:"—",v:0}).n} sub="by revenue"/>
-      </div>
-
-      {/* YoY Trend Table */}
-      <div className="mb-8">
-        <h3 className="font-semibold text-slate-700 text-sm mb-3">Year-over-Year by Category</h3>
-        <div className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm overflow-x-auto">
-          <table className="w-full text-xs" style={{minWidth:600}}>
-            <thead>
-              <tr style={{background:"#f8fafc"}}>
-                <th className="text-left px-4 py-3 font-semibold text-slate-500 uppercase sticky left-0 bg-slate-50" style={{minWidth:150}}>Category</th>
-                {allFYs.map(f=><th key={f} className="text-right px-3 py-3 font-semibold text-slate-500 uppercase" style={{minWidth:90}}>{f.replace("20","'")}</th>)}
-                <th className="px-3 py-3 font-semibold text-slate-500 uppercase" style={{minWidth:70}}>Trend</th>
-              </tr>
-            </thead>
-            <tbody>
-              {RENTAL_CATS.map(cat=>{
-                const byCY=allFYs.map(f=>fyTotalsCat[cat]?.[f]||0);
-                if(byCY.every(v=>v===0)) return null;
-                return(
-                  <tr key={cat} className={`border-t border-slate-50 hover:bg-slate-50 ${activeCat===cat?"bg-amber-50":""}`}
-                    onClick={()=>setActiveCat(activeCat===cat?"all":cat)} style={{cursor:"pointer"}}>
-                    <td className="px-4 py-2 font-semibold text-slate-700 sticky left-0 bg-white">{cat}</td>
-                    {byCY.map((v,i)=>{
-                      const prev=byCY[i-1];
-                      const pct=prev&&prev>0?((v-prev)/prev)*100:null;
-                      return(
-                        <td key={i} className="px-3 py-2 text-right">
-                          <div className="font-bold text-slate-800">{v>0?adm$(v,true):"—"}</div>
-                          {pct!=null&&<div style={{color:pct>=0?"#16a34a":"#dc2626",fontSize:"10px"}}>{pct>=0?"▲":"▼"}{Math.abs(pct).toFixed(1)}%</div>}
-                        </td>
-                      );
-                    })}
-                    <td className="px-3 py-2 text-center"><Sparkline values={byCY.filter(v=>v>0)} color="#b45309" height={22}/></td>
-                  </tr>
-                );
-              })}
-              <tr className="border-t-2 border-slate-200" style={{background:"#f8fafc"}}>
-                <td className="px-4 py-2 font-bold text-slate-700 sticky left-0 bg-slate-50">TOTAL</td>
-                {allFYs.map(f=>{
-                  const t=fyTotals[f]||0;
-                  return <td key={f} className="px-3 py-2 text-right font-bold text-slate-800">{t>0?adm$(t,true):"—"}</td>;
-                })}
-                <td className="px-3 py-2 text-center"><Sparkline values={allFYs.map(f=>fyTotals[f]||0)} color="#b45309" height={22}/></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Category detail */}
-      {dispCats.map(cat=>{
-        const rows=fyRows.filter(r=>r.category===cat);
-        const catTotal=sumField(rows,"amount");
-        const prevCatTotal=prevFy?sumField(rentals.filter(r=>r.fy===prevFy&&r.category===cat),"amount"):0;
-        if(activeCat==="all"&&catTotal===0) return null;
-        return(
-          <div key={cat} className="mb-6 bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100" style={{background:"#f8fafc"}}>
-              <div className="font-semibold text-slate-800">{cat}</div>
-              <div className="flex items-center gap-4 text-sm">
-                <span className="font-bold text-slate-800">{adm$(catTotal)}</span>
-                {prevFy&&prevCatTotal>0&&arrowBadge(yoyPct(catTotal,prevCatTotal))}
-              </div>
-            </div>
-            <table className="w-full text-xs">
-              <thead>
-                <tr style={{background:"#f8fafc"}}>
-                  {["Month","Amount","Actions"].map(h=><th key={h} className={`py-2 px-4 text-slate-500 font-semibold ${h==="Month"?"text-left":"text-right"}`}>{h}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {FY_MONTHS.map(mon=>{
-                  const r=rows.find(x=>x.month===mon);
-                  if(!r) return(
-                    <tr key={mon} className="border-t border-slate-50">
-                      <td className="px-4 py-2 text-slate-400">{mon}</td>
-                      <td className="px-4 py-2 text-right text-slate-300">—</td>
-                      <td className="px-4 py-2 text-right">
-                        <button onClick={()=>{setEditRow(null);setForm({fy,category:cat,month:mon,amount:""});setShowModal(true);}} className="text-xs px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-500">+ Add</button>
-                      </td>
-                    </tr>
-                  );
-                  return(
-                    <tr key={mon} className="border-t border-slate-50 hover:bg-slate-50">
-                      <td className="px-4 py-2 font-medium text-slate-700">{mon}</td>
-                      <td className="px-4 py-2 text-right font-semibold text-slate-800">{adm$(r.amount)}</td>
-                      <td className="px-4 py-2 text-right">
-                        <div className="flex gap-1 justify-end">
-                          <button onClick={()=>openEdit(r)} className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-500">✏</button>
-                          <button onClick={()=>setConfirm(r.id)} className="px-2 py-0.5 rounded bg-red-50 hover:bg-red-100 text-red-400">✕</button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="border-t-2 border-slate-200" style={{background:"#f8fafc"}}>
-                  <td className="px-4 py-2 font-bold text-slate-700">TOTAL</td>
-                  <td className="px-4 py-2 text-right font-bold text-slate-800">{adm$(catTotal)}</td>
-                  <td/>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        );
-      })}
-
-      {showModal&&(
-        <AModal title={editRow?"Edit Rental Entry":"Add Rental Entry"} onClose={()=>setShowModal(false)}>
-          <AInp label="Fiscal Year" value={form.fy} onChange={v=>setForm(p=>({...p,fy:v}))} options={ADMIN_FYS} required/>
-          <AInp label="Category" value={form.category} onChange={v=>setForm(p=>({...p,category:v}))} options={RENTAL_CATS} required/>
-          <AInp label="Month" value={form.month} onChange={v=>setForm(p=>({...p,month:v}))} options={FY_MONTHS} required/>
-          <AInp label="Amount ($)" value={form.amount} onChange={v=>setForm(p=>({...p,amount:v}))} type="number" required/>
-          <div className="flex gap-3 justify-end mt-2">
-            <button onClick={()=>setShowModal(false)} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600">Cancel</button>
-            <button onClick={save} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>{editRow?"Update":"Save"}</button>
-          </div>
-        </AModal>
-      )}
-      {confirm&&<AConfirm message="Delete this rental entry?" onConfirm={()=>del(confirm)} onCancel={()=>setConfirm(null)}/>}
-    </div>
-  );
-}
-
-// ─── PROGRAM AREAS (Camps + Clubhouse + Events) ───────────────────────────────
-function ProgramAreasSection({db}){
-  const [sub,setSub]=useState("camps");
-  const tabs=[{id:"camps",l:"🏕 Camps"},{id:"clubhouse",l:"🏫 Clubhouse"},{id:"events",l:"🎉 Special Events"}];
-  return(
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="font-bold text-slate-800" style={{fontSize:"18px"}}>Program Areas</h2>
-          <p className="text-sm text-slate-500 mt-0.5">Enrollment & revenue trends for camps, clubhouse, and events</p>
-        </div>
-        <div className="flex gap-1 bg-white rounded-xl border border-slate-100 p-1 shadow-sm">
-          {tabs.map(t=>(
-            <button key={t.id} onClick={()=>setSub(t.id)}
-              className="px-4 py-1.5 text-xs font-bold rounded-lg transition"
-              style={sub===t.id?{background:"#1e3a5f",color:"white"}:{color:"#64748b"}}>
-              {t.l}
-            </button>
-          ))}
-        </div>
-      </div>
-      {sub==="camps"&&<CampsDetail db={db}/>}
-      {sub==="clubhouse"&&<ClubhouseDetail db={db}/>}
-      {sub==="events"&&<EventsDetail db={db}/>}
-    </div>
-  );
-}
-
-function CampsDetail({db}){
-  const [camps,setCamps]=useState([]);
-  const [loading,setLoading]=useState(true);
-  const [fy,setFy]=useState("2024-2025");
-  const [showModal,setShowModal]=useState(false);
-  const [editRow,setEditRow]=useState(null);
-  const [confirm,setConfirm]=useState(null);
-  const [form,setForm]=useState({fy:"2024-2025",camp_name:"",enrollment:"",revenue:"",expenses:"",notes:""});
-
-  async function load(){
-    setLoading(true);
-    await seedIfEmpty(db,"admin_camps",SEED_CAMPS);
-    const {data}=await db.from("admin_camps").select("*").order("camp_name");
-    setCamps(data||[]);
-    setLoading(false);
-  }
-  useEffect(()=>{load();},[]);
-
-  async function save(){
-    const d={fy:form.fy,camp_name:form.camp_name,enrollment:parseInt(form.enrollment)||0,revenue:parseFloat(form.revenue)||0,expenses:parseFloat(form.expenses)||0,notes:form.notes||""};
-    if(editRow){await db.from("admin_camps").update(d).eq("id",editRow.id);}
-    else{await db.from("admin_camps").insert(d);}
-    setShowModal(false);setEditRow(null);load();
-  }
-  async function del(id){await db.from("admin_camps").delete().eq("id",id);setConfirm(null);load();}
-  function openEdit(r){setEditRow(r);setForm({fy:r.fy,camp_name:r.camp_name,enrollment:r.enrollment||"",revenue:r.revenue||"",expenses:r.expenses||"",notes:r.notes||""});setShowModal(true);}
-
-  if(loading) return <div className="text-center py-12 text-slate-400">Loading…</div>;
-
-  const allFYs=ADMIN_FYS.filter(f=>camps.some(c=>c.fy===f));
-  const fyRows=camps.filter(c=>c.fy===fy&&c.camp_name!=="Camp Connection");
-  const maxEnroll=Math.max(...fyRows.map(c=>c.enrollment||0),1);
-
-  return(
-    <div>
-      <div className="flex items-center justify-between mb-5">
-        <h3 className="font-semibold text-slate-700">Camps Enrollment & Revenue</h3>
-        <div className="flex items-center gap-3">
-          <FYPicker value={fy} onChange={setFy}/>
-          <button onClick={()=>{setEditRow(null);setForm({fy,camp_name:"",enrollment:"",revenue:"",expenses:"",notes:""});setShowModal(true);}}
-            className="px-3 py-1.5 text-xs font-bold rounded-lg text-white" style={{background:"#7c3aed"}}>+ Add</button>
-        </div>
-      </div>
-
-      {/* YoY enrollment table */}
-      <div className="mb-6 bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden overflow-x-auto">
-        <div className="px-4 py-3 border-b border-slate-100 font-semibold text-sm text-slate-700">Enrollment by Camp — Year over Year</div>
-        <table className="w-full text-xs" style={{minWidth:600}}>
-          <thead>
-            <tr style={{background:"#f8fafc"}}>
-              <th className="text-left px-4 py-2 font-semibold text-slate-500 sticky left-0 bg-slate-50" style={{minWidth:150}}>Camp</th>
-              {allFYs.map(f=><th key={f} className="text-right px-3 py-2 font-semibold text-slate-500">{f.replace("20","'")}</th>)}
-              <th className="px-3 py-2 text-slate-500 font-semibold">Trend</th>
-            </tr>
-          </thead>
-          <tbody>
-            {CAMP_LIST.filter(c=>c!=="Camp Connection").map(camp=>{
-              const vals=allFYs.map(f=>{const r=camps.find(c=>c.fy===f&&c.camp_name===camp);return r?.enrollment||null;});
-              if(vals.every(v=>!v)) return null;
-              return(
-                <tr key={camp} className="border-t border-slate-50 hover:bg-slate-50">
-                  <td className="px-4 py-2 font-semibold text-slate-700 sticky left-0 bg-white">{camp}</td>
-                  {vals.map((v,i)=>{
-                    const prev=vals[i-1];
-                    const pct=prev&&prev>0&&v?((v-prev)/prev)*100:null;
-                    return(
-                      <td key={i} className="px-3 py-2 text-right">
-                        <div className="font-bold text-slate-800">{v!=null?v:"—"}</div>
-                        {pct!=null&&<div style={{color:pct>=0?"#16a34a":"#dc2626",fontSize:"10px"}}>{pct>=0?"▲":"▼"}{Math.abs(pct).toFixed(1)}%</div>}
-                      </td>
-                    );
-                  })}
-                  <td className="px-3 py-2 text-center"><Sparkline values={vals.filter(v=>v!=null)} color="#7c3aed" height={22}/></td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* FY detail bar chart */}
-      <div className="bg-white rounded-xl border border-slate-100 p-5 shadow-sm mb-6">
-        <div className="font-semibold text-sm text-slate-700 mb-4">FY {fy} — Enrollment by Camp</div>
-        <div className="space-y-2">
-          {fyRows.sort((a,b)=>(b.enrollment||0)-(a.enrollment||0)).map(c=>(
-            <div key={c.id} className="flex items-center gap-3">
-              <div className="text-xs text-slate-600 w-32 flex-shrink-0 truncate">{c.camp_name}</div>
-              <div className="flex-1 h-5 rounded-full overflow-hidden" style={{background:"#f1f5f9"}}>
-                <div className="h-full rounded-full" style={{width:`${((c.enrollment||0)/maxEnroll)*100}%`,background:"#7c3aed"}}/>
-              </div>
-              <div className="text-xs font-bold text-slate-800 w-8 text-right">{c.enrollment||0}</div>
-              <div className="flex gap-1">
-                <button onClick={()=>openEdit(c)} className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-400 text-xs">✏</button>
-                <button onClick={()=>setConfirm(c.id)} className="p-1 rounded bg-red-50 hover:bg-red-100 text-red-300 text-xs">✕</button>
-              </div>
-            </div>
-          ))}
-          {fyRows.length===0&&<div className="text-xs text-slate-400 text-center py-4">No camp data for FY {fy} — click "+ Add" to enter data</div>}
-        </div>
-      </div>
-
-      {showModal&&(
-        <AModal title={editRow?"Edit Camp Record":"Add Camp Record"} onClose={()=>setShowModal(false)}>
-          <AInp label="Fiscal Year" value={form.fy} onChange={v=>setForm(p=>({...p,fy:v}))} options={ADMIN_FYS} required/>
-          <AInp label="Camp" value={form.camp_name} onChange={v=>setForm(p=>({...p,camp_name:v}))} options={CAMP_LIST} required/>
-          <div className="grid grid-cols-3 gap-x-4">
-            <AInp label="Enrollment" value={form.enrollment} onChange={v=>setForm(p=>({...p,enrollment:v}))} type="number"/>
-            <AInp label="Revenue ($)" value={form.revenue} onChange={v=>setForm(p=>({...p,revenue:v}))} type="number"/>
-            <AInp label="Expenses ($)" value={form.expenses} onChange={v=>setForm(p=>({...p,expenses:v}))} type="number"/>
-          </div>
-          <AInp label="Notes" value={form.notes} onChange={v=>setForm(p=>({...p,notes:v}))} rows={2}/>
-          <div className="flex gap-3 justify-end mt-2">
-            <button onClick={()=>setShowModal(false)} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600">Cancel</button>
-            <button onClick={save} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#7c3aed"}}>{editRow?"Update":"Save"}</button>
-          </div>
-        </AModal>
-      )}
-      {confirm&&<AConfirm message="Delete this camp record?" onConfirm={()=>del(confirm)} onCancel={()=>setConfirm(null)}/>}
-    </div>
-  );
-}
-
-function ClubhouseDetail({db}){
-  const [rows,setRows]=useState([]);
-  const [loading,setLoading]=useState(true);
-  const [fy,setFy]=useState(ADMIN_CUR);
-  const [showModal,setShowModal]=useState(false);
-  const [editRow,setEditRow]=useState(null);
-  const [confirm,setConfirm]=useState(null);
-  const [form,setForm]=useState({fy:ADMIN_CUR,site:"",enrollment:"",revenue:"",is_archived:false});
-
-  async function load(){
-    setLoading(true);
-    await seedIfEmpty(db,"admin_clubhouse",SEED_CLUBHOUSE);
-    const {data}=await db.from("admin_clubhouse").select("*").eq("is_archived",false).order("site");
-    setRows(data||[]);
-    setLoading(false);
-  }
-  useEffect(()=>{load();},[]);
-
-  async function save(){
-    const d={fy:form.fy,site:form.site,enrollment:parseFloat(form.enrollment)||0,revenue:parseFloat(form.revenue)||0,is_archived:false};
-    if(editRow){await db.from("admin_clubhouse").update(d).eq("id",editRow.id);}
-    else{await db.from("admin_clubhouse").insert(d);}
-    setShowModal(false);setEditRow(null);load();
-  }
-  async function del(id){await db.from("admin_clubhouse").delete().eq("id",id);setConfirm(null);load();}
-  function openEdit(r){setEditRow(r);setForm({fy:r.fy,site:r.site,enrollment:r.enrollment||"",revenue:r.revenue||"",is_archived:false});setShowModal(true);}
-
-  if(loading) return <div className="text-center py-12 text-slate-400">Loading…</div>;
-
-  const allFYs=ADMIN_FYS.filter(f=>rows.some(r=>r.fy===f));
-  const fyRows=rows.filter(r=>r.fy===fy);
-  const maxEnroll=Math.max(...fyRows.map(r=>r.enrollment||0),1);
-  const fyTotal=sumField(fyRows,"enrollment");
-  const fyRevTotal=sumField(fyRows,"revenue");
-
-  return(
-    <div>
-      <div className="flex items-center justify-between mb-5">
-        <div>
-          <h3 className="font-semibold text-slate-700">Clubhouse Sites</h3>
-          {fyTotal>0&&<p className="text-xs text-slate-500 mt-0.5">FY {fy}: {fyTotal.toFixed(0)} avg total enrollment · {adm$(fyRevTotal)} revenue</p>}
-        </div>
-        <div className="flex items-center gap-3">
-          <FYPicker value={fy} onChange={setFy}/>
-          <button onClick={()=>{setEditRow(null);setForm({fy,site:"",enrollment:"",revenue:""});setShowModal(true);}}
-            className="px-3 py-1.5 text-xs font-bold rounded-lg text-white" style={{background:"#0f766e"}}>+ Add</button>
-        </div>
-      </div>
-
-      {/* YoY table */}
-      <div className="mb-6 bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden overflow-x-auto">
-        <div className="px-4 py-3 border-b border-slate-100 font-semibold text-sm text-slate-700">Average Enrollment by Site — Year over Year</div>
-        <table className="w-full text-xs" style={{minWidth:500}}>
-          <thead>
-            <tr style={{background:"#f8fafc"}}>
-              <th className="text-left px-4 py-2 font-semibold text-slate-500 sticky left-0 bg-slate-50" style={{minWidth:140}}>Site</th>
-              {allFYs.map(f=><th key={f} className="text-right px-3 py-2 font-semibold text-slate-500">{f.replace("20","'")}</th>)}
-              <th className="px-3 py-2 text-slate-500 font-semibold">Trend</th>
-            </tr>
-          </thead>
-          <tbody>
-            {CLUB_SITES.map(site=>{
-              const vals=allFYs.map(f=>{const r=rows.find(x=>x.fy===f&&x.site===site);return r?.enrollment||null;});
-              if(vals.every(v=>!v)) return null;
-              return(
-                <tr key={site} className="border-t border-slate-50 hover:bg-slate-50">
-                  <td className="px-4 py-2 font-semibold text-slate-700 sticky left-0 bg-white">{site}</td>
-                  {vals.map((v,i)=>{
-                    const prev=vals[i-1];
-                    const pct=prev&&prev>0&&v?((v-prev)/prev)*100:null;
-                    return(
-                      <td key={i} className="px-3 py-2 text-right">
-                        <div className="font-bold text-slate-800">{v!=null?v.toFixed(0):"—"}</div>
-                        {pct!=null&&<div style={{color:pct>=0?"#16a34a":"#dc2626",fontSize:"10px"}}>{pct>=0?"▲":"▼"}{Math.abs(pct).toFixed(1)}%</div>}
-                      </td>
-                    );
-                  })}
-                  <td className="px-3 py-2 text-center"><Sparkline values={vals.filter(v=>v!=null)} color="#0f766e" height={22}/></td>
-                </tr>
-              );
-            })}
-            <tr className="border-t-2 border-slate-200" style={{background:"#f8fafc"}}>
-              <td className="px-4 py-2 font-bold text-slate-700 sticky left-0 bg-slate-50">TOTAL</td>
-              {allFYs.map(f=>{
-                const t=sumField(rows.filter(r=>r.fy===f),"enrollment");
-                return <td key={f} className="px-3 py-2 text-right font-bold text-slate-800">{t>0?t.toFixed(0):"—"}</td>;
-              })}
-              <td/>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      {/* FY detail with YoY */}
-      <ClubEnrollChart fyRows={fyRows} allRows={rows} fy={fy} maxEnroll={maxEnroll}
-        onEdit={openEdit} onAdd={(site)=>{setEditRow(null);setForm({fy,site,enrollment:"",revenue:""});setShowModal(true);}}/>
-
-      {showModal&&(
-        <AModal title={editRow?"Edit Clubhouse Record":"Add Clubhouse Record"} onClose={()=>setShowModal(false)}>
-          <AInp label="Fiscal Year" value={form.fy} onChange={v=>setForm(p=>({...p,fy:v}))} options={ADMIN_FYS} required/>
-          <AInp label="Site" value={form.site} onChange={v=>setForm(p=>({...p,site:v}))} options={CLUB_SITES} required/>
-          <AInp label="Avg Enrollment" value={form.enrollment} onChange={v=>setForm(p=>({...p,enrollment:v}))} type="number"/>
-          <AInp label="Total Revenue ($)" value={form.revenue} onChange={v=>setForm(p=>({...p,revenue:v}))} type="number"/>
-          <div className="flex gap-3 justify-end mt-2">
-            <button onClick={()=>setShowModal(false)} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600">Cancel</button>
-            <button onClick={save} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#0f766e"}}>{editRow?"Update":"Save"}</button>
-          </div>
-        </AModal>
-      )}
-      {confirm&&<AConfirm message="Delete this clubhouse record?" onConfirm={()=>del(confirm)} onCancel={()=>setConfirm(null)}/>}
-    </div>
-  );
-}
-
-function EventsDetail({db}){
-  const [events,setEvents]=useState([]);
-  const [loading,setLoading]=useState(true);
-  const [fy,setFy]=useState("2024-2025");
-  const [showModal,setShowModal]=useState(false);
-  const [editRow,setEditRow]=useState(null);
-  const [confirm,setConfirm]=useState(null);
-  const [form,setForm]=useState({fy:"2024-2025",event_name:"",event_type:"Summer Concert",attendance:"",revenue:"",expenses:"",notes:""});
-
-  async function load(){
-    setLoading(true);
-    await seedIfEmpty(db,"admin_events",SEED_EVENTS);
-    const {data}=await db.from("admin_events").select("*").order("event_type").order("fy");
-    setEvents(data||[]);
-    setLoading(false);
-  }
-  useEffect(()=>{load();},[]);
-
-  async function save(){
-    const d={fy:form.fy,event_name:form.event_name,event_type:form.event_type,attendance:parseInt(form.attendance)||0,revenue:parseFloat(form.revenue)||0,expenses:parseFloat(form.expenses)||0,notes:form.notes||""};
-    if(editRow){await db.from("admin_events").update(d).eq("id",editRow.id);}
-    else{await db.from("admin_events").insert(d);}
-    setShowModal(false);setEditRow(null);load();
-  }
-  async function del(id){await db.from("admin_events").delete().eq("id",id);setConfirm(null);load();}
-  function openEdit(r){setEditRow(r);setForm({fy:r.fy,event_name:r.event_name,event_type:r.event_type,attendance:r.attendance||"",revenue:r.revenue||"",expenses:r.expenses||"",notes:r.notes||""});setShowModal(true);}
-
-  if(loading) return <div className="text-center py-12 text-slate-400">Loading…</div>;
-
-  const allFYs=ADMIN_FYS.filter(f=>events.some(e=>e.fy===f));
-  const fyRows=events.filter(e=>e.fy===fy);
-  const totalAtt=sumField(fyRows,"attendance");
-
-  // YoY by event type
-  const eventTypes=[...new Set(events.map(e=>e.event_type))];
-
-  return(
-    <div>
-      <div className="flex items-center justify-between mb-5">
-        <div>
-          <h3 className="font-semibold text-slate-700">Special Events</h3>
-          {totalAtt>0&&<p className="text-xs text-slate-500 mt-0.5">FY {fy}: {totalAtt.toLocaleString()} total attendance</p>}
-        </div>
-        <div className="flex items-center gap-3">
-          <FYPicker value={fy} onChange={setFy}/>
-          <button onClick={()=>{setEditRow(null);setForm({fy,event_name:"",event_type:"Summer Concert",attendance:"",revenue:"",expenses:"",notes:""});setShowModal(true);}}
-            className="px-3 py-1.5 text-xs font-bold rounded-lg text-white" style={{background:"#b45309"}}>+ Add Event</button>
-        </div>
-      </div>
-
-      {/* YoY summary by event series */}
-      <div className="mb-6 bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden overflow-x-auto">
-        <div className="px-4 py-3 border-b border-slate-100 font-semibold text-sm text-slate-700">Attendance by Year</div>
-        <table className="w-full text-xs" style={{minWidth:500}}>
-          <thead>
-            <tr style={{background:"#f8fafc"}}>
-              <th className="text-left px-4 py-2 font-semibold text-slate-500" style={{minWidth:180}}>Event</th>
-              {allFYs.map(f=><th key={f} className="text-right px-3 py-2 font-semibold text-slate-500">{f.replace("20","'")}</th>)}
-              <th className="px-3 py-2 text-slate-500 font-semibold">Trend</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[...new Set(events.map(e=>e.event_name))].map(nm=>{
-              const vals=allFYs.map(f=>sumField(events.filter(e=>e.fy===f&&e.event_name===nm),"attendance")||null);
-              if(vals.every(v=>!v)) return null;
-              return(
-                <tr key={nm} className="border-t border-slate-50 hover:bg-slate-50">
-                  <td className="px-4 py-2 font-semibold text-slate-700">{nm}</td>
-                  {vals.map((v,i)=>{
-                    const prev=vals[i-1];
-                    const pct=prev&&prev>0&&v?((v-prev)/prev)*100:null;
-                    return(
-                      <td key={i} className="px-3 py-2 text-right">
-                        <div className="font-bold text-slate-800">{v||"—"}</div>
-                        {pct!=null&&<div style={{color:pct>=0?"#16a34a":"#dc2626",fontSize:"10px"}}>{pct>=0?"▲":"▼"}{Math.abs(pct).toFixed(1)}%</div>}
-                      </td>
-                    );
-                  })}
-                  <td className="px-3 py-2 text-center"><Sparkline values={vals.filter(v=>v!=null)} color="#b45309" height={22}/></td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* FY event list */}
-      <div className="space-y-2">
-        {fyRows.sort((a,b)=>(b.attendance||0)-(a.attendance||0)).map(e=>(
-          <div key={e.id} className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm flex items-center gap-4">
-            <div className="flex-1">
-              <div className="font-semibold text-slate-800 text-sm">{e.event_name}</div>
-              <div className="text-xs text-slate-500 mt-0.5 flex gap-3">
-                <span>{e.event_type}</span>
-                {e.revenue>0&&<span>{adm$(e.revenue)} revenue</span>}
-                {e.notes&&<span className="text-slate-400">{e.notes}</span>}
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="font-bold text-slate-800">{(e.attendance||0).toLocaleString()}</div>
-              <div className="text-xs text-slate-500">attendees</div>
-            </div>
-            <div className="flex gap-1">
-              <button onClick={()=>openEdit(e)} className="p-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-500">✏</button>
-              <button onClick={()=>setConfirm(e.id)} className="p-1.5 rounded bg-red-50 hover:bg-red-100 text-red-400">✕</button>
-            </div>
-          </div>
-        ))}
-        {fyRows.length===0&&<EmptyState msg={`No events for FY ${fy}`} action="Add Event" onAction={()=>{setEditRow(null);setForm({fy,event_name:"",event_type:"Summer Concert",attendance:"",revenue:"",expenses:"",notes:""});setShowModal(true);}}/>}
-      </div>
-
-      {showModal&&(
-        <AModal title={editRow?"Edit Event":"Add Event"} onClose={()=>setShowModal(false)} wide>
-          <div className="grid grid-cols-2 gap-x-4">
-            <AInp label="Fiscal Year" value={form.fy} onChange={v=>setForm(p=>({...p,fy:v}))} options={ADMIN_FYS} required/>
-            <AInp label="Event Type" value={form.event_type} onChange={v=>setForm(p=>({...p,event_type:v}))} options={EVENT_TYPES}/>
-            <AInp label="Attendance" value={form.attendance} onChange={v=>setForm(p=>({...p,attendance:v}))} type="number"/>
-            <AInp label="Revenue ($)" value={form.revenue} onChange={v=>setForm(p=>({...p,revenue:v}))} type="number"/>
-            <AInp label="Expenses ($)" value={form.expenses} onChange={v=>setForm(p=>({...p,expenses:v}))} type="number"/>
-          </div>
-          <AInp label="Event Name" value={form.event_name} onChange={v=>setForm(p=>({...p,event_name:v}))} required/>
-          <AInp label="Notes" value={form.notes} onChange={v=>setForm(p=>({...p,notes:v}))} rows={2}/>
-          <div className="flex gap-3 justify-end mt-2">
-            <button onClick={()=>setShowModal(false)} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600">Cancel</button>
-            <button onClick={save} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#b45309"}}>{editRow?"Update":"Save"}</button>
-          </div>
-        </AModal>
-      )}
-      {confirm&&<AConfirm message="Delete this event?" onConfirm={()=>del(confirm)} onCancel={()=>setConfirm(null)}/>}
-    </div>
-  );
-}
-
-const SEED_FEES = [
-  {fy:"2026-2027",area:"Other",program_name:"Dog Park Passes - Annual",resident_fee:"$25/$31",nonresident_fee:"$28/$40/$52 & $35/$50/$60",contractual:false,notes:"SR & created tiers for dogs - 1, 2, 3 etc.",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Dog Park Passes - Late Season",resident_fee:"$15/$19",nonresident_fee:"$20/$24/$32 & $25/$30/$40",contractual:false,notes:"SR & created tiers for dogs - 1, 2, 3 etc.",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Dog Park Passes - Daily",resident_fee:"8.0",nonresident_fee:"$8/$12/$16",contractual:false,notes:"SR & created tiers for dogs - 1, 2, 3 etc.",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Drawing & Painting",resident_fee:"$91/$114",nonresident_fee:"$80/$100",contractual:false,notes:"The number of classes/sessions decreased",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Mah Jongg Tournament",resident_fee:"25.0",nonresident_fee:"27.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Adult Trips",resident_fee:"varies dep on destination",nonresident_fee:"varies dep on destination",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Adult Basketball - Open Gym",resident_fee:"$6 Per Class",nonresident_fee:"$7 Per Class",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Adult Fall Softball",resident_fee:"750.0",nonresident_fee:"800.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Pickleball Clinics",resident_fee:"$75 Per Class",nonresident_fee:"$80 Per Class",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Adult Pickleball",resident_fee:"$6 Per Class",nonresident_fee:"$7 Per Class",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Adult Summer Softball Competitive",resident_fee:"750.0",nonresident_fee:"800.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Adult Summer Softball Recreational",resident_fee:"750.0",nonresident_fee:"800.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Adult Volleyball",resident_fee:"$6 Per Class",nonresident_fee:"$7 Per Class",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Fall Adult Karate",resident_fee:"$15 - $19",nonresident_fee:"$15 - $19",contractual:true,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Spring Adult Karate",resident_fee:"$15 - $19",nonresident_fee:"$15 - $19",contractual:true,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Summer Adult Karate",resident_fee:"$15 - $19",nonresident_fee:"$15 - $19",contractual:true,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Winter Adult Karate",resident_fee:"$15 - $19",nonresident_fee:"$15 - $19",contractual:true,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Adult Bags League",resident_fee:"$65 Per Team",nonresident_fee:"$65 Per Team",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Adult Kickball League",resident_fee:"$65 Per Team",nonresident_fee:"$65 Per Team",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Adult Whiffle Ball League",resident_fee:"$65 Per Team",nonresident_fee:"$65 Per Team",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"All Ages - Fall/Winter",resident_fee:"380.0",nonresident_fee:"385.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"All Ages - Summer",resident_fee:"205.0",nonresident_fee:"210.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"8 & Under - Fall/Winter",resident_fee:"490.0",nonresident_fee:"495.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"9-10, 11-12, 13-14, 15 and older - Fall/Winter",resident_fee:"565.0",nonresident_fee:"570.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"8 & Under - Summer",resident_fee:"380.0",nonresident_fee:"385.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"9-10, 11-12, 13-14, 15 and older - Summer",resident_fee:"465.0",nonresident_fee:"470.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Swim Team Tryouts",resident_fee:"10.0",nonresident_fee:"15.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Per session (8 - 30 min.) Tadpoles Swim Classes",resident_fee:"$111/$139",nonresident_fee:"$115/$145",contractual:false,notes:"SR",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Per session (8 - 30 min.) Water Babies",resident_fee:"$70/$88",nonresident_fee:"$75/$95",contractual:false,notes:"SR",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Per session (8 - 30 min.) Water Tots",resident_fee:"$83/$104",nonresident_fee:"$90/$115",contractual:false,notes:"SR",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Per session (8 - 30 min.) Group Swim Classes",resident_fee:"$99/$124",nonresident_fee:"$100/$125",contractual:false,notes:"SR",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Per session (6 - 60 min.) Swim Team Prep (26-27 based on 6 classes)",resident_fee:"$166/$207",nonresident_fee:"$125/$160",contractual:false,notes:"The number of classes/sessions decreased",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Private Lessons Fee (8 lessons)",resident_fee:"250.0",nonresident_fee:"260.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Small Group Training (swim team)",resident_fee:"45.0",nonresident_fee:"45.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Hurricanes Private Lessons (30 min lessons)",resident_fee:"42.0",nonresident_fee:"45.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Member Priority Private Lessons (8 lessons) (Members)",resident_fee:"210.0",nonresident_fee:"215.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Member Priority Private Lessons (8 lessons) (Non-Member Residents)",resident_fee:"250.0",nonresident_fee:"260.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Member Priority Private Lessons (8 lessons) (Non-Member Non-Res)",resident_fee:"313.0",nonresident_fee:"325.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Lifeguard (New)",resident_fee:"85.0",nonresident_fee:"100.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"12 months and under",resident_fee:"Free",nonresident_fee:"Free",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Children and Adults",resident_fee:"5.0",nonresident_fee:"5.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Seniors",resident_fee:"3.0",nonresident_fee:"3.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Twilight Time",resident_fee:"3.0",nonresident_fee:"3.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"With Current Pool Pass",resident_fee:"4.0",nonresident_fee:"4.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Splasher Pass",resident_fee:"80.0",nonresident_fee:"80.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Party Deck Rental",resident_fee:"$175 / $215",nonresident_fee:"$177 / $265",contractual:false,notes:"SR",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Ultimate (Private) Rental (Full Facility Rental)",resident_fee:"$440 / $540",nonresident_fee:"$440 / $660",contractual:false,notes:"SR",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Splash Bash (Semi Private - Max 65) Rental",resident_fee:"$245 / $307",nonresident_fee:"$247 / $370",contractual:false,notes:"SR",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Mini Splash Bash (Semi Private - Max 50) Rental",resident_fee:"$215 / $269",nonresident_fee:"$217 / $325",contractual:false,notes:"SR",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Lap Swim",resident_fee:"8.0",nonresident_fee:"8.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Open Swim",resident_fee:"8.0",nonresident_fee:"8.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Senior Rate",resident_fee:"5.0",nonresident_fee:"5.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Twilight Time Public/Senior",resident_fee:"5.0",nonresident_fee:"5.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Pool Punch Pass",resident_fee:"$120/$150",nonresident_fee:"$120/$150",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Individual",resident_fee:"$125/$156",nonresident_fee:"$125/$160",contractual:false,notes:"SR",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Family of 2",resident_fee:"$140/$174",nonresident_fee:"$140/$175",contractual:false,notes:"SR",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Family of 3",resident_fee:"$155/$192",nonresident_fee:"$155/$195",contractual:false,notes:"SR",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Family of 4",resident_fee:"$170/$210",nonresident_fee:"$170/$215",contractual:false,notes:"SR",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Family of 5",resident_fee:"$185/$228",nonresident_fee:"$185/$235",contractual:false,notes:"SR",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Family of 6",resident_fee:"$200/$246",nonresident_fee:"$200/$250",contractual:false,notes:"SR",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"District 102 - Pritchett, Tripp - AM",resident_fee:"13.0",nonresident_fee:"14.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"District 102 - Pritchett, Tripp - PM",resident_fee:"16.0",nonresident_fee:"17.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"District 102 - Meridian - AM",resident_fee:"7.0",nonresident_fee:"7.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"District 102 - Meridian - PM",resident_fee:"23.0",nonresident_fee:"24.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"District 21 - Kilmer, Longfellow - AM",resident_fee:"13.0",nonresident_fee:"14.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"District 21 - Kilmer, Longfellow - PM",resident_fee:"16.0",nonresident_fee:"17.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"District 96  - Ivy, Kld, Pra, Ctry Meadows - AM",resident_fee:"8.0",nonresident_fee:"9.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"District 96  - Ivy, Kld, Pra, Ctry Meadows - PM",resident_fee:"20.0",nonresident_fee:"21.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"District 96  - Willow Grove - AM",resident_fee:"11.0",nonresident_fee:"12.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"District 96  - Willow Grove - PM",resident_fee:"20.0",nonresident_fee:"21.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"One Day Field Trip (Clubhouse Participant)",resident_fee:"60.0",nonresident_fee:"65.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Field Trip Only (Attends field trips but not a Clubhouse participant)",resident_fee:"70.0",nonresident_fee:"75.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Birthday Parties - Basic",resident_fee:"345.0",nonresident_fee:"$300 In/$375 Out",contractual:false,notes:"SR & Created In/Out-of-District Pricing",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Birthday Parites - Specialty",resident_fee:"430.0",nonresident_fee:"$400 In/$500 Out",contractual:false,notes:"SR & Created In/Out-of-District Pricing",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Two Year Old Preschool- 2 days",resident_fee:"19.0",nonresident_fee:"24.66",contractual:false,notes:"Extended class to 2 hours/day & one extra week",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Two Year Old Preschool- 3 days",resident_fee:"19.0",nonresident_fee:"24.75",contractual:false,notes:"Extended class to 2 hours/day & one extra week",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Pre Threes Preschool- 2 days",resident_fee:"24.0",nonresident_fee:"27.0",contractual:false,notes:"Extended class to 2.25 hours/day",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Pre Threes Preschool- 3 days",resident_fee:"24.0",nonresident_fee:"27.0",contractual:false,notes:"Extended class to 2.25 hours/day",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Three Year Old Preschool- 2 days",resident_fee:"35.0",nonresident_fee:"N/A",contractual:false,notes:"Lack of registration",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Three Year Old Preschool- 3 days",resident_fee:"35.0",nonresident_fee:"35.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Three Year Old Preschool- 5 days",resident_fee:"35.0",nonresident_fee:"35.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Four Year Old Preschool- 2 days",resident_fee:"35.0",nonresident_fee:"N/A",contractual:false,notes:"Lack of registration",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Four Year Old Preschool- 3 days",resident_fee:"35.0",nonresident_fee:"35.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Four Year Old Preschool- 5 days",resident_fee:"35.0",nonresident_fee:"35.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Alphabet Zoo",resident_fee:"13.0",nonresident_fee:"14.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Hands on Art",resident_fee:"29.0",nonresident_fee:"N/A",contractual:true,notes:"Program cancelled",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Game On",resident_fee:"19.5",nonresident_fee:"21.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Passport to Adventure",resident_fee:"20.0",nonresident_fee:"21.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Kid Rock",resident_fee:"13.0",nonresident_fee:"13.0",contractual:true,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Friendship Cafe'",resident_fee:"13.0",nonresident_fee:"14.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Math Detectives",resident_fee:"13.0",nonresident_fee:"14.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Sprinkle and Sparkle Crafts",resident_fee:"13.0",nonresident_fee:"14.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Add-On",resident_fee:"$44IN/$44OUT",nonresident_fee:"$47IN/$47OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Adult",resident_fee:"$73IN/$83OUT",nonresident_fee:"$76IN/$86OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Corporate",resident_fee:"$65IN/$65OUT",nonresident_fee:"$68IN/$68OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Corporate B",resident_fee:"$60IN/$60OUT",nonresident_fee:"$63IN/$63OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Corporate Special (EMERG PERS)",resident_fee:"$44IN/$44OUT",nonresident_fee:"$47IN/$47OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Senior",resident_fee:"$55IN/$65OUT",nonresident_fee:"$58IN/$68OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Military/Veteran",resident_fee:"$44IN/$44OUT",nonresident_fee:"$47IN/$47OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Annual Adult",resident_fee:"$876IN/$996OUT",nonresident_fee:"$912IN/$1032OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Annual Add-On",resident_fee:"$528 IN/OUT",nonresident_fee:"$564 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Annual Senior",resident_fee:"$660IN/$780OUT",nonresident_fee:"$696IN/$816OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Annual Corporate",resident_fee:"$780 IN/OUT",nonresident_fee:"$816 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Annual Corporate B",resident_fee:"$720 IN/OUT",nonresident_fee:"$756 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Annual Military/Veteran",resident_fee:"$528 IN/OUT",nonresident_fee:"$564 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Reinrollment Fee",resident_fee:"$100 IN/OUT",nonresident_fee:"$100 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"10 Day Student Pass",resident_fee:"$20 IN/OUT",nonresident_fee:"$30 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"30 Day Student Pass",resident_fee:"$40 IN/OUT",nonresident_fee:"$50 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"100 Day Student Pass",resident_fee:"$100 IN/OUT",nonresident_fee:"$150 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"10 Day Family of Member Pass",resident_fee:"$29 IN/OUT",nonresident_fee:"$32 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"1 Month Family of Member Pass",resident_fee:"$59 IN/OUT",nonresident_fee:"$62 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"1 Month Adult",resident_fee:"$95 IN/OUT",nonresident_fee:"$98 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"1 Month Senior",resident_fee:"$75 IN/OUT",nonresident_fee:"$78 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"1 Week Adult Guest",resident_fee:"$50 IN/OUT",nonresident_fee:"$53 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"2 Week Adult Guest",resident_fee:"$75 IN/OUT",nonresident_fee:"$78 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"3 Week Adult Guest",resident_fee:"$85 IN/OUT",nonresident_fee:"$88 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"1 Day Guest",resident_fee:"$15 IN/OUT",nonresident_fee:"$18 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"1 Day Corp",resident_fee:"$7 IN/OUT",nonresident_fee:"$10 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Flex Pass 12 Visits",resident_fee:"$150 IN/OUT",nonresident_fee:"$180 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Starter Pack 5-Half Hour Sessions",resident_fee:"$135M/$185NM",nonresident_fee:"$175M/$225NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Single Session Half Hour Rate",resident_fee:"$37M/$47NM",nonresident_fee:"$40M/$50NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"5 Pack",resident_fee:"$176 M/$223NM",nonresident_fee:"$190M/$228NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"10 Pack",resident_fee:"$333 M/$423NM",nonresident_fee:"$360 M/$450NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"15 Pack",resident_fee:"$472 M/$599NM",nonresident_fee:"$510M/$638NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"20 Pack",resident_fee:"$592M/$752NM",nonresident_fee:"$640M/$800NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Buddy Half Hour Rate",resident_fee:"$27M/$37NM",nonresident_fee:"$30M/$40NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"5 Pack",resident_fee:"$128M/ $176NM",nonresident_fee:"$143M/ $190NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"10 Pack",resident_fee:"$243M/$333NM",nonresident_fee:"$270M/$360NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"15 Pack",resident_fee:"$344M/$472NM",nonresident_fee:"$383M/$510NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"20 Pack",resident_fee:"$432M/$592NM",nonresident_fee:"$480M/$640NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Single Session Hour Rate",resident_fee:"$65 M/$75 NM",nonresident_fee:"$68 M/$78 NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"5 Pack",resident_fee:"$309 M/$356 NM",nonresident_fee:"$323 M/$371 NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"10 Pack",resident_fee:"$585 M/$675 NM",nonresident_fee:"$612 M/$702 NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"15 Pack",resident_fee:"$829 M/ $956NM",nonresident_fee:"$867 M/ $995NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"20 Pack",resident_fee:"$1040M/ $1200NM",nonresident_fee:"$1088M/ $1248NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Buddy Hour Rate",resident_fee:"$45M/$55NM",nonresident_fee:"$48M/$58NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"5 Pack",resident_fee:"$214M/$261NM",nonresident_fee:"$228M/$276NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"10 Pack",resident_fee:"$405M/$495NM",nonresident_fee:"$43M/$522NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"15 Pack",resident_fee:"$574M/$701NM",nonresident_fee:"$612M/$740NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"20 Pack",resident_fee:"$720M/$880NM",nonresident_fee:"$768M/$928NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Stretch Single Session",resident_fee:"$20M/$25NM",nonresident_fee:"$20M/$25NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"5 Pack Stretch",resident_fee:"$95M/$119NM",nonresident_fee:"$95M/$119NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Fencing 3 Day Monthly Membership USSA",resident_fee:"N/A",nonresident_fee:"$270 IN/$290 OUT",contractual:true,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Fencing 3 Day Add-on Monthly Membership USSA",resident_fee:"N/A",nonresident_fee:"$230 IN/$247 OUT",contractual:true,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Fencing 2 Day Monthly Membership USSA",resident_fee:"N/A",nonresident_fee:"$250 IN/$270 OUT",contractual:true,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Fencing 2 Day Add-on Monthly Membership USSA",resident_fee:"N/A",nonresident_fee:"$213 IN/$230 OUT",contractual:true,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Fencing 1 Day Monthly Membership USSA",resident_fee:"N/A",nonresident_fee:"$160 IN/$180 OUT",contractual:true,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Fencing 1 Day Add-on Monthly USSA",resident_fee:"N/A",nonresident_fee:"$136 IN/$153 OUT",contractual:true,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Fencing Starter Pack 5/2 USSA",resident_fee:"N/A",nonresident_fee:"$250 IN/OUT",contractual:true,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Fencing 1/2 hour - 1",resident_fee:"$56 IN/OUT",nonresident_fee:"$56 IN/OUT",contractual:true,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Fencing 1/2 hour - 5 pack",resident_fee:"$260 IN/OUT",nonresident_fee:"$260 IN/OUT",contractual:true,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Fencing 1/2 hour - 10 pack",resident_fee:"$510 IN/OUT",nonresident_fee:"$510 IN/OUT",contractual:true,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Fencing 1/2 hour - 15 pack",resident_fee:"$750 IN/OUT",nonresident_fee:"$750 IN/OUT",contractual:true,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Open Fencing USSA",resident_fee:"50.0",nonresident_fee:"$25 IN/$35 OUT",contractual:true,notes:"The price was incorrectly inputted last year.",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Drop-in Fencing USSA",resident_fee:"65.0",nonresident_fee:"50.0",contractual:true,notes:"The price was incorrectly inputted last year.",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Fencing Monthly Adult IFC",resident_fee:"N/A",nonresident_fee:"$30 IN/OUT",contractual:true,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Fencing Group Class IFC",resident_fee:"$28 IN/ $33 OUT",nonresident_fee:"$28 IN/$32 OUT",contractual:true,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Drop-in Fencing Adult  IFC",resident_fee:"15.0",nonresident_fee:"15.0",contractual:true,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Group Reformer Class",resident_fee:"$26M/$32NM",nonresident_fee:"$30M/$35",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Starter Pack  4- One Hour Sessions",resident_fee:"$200M/$250NM",nonresident_fee:"$230M/$270NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Single Sessions",resident_fee:"$67M/$77NM",nonresident_fee:"$70M/$80NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Hour 5 Pack",resident_fee:"$318M/$366NM",nonresident_fee:"$333M/$380NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Hour 10 Pack",resident_fee:"$603M/$693NM",nonresident_fee:"$630M/$720NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Hour 15 pack",resident_fee:"$855M/$982NM",nonresident_fee:"$893M/$1020NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Hour 20 Pack",resident_fee:"$1072M/$1232NM",nonresident_fee:"$1120M/$1280NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Duet Hour Single Session",resident_fee:"$47M/$57NM",nonresident_fee:"$50M/$60NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Duet 5 Pack",resident_fee:"$225M/$271NM",nonresident_fee:"$238M/$285NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Duet 10 Pack",resident_fee:"$423M/$513NM",nonresident_fee:"$450M/$540NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Duet 15 Pack",resident_fee:"$600M/$727NM",nonresident_fee:"$638M/$765NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Duet 20 Pack",resident_fee:"$752M/$912NM",nonresident_fee:"$800M/$960NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Aqua Arthritis",resident_fee:"$10M/$13NM",nonresident_fee:"$12M/$15NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Choose To Lose,Spring Fit, Beach Body",resident_fee:"$18 M/$20 NM",nonresident_fee:"$20M/$25NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Stress Management",resident_fee:"$18 M/$20 NM",nonresident_fee:"$20M/$25NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Team Fit & Strong",resident_fee:"$18 M/$20 NM",nonresident_fee:"$20M/$25NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Group Weight Lifting",resident_fee:"$18 M/$20 NM",nonresident_fee:"$20M/$25NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"TRX Core Training",resident_fee:"$10M/$13NM",nonresident_fee:"$12M/$15NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Youth Boxing",resident_fee:"$18 M/$20 NM",nonresident_fee:"$20M/$25NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Strong Girls",resident_fee:"$18 M/$20 NM",nonresident_fee:"$20M/$25NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Youth Fitness",resident_fee:"$18 M/$20 NM",nonresident_fee:"$20M/$25NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Teen Boxing",resident_fee:"$18 M/$20 NM",nonresident_fee:"$20M/$25NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Swim for Fitness",resident_fee:"$18 M/$20 NM",nonresident_fee:"$20M/$25NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Evolution Basketball Training Camp",resident_fee:"$500 IN/$600 OUT",nonresident_fee:"$160 IN/$180 OUT",contractual:true,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Single Session 45 minutes",resident_fee:"$95M/$110NM",nonresident_fee:"$95M/$110NM",contractual:true,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Starter Pack 6 -  45 minute sessions",resident_fee:"$510M/$510NM",nonresident_fee:"$510M/$510NM",contractual:true,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"8 Pack 45 minutes",resident_fee:"$720M/$800NM",nonresident_fee:"$720M/$800NM",contractual:true,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"10 Pack 45 minutes",resident_fee:"$900M/$1000NM",nonresident_fee:"$900M/$1000NM",contractual:true,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"12 Pack 45 minutes",resident_fee:"$1080M/$1200NM",nonresident_fee:"$1080M/$1200NM",contractual:true,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Forever Fit",resident_fee:"7.0",nonresident_fee:"8.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Hatha Yoga",resident_fee:"12.0",nonresident_fee:"16.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Zumba",resident_fee:"$70-$175",nonresident_fee:"$120/$150",contractual:true,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Junior Golf Level 1",resident_fee:"$140In/$175Out",nonresident_fee:"$160In/$200Out",contractual:false,notes:"SR",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Junior Golf Level 2",resident_fee:"$140In/$175Out",nonresident_fee:"$160In/$200Out",contractual:false,notes:"SR",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Adult Level 1",resident_fee:"$140In/$175Out",nonresident_fee:"$160In/$200Out",contractual:false,notes:"SR",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Adult Level 2",resident_fee:"$140In/$175Out",nonresident_fee:"$160In/$200Out",contractual:false,notes:"SR",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"5 Hour Pass",resident_fee:"$95in Nov/$105ROS",nonresident_fee:"$100in Nov/$110 ROS",contractual:false,notes:"SR",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Season Pass",resident_fee:"700.0",nonresident_fee:"725.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"30 Min Tee Admission (weekday before 6pm)",resident_fee:"13.0",nonresident_fee:"14.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"30 Min Tee Admission (weekends)",resident_fee:"14.0",nonresident_fee:"15.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"30 Min Tee Admission (Senior rate)",resident_fee:"11.0",nonresident_fee:"12.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"30 Min Tee Admission (Student rate)",resident_fee:"12.0",nonresident_fee:"13.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Golf Pro Lessons",resident_fee:"$13Wkdy/$14Wknd",nonresident_fee:"$14Wkdy/$15Wknd",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Alcott Small Room (Monday - Thursday)",resident_fee:"$40 in/$60 out",nonresident_fee:"$40 in/$60 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Alcott Large Room (Monday - Thursday)",resident_fee:"$60 in/$90 out",nonresident_fee:"$85 in/$130 out",contractual:false,notes:"Adjusted to match CAC rates",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Alcott Small Room (Friday - Sunday)",resident_fee:"$50 in/$75 out",nonresident_fee:"$50 in/$75 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Alcott Large Room (Friday - Sunday)",resident_fee:"$80 in/$120 out",nonresident_fee:"$110 in/$165 out",contractual:false,notes:"Adjusted to match CAC rates",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"CAC Rooms 6, 7 (Monday - Thursday)",resident_fee:"$40 in/ $60 out",nonresident_fee:"$40 in/ $60 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"CAC Rooms 19, 21 (Monday - Thursday)",resident_fee:"$75 in/ $115 out",nonresident_fee:"$85 in/ $130 out",contractual:false,notes:"Adjusted to align with rooms of the same size",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"CAC Room 20 (Monday - Thursday)",resident_fee:"$85 in/ $130 out",nonresident_fee:"$95 in/ $140 out",contractual:false,notes:"Increased because of size",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"CAC Full MPR (20 & 21) (Monday - Thursday)",resident_fee:"$100 in/ $150 out",nonresident_fee:"$125 in/ $180 out",contractual:false,notes:"Increased because of size",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"CAC Theater (Monday - Thursday)",resident_fee:"$125 in/ $190 out",nonresident_fee:"$125 in/ $190 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"CAC Rooms 6, 7 (Friday - Sunday)",resident_fee:"$50 in/ $75 out",nonresident_fee:"$50 in/ $75 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"CAC Rooms 19, 21 (Friday - Sunday)",resident_fee:"$95 in/ $145 out",nonresident_fee:"$110 in/ $165 out",contractual:false,notes:"Increased because of size",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"CAC Room 20 (Friday - Sunday)",resident_fee:"$110 in/ $165 out",nonresident_fee:"$120 in/ $175 out",contractual:false,notes:"Increased by $10 since it's a larger space than 19 or 20",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"CAC Full MPR (20 & 21) (Friday - Sunday)",resident_fee:"$125 in/ $190 out",nonresident_fee:"$150 in/ $215 out",contractual:false,notes:"Increased because of size",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"CAC Theater (Friday - Sunday)",resident_fee:"$155 in/ $235 out",nonresident_fee:"$155 in/ $235 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Scout Badge Day",resident_fee:"10.0",nonresident_fee:"$5/$10",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Camp in a bag - I",resident_fee:"25.0",nonresident_fee:"N/A",contractual:false,notes:"Program cancelled",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"School Educational Programs",resident_fee:"$25/$30",nonresident_fee:"$50$65",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Thanksgiving Class",resident_fee:"10.0",nonresident_fee:"12.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Love, Murder, Science",resident_fee:"5.0",nonresident_fee:"5.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Mom and Me Tea",resident_fee:"30.0",nonresident_fee:"30.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Puzzle Palooza",resident_fee:"40.0",nonresident_fee:"40.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Wedding Dress Workshop",resident_fee:"65.0",nonresident_fee:"65.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Scout Programs",resident_fee:"$5/$10",nonresident_fee:"$5/$10",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Nature Classroom Birthday Party",resident_fee:"300.0",nonresident_fee:"300.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Fields",resident_fee:"$40/hr",nonresident_fee:"$50/$75/hr",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Parking Lots",resident_fee:"$100/day",nonresident_fee:"$100/day",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Shelters Monday - Friday (Public and Nonprofits)",resident_fee:"$40/ $60",nonresident_fee:"$40/ $60",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Shelters Saturday - Sunday (Public and Nonprofits)",resident_fee:"$60/ $90",nonresident_fee:"$60/ $90",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Shelters Monday - Friday (Corporations)",resident_fee:"$70/$105",nonresident_fee:"N/A",contractual:false,notes:"Not offereing",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Shelters Saturday - Sunday (Corportations)",resident_fee:"$90/$135",nonresident_fee:"N/A",contractual:false,notes:"Not offereing",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Special Events",resident_fee:"$100 - $2500",nonresident_fee:"$100 - $2500",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Amphitheater Pavilion Monday-Friday",resident_fee:"$100/$150",nonresident_fee:"$150/$225",contractual:false,notes:"Increased because of size",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Amphitheater Pavilion Saturday-Sunday",resident_fee:"$150/ $225",nonresident_fee:"$200/$300",contractual:false,notes:"Increased because of size",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Sport Courts",resident_fee:"$10/$13",nonresident_fee:"$10/$15/hour",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Commercial Rentals Monday-Thursday. 1 day package",resident_fee:"$1,150 in/ $1,725 out",nonresident_fee:"$1,150 in/ $1,725 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Commercial Rentals Monday-Thursday. 2 day package",resident_fee:"$2,100 in/ $3,150 out",nonresident_fee:"$2,100 in/ $3,150 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Commercial Rentals Monday-Thursday. 3 day package",resident_fee:"$3,000 in/ $4,500 out",nonresident_fee:"$3,000 in/ $4,500 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Commercial Rentals Friday-Sunday. 1 day package",resident_fee:"$1,300 in/ $2,100 out",nonresident_fee:"$1,300 in/ $2,100 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Commercial Rentals Friday-Sunday. 2 day package",resident_fee:"$2,350 in/$3,525 out",nonresident_fee:"$2,350 in/$3,525 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Commercial Rentals Friday-Sunday. 3 day package",resident_fee:"$3,250 in/ $4,875 out",nonresident_fee:"$3,250 in/ $4,875 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Private Rentals Monday-Thursday",resident_fee:"$300 in/ $450 out",nonresident_fee:"$300 in/ $450 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Private Rentals Friday-Sunday",resident_fee:"$500 in/$750 out",nonresident_fee:"$500 in/$750 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Fall Young Children's Theater",resident_fee:"350.0",nonresident_fee:"$400/$500",contractual:false,notes:"SR",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Fall Children's Theater",resident_fee:"400.0",nonresident_fee:"$400/$500",contractual:false,notes:"SR & Added out-of-district rates",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Winter Teen Theater",resident_fee:"400.0",nonresident_fee:"$400/$500",contractual:false,notes:"SR & Added out-of-district rates",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Spring Kids Theater",resident_fee:"400.0",nonresident_fee:"$400/$500",contractual:false,notes:"SR & Added out-of-district rates",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Summer Musical",resident_fee:"25.0",nonresident_fee:"N/A",contractual:false,notes:"Eliminating registration fee",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Workshop Series",resident_fee:"25.0",nonresident_fee:"25.0",contractual:false,notes:"SR",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Acting Studio",resident_fee:"$12.40-$13",nonresident_fee:"$12.50-$14 per class",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Advanced Theatre Co.",resident_fee:"$15-$18 per class",nonresident_fee:"$15-$18 per class",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Piano Instruction",resident_fee:"380.0",nonresident_fee:"$380/$475",contractual:false,notes:"SR & Added out-of-district rates",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Special Recreation Theater: Broadway Buddies",resident_fee:"$20 per class",nonresident_fee:"$20 per class",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"BG Singers",resident_fee:"230.0",nonresident_fee:"230.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Dance Company Minis",resident_fee:"$14 per class",nonresident_fee:"$14 per class",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Dance Company Duets/Trios",resident_fee:"$16 per class",nonresident_fee:"$18 per class",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Dance Company Choreography Classes",resident_fee:"$11 per class",nonresident_fee:"$12 per class",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Dance Company Solos",resident_fee:"$28 per class",nonresident_fee:"$30 per class",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Dance - 30 minute classes",resident_fee:"$11 per class",nonresident_fee:"$11 per class",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Dance - 45 minute classes",resident_fee:"$12 per class",nonresident_fee:"$13 per class",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Dance - 60 minute classes",resident_fee:"$13 per class",nonresident_fee:"$15 per class",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Winter Dance Production",resident_fee:"325.0",nonresident_fee:"$350/$440",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Baby Brushstrokes",resident_fee:"$15/$19",nonresident_fee:"$15-$20",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Art Together: Family & Friends Art Night",resident_fee:"$15/$19",nonresident_fee:"$15-$20",contractual:false,notes:"",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Mixed Media",resident_fee:"$165/$205",nonresident_fee:"$15 per class",contractual:false,notes:"Adjusting display to per class fee",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Art Club",resident_fee:"$180/$225",nonresident_fee:"$15 per class",contractual:false,notes:"Adjusting display to per class fee",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Beginning Sewing",resident_fee:"$180/$225",nonresident_fee:"$25 per class",contractual:true,notes:"Adjusting display to per class fee",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Fashion Design & Intermediate Sewing",resident_fee:"$180/$225",nonresident_fee:"$25 per class",contractual:true,notes:"Adjusting display to per class fee",is_archived:false},
-  {fy:"2026-2027",area:"Other",program_name:"Bingo Luncheon",resident_fee:"7.0",nonresident_fee:"7.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Dog Park Passes - Annual",resident_fee:"$25/$31",nonresident_fee:"$25/$31",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Dog Park Passes - Late Season",resident_fee:"$15/$19",nonresident_fee:"$15/$19",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Dog Park Passes - Daily",resident_fee:"8.0",nonresident_fee:"8.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Drawing & Painting",resident_fee:"$85/$105",nonresident_fee:"$91/$114",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Mah Jongg Tournament",resident_fee:"20.0",nonresident_fee:"25.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Puppy/Dog Socializing & Obedience",resident_fee:"$100/$125",nonresident_fee:"",contractual:true,notes:"No longer running",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Adult Basketball - Open Gym",resident_fee:"5.0",nonresident_fee:"$6 Per Class",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Adult Fall Softball",resident_fee:"700.0",nonresident_fee:"750.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Pickleball Clinics",resident_fee:"20.0",nonresident_fee:"$75 Per Class",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Adult Pickleball",resident_fee:"5.0",nonresident_fee:"$6 Per Class",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Adult Summer Softball Competitive",resident_fee:"700.0",nonresident_fee:"750.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Adult Summer Softball Recreational",resident_fee:"650.0",nonresident_fee:"750.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Adult Volleyball",resident_fee:"6.0",nonresident_fee:"$6 Per Class",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Fall Adult Karate",resident_fee:"$13 - $16.50 per class",nonresident_fee:"$15 - $19",contractual:true,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Spring Adult Karate",resident_fee:"$13 - $16.50 per class",nonresident_fee:"$15 - $19",contractual:true,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Summer Adult Karate",resident_fee:"$13 - $16.50 per class",nonresident_fee:"$15 - $19",contractual:true,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Winter Adult Karate",resident_fee:"$13 - $16.50 per class",nonresident_fee:"$15 - $19",contractual:true,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"All Ages - Fall/Winter",resident_fee:"360.0",nonresident_fee:"380.0",contractual:false,notes:"Increased fees for high school use",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"All Ages - Summer",resident_fee:"185.0",nonresident_fee:"205.0",contractual:false,notes:"Increased fees for high school use",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"8 & Under - Fall/Winter",resident_fee:"440.0",nonresident_fee:"490.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"9-10, 11-12, 13-14, 15 and older - Fall/Winter",resident_fee:"525.0",nonresident_fee:"565.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"8 & Under - Summer",resident_fee:"340.0",nonresident_fee:"380.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"9-10, 11-12, 13-14, 15 and older - Summer",resident_fee:"425.0",nonresident_fee:"465.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Swim Team Tryouts",resident_fee:"10.0",nonresident_fee:"10.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Per session (8 - 30 min.) Tadpoles Swim Classes",resident_fee:"$102/$127",nonresident_fee:"$111/$139",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Per session (8 - 30 min.) Water Babies",resident_fee:"$61/$75",nonresident_fee:"$70/$88",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Per session (8 - 30 min.) Water Tots",resident_fee:"$74/$92",nonresident_fee:"$83/$104",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Per session (8 - 30 min.) Group Swim Classes",resident_fee:"$90/$112",nonresident_fee:"$99/$124",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Per session (10 - 60 min.) Swim Team Prep",resident_fee:"$152/$189",nonresident_fee:"$166/$207",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Private Lessons Fee (8 lessons)",resident_fee:"208.0",nonresident_fee:"250.0",contractual:false,notes:"Increased 20% to get to the 30% profit margin for programs  CB 2/11/25",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Hurricanes Private Lessons (30 min lessons)",resident_fee:"$35/lesson",nonresident_fee:"42.0",contractual:false,notes:"Increased 20% to get to the 30% profit margin for programs  CB 2/11/25",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Member Priority Private Lessons (8 lessons) (Members)",resident_fee:"175.0",nonresident_fee:"210.0",contractual:false,notes:"Increased 20% to get to the 30% profit margin for programs  CB 2/11/25",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Member Priority Private Lessons (8 lessons) (Non-Member Residents)",resident_fee:"208.0",nonresident_fee:"250.0",contractual:false,notes:"Increased 20% to get to the 30% profit margin for programs  CB 2/11/25",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Member Priority Private Lessons (8 lessons) (Non-Member Non-Res)",resident_fee:"260.0",nonresident_fee:"313.0",contractual:false,notes:"Increased 20% to get to the 30% profit margin for programs  CB 2/11/25",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Lifeguard (New)",resident_fee:"75.0",nonresident_fee:"85.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Lifeguard (Recertification)",resident_fee:"75.0",nonresident_fee:"NA",contractual:false,notes:"Not a public program, remove",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Lifeguard (Trainer)",resident_fee:"200.0",nonresident_fee:"NA",contractual:false,notes:"Not a public program, remove",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"12 months and under",resident_fee:"NA",nonresident_fee:"Free",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Children and Adults",resident_fee:"NA",nonresident_fee:"5.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Seniors",resident_fee:"NA",nonresident_fee:"3.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Twilight Time",resident_fee:"NA",nonresident_fee:"3.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"With Current Pool Pass",resident_fee:"NA",nonresident_fee:"4.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Splasher Pass",resident_fee:"NA",nonresident_fee:"80.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Party Deck Rental",resident_fee:"NA",nonresident_fee:"$175 / $215",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Ultimate (Private) Rental (Full Facility Rental)",resident_fee:"NA",nonresident_fee:"$440 / $540",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Mini Splash Bash (Semi Private - Max 50) Rental",resident_fee:"NA",nonresident_fee:"$245 / $307",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Splash Bash (Semi Private - Max 65) Rental",resident_fee:"NA",nonresident_fee:"$215 / $269",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Lap Swim",resident_fee:"7.0",nonresident_fee:"8.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Open Swim",resident_fee:"7.0",nonresident_fee:"8.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Senior Rate",resident_fee:"5.0",nonresident_fee:"5.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Twilight Time Public/Senior",resident_fee:"$5/$4",nonresident_fee:"5.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Pool Punch Pass",resident_fee:"$100/$125",nonresident_fee:"$120/$150",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Individual",resident_fee:"$125/$156",nonresident_fee:"$125/$156",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Family of 2",resident_fee:"$140/$174",nonresident_fee:"$140/$174",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Family of 3",resident_fee:"$155/$192",nonresident_fee:"$155/$192",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Family of 4",resident_fee:"$170/$210",nonresident_fee:"$170/$210",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Family of 5",resident_fee:"$185/$228",nonresident_fee:"$185/$228",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Family of 6",resident_fee:"$200/$246",nonresident_fee:"$200/$246",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"District 102 - Pritchett, Tripp - AM",resident_fee:"12.0",nonresident_fee:"14.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"District 102 - Pritchett, Tripp - PM",resident_fee:"15.0",nonresident_fee:"18.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"District 102 - Meridian - AM",resident_fee:"6.0",nonresident_fee:"7.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"District 102 - Meridian - PM",resident_fee:"21.0",nonresident_fee:"24.5",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"District 21 - Kilmer, Longfellow - AM",resident_fee:"12.0",nonresident_fee:"14.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"District 21 - Kilmer, Longfellow - PM",resident_fee:"15.0",nonresident_fee:"17.5",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"District 96  - Ivy, Kld, Pra, Ctry Meadows - AM",resident_fee:"8.0",nonresident_fee:"8.75",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"District 96  - Ivy, Kld, Pra, Ctry Meadows - PM",resident_fee:"18.0",nonresident_fee:"21.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"District 96  - Willow Grove - AM",resident_fee:"11.0",nonresident_fee:"13.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"District 96  - Willow Grove - PM",resident_fee:"18.0",nonresident_fee:"21.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"One Day Field Trip (Clubhouse Participant)",resident_fee:"50.0",nonresident_fee:"60.0",contractual:false,notes:"raised to help cover cost of supplies/field trips",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Field Trip Only (Attends field trips but not a Clubhouse participant)",resident_fee:"60.0",nonresident_fee:"70.0",contractual:false,notes:"raised to help cover cost of supplies/field trips",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Birthday Parties",resident_fee:"$275/$375",nonresident_fee:"$345 in/ $430 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Two Year Old Preschool- 2 days",resident_fee:"17.0",nonresident_fee:"19.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Two Year Old Preschool- 3 days",resident_fee:"17.0",nonresident_fee:"19.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Pre Threes Preschool- 2 days",resident_fee:"22.0",nonresident_fee:"24.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Pre Threes Preschool- 3 days",resident_fee:"22.0",nonresident_fee:"24.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Three Year Old Preschool- 2 days",resident_fee:"34.61",nonresident_fee:"35.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Three Year Old Preschool- 3 days",resident_fee:"33.0",nonresident_fee:"35.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Three Year Old Preschool- 5 days",resident_fee:"33.0",nonresident_fee:"35.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Four Year Old Preschool- 2 days",resident_fee:"34.61",nonresident_fee:"35.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Four Year Old Preschool- 3 days",resident_fee:"33.0",nonresident_fee:"35.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Four Year Old Preschool- 5 days",resident_fee:"33.0",nonresident_fee:"35.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Alphabet Mystery Party",resident_fee:"11.0",nonresident_fee:"13.0",contractual:false,notes:"Increased staffing cost",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Hands on Art",resident_fee:"14.0",nonresident_fee:"29.0",contractual:true,notes:"Only running Friday Fun Class. Increased cost",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Nature Safari",resident_fee:"11.0",nonresident_fee:"19.5",contractual:false,notes:"Increase in base cost $11-S13.Cost from previous year didn't reflect length of class. Should be 1.5 hour class.",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Stories Come Alive",resident_fee:"11.0",nonresident_fee:"20.0",contractual:false,notes:"Increase in base cost $11-S13.Cost from previous year didn't reflect length of class. Should be 1.5 hour class.",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Kid Rock",resident_fee:"12.25",nonresident_fee:"13.0",contractual:true,notes:"Contractual increase",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Friendship Cafe'",resident_fee:"11.0",nonresident_fee:"13.0",contractual:false,notes:"Increased staffing cost",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Number Ninjas",resident_fee:"11.0",nonresident_fee:"13.0",contractual:false,notes:"Increased staffing cost",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Ooey Gooey Science and Exploration",resident_fee:"11.0",nonresident_fee:"13.0",contractual:false,notes:"Increased staffing cost",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Add-On",resident_fee:"$44IN/$44OUT",nonresident_fee:"$44IN/$44OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Adult",resident_fee:"$73IN/$83OUT",nonresident_fee:"$73IN/$83OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Corporate",resident_fee:"$65IN/$65OUT",nonresident_fee:"$65IN/$65OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Corporate B",resident_fee:"$60IN/$60OUT",nonresident_fee:"$60IN/$60OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Corporate Special (EMERG PERS)",resident_fee:"$44IN/$44OUT",nonresident_fee:"$44IN/$44OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Senior",resident_fee:"$55IN/$65OUT",nonresident_fee:"$55IN/$65OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Military/Veteran",resident_fee:"$44IN/$44OUT",nonresident_fee:"$44IN/$44OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Annual Adult",resident_fee:"$876IN/$996OUT",nonresident_fee:"$876IN/$996OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Annual Add-On",resident_fee:"$528 IN/OUT",nonresident_fee:"$528 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Annual Senior",resident_fee:"$660IN/$780OUT",nonresident_fee:"$660IN/$780OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Annual Corporate",resident_fee:"$780 IN/OUT",nonresident_fee:"$780 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Annual Corporate B",resident_fee:"$720 IN/OUT",nonresident_fee:"$720 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Annual Military/Veteran",resident_fee:"$528 IN/OUT",nonresident_fee:"$528 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Reinrollment Fee",resident_fee:"$100 IN/OUT",nonresident_fee:"$100 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"10 Day Student Pass",resident_fee:"$20 IN/OUT",nonresident_fee:"$20 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"30 Day Student Pass",resident_fee:"$40 IN/OUT",nonresident_fee:"$40 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"100 Day Student Pass",resident_fee:"$100 IN/OUT",nonresident_fee:"$100 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"10 Day Family of Member Pass",resident_fee:"$29 IN/OUT",nonresident_fee:"$29 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"1 Month Family of Member Pass",resident_fee:"$59 IN/OUT",nonresident_fee:"$59 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"1 Month Adult",resident_fee:"$95 IN/OUT",nonresident_fee:"$95 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"1 Month Senior",resident_fee:"$75 IN/OUT",nonresident_fee:"$75 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"1 Week Adult Guest",resident_fee:"$50 IN/OUT",nonresident_fee:"$50 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"2 Week Adult Guest",resident_fee:"$75 IN/OUT",nonresident_fee:"$75 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"3 Week Adult Guest",resident_fee:"$85 IN/OUT",nonresident_fee:"$85 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"1 Day Guest",resident_fee:"$15 IN/OUT",nonresident_fee:"$15 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"1 Day Corp",resident_fee:"$7 IN/OUT",nonresident_fee:"$7 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Flex Pass 12 Visits",resident_fee:"$150 IN/OUT",nonresident_fee:"$150 IN/OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Specialty Programs Small Group Training",resident_fee:"$18M/$22NM",nonresident_fee:"$18M/$22NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Aqua Arthritis",resident_fee:"$10M/$13NM",nonresident_fee:"$10M/$13NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Starter Pack 5-Half Hour Sessions",resident_fee:"$135M/$185NM",nonresident_fee:"$135M/$185NM",contractual:false,notes:"One Time Purchase",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Single Session Half Hour Rate",resident_fee:"$37M/$47NM",nonresident_fee:"$37M/$47NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"5 Pack",resident_fee:"$176 M/$223NM",nonresident_fee:"$176 M/$223NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"10 Pack",resident_fee:"$333 M/$423NM",nonresident_fee:"$333 M/$423NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"15 Pack",resident_fee:"$472 M/$599NM",nonresident_fee:"$472 M/$599NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"20 Pack",resident_fee:"$592M/$752NM",nonresident_fee:"$592M/$752NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Buddy Half Hour Rate",resident_fee:"$27M/$37NM",nonresident_fee:"$27M/$37NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"5 Pack",resident_fee:"$128M/ $176NM",nonresident_fee:"$128M/ $176NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"10 Pack",resident_fee:"$243M/$333NM",nonresident_fee:"$243M/$333NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"15 Pack",resident_fee:"$344M/$472NM",nonresident_fee:"$344M/$472NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"20 Pack",resident_fee:"$432M/$592NM",nonresident_fee:"$432M/$592NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Single Session Hour Rate",resident_fee:"$65 M/$75 NM",nonresident_fee:"$65 M/$75 NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"5 Pack",resident_fee:"$309 M/$356 NM",nonresident_fee:"$309 M/$356 NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"10 Pack",resident_fee:"$585 M/$675 NM",nonresident_fee:"$585 M/$675 NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"15 Pack",resident_fee:"$829 M/ $956NM",nonresident_fee:"$829 M/ $956NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"20 Pack",resident_fee:"$1040M/ $1200NM",nonresident_fee:"$1040M/ $1200NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Buddy Hour Rate",resident_fee:"$45M/$55NM",nonresident_fee:"$45M/$55NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"5 Pack",resident_fee:"$214M/$261NM",nonresident_fee:"$214M/$261NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"10 Pack",resident_fee:"$405M/$495NM",nonresident_fee:"$405M/$495NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"15 Pack",resident_fee:"$574M/$701NM",nonresident_fee:"$574M/$701NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"20 Pack",resident_fee:"$720M/$880NM",nonresident_fee:"$720M/$880NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Stretch Single Session",resident_fee:"$20M/$25NM",nonresident_fee:"$20M/$25NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"5 Pack",resident_fee:"$95M/$119NM",nonresident_fee:"$95M/$119NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Youth Programs Small Group Training",resident_fee:"$18IN/$22OUT",nonresident_fee:"$18IN/$22OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Fencing 1/2 hour - 1",resident_fee:"$56 IN/OUT",nonresident_fee:"$56 IN/OUT",contractual:true,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Fencing 1/2 hour - 5 pack",resident_fee:"$260 IN/OUT",nonresident_fee:"$260 IN/OUT",contractual:true,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Fencing 1/2 hour - 10 pack",resident_fee:"$510 IN/OUT",nonresident_fee:"$510 IN/OUT",contractual:true,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Fencing 1/2 hour - 15 pack",resident_fee:"$750 IN/OUT",nonresident_fee:"$750 IN/OUT",contractual:true,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Fencing Group Class",resident_fee:"$28 IN/ $33 OUT",nonresident_fee:"$28 IN/ $33 OUT",contractual:true,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Open Fencing",resident_fee:"50.0",nonresident_fee:"50.0",contractual:true,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Drop-in Fencing",resident_fee:"65.0",nonresident_fee:"65.0",contractual:true,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Fencing High School Students",resident_fee:"15.0",nonresident_fee:"15.0",contractual:true,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Group Reformer Class",resident_fee:"$25M/$31NM",nonresident_fee:"$26M/$32NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Starter Pack  4- One Hour Sessions",resident_fee:"$200M/$250NM",nonresident_fee:"$200M/$250NM",contractual:false,notes:"One time purchase",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Single Sessions",resident_fee:"$67M/$77NM",nonresident_fee:"$67M/$77NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Hour 5 Pack",resident_fee:"$318M/$366NM",nonresident_fee:"$318M/$366NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Hour 10 Pack",resident_fee:"$603M/$693NM",nonresident_fee:"$603M/$693NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Hour 15 pack",resident_fee:"$855M/$982NM",nonresident_fee:"$855M/$982NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Hour 20 Pack",resident_fee:"$1072M/$1232NM",nonresident_fee:"$1072M/$1232NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Duet Hour Single Session",resident_fee:"$47M/$57NM",nonresident_fee:"$47M/$57NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Duet 5 Pack",resident_fee:"$225M/$271NM",nonresident_fee:"$225M/$271NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Duet 10 Pack",resident_fee:"$423M/$513NM",nonresident_fee:"$423M/$513NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Duet 15 Pack",resident_fee:"$600M/$727NM",nonresident_fee:"$600M/$727NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Duet 20 Pack",resident_fee:"$752M/$912NM",nonresident_fee:"$752M/$912NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Choose To Lose,Spring Fit, Beach Body",resident_fee:"$90 M/$110 NM",nonresident_fee:"$90M/$110NM",contractual:false,notes:"No change in fee - Running program at minimum enrollment required to run.",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"TRX Core Training",resident_fee:"$80 M/$104 NM",nonresident_fee:"$80M/$104NM",contractual:false,notes:"No change in fee - Running program at minimum enrollment required to run.",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Youth Boxing",resident_fee:"$171 IN/$207 OUT",nonresident_fee:"$171 IN/$207 OUT",contractual:false,notes:"No change in fee - Running program at minimum enrollment required to run.",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Youth Fitness",resident_fee:"$171 IN/$207 OUT",nonresident_fee:"$171 IN/$207 OUT",contractual:false,notes:"No change in fee - Running program at minimum enrollment required to run.",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Teen Boxing",resident_fee:"$144 IN/$184 OUT",nonresident_fee:"",contractual:false,notes:"Cancelled",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Swim for Fitness",resident_fee:"$108 M/$132 NM",nonresident_fee:"$108 M/$132 NM",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Evolution Basketball Training Camp",resident_fee:"$500 IN/$600 ID",nonresident_fee:"$500 IN/$600 ID",contractual:true,notes:"New program that started in November 24 - February 25",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Forever Fit",resident_fee:"6.0",nonresident_fee:"7.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Hatha Yoga",resident_fee:"11.0",nonresident_fee:"12.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Zumba",resident_fee:"$70-$175",nonresident_fee:"$70-$175",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Junior Golf Level 1",resident_fee:"$135In/$169Out",nonresident_fee:"$140In/$175Out",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Junior Golf Level 2",resident_fee:"$135In/$169Out",nonresident_fee:"$140In/$175Out",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Adult Level 1",resident_fee:"$135In/$169Out",nonresident_fee:"$140In/$175Out",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Adult Level 2",resident_fee:"$135In/$169Out",nonresident_fee:"$140In/$175Out",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"5 Hour Pass",resident_fee:"$95-$104",nonresident_fee:"$95in Nov/$105ROS",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Season Pass",resident_fee:"700.0",nonresident_fee:"700.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"30 Min Tee Admission (weekday before 6pm)",resident_fee:"13.0",nonresident_fee:"13.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"30 Min Tee Admission (weekends)",resident_fee:"14.0",nonresident_fee:"14.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"30 Min Tee Admission (Senior rate)",resident_fee:"11.0",nonresident_fee:"11.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"30 Min Tee Admission (Student rate)",resident_fee:"12.0",nonresident_fee:"12.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Golf Pro Lessons",resident_fee:"$13/$13",nonresident_fee:"$13Wkdy/$14Wknd",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Alcott Small Room (Monday - Thursday)",resident_fee:"$40/hr",nonresident_fee:"$40 in/$60 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Alcott Large Room (Monday - Thursday)",resident_fee:"$60/hr",nonresident_fee:"$60 in/$90 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Alcott Small Room (Friday - Sunday)",resident_fee:"$50/hr",nonresident_fee:"$50 in/$75 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Alcott Large Room (Friday - Sunday)",resident_fee:"$80/hr",nonresident_fee:"$80 in/$120 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"CAC Rooms 6, 7 (Monday - Thursday)",resident_fee:"$40/hr",nonresident_fee:"$40 in/ $60 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"CAC Rooms 19, 21 (Monday - Thursday)",resident_fee:"$75/hr",nonresident_fee:"$75 in/ $115 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"CAC Room 20 (Monday - Thursday)",resident_fee:"$85/hr",nonresident_fee:"$85 in/ $130 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"CAC Full MPR (20 & 21) (Monday - Thursday)",resident_fee:"$100/hr",nonresident_fee:"$100 in/ $150 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"CAC Theater (Monday - Thursday)",resident_fee:"$125/hr",nonresident_fee:"$125 in/ $190 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"CAC Rooms 6, 7 (Friday - Sunday)",resident_fee:"$50/hr",nonresident_fee:"$50 in/ $75 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"CAC Rooms 19, 21 (Friday - Sunday)",resident_fee:"$95/hr",nonresident_fee:"$95 in/ $145 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"CAC Room 20 (Friday - Sunday)",resident_fee:"$110/hr",nonresident_fee:"$110 in/ $165 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"CAC Full MPR (20 & 21) (Friday - Sunday)",resident_fee:"$125/hr",nonresident_fee:"$125 in/ $190 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"CAC Theater (Friday - Sunday)",resident_fee:"$175/hr",nonresident_fee:"$175 in/ $265 out",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Scout Badge Day",resident_fee:"10.0",nonresident_fee:"10.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Camp in a bag - I",resident_fee:"25.0",nonresident_fee:"25.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"School Educational Programs",resident_fee:"25.0",nonresident_fee:"$25/$30",contractual:false,notes:"$25 for onsite, $30 for offsite",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Thanksgiving Class",resident_fee:"10.0",nonresident_fee:"10.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Love, Murder, Science",resident_fee:"5.0",nonresident_fee:"5.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Gardening Classes",resident_fee:"10.0",nonresident_fee:"",contractual:false,notes:"No longer offered",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Mom and Me Tea",resident_fee:"25.0",nonresident_fee:"30.0",contractual:false,notes:"Increse due to supply costs",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Scout Programs",resident_fee:"$5/$10",nonresident_fee:"$5/$10",contractual:false,notes:"$10 fee is for 2 hour long program",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Nature Classroom Birthday Party",resident_fee:"300.0",nonresident_fee:"300.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Fields",resident_fee:"$40/hr",nonresident_fee:"$40/hr",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Parking Lots",resident_fee:"$100/day",nonresident_fee:"$100/day",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Shelters Monday - Friday (Public and Nonprofits)",resident_fee:"$25In/$30 Out",nonresident_fee:"$40/ $60",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Shelters Saturday - Sunday (Public and Nonprofits)",resident_fee:"$40In/$50 Out",nonresident_fee:"$60/ $90",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Shelters Monday - Friday (Corporations)",resident_fee:"$50In/$60 Out",nonresident_fee:"$70/$105",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Other",program_name:"Shelters Saturday - Sunday (Corportations)",resident_fee:"$75In/$90 Out",nonresident_fee:"$90/$135",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Sport Courts",resident_fee:"$10In/$13 OUt",nonresident_fee:"$10/$13",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Acting Studio",resident_fee:"$10/$12.4",nonresident_fee:"$12.40-$13",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Fall Adult Non Musical",resident_fee:"350.0",nonresident_fee:"",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Advanced Theatre Co.",resident_fee:"250.0",nonresident_fee:"$15-$18 per class",contractual:false,notes:"Class is 1.5 in length/ $18 for the class, plus funds to cover tickets",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"BG Singers",resident_fee:"230.0",nonresident_fee:"230.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Fall Children's Theatre",resident_fee:"350.0",nonresident_fee:"400.0",contractual:false,notes:"Raising the price to cover staff costs",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Dance Company Minis",resident_fee:"14.0",nonresident_fee:"$14 per class",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Dance Company Duets/Trios",resident_fee:"16.0",nonresident_fee:"$16 per class",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Dance Company Choreography Classes",resident_fee:"11.0",nonresident_fee:"$11 per class",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Dance Company Solos",resident_fee:"28.0",nonresident_fee:"$28 per class",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Piano Instruction",resident_fee:"380.0",nonresident_fee:"380.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Spring Kids Theatre",resident_fee:"350.0",nonresident_fee:"400.0",contractual:false,notes:"Increasing fees to be competitive with similar programs & cover increasing staff costs",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Winter Teen Theatre",resident_fee:"350.0",nonresident_fee:"400.0",contractual:false,notes:"Increasing fees to be competitive with similar programs & cover increasing staff costs",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Special Recreation Theatre: Broadway Buddies",resident_fee:"250.0",nonresident_fee:"$20 per class",contractual:false,notes:"This is the agreed upon rate with NWSRA for the program that each adgency will charge.",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Workshop Series",resident_fee:"25.0",nonresident_fee:"25.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Dance - 30 minute classes",resident_fee:"11.0",nonresident_fee:"$11 per class",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Dance - 45 minute classes",resident_fee:"12.0",nonresident_fee:"$12 per class",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Dance - 60 minute classes",resident_fee:"13.0",nonresident_fee:"$13 per class",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Winter Dance Production",resident_fee:"325.0",nonresident_fee:"325.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Baby Brushstrokes",resident_fee:"$15/$19",nonresident_fee:"$15/$19",contractual:false,notes:"Price will stay the same as this is a new program",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Art Together: Family & Friends Art Night",resident_fee:"$15/$19",nonresident_fee:"$15/$19",contractual:false,notes:"Price will stay the same as this is a new program",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Pinspiration Kids: Creative Arts Class",resident_fee:"$15/$19",nonresident_fee:"$165/$205",contractual:false,notes:"Price will stay the same as this is a new program",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Art Club",resident_fee:"$15/$19",nonresident_fee:"$180/$225",contractual:false,notes:"Price will stay the same as this is a new program",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Beginning Sewing",resident_fee:"$15/$19",nonresident_fee:"$180/$225",contractual:false,notes:"This class is $15 per class to cover material",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Fashion Design & Intermediate Sewing",resident_fee:"$15/$19",nonresident_fee:"$180/$225",contractual:false,notes:"This class is $15 per class to cover material",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Bingo Luncheon",resident_fee:"7.0",nonresident_fee:"7.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Monthly Parties",resident_fee:"$7IN/$9OUT",nonresident_fee:"$7IN/$9OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Holiday Party",resident_fee:"$12IN/$15OUT",nonresident_fee:"$12IN/$15OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Luncheons",resident_fee:"6.0",nonresident_fee:"7.0",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Senior Membership Fee",resident_fee:"$20IN/$25OUT",nonresident_fee:"$20IN/$25OUT",contractual:false,notes:"",is_archived:false},
-  {fy:"2025-2026",area:"Special Events",program_name:"Adventure Challenge",resident_fee:"14.0",nonresident_fee:"",contractual:false,notes:"No longer offering",is_archived:false},
-];
-
-// ─── FEE HISTORY ─────────────────────────────────────────────────────────────
-function FeeHistorySection({db}){
-  const [fees,setFees]=useState([]);
-  const [loading,setLoading]=useState(true);
-  const [fy,setFy]=useState("2026-2027");
-  const [areaF,setAreaF]=useState("all");
-  const [search,setSearch]=useState("");
-  const [showModal,setShowModal]=useState(false);
-  const [editRow,setEditRow]=useState(null);
-  const [confirm,setConfirm]=useState(null);
-  const emptyForm={fy:"2026-2027",area:"",program_name:"",resident_fee:"",nonresident_fee:"",contractual:false,notes:"",is_archived:false};
-  const [form,setForm]=useState(emptyForm);
-
-  async function load(){
-    setLoading(true);
-    await seedIfEmpty(db,"admin_fees",SEED_FEES);
-    const {data}=await db.from("admin_fees").select("*").order("area").order("program_name");
-    setFees(data||[]);
-    setLoading(false);
-  }
-  useEffect(()=>{load();},[]);
-
-  async function save(){
-    const d={fy:form.fy,area:form.area,program_name:form.program_name,resident_fee:form.resident_fee,nonresident_fee:form.nonresident_fee,contractual:form.contractual,notes:form.notes,is_archived:false};
-    if(editRow){await db.from("admin_fees").update(d).eq("id",editRow.id);}
-    else{await db.from("admin_fees").insert(d);}
-    setShowModal(false);setEditRow(null);load();
-  }
-  async function del(id){await db.from("admin_fees").delete().eq("id",id);setConfirm(null);load();}
-  function openEdit(r){setEditRow(r);setForm({fy:r.fy,area:r.area,program_name:r.program_name,resident_fee:r.resident_fee||"",nonresident_fee:r.nonresident_fee||"",contractual:r.contractual||false,notes:r.notes||""});setShowModal(true);}
-
-  if(loading) return <div className="text-center py-20 text-slate-400">Loading…</div>;
-
-  const fyFees=fees.filter(f=>f.fy===fy&&!f.is_archived);
-  const prevFy=ADMIN_FYS[ADMIN_FYS.indexOf(fy)-1];
-  const filtered=fyFees.filter(f=>{
-    if(areaF!=="all"&&f.area!==areaF) return false;
-    if(search&&!f.program_name.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
-  const areas=[...new Set(fees.map(f=>f.area))].filter(Boolean).sort();
-
-  function feeChanged(f){
-    if(!prevFy) return false;
-    const prev=fees.find(p=>p.fy===prevFy&&p.program_name===f.program_name&&p.area===f.area);
-    if(!prev) return false;
-    return prev.resident_fee!==f.resident_fee||prev.nonresident_fee!==f.nonresident_fee;
-  }
-
-  return(
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="font-bold text-slate-800" style={{fontSize:"18px"}}>Fee History</h2>
-          <p className="text-sm text-slate-500 mt-0.5">Resident & non-resident fees by program and fiscal year</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <FYPicker value={fy} onChange={setFy}/>
-          <button onClick={()=>{setEditRow(null);setForm({...emptyForm,fy});setShowModal(true);}}
-            className="px-4 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>+ Add Fee</button>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white rounded-xl border border-slate-100 p-3 shadow-sm mb-5 flex gap-3 flex-wrap items-center">
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search program…"
-          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm flex-1" style={{minWidth:160}}/>
-        <select value={areaF} onChange={e=>setAreaF(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm">
-          <option value="all">All Areas</option>
-          {AREAS.map(a=><option key={a} value={a}>{a}</option>)}
-        </select>
-        <span className="text-xs text-slate-400">{filtered.length} programs</span>
-      </div>
-
-      {/* Table */}
-      {filtered.length>0?(
-        <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{background:"#f8fafc"}}>
-                {["Area","Program","Resident Fee","Non-Res Fee","Contractual","Prior Year","Notes",""].map(h=>(
-                  <th key={h} className={`px-4 py-3 text-xs font-semibold text-slate-500 uppercase ${h==="Area"||h==="Program"?"text-left":"text-right"}`}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(f=>{
-                const changed=feeChanged(f);
-                const prevF=prevFy?fees.find(p=>p.fy===prevFy&&p.program_name===f.program_name&&p.area===f.area):null;
-                return(
-                  <tr key={f.id} className={`border-t border-slate-50 hover:bg-slate-50 ${changed?"":""}` } style={changed?{background:"#fffbeb"}:{}}>
-                    <td className="px-4 py-2.5 text-xs text-slate-500">{f.area}</td>
-                    <td className="px-4 py-2.5 font-medium text-slate-800">{f.program_name}</td>
-                    <td className="px-4 py-2.5 text-right font-semibold text-slate-800">{f.resident_fee||"—"}</td>
-                    <td className="px-4 py-2.5 text-right text-slate-700">{f.nonresident_fee||"—"}</td>
-                    <td className="px-4 py-2.5 text-center">{f.contractual&&<span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold">C</span>}</td>
-                    <td className="px-4 py-2.5 text-right text-xs text-slate-400">
-                      {prevF?<span className={changed?"font-semibold text-amber-700":""}>{prevF.resident_fee||"—"}</span>:"—"}
-                    </td>
-                    <td className="px-4 py-2.5 text-xs text-slate-400 max-w-xs truncate">{f.notes}</td>
-                    <td className="px-4 py-2.5">
-                      <div className="flex gap-1 justify-end">
-                        <button onClick={()=>openEdit(f)} className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-500 text-xs">✏</button>
-                        <button onClick={()=>setConfirm(f.id)} className="px-2 py-1 rounded bg-red-50 hover:bg-red-100 text-red-400 text-xs">✕</button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      ):(
-        <EmptyState msg={`No fees for FY ${fy}${search?` matching "${search}"`:""}. Import from the Master Fee Report or add manually.`} action="Add Fee" onAction={()=>{setEditRow(null);setForm({...emptyForm,fy});setShowModal(true);}}/>
-      )}
-
-      {showModal&&(
-        <AModal title={editRow?"Edit Fee":"Add Fee"} onClose={()=>setShowModal(false)} wide>
-          <div className="grid grid-cols-2 gap-x-4">
-            <AInp label="Fiscal Year" value={form.fy} onChange={v=>setForm(p=>({...p,fy:v}))} options={ADMIN_FYS} required/>
-            <AInp label="Area" value={form.area} onChange={v=>setForm(p=>({...p,area:v}))} options={AREAS} required/>
-          </div>
-          <AInp label="Program Name" value={form.program_name} onChange={v=>setForm(p=>({...p,program_name:v}))} required/>
-          <div className="grid grid-cols-2 gap-x-4">
-            <AInp label="Resident Fee" value={form.resident_fee} onChange={v=>setForm(p=>({...p,resident_fee:v}))} hint="e.g. $45 or $40/$50"/>
-            <AInp label="Non-Resident Fee" value={form.nonresident_fee} onChange={v=>setForm(p=>({...p,nonresident_fee:v}))}/>
-          </div>
-          <div className="flex items-center gap-2 mb-4">
-            <input type="checkbox" checked={form.contractual} onChange={e=>setForm(p=>({...p,contractual:e.target.checked}))} id="contractual" className="w-4 h-4"/>
-            <label htmlFor="contractual" className="text-sm text-slate-700">Contractual program</label>
-          </div>
-          <AInp label="Notes" value={form.notes} onChange={v=>setForm(p=>({...p,notes:v}))} rows={2}/>
-          <div className="flex gap-3 justify-end mt-2">
-            <button onClick={()=>setShowModal(false)} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600">Cancel</button>
-            <button onClick={save} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>{editRow?"Update":"Save"}</button>
-          </div>
-        </AModal>
-      )}
-      {confirm&&<AConfirm message="Delete this fee record?" onConfirm={()=>del(confirm)} onCancel={()=>setConfirm(null)}/>}
-    </div>
-  );
-}
-
-// ─── ADMIN CONTAINER ─────────────────────────────────────────────────────────
-
-// ─── STANDALONE DASHBOARD SHELL ──────────────────────────────────────────────
-// Shared header + accent bar used by every standalone dashboard tab
-function DashShell({title,sub,accent,icon,children}){
-  return(
-    <div>
-      <div className="rounded-xl mb-6 px-6 py-5 flex items-center gap-4 text-white shadow-sm"
-        style={{background:`linear-gradient(135deg,${accent} 0%,${accent}cc 100%)`}}>
-        <div className="text-3xl">{icon}</div>
-        <div>
-          <div className="text-xs font-bold uppercase tracking-widest mb-0.5" style={{color:"rgba(255,255,255,0.65)"}}>Standalone Dashboard</div>
-          <div className="text-xl font-black leading-tight">{title}</div>
-          {sub&&<div className="text-sm mt-0.5" style={{color:"rgba(255,255,255,0.75)"}}>{sub}</div>}
-        </div>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-// ─── FUND 4 DASHBOARD ────────────────────────────────────────────────────────
-function Fund4Dashboard({db}){
-  const [funds,setFunds]=useState([]);
-  const [loading,setLoading]=useState(true);
-  const [fy,setFy]=useState(ADMIN_CUR);
-  const [showModal,setShowModal]=useState(false);
-  const [editRow,setEditRow]=useState(null);
-  const [confirm,setConfirm]=useState(null);
-  const FNAME="Fund 4 – Recreation";
-  const COLOR="#1e3a5f";
-  const [form,setForm]=useState({fund_name:FNAME,fy:ADMIN_CUR,month:"",revenue:"",expenses:"",goal:"",notes:""});
-  const f=v=>form[v]; const s=(k,v)=>setForm(p=>({...p,[k]:v}));
-
-  async function load(){
-    setLoading(true);
-    await seedIfEmpty(db,"admin_funds",SEED_FUNDS);
-    const {data}=await db.from("admin_funds").select("*").eq("fund_name",FNAME).order("fy").order("month");
-    setFunds(data||[]); setLoading(false);
-  }
-  useEffect(()=>{load();},[]);
-
-  async function save(){
-    const d={fund_name:FNAME,fy:form.fy,month:form.month,revenue:parseFloat(form.revenue)||0,expenses:parseFloat(form.expenses)||0,goal:parseFloat(form.goal)||0,notes:form.notes};
-    if(editRow){await db.from("admin_funds").update(d).eq("id",editRow.id);}
-    else{await db.from("admin_funds").insert(d);}
-    setShowModal(false);setEditRow(null);load();
-  }
-  async function del(id){await db.from("admin_funds").delete().eq("id",id);setConfirm(null);load();}
-  function openEdit(r){setEditRow(r);setForm({fund_name:FNAME,fy:r.fy,month:r.month||"",revenue:r.revenue||"",expenses:r.expenses||"",goal:r.goal||"",notes:r.notes||""});setShowModal(true);}
-
-  if(loading) return <div className="text-center py-20 text-slate-400">Loading…</div>;
-
-  const allFYs=ADMIN_FYS.filter(f=>funds.some(r=>r.fy===f));
-  const fyRows=funds.filter(r=>r.fy===fy);
-  const totalRev=sumField(fyRows,"revenue");
-  const totalExp=sumField(fyRows,"expenses");
-  const totalGoal=sumField(fyRows,"goal");
-  const prevFyRev=sumField(funds.filter(r=>r.fy===ADMIN_FYS[ADMIN_FYS.indexOf(fy)-1]),"revenue");
-  const net=totalRev-totalExp;
-
-  return(
-    <DashShell title="Fund 4 — Recreation" sub="Monthly revenue, expenses & goals" accent={COLOR} icon="🏛">
-
-      {/* KPI row */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-6">
-        <AKpi label="Total Revenue" val={adm$(totalRev)} accent={COLOR}/>
-        <AKpi label="Total Expenses" val={adm$(totalExp)} accent="#64748b"/>
-        <AKpi label="Net P/(L)" val={adm$(net)} accent={net>=0?"#16a34a":"#dc2626"}/>
-        <AKpi label="vs Goal" val={totalGoal>0?admPct(totalRev/totalGoal):"—"} accent={totalRev>=totalGoal?"#16a34a":"#b45309"}/>
-      </div>
-
-      {/* YoY sparkline table */}
-      {allFYs.length>1&&(
-        <div className="bg-white rounded-xl border border-slate-100 shadow-sm mb-6 overflow-hidden overflow-x-auto">
-          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-            <div className="font-semibold text-sm text-slate-700">Year-over-Year Revenue</div>
-          </div>
-          <table className="w-full text-xs" style={{minWidth:560}}>
-            <thead><tr style={{background:"#f8fafc"}}>
-              <th className="text-left px-4 py-2 text-slate-500 font-semibold">FY</th>
-              <th className="text-right px-4 py-2 text-slate-500 font-semibold">Revenue</th>
-              <th className="text-right px-4 py-2 text-slate-500 font-semibold">Expenses</th>
-              <th className="text-right px-4 py-2 text-slate-500 font-semibold">Net</th>
-              <th className="text-right px-4 py-2 text-slate-500 font-semibold">YoY</th>
-              <th className="px-4 py-2 text-slate-500 font-semibold">Trend</th>
-            </tr></thead>
-            <tbody>
-              {allFYs.map((f,i)=>{
-                const rev=sumField(funds.filter(r=>r.fy===f),"revenue");
-                const exp=sumField(funds.filter(r=>r.fy===f),"expenses");
-                const prevRev=i>0?sumField(funds.filter(r=>r.fy===allFYs[i-1]),"revenue"):null;
-                const pct=prevRev&&prevRev>0?((rev-prevRev)/prevRev)*100:null;
-                return(
-                  <tr key={f} className={`border-t border-slate-50 ${f===fy?"bg-blue-50":""}`}>
-                    <td className="px-4 py-2.5 font-semibold text-slate-700">{f}</td>
-                    <td className="px-4 py-2.5 text-right font-bold text-slate-800">{adm$(rev,true)}</td>
-                    <td className="px-4 py-2.5 text-right text-slate-600">{adm$(exp,true)}</td>
-                    <td className="px-4 py-2.5 text-right font-semibold" style={{color:(rev-exp)>=0?"#16a34a":"#dc2626"}}>{adm$(rev-exp,true)}</td>
-                    <td className="px-4 py-2.5 text-right">{pct!=null?arrowBadge(pct):"—"}</td>
-                    <td className="px-4 py-2.5"><Sparkline values={FY_MONTHS.map(m=>{const r=funds.find(x=>x.fy===f&&x.month===m);return r?.revenue||0;}).filter(v=>v>0)} color={COLOR} height={22}/></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* FY selector + chart */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="font-semibold text-slate-700">FY {fy} — Monthly Detail</div>
-        <div className="flex items-center gap-3">
-          <FYPicker value={fy} onChange={setFy} include2027/>
-          <button onClick={()=>{setEditRow(null);setForm({fund_name:FNAME,fy,month:"",revenue:"",expenses:"",goal:"",notes:""});setShowModal(true);}}
-            className="px-3 py-1.5 text-xs font-bold rounded-lg text-white" style={{background:COLOR}}>+ Add Entry</button>
-        </div>
-      </div>
-
-      {fyRows.length>0&&<FundMonthChart rows={fyRows} fname={FNAME} fy={fy} allFunds={funds}/>}
-
-      {/* Monthly table */}
-      <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
-        <table className="w-full text-xs">
-          <thead><tr style={{background:"#f8fafc"}}>
-            <th className="text-left px-4 py-2 text-slate-500 font-semibold">Month</th>
-            <th className="text-right px-4 py-2 text-slate-500 font-semibold">Revenue</th>
-            <th className="text-right px-4 py-2 text-slate-500 font-semibold">Expenses</th>
-            <th className="text-right px-4 py-2 text-slate-500 font-semibold">Net</th>
-            <th className="text-right px-4 py-2 text-slate-500 font-semibold">Goal</th>
-            <th className="text-right px-4 py-2 text-slate-500 font-semibold">Attainment</th>
-            <th className="px-2 py-2"/>
-          </tr></thead>
-          <tbody>
-            {FY_MONTHS.map(mon=>{
-              const r=fyRows.find(x=>x.month===mon);
-              if(!r) return(
-                <tr key={mon} className="border-t border-slate-50">
-                  <td className="px-4 py-2 text-slate-400">{mon}</td>
-                  {[...Array(5)].map((_,i)=><td key={i} className="px-4 py-2 text-right text-slate-200">—</td>)}
-                  <td className="px-4 py-2 text-right">
-                    <button onClick={()=>{setEditRow(null);setForm({fund_name:FNAME,fy,month:mon,revenue:"",expenses:"",goal:"",notes:""});setShowModal(true);}}
-                      className="text-xs px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-400">+</button>
-                  </td>
-                </tr>
-              );
-              const net=r.revenue-r.expenses;
-              return(
-                <tr key={mon} className="border-t border-slate-50 hover:bg-slate-50">
-                  <td className="px-4 py-2 font-medium text-slate-700">{mon}</td>
-                  <td className="px-4 py-2 text-right font-semibold text-slate-800">{adm$(r.revenue)}</td>
-                  <td className="px-4 py-2 text-right text-slate-600">{r.expenses>0?adm$(r.expenses):"—"}</td>
-                  <td className="px-4 py-2 text-right font-semibold" style={{color:net>=0?"#16a34a":"#dc2626"}}>{adm$(net)}</td>
-                  <td className="px-4 py-2 text-right text-slate-500">{r.goal>0?adm$(r.goal):"—"}</td>
-                  <td className="px-4 py-2 text-right">{r.goal>0?<span style={{color:r.revenue>=r.goal?"#16a34a":r.revenue>=r.goal*0.8?"#b45309":"#dc2626",fontWeight:700}}>{((r.revenue/r.goal)*100).toFixed(0)}%</span>:"—"}</td>
-                  <td className="px-4 py-2">
-                    <div className="flex gap-1 justify-end">
-                      <button onClick={()=>openEdit(r)} className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-500 text-xs">✏</button>
-                      <button onClick={()=>setConfirm(r.id)} className="px-2 py-0.5 rounded bg-red-50 hover:bg-red-100 text-red-400 text-xs">✕</button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-          <tfoot><tr className="border-t-2 border-slate-200" style={{background:"#f8fafc"}}>
-            <td className="px-4 py-2.5 font-bold text-slate-700">TOTAL</td>
-            <td className="px-4 py-2.5 text-right font-bold text-slate-800">{adm$(totalRev)}</td>
-            <td className="px-4 py-2.5 text-right font-bold text-slate-600">{adm$(totalExp)}</td>
-            <td className="px-4 py-2.5 text-right font-bold" style={{color:net>=0?"#16a34a":"#dc2626"}}>{adm$(net)}</td>
-            <td className="px-4 py-2.5 text-right font-bold text-slate-500">{totalGoal>0?adm$(totalGoal):"—"}</td>
-            <td className="px-4 py-2.5 text-right font-bold">{totalGoal>0?<span style={{color:totalRev>=totalGoal?"#16a34a":"#dc2626"}}>{((totalRev/totalGoal)*100).toFixed(0)}%</span>:"—"}</td>
-            <td/>
-          </tr></tfoot>
-        </table>
-      </div>
-
-      {showModal&&(
-        <AModal title={editRow?"Edit Entry":"Add Entry"} onClose={()=>setShowModal(false)}>
-          <div className="grid grid-cols-2 gap-x-4">
-            <AInp label="Fiscal Year" value={f("fy")} onChange={v=>s("fy",v)} options={ADMIN_FYS} required/>
-            <AInp label="Month" value={f("month")} onChange={v=>s("month",v)} options={FY_MONTHS} required/>
-            <AInp label="Revenue ($)" value={f("revenue")} onChange={v=>s("revenue",v)} type="number"/>
-            <AInp label="Expenses ($)" value={f("expenses")} onChange={v=>s("expenses",v)} type="number"/>
-            <AInp label="Goal ($)" value={f("goal")} onChange={v=>s("goal",v)} type="number"/>
-          </div>
-          <AInp label="Notes" value={f("notes")} onChange={v=>s("notes",v)} rows={2}/>
-          <div className="flex gap-3 justify-end mt-2">
-            <button onClick={()=>setShowModal(false)} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600">Cancel</button>
-            <button onClick={save} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:COLOR}}>{editRow?"Update":"Save"}</button>
-          </div>
-        </AModal>
-      )}
-      {confirm&&<AConfirm message="Delete this entry?" onConfirm={()=>del(confirm)} onCancel={()=>setConfirm(null)}/>}
-    </DashShell>
-  );
-}
-
-// ─── FUND 21 / FITNESS CENTER DASHBOARD ──────────────────────────────────────
-function FitnessDashboard({db}){
-  const [funds,setFunds]=useState([]);
-  const [loading,setLoading]=useState(true);
-  const [fy,setFy]=useState(ADMIN_CUR);
-  const [showModal,setShowModal]=useState(false);
-  const [editRow,setEditRow]=useState(null);
-  const [confirm,setConfirm]=useState(null);
-  const FNAME="Fitness Center (FCBG)";
-  const COLOR="#0369a1";
-  const [form,setForm]=useState({fund_name:FNAME,fy:ADMIN_CUR,month:"",revenue:"",expenses:"",goal:"",notes:""});
-  const f=v=>form[v]; const s=(k,v)=>setForm(p=>({...p,[k]:v}));
-
-  async function load(){
-    setLoading(true);
-    await seedIfEmpty(db,"admin_funds",SEED_FUNDS);
-    const {data}=await db.from("admin_funds").select("*").eq("fund_name",FNAME).order("fy").order("month");
-    setFunds(data||[]); setLoading(false);
-  }
-  useEffect(()=>{load();},[]);
-
-  async function save(){
-    const d={fund_name:FNAME,fy:form.fy,month:form.month,revenue:parseFloat(form.revenue)||0,expenses:parseFloat(form.expenses)||0,goal:parseFloat(form.goal)||0,notes:form.notes};
-    if(editRow){await db.from("admin_funds").update(d).eq("id",editRow.id);}
-    else{await db.from("admin_funds").insert(d);}
-    setShowModal(false);setEditRow(null);load();
-  }
-  async function del(id){await db.from("admin_funds").delete().eq("id",id);setConfirm(null);load();}
-  function openEdit(r){setEditRow(r);setForm({fund_name:FNAME,fy:r.fy,month:r.month||"",revenue:r.revenue||"",expenses:r.expenses||"",goal:r.goal||"",notes:r.notes||""});setShowModal(true);}
-
-  if(loading) return <div className="text-center py-20 text-slate-400">Loading…</div>;
-
-  const allFYs=ADMIN_FYS.filter(f=>funds.some(r=>r.fy===f));
-  const fyRows=funds.filter(r=>r.fy===fy);
-  const totalRev=sumField(fyRows,"revenue");
-  const totalExp=sumField(fyRows,"expenses");
-  const totalGoal=sumField(fyRows,"goal");
-  const net=totalRev-totalExp;
-
-  return(
-    <DashShell title="Fund 21 — Fitness Center (FCBG)" sub="Monthly revenue, expenses & membership trends" accent={COLOR} icon="🏋">
-
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-6">
-        <AKpi label="Total Revenue" val={adm$(totalRev)} accent={COLOR}/>
-        <AKpi label="Total Expenses" val={adm$(totalExp)} accent="#64748b"/>
-        <AKpi label="Net P/(L)" val={adm$(net)} accent={net>=0?"#16a34a":"#dc2626"}/>
-        <AKpi label="vs Goal" val={totalGoal>0?admPct(totalRev/totalGoal):"—"} accent={totalRev>=totalGoal?"#16a34a":"#b45309"}/>
-      </div>
-
-      {allFYs.length>1&&(
-        <div className="bg-white rounded-xl border border-slate-100 shadow-sm mb-6 overflow-hidden overflow-x-auto">
-          <div className="px-4 py-3 border-b border-slate-100 font-semibold text-sm text-slate-700">Year-over-Year Revenue</div>
-          <table className="w-full text-xs" style={{minWidth:560}}>
-            <thead><tr style={{background:"#f8fafc"}}>
-              <th className="text-left px-4 py-2 text-slate-500 font-semibold">FY</th>
-              <th className="text-right px-4 py-2 text-slate-500 font-semibold">Revenue</th>
-              <th className="text-right px-4 py-2 text-slate-500 font-semibold">Expenses</th>
-              <th className="text-right px-4 py-2 text-slate-500 font-semibold">Net</th>
-              <th className="text-right px-4 py-2 text-slate-500 font-semibold">YoY</th>
-              <th className="px-4 py-2 text-slate-500 font-semibold">Trend</th>
-            </tr></thead>
-            <tbody>
-              {allFYs.map((f,i)=>{
-                const rev=sumField(funds.filter(r=>r.fy===f),"revenue");
-                const exp=sumField(funds.filter(r=>r.fy===f),"expenses");
-                const prevRev=i>0?sumField(funds.filter(r=>r.fy===allFYs[i-1]),"revenue"):null;
-                const pct=prevRev&&prevRev>0?((rev-prevRev)/prevRev)*100:null;
-                return(
-                  <tr key={f} className={`border-t border-slate-50 ${f===fy?"bg-blue-50":""}`}>
-                    <td className="px-4 py-2.5 font-semibold text-slate-700">{f}</td>
-                    <td className="px-4 py-2.5 text-right font-bold text-slate-800">{adm$(rev,true)}</td>
-                    <td className="px-4 py-2.5 text-right text-slate-600">{adm$(exp,true)}</td>
-                    <td className="px-4 py-2.5 text-right font-semibold" style={{color:(rev-exp)>=0?"#16a34a":"#dc2626"}}>{adm$(rev-exp,true)}</td>
-                    <td className="px-4 py-2.5 text-right">{pct!=null?arrowBadge(pct):"—"}</td>
-                    <td className="px-4 py-2.5"><Sparkline values={FY_MONTHS.map(m=>{const r=funds.find(x=>x.fy===f&&x.month===m);return r?.revenue||0;}).filter(v=>v>0)} color={COLOR} height={22}/></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <div className="flex items-center justify-between mb-4">
-        <div className="font-semibold text-slate-700">FY {fy} — Monthly Detail</div>
-        <div className="flex items-center gap-3">
-          <FYPicker value={fy} onChange={setFy} include2027/>
-          <button onClick={()=>{setEditRow(null);setForm({fund_name:FNAME,fy,month:"",revenue:"",expenses:"",goal:"",notes:""});setShowModal(true);}}
-            className="px-3 py-1.5 text-xs font-bold rounded-lg text-white" style={{background:COLOR}}>+ Add Entry</button>
-        </div>
-      </div>
-
-      {fyRows.length>0&&<FundMonthChart rows={fyRows} fname={FNAME} fy={fy} allFunds={funds}/>}
-
-      <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
-        <table className="w-full text-xs">
-          <thead><tr style={{background:"#f8fafc"}}>
-            <th className="text-left px-4 py-2 text-slate-500 font-semibold">Month</th>
-            <th className="text-right px-4 py-2 text-slate-500 font-semibold">Revenue</th>
-            <th className="text-right px-4 py-2 text-slate-500 font-semibold">Expenses</th>
-            <th className="text-right px-4 py-2 text-slate-500 font-semibold">Net</th>
-            <th className="text-right px-4 py-2 text-slate-500 font-semibold">Goal</th>
-            <th className="text-right px-4 py-2 text-slate-500 font-semibold">Attainment</th>
-            <th className="px-2 py-2"/>
-          </tr></thead>
-          <tbody>
-            {FY_MONTHS.map(mon=>{
-              const r=fyRows.find(x=>x.month===mon);
-              if(!r) return(
-                <tr key={mon} className="border-t border-slate-50">
-                  <td className="px-4 py-2 text-slate-400">{mon}</td>
-                  {[...Array(5)].map((_,i)=><td key={i} className="px-4 py-2 text-right text-slate-200">—</td>)}
-                  <td className="px-4 py-2 text-right">
-                    <button onClick={()=>{setEditRow(null);setForm({fund_name:FNAME,fy,month:mon,revenue:"",expenses:"",goal:"",notes:""});setShowModal(true);}}
-                      className="text-xs px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-400">+</button>
-                  </td>
-                </tr>
-              );
-              const net=r.revenue-r.expenses;
-              return(
-                <tr key={mon} className="border-t border-slate-50 hover:bg-slate-50">
-                  <td className="px-4 py-2 font-medium text-slate-700">{mon}</td>
-                  <td className="px-4 py-2 text-right font-semibold text-slate-800">{adm$(r.revenue)}</td>
-                  <td className="px-4 py-2 text-right text-slate-600">{r.expenses>0?adm$(r.expenses):"—"}</td>
-                  <td className="px-4 py-2 text-right font-semibold" style={{color:net>=0?"#16a34a":"#dc2626"}}>{adm$(net)}</td>
-                  <td className="px-4 py-2 text-right text-slate-500">{r.goal>0?adm$(r.goal):"—"}</td>
-                  <td className="px-4 py-2 text-right">{r.goal>0?<span style={{color:r.revenue>=r.goal?"#16a34a":r.revenue>=r.goal*0.8?"#b45309":"#dc2626",fontWeight:700}}>{((r.revenue/r.goal)*100).toFixed(0)}%</span>:"—"}</td>
-                  <td className="px-4 py-2">
-                    <div className="flex gap-1 justify-end">
-                      <button onClick={()=>openEdit(r)} className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-500 text-xs">✏</button>
-                      <button onClick={()=>setConfirm(r.id)} className="px-2 py-0.5 rounded bg-red-50 hover:bg-red-100 text-red-400 text-xs">✕</button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-          <tfoot><tr className="border-t-2 border-slate-200" style={{background:"#f8fafc"}}>
-            <td className="px-4 py-2.5 font-bold text-slate-700">TOTAL</td>
-            <td className="px-4 py-2.5 text-right font-bold text-slate-800">{adm$(totalRev)}</td>
-            <td className="px-4 py-2.5 text-right font-bold text-slate-600">{adm$(totalExp)}</td>
-            <td className="px-4 py-2.5 text-right font-bold" style={{color:net>=0?"#16a34a":"#dc2626"}}>{adm$(net)}</td>
-            <td className="px-4 py-2.5 text-right font-bold text-slate-500">{totalGoal>0?adm$(totalGoal):"—"}</td>
-            <td className="px-4 py-2.5 text-right font-bold">{totalGoal>0?<span style={{color:totalRev>=totalGoal?"#16a34a":"#dc2626"}}>{((totalRev/totalGoal)*100).toFixed(0)}%</span>:"—"}</td>
-            <td/>
-          </tr></tfoot>
-        </table>
-      </div>
-
-      {showModal&&(
-        <AModal title={editRow?"Edit Entry":"Add Entry"} onClose={()=>setShowModal(false)}>
-          <div className="grid grid-cols-2 gap-x-4">
-            <AInp label="Fiscal Year" value={f("fy")} onChange={v=>s("fy",v)} options={ADMIN_FYS} required/>
-            <AInp label="Month" value={f("month")} onChange={v=>s("month",v)} options={FY_MONTHS} required/>
-            <AInp label="Revenue ($)" value={f("revenue")} onChange={v=>s("revenue",v)} type="number"/>
-            <AInp label="Expenses ($)" value={f("expenses")} onChange={v=>s("expenses",v)} type="number"/>
-            <AInp label="Goal ($)" value={f("goal")} onChange={v=>s("goal",v)} type="number"/>
-          </div>
-          <AInp label="Notes" value={f("notes")} onChange={v=>s("notes",v)} rows={2}/>
-          <div className="flex gap-3 justify-end mt-2">
-            <button onClick={()=>setShowModal(false)} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600">Cancel</button>
-            <button onClick={save} className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:COLOR}}>{editRow?"Update":"Save"}</button>
-          </div>
-        </AModal>
-      )}
-      {confirm&&<AConfirm message="Delete this entry?" onConfirm={()=>del(confirm)} onCancel={()=>setConfirm(null)}/>}
-    </DashShell>
-  );
-}
-
-// ─── CLUBHOUSE DASHBOARD ──────────────────────────────────────────────────────
-function ClubhouseDashboard({db}){
-  return(
-    <DashShell title="Clubhouse Dashboard" sub="Enrollment & revenue across all sites, year over year" accent="#0f766e" icon="🏫">
-      <ClubhouseDetail db={db}/>
-    </DashShell>
-  );
-}
-
-// ─── GOALS DASHBOARD ─────────────────────────────────────────────────────────
-function GoalsDashboard({db}){
-  return(
-    <DashShell title="Goals & Objectives" sub="Department G&Os — track, update, and archive by quarter" accent="#7c3aed" icon="✓">
-      <GoalsSection db={db}/>
-    </DashShell>
-  );
-}
-
-// ─── RENTALS DASHBOARD ───────────────────────────────────────────────────────
-function RentalsDashboard({db}){
-  return(
-    <DashShell title="Rentals Dashboard" sub="Revenue by category and month, year over year" accent="#b45309" icon="🏠">
-      <RentalsSection db={db}/>
-    </DashShell>
-  );
-}
-
-// ─── SPECIAL EVENTS DASHBOARD ────────────────────────────────────────────────
-function EventsDashboard({db}){
-  return(
-    <DashShell title="Special Events Dashboard" sub="Attendance & revenue trends by event type and fiscal year" accent="#dc2626" icon="🎉">
-      <EventsDetail db={db}/>
-    </DashShell>
-  );
-}
-
-// ─── FEE REPORT DASHBOARD ────────────────────────────────────────────────────
-function FeeDashboard({db}){
-  return(
-    <DashShell title="Fee Report" sub="Program fees by area and fiscal year — amber highlights show changes" accent="#64748b" icon="💲">
-      <FeeHistorySection db={db}/>
-    </DashShell>
-  );
-}
-
-
-function AdminView({programs,db}){
-  const [sub,setSub]=useState("summary");
-  const tabs=[
-    {id:"summary",l:"★ Executive Summary"},
-    {id:"funds",  l:"$ Fund Performance"},
-    {id:"goals",  l:"✓ Goals & Objectives"},
-    {id:"rentals",l:"⌂ Rentals"},
-    {id:"areas",  l:"◎ Program Areas"},
-    {id:"fees",   l:"◈ Fee History"},
-  ];
-  return(
-    <div>
-      <div className="flex gap-1 mb-6 bg-white rounded-xl shadow-sm border border-slate-100 p-1 overflow-x-auto">
-        {tabs.map(t=>(
-          <button key={t.id} onClick={()=>setSub(t.id)}
-            className="px-4 py-2 text-xs font-bold rounded-lg transition whitespace-nowrap"
-            style={sub===t.id?{background:"#1e3a5f",color:"white"}:{color:"#64748b"}}>
-            {t.l}
-          </button>
-        ))}
-      </div>
-      <div className="min-h-96">
-        {sub==="summary"&&<ExecSummary programs={programs} db={db}/>}
-        {sub==="funds"  &&<FundSection db={db}/>}
-        {sub==="goals"  &&<GoalsSection db={db}/>}
-        {sub==="rentals"&&<RentalsSection db={db}/>}
-        {sub==="areas"  &&<ProgramAreasSection db={db}/>}
-        {sub==="fees"   &&<FeeHistorySection db={db}/>}
-      </div>
-    </div>
-  );
-}
 
 export default function App() {
   const [tab,setTab]                       = useState("dashboard");
@@ -6941,7 +3998,6 @@ export default function App() {
   const [staffName,setStaffName]           = useState(()=>localStorage.getItem("bgpd_staff_name")||"");
   const [viewAsManager,setViewAsManager]   = useState(true);
   const isManager = MANAGER_NAMES.includes(staffName.toLowerCase().trim());
-  const isAdmin   = ADMIN_NAMES.includes(staffName.toLowerCase().trim());
   const effectiveManager = isManager && viewAsManager;
 
   const fetchAll = useCallback(async()=>{
@@ -7023,7 +4079,6 @@ export default function App() {
       {id:"events",  label:"Events"},
       {id:"fees",    label:"Fees"},
     ]:[]),
-    ...(isAdmin?[{id:"admin",label:"★ Admin"}]:[]),
   ];
   const showingForm = editingProgram||addingProgram;
 
@@ -7113,7 +4168,7 @@ export default function App() {
             {tab==="history"&&(
               <MultiSeasonView programs={programs} onEdit={p=>{setEditingProgram(p);setTab("programs");}}/>
             )}
-            {tab==="kpi"&&<Reference isManager={effectiveManager} db={supabase}/>}
+            {tab==="kpi"&&<Reference isManager={effectiveManager} db={supabase} programs={programs}/>}
             {tab==="fund4"   &&effectiveManager&&<Fund4Dashboard db={supabase}/>}
             {tab==="fitness" &&effectiveManager&&<FitnessDashboard db={supabase}/>}
             {tab==="clubhouse"&&effectiveManager&&<ClubhouseDashboard db={supabase}/>}
@@ -7121,7 +4176,6 @@ export default function App() {
             {tab==="rentals" &&effectiveManager&&<RentalsDashboard db={supabase}/>}
             {tab==="events"  &&effectiveManager&&<EventsDashboard db={supabase}/>}
             {tab==="fees"    &&effectiveManager&&<FeeDashboard db={supabase}/>}
-            {tab==="admin"&&isAdmin&&<AdminView programs={programs} db={supabase}/>}
           </>
         )}
       </main>
