@@ -4,7 +4,7 @@ import { supabase } from "./supabase.js";
 // ─── Constants ────────────────────────────────────────────────────────────────
 const AREAS = ["Adult General","Adult Sports","Aquatics","Camps","Clubhouse","Dance","Fitness","Golf Dome","Museum","Performing Arts","Seniors","Special Events","Youth General","Youth Sports","Other"];
 const SEASONS = ["Spring","Summer","Fall","Winter","All Year"];
-const YEARS = ["2025","2026","2027","2028","2029","2030"];
+const YEARS = ["2025-26","2026-27","2027-28","2028-29","2029-30","2030-31"];
 const CLASSIFICATIONS = ["Community Driven","Revenue Driven","Both"];
 const TRENDS = ["Growing","Stable","Declining"];
 const SERVICE_CATEGORIES = [
