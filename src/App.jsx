@@ -8,6 +8,34 @@ const SEASONS = ["Spring","Summer","Fall","Winter","All Year"];
 if(typeof document!=="undefined"){const s=document.createElement("style");s.textContent="input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield}";document.head.appendChild(s);}
 const YEARS = ["24-25","25-26","26-27","27-28","28-29","29-30"];
 const YEAR_DISPLAY = {"24-25":"FY 24-25","25-26":"FY 25-26","26-27":"FY 26-27","27-28":"FY 27-28","28-29":"FY 28-29","29-30":"FY 29-30"};
+
+// Convert FY string or 4-digit year → calendar year number for sorting
+function toCalYear(year) {
+  if (!year) return 0;
+  const s = String(year).trim();
+  if (/^\d{4}$/.test(s)) return parseInt(s);
+  // "25-26" → 2025
+  const m = s.match(/^(\d{2})-\d{2}$/);
+  if (m) return 2000 + parseInt(m[1]);
+  return parseInt(s) || 0;
+}
+
+// Convert stored year value to FY string (e.g. "2025" → "25-26", "25-26" → "25-26")
+function toFY(year) {
+  if (!year) return "";
+  const s = String(year).trim();
+  // Already in FY format
+  if (/^\d{2}-\d{2}$/.test(s)) return s;
+  // 4-digit year: fiscal year starts in May, so 2025 → "25-26"
+  const n = parseInt(s);
+  if (!isNaN(n) && n > 2000) {
+    const y1 = String(n).slice(2);
+    const y2 = String(n + 1).slice(2);
+    return `${y1}-${y2}`;
+  }
+  return s;
+}
+
 const CLASSIFICATIONS = ["Community Driven","Revenue Driven","Both"];
 const TRENDS = ["Growing","Stable","Declining"];
 const SERVICE_CATEGORIES = [
@@ -660,7 +688,7 @@ function BulkDupModal({programs,onConfirm,onCancel}) {
               <input type="checkbox" checked={!!selected[p.id]} onChange={()=>toggle(p.id)} className="rounded" onClick={e=>e.stopPropagation()}/>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold text-slate-700 truncate">{p.name}</div>
-                <div className="text-xs text-slate-400">{p.area} — {p.season} {p.year} — {p.staff_name}</div>
+                <div className="text-xs text-slate-400">{p.area} — {p.season} FY {toFY(p.year)} — {p.staff_name}</div>
               </div>
             </div>
           ))}
@@ -697,7 +725,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
     .filter(p=>!p.is_archived)
     .filter(p=>sf==="All"||p.staff_name===sf)
     .filter(p=>af==="All"||p.area===af)
-    .filter(p=>yf==="All"||p.year===yf)
+    .filter(p=>yf==="All"||toFY(p.year)===yf)
     .filter(p=>snf==="All"||p.season===snf);
 
   const kpis    = vis.map(p=>({...p,...calcKPIs(p)}));
@@ -808,7 +836,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
                   <td className="px-3 py-2.5 font-semibold text-slate-700"><button onClick={()=>onEdit(p)} className="hover:text-blue-600 hover:underline text-left">{p.name}</button></td>
                   <td className="px-3 py-2.5 text-slate-400 text-xs">{p.staff_name}</td>
                   <td className="px-3 py-2.5 text-slate-500">{p.area}</td>
-                  <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{p.season} {p.year}</td>
+                  <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{p.season} FY {toFY(p.year)}</td>
                   <td className="px-3 py-2.5 font-mono">{pct(p.fillRate)}</td>
                   <td className="px-3 py-2.5 font-mono">{pct(p.costRecovery)}</td>
                   <td className={`px-3 py-2.5 font-mono font-semibold ${p.profitLoss>=0?"text-green-700":"text-red-600"}`}>{dollar(p.profitLoss)}</td>
@@ -870,7 +898,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
               <div className="flex items-center justify-between">
                 <div>
                   <button onClick={()=>onEdit(p)} className="font-semibold text-slate-700 hover:text-blue-600 hover:underline text-left">{p.name}</button>
-                  <div className="text-xs text-slate-400">{p.area} - {p.season} {p.year}</div>
+                  <div className="text-xs text-slate-400">{p.area} - {p.season} FY {toFY(p.year)}</div>
                 </div>
                 <Badge status={p.status}/>
               </div>
@@ -918,7 +946,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
     .filter(p=>!p.is_archived)
     .filter(p=>sf==="All"||p.staff_name===sf)
     .filter(p=>af==="All"||p.area===af)
-    .filter(p=>yf==="All"||p.year===yf)
+    .filter(p=>yf==="All"||toFY(p.year)===yf)
     .filter(p=>snf==="All"||p.season===snf);
 
   const kpis = useMemo(()=>vis.map(p=>({...p,...calcKPIs(p)})),[vis]);
@@ -1036,13 +1064,13 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
         p.id!==cur.id &&
         p.name===cur.name &&
         p.area===cur.area &&
-        (Number(p.year)<Number(cur.year) ||
-         (Number(p.year)===Number(cur.year) && SEASON_ORDER.indexOf(p.season)<SEASON_ORDER.indexOf(cur.season)))
+        (toCalYear(p.year)<toCalYear(cur.year) ||
+         (toCalYear(p.year)===toCalYear(cur.year) && SEASON_ORDER.indexOf(p.season)<SEASON_ORDER.indexOf(cur.season)))
       );
       if(!candidates.length) return;
       // pick closest prior
       const sorted = candidates.sort((a,b)=>{
-        const ay=Number(a.year),by2=Number(b.year),cy=Number(cur.year);
+        const ay=toCalYear(a.year),by2=toCalYear(b.year),cy=toCalYear(cur.year);
         const as2=SEASON_ORDER.indexOf(a.season),bs=SEASON_ORDER.indexOf(b.season),cs=SEASON_ORDER.indexOf(cur.season);
         const adiff = (cy-ay)*10+(cs-as2);
         const bdiff = (cy-by2)*10+(cs-bs);
@@ -1145,7 +1173,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
               <div key={p.id} className="px-4 py-2.5 flex items-center justify-between gap-4 hover:bg-red-50/50">
                 <div className="flex-1 min-w-0">
                   <button onClick={()=>onEdit(p)} className="text-sm font-semibold text-slate-700 hover:text-blue-600 hover:underline text-left truncate block">{p.name}</button>
-                  <div className="text-xs text-slate-400">{p.area} — {p.season} {p.year} — {p.staff_name}</div>
+                  <div className="text-xs text-slate-400">{p.area} — {p.season} FY {toFY(p.year)} — {p.staff_name}</div>
                 </div>
                 <div className="hidden sm:flex gap-4 text-xs font-mono shrink-0">
                   <span className="text-slate-500">Fill: <span className={p.fillRate<0.6?"text-red-600 font-bold":""}>{pct(p.fillRate)}</span></span>
@@ -1265,7 +1293,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                 <div key={p.id} className={`px-4 py-2.5 flex items-center justify-between ${i>0?"border-t border-slate-50":""}`}>
                   <div>
                     <button onClick={()=>onEdit(p)} className="text-sm font-semibold text-slate-700 hover:text-blue-600 hover:underline text-left">{p.name}</button>
-                    <div className="text-xs text-slate-400">{p.area} — {p.season} {p.year}</div>
+                    <div className="text-xs text-slate-400">{p.area} — {p.season} FY {toFY(p.year)}</div>
                   </div>
                   <div className={`text-sm font-bold ${good?"text-green-700":"text-red-600"}`}>{metric(p)}</div>
                 </div>
@@ -1285,7 +1313,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
             <div key={p.id} className={`px-4 py-2.5 flex items-center justify-between gap-4 ${i>0?"border-t border-slate-50":""} hover:bg-slate-50`}>
               <div className="flex-1 min-w-0">
                 <button onClick={()=>onEdit(p)} className="text-sm font-semibold text-slate-700 hover:text-blue-600 hover:underline text-left">{p.name}</button>
-                <div className="text-xs text-slate-400">{p.area} — {p.season} {p.year} — {p.staff_name}</div>
+                <div className="text-xs text-slate-400">{p.area} — {p.season} FY {toFY(p.year)} — {p.staff_name}</div>
               </div>
               <div className="flex gap-4 text-xs font-mono text-slate-500 shrink-0">
                 <span>Fill: {pct(p.fillRate)}</span>
@@ -1478,7 +1506,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                   </td>
                   <td className="px-3 py-2.5 text-slate-400 text-xs">{p.staff_name}</td>
                   <td className="px-3 py-2.5 text-slate-500">{p.area}</td>
-                  <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{p.season} {p.year}</td>
+                  <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{p.season} FY {toFY(p.year)}</td>
                   <td className="px-3 py-2.5 font-mono">{pct(p.fillRate)}</td>
                   <td className="px-3 py-2.5 font-mono">{pct(p.costRecovery)}</td>
                   <td className={`px-3 py-2.5 font-mono font-semibold ${p.profitLoss>=0?"text-green-700":"text-red-600"}`}>{dollar(p.profitLoss)}</td>
@@ -1556,7 +1584,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
               <div className="flex items-center justify-between">
                 <div>
                   <button onClick={()=>onEdit(p)} className="font-semibold text-slate-700 hover:text-blue-600 hover:underline text-left">{p.name}</button>
-                  <div className="text-xs text-slate-400">{p.area} - {p.season} {p.year}{p.staff_name?" - "+p.staff_name:""}</div>
+                  <div className="text-xs text-slate-400">{p.area} - {p.season} FY {toFY(p.year)}{p.staff_name?" - "+p.staff_name:""}</div>
                 </div>
                 <Badge status={p.status}/>
               </div>
@@ -1932,7 +1960,7 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
     .filter(p=>showArchived ? !!p.is_archived : !p.is_archived)
     .filter(p=>sf==="All"||p.staff_name===sf)
     .filter(p=>af==="All"||p.area===af)
-    .filter(p=>yf==="All"||p.year===yf)
+    .filter(p=>yf==="All"||toFY(p.year)===yf)
     .filter(p=>snf==="All"||p.season===snf)
     .filter(p=>!search||p.name.toLowerCase().includes(search.toLowerCase()));
   const archivedCount = programs.filter(p=>p.is_archived&&(isManager||p.staff_name===staffName)).length;
@@ -2005,7 +2033,7 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
                   {!k.hasActuals&&<span className="text-xs bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded font-medium whitespace-nowrap">No actuals</span>}
                   {p.notes&&<span className="text-slate-300 text-xs" title={p.notes}>●</span>}
                 </div>
-                <div className="text-xs text-slate-400">{p.area} - {p.season} {p.year} - {p.staff_name}
+                <div className="text-xs text-slate-400">{p.area} - {p.season} FY {toFY(p.year)} - {p.staff_name}
                   {lastUpdated&&<span className="ml-2 text-slate-300">· Updated {new Date(lastUpdated).toLocaleDateString()}</span>}
                 </div>
               </div>
