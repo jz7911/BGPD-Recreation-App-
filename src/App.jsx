@@ -4,7 +4,10 @@ import { supabase } from "./supabase.js";
 // ─── Constants ────────────────────────────────────────────────────────────────
 const AREAS = ["Adult General","Adult Sports","Aquatics","Camps","Clubhouse","Dance","Fitness","Golf Dome","Museum","Performing Arts","Seniors","Special Events","Youth General","Youth Sports","Other"];
 const SEASONS = ["Spring","Summer","Fall","Winter","All Year"];
-const YEARS = ["2025-26","2026-27","2027-28","2028-29","2029-30","2030-31"];
+/* inject no-spinner CSS */
+if(typeof document!=="undefined"){const s=document.createElement("style");s.textContent="input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield}";document.head.appendChild(s);}
+const YEARS = ["24-25","25-26","26-27","27-28","28-29","29-30"];
+const YEAR_DISPLAY = {"24-25":"FY 24-25","25-26":"FY 25-26","26-27":"FY 26-27","27-28":"FY 27-28","28-29":"FY 28-29","29-30":"FY 29-30"};
 const CLASSIFICATIONS = ["Community Driven","Revenue Driven","Both"];
 const TRENDS = ["Growing","Stable","Declining"];
 const SERVICE_CATEGORIES = [
@@ -27,7 +30,7 @@ const PROGRAM_TYPES = [
 const ADMIN_OVERHEAD_RATE  = 0.1;
 const FT_ANNUAL_SALARY     = 97700;
 const FACILITY_COST_PER_HR = 3;
-const MANAGER_NAMES        = ["admin","manager","joe zimmermann","erika strojinc","dan stanczak","brian o'malley","chris eckert","chuck burgess","diana clayson","amanda busch","tim beckmann"];
+const MANAGER_NAMES        = ["admin","manager","joe zimmermann","erika strojinc","dan stanczak","brian o'malley","chris eckert","chuck burgess","diana clayson","amanda busch"];
 
 
 // Service category cost recovery targets
@@ -133,7 +136,7 @@ function calcKPIs(p) {
 function newProgram(staffName) {
   const last = getLastUsed(staffName);
   return {
-    name:"", area:last.area||"Youth Sports", season:last.season||"Summer", year:last.year||"2026",
+    name:"", area:last.area||"Youth Sports", season:last.season||"Summer", year:last.year||"25-26",
     classification:last.classification||"Community Driven", service_category:last.service_category||"",
     trend:"Stable", nps:0, notes:"", staff_name: staffName||"", waitlist:0,
     ant_capacity:0, ant_enrollment:0, ant_revenue:0,
@@ -412,6 +415,8 @@ function Inp({label,type="text",value,onChange,options,min,max,hint,placeholder,
           </select>
         : <input className={cls} type={type} value={value||""} min={min} max={max}
             placeholder={placeholder||""}
+            inputMode={type==="number"?"decimal":undefined}
+            style={type==="number"?{MozAppearance:"textfield"}:{}}
             onChange={e=>onChange(type==="number"?parseFloat(e.target.value)||0:e.target.value)}/>
       }
       {hint&&<span className="text-xs text-slate-400">{hint}</span>}
@@ -736,7 +741,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
         <div className="flex flex-col gap-1">
           <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Year</label>
           <select value={yf} onChange={e=>setYf(e.target.value)} className={selCls}>
-            {allYears.map(y=><option key={y} value={y}>{y}</option>)}
+            {allYears.map(y=><option key={y} value={y}>{y==="All"?y:`FY ${y}`}</option>)}
           </select>
         </div>
         {anyFilter&&<button onClick={()=>{setSf("All");setAf("All");setYf("All");setSnf("All");}} className="text-xs text-slate-400 hover:text-slate-600 pb-1.5 font-medium">Clear filters</button>}
@@ -1103,7 +1108,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
           <div className="flex flex-col gap-1">
             <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Year</label>
             <select value={yf} onChange={e=>setYf(e.target.value)} className={selCls}>
-              {allYears.map(y=><option key={y} value={y}>{y}</option>)}
+              {allYears.map(y=><option key={y} value={y}>{y==="All"?y:`FY ${y}`}</option>)}
             </select>
           </div>
           {anyFilter&&<button onClick={()=>{setSf("All");setAf("All");setYf("All");setSnf("All");}} className="text-xs text-slate-400 hover:text-slate-600 pb-1.5 font-medium">Clear filters</button>}
@@ -1977,7 +1982,7 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
         <div className="flex flex-col gap-1">
           <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Year</label>
           <select value={yf} onChange={e=>setYf(e.target.value)} className={selCls}>
-            {allYears.map(y=><option key={y} value={y}>{y}</option>)}
+            {allYears.map(y=><option key={y} value={y}>{y==="All"?y:`FY ${y}`}</option>)}
           </select>
         </div>
         {(sf!=="All"||af!=="All"||yf!=="All"||snf!=="All"||search)&&(
@@ -2026,7 +2031,7 @@ const ADMIN_FYS = ["2021-2022","2022-2023","2023-2024","2024-2025","2025-2026","
 const ADMIN_CUR = "2025-2026";
 
 // ─── Program Review Checklist ─────────────────────────────────────────────────
-function ProgramReviewSection({db,programs=[]}){
+function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   const [reviews,setReviews]=useState([]);
   const [loading,setLoading]=useState(true);
   const [view,setView]=useState("list");
@@ -2046,24 +2051,24 @@ function ProgramReviewSection({db,programs=[]}){
     revenue:"",direct_costs:"",cost_recovery:"",prior_cr:"",
     below_50_cr:false,cr_action:"",fs_acceptable:true,fs_notes:"",fs_strengths:"",fs_concerns:"",
     // Data
-    fill_rate:"",prior_fill_rate:"",cancellation_rate:"",consecutive_weak:"0",
+    fill_rate:"",prior_fill_rate:"",participant_satisfaction:"",consecutive_weak:"0",
     below_60_fill:false,two_weak_seasons:false,weak_action:"",trend:"Stable",nps:"",
     da_notes:"",da_strengths:"",da_concerns:"",
     // Community
-    enrollment:"",capacity:"",waitlist:"",retention_rate:"",
+    enrollment:"",capacity:"",waitlist:"",repeat_participant_pct:"",
     retention_trend:"Stable",clear_audience:true,community_benefit:true,
     documented_need:false,ci_notes:"",ci_strengths:"",ci_concerns:"",
     // Space
-    prime_time_use:"Strong",time_improvable:false,ratio_appropriate:true,space_notes:"",
+    prime_time_use:"Strong",time_improvable:false,ratio_appropriate:true,space_notes:"",scheduling_changes:"",facility_barriers:"",
     // Innovation
-    is_pilot:false,met_enrollment:false,met_financial:false,innovation_notes:"",
+    is_pilot:false,is_adaptation:false,pilot_goal:"",met_enrollment:false,met_financial:false,adaptation_made:"",future_potential:"",innovation_notes:"",
     // Decision
     decision:"Continue",decision_reason:"",action_items:"",next_review:"",pillars_met:"",
   };
   const [form,setForm]=useState(emptyForm);
   const [activeStep,setActiveStep]=useState(0);
 
-  const AGE_GROUPS=["All Ages","Youth (Under 12)","Tweens (10–14)","Teens (13–18)","Adults (18+)","Seniors (55+)","Family","Adults & Seniors","Youth & Teens","Adaptive/Inclusive"];
+  const AGE_GROUPS=["All Ages","Early Childhood (0–5)","Children (6–12)","Youth (13–17)","Young Adults (18–34)","Adults (35–54)","Older Adults (55–64)","Seniors (65+)","Multigenerational / Family","Adaptive / Inclusive","Workforce / Special Interest"];
   const AREAS=["Adult General","Adult Sports","Aquatics","Camps","Clubhouse","Dance","Fitness","Golf Dome","Museum","Performing Arts","Seniors","Special Events","Youth General","Youth Sports","Other"];
   const SEASONS_LIST=["Spring","Summer","Fall","Winter","Annual","Year-Round"];
   const DECISIONS=["Continue","Adjust","Redesign","Expand","Pilot Again","Sunset Review"];
@@ -2181,13 +2186,13 @@ function ProgramReviewSection({db,programs=[]}){
       prior_cr:parseFloat(form.prior_cr)||0,
       fill_rate:parseFloat(form.fill_rate)||0,
       prior_fill_rate:parseFloat(form.prior_fill_rate)||0,
-      cancellation_rate:parseFloat(form.cancellation_rate)||0,
+      cancellation_rate:parseFloat(form.participant_satisfaction)||0,
       consecutive_weak:parseInt(form.consecutive_weak)||0,
       nps:form.nps?parseInt(form.nps):null,
       enrollment:parseInt(form.enrollment)||0,
       capacity:parseInt(form.capacity)||0,
       waitlist:parseInt(form.waitlist)||0,
-      retention_rate:form.retention_rate?parseFloat(form.retention_rate):null,
+      retention_rate:form.repeat_participant_pct?parseFloat(form.repeat_participant_pct):null,
       pillars_met:pillarsStr,
     };
     if(editRow){await db.from("admin_reviews").update(d).eq("id",editRow.id);}
@@ -2208,12 +2213,14 @@ function ProgramReviewSection({db,programs=[]}){
       enrollment:r.enrollment||"",capacity:r.capacity||"",
       waitlist:r.waitlist||"",nps:r.nps||"",
       retention_rate:r.retention_rate||"",
+      repeat_participant_pct:r.repeat_participant_pct||"",
       consecutive_weak:r.consecutive_weak!=null?String(r.consecutive_weak):"0",
     });
     setActiveStep(0);setView("form");
   }
 
   const filtered=reviews.filter(r=>{
+    if(!isManager && staffName && r.supervisor?.toLowerCase().trim()!==staffName.toLowerCase().trim()) return false;
     if(fyFilter!=="all"&&r.fy!==fyFilter) return false;
     if(decFilter!=="all"&&r.decision!==decFilter) return false;
     if(search&&!r.program_name?.toLowerCase().includes(search.toLowerCase())&&!r.supervisor?.toLowerCase().includes(search.toLowerCase())) return false;
@@ -2229,8 +2236,10 @@ function ProgramReviewSection({db,programs=[]}){
           {opts.map(o=><option key={o}>{o}</option>)}
         </select>
       ):(
-        <input type={type} value={form[key]||""} onChange={e=>s(key,type==="number"?e.target.value:e.target.value)}
-          className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2"/>
+        <input type={type} value={form[key]||""} onChange={e=>s(key,e.target.value)}
+          inputMode={type==="number"?"decimal":undefined}
+          className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2"
+          style={type==="number"?{MozAppearance:"textfield"}:{}}/>
       )}
       {hint&&<div className="text-xs text-slate-400 mt-0.5">{hint}</div>}
     </div>
@@ -2294,7 +2303,7 @@ function ProgramReviewSection({db,programs=[]}){
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="font-bold text-slate-800" style={{fontSize:"18px"}}>Program Review Checklist</h2>
-          <p className="text-sm text-slate-400 mt-0.5">Quarterly supervisor reviews — shared across all managers</p>
+          <p className="text-sm text-slate-400 mt-0.5">{isManager?"All manager reviews — shared across supervisors":`Your program reviews — logged for programs you supervise`}</p>
         </div>
         <button onClick={startNew} className="px-4 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>
           + New Review
@@ -2357,7 +2366,7 @@ function ProgramReviewSection({db,programs=[]}){
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-slate-800">{r.program_name}</div>
-                  <div className="text-xs text-slate-400 mt-0.5">{r.supervisor}{r.area?` · ${r.area}`:""} · {r.review_date}</div>
+                  <div className="text-xs text-slate-400 mt-0.5">{r.supervisor}{r.area?` · ${r.area}`:""} · {r.season&&r.fy?`${r.season} FY ${r.fy} · `:""}{r.review_date}</div>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs">
                     <span className="text-slate-500">Fill: <span className="font-bold">{r.fill_rate||0}%</span>
                       {frDelta!==null&&<span style={{color:frDelta>=0?"#16a34a":"#dc2626",marginLeft:"3px"}}>{frDelta>=0?"▲":"▼"}{Math.abs(frDelta).toFixed(0)}pp</span>}
@@ -2410,7 +2419,7 @@ function ProgramReviewSection({db,programs=[]}){
               <div>
                 <div className="text-xl font-black text-white">{r.program_name}</div>
                 <div className="text-sm opacity-70 text-white mt-1">
-                  {r.supervisor}{r.area?` · ${r.area}`:""} · {r.season} {r.fy} · Reviewed {r.review_date}
+                  {r.supervisor}{r.area?` · ${r.area}`:""} · {r.season} FY {r.fy} · Reviewed {r.review_date}
                 </div>
                 {r.target_age&&<div className="text-xs opacity-60 text-white mt-0.5">Target: {r.target_age}</div>}
               </div>
@@ -2470,10 +2479,10 @@ function ProgramReviewSection({db,programs=[]}){
                 <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">📊 Data</div>
                 <Row k="Fill Rate" v={r.fill_rate?`${r.fill_rate}%`:null}/>
                 <Row k="Prior Fill Rate" v={r.prior_fill_rate?`${r.prior_fill_rate}%`:null}/>
-                <Row k="Cancellation Rate" v={r.cancellation_rate?`${r.cancellation_rate}%`:null}/>
-                <Row k="Consecutive Weak Seasons" v={r.consecutive_weak}/>
-                <Row k="Trend" v={r.trend}/>
+                <Row k="Participant Satisfaction" v={r.participant_satisfaction||r.cancellation_rate||null}/>
                 <Row k="NPS" v={r.nps}/>
+                <Row k="Trend" v={r.trend}/>
+                <Row k="Consecutive Weak Seasons" v={r.consecutive_weak}/>
                 {r.weak_action&&<Row k="Weak Season Action" v={r.weak_action}/>}
                 <SCP s={r.da_strengths} c={r.da_concerns}/>
                 <Note label="Notes" val={r.da_notes}/>
@@ -2483,8 +2492,8 @@ function ProgramReviewSection({db,programs=[]}){
                 <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">🤝 Community</div>
                 <Row k="Enrollment / Capacity" v={r.enrollment?`${r.enrollment} / ${r.capacity}`:"—"}/>
                 <Row k="Waitlist" v={r.waitlist||0}/>
-                <Row k="Retention Rate" v={r.retention_rate?`${r.retention_rate}%`:null}/>
-                <Row k="Retention Trend" v={r.retention_trend}/>
+                <Row k="Repeat Participant % (est.)" v={r.repeat_participant_pct?`${r.repeat_participant_pct}%`:null}/>
+                <Row k="Repeat Participant Trend" v={r.retention_trend}/>
                 <Row k="Target Age Group" v={r.target_age}/>
                 <Row k="Clear Audience?" v={r.clear_audience?"Yes":"No"}/>
                 <Row k="Community Benefit Documented?" v={r.community_benefit?"Yes":"No"}/>
@@ -2498,13 +2507,18 @@ function ProgramReviewSection({db,programs=[]}){
                 <Row k="Prime Time Use" v={r.prime_time_use}/>
                 <Row k="Time/Location Improvable?" v={r.time_improvable?"Yes":"No"}/>
                 <Row k="Staff Ratio Appropriate?" v={r.ratio_appropriate?"Yes":"No"}/>
+                <Row k="Day / Time" v={r.scheduling_changes||null}/>
+                <Note label="Facility Barriers" val={r.facility_barriers}/>
                 <Note label="Space Notes" val={r.space_notes}/>
                 <div className="mt-3"/>
                 <Row k="Is Pilot?" v={r.is_pilot?"Yes":"No"}/>
                 {r.is_pilot&&<>
+                  <Row k="Pilot Goal" v={r.pilot_goal||null}/>
                   <Row k="Met Enrollment?" v={r.met_enrollment?"Yes":"No"}/>
                   <Row k="Met Financial?" v={r.met_financial?"Yes":"No"}/>
                 </>}
+                <Note label="Adaptations Made" val={r.adaptation_made}/>
+                <Note label="Future Potential" val={r.future_potential}/>
                 <Note label="Innovation Notes" val={r.innovation_notes}/>
               </div>
             </div>
@@ -2695,35 +2709,44 @@ function ProgramReviewSection({db,programs=[]}){
         {activeStep===2&&(
           <>
             <div className="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2">📊 Data & Accountability <span className="text-xs font-normal text-red-500 ml-2">Required Pillar</span></div>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              {inp("Fill Rate (%)","fill_rate","number")}
-              {inp("Prior Season Fill (%)","prior_fill_rate","number","",false,"Last season's fill rate for YoY comparison")}
-              {inp("Cancellation Rate (%)","cancellation_rate","number","",false,"% of registrants who dropped before start")}
-              {inp("NPS Score","nps","number","",false,"Leave blank if not collected")}
+            <div className="rounded-lg bg-blue-50 border border-blue-100 px-4 py-3 text-xs text-blue-700 mb-2">
+              Leave any field blank if you don't have the data — it will not count against the review.
             </div>
+
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              {inp("Fill Rate (%)","fill_rate","number","",false,"Actual enrollment ÷ capacity")}
+              {inp("Prior Season Fill (%)","prior_fill_rate","number","",false,"Last season for comparison")}
+              {inp("NPS Score (0–100)","nps","number","",false,"Leave blank if not collected")}
+              {inp("Participant Satisfaction","participant_satisfaction","number","",false,"Survey score or rating (e.g. 1–5 scale)")}
+            </div>
+
             {form.fill_rate&&form.prior_fill_rate&&(
-              <div className="rounded-lg bg-slate-50 border border-slate-100 px-4 py-3 text-sm">
-                <span className="text-slate-400">Fill Rate Change: </span>{delta(form.fill_rate,form.prior_fill_rate)}
-                {parseFloat(form.fill_rate)<60&&<span className="ml-4 font-bold text-red-600">⚠ Below 60% threshold</span>}
+              <div className="rounded-lg bg-slate-50 border border-slate-100 px-4 py-3 text-sm flex items-center gap-6">
+                <div><span className="text-slate-400">Fill Change: </span>{delta(form.fill_rate,form.prior_fill_rate)}</div>
+                {parseFloat(form.fill_rate)<60&&<span className="font-bold text-red-600">⚠ Below 60% threshold</span>}
               </div>
             )}
+
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {inp("Trend Direction","trend",null,TRENDS)}
-              {inp("Consecutive Weak Seasons","consecutive_weak",null,WEAK_OPTS,"","")}
+              {inp("Consecutive Weak Seasons","consecutive_weak",null,WEAK_OPTS,"","Seasons below fill or CR threshold in a row")}
             </div>
+
             <div className="space-y-2">
               {chk("Currently below 60% fill rate","below_60_fill")}
-              {chk("Two or more consecutive weak seasons","two_weak_seasons","Redesign plan or sunset review required")}
+              {chk("Two or more consecutive weak seasons","two_weak_seasons","Redesign plan or sunset review required per district policy")}
               {form.two_weak_seasons&&inp("Required Action","weak_action",null,["Redesign plan in progress","Sunset review scheduled"])}
             </div>
+
             {parseInt(form.consecutive_weak)>=2&&(
               <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-xs text-red-700 font-medium">
-                ⚠ {form.consecutive_weak} consecutive weak seasons — a formal redesign plan or sunset review is required per district policy.
+                ⚠ {form.consecutive_weak} consecutive weak seasons — formal redesign plan or sunset review required per district policy.
               </div>
             )}
+
             {divider("Reflection")}
             {scPair("da_strengths","da_concerns")}
-            {ta("Additional Notes","da_notes",2,"Enrollment context, data quality notes, known anomalies…")}
+            {ta("Additional Notes","da_notes",2,"Enrollment context, data anomalies, known one-time factors…")}
           </>
         )}
 
@@ -2731,6 +2754,9 @@ function ProgramReviewSection({db,programs=[]}){
         {activeStep===3&&(
           <>
             <div className="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2">🤝 Participation & Community Impact</div>
+            <div className="rounded-lg bg-blue-50 border border-blue-100 px-4 py-3 text-xs text-blue-700 mb-2">
+              Leave any field blank if you don't have the data — it will not count against the review.
+            </div>
             <div className="grid grid-cols-3 gap-4">
               {inp("Enrollment","enrollment","number")}
               {inp("Capacity","capacity","number")}
@@ -2744,17 +2770,17 @@ function ProgramReviewSection({db,programs=[]}){
               </div>
             )}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {inp("Retention Rate (%)","retention_rate","number","",false,"% of participants who returned from prior season")}
-              {inp("Retention Trend","retention_trend",null,RETENTION_OPTS)}
+              {inp("Repeat Participant % (est.)","repeat_participant_pct","number","",false,"Rough % of participants who also attended a prior season — estimate is fine")}
+              {inp("Repeat Participant Trend","retention_trend",null,RETENTION_OPTS)}
             </div>
             <div className="space-y-2">
               {chk("Clear target audience identified","clear_audience","Program has a defined population it serves")}
-              {chk("Community benefit is documented","community_benefit","Evidence of community value beyond enrollment numbers")}
-              {chk("Documented community need or request drives this program","documented_need","E.g. community survey, resident request, needs assessment")}
+              {chk("Community benefit is documented","community_benefit","Evidence of value beyond enrollment numbers — feedback, outcomes, mission alignment")}
+              {chk("Documented community need or request drives this program","documented_need","E.g. resident survey, staff observation, needs assessment, board direction")}
             </div>
             {divider("Reflection")}
             {scPair("ci_strengths","ci_concerns")}
-            {ta("Additional Notes","ci_notes",2,"Participant feedback, demographic notes, community relationships…")}
+            {ta("Additional Notes","ci_notes",2,"Participant feedback, demographic observations, community relationships…")}
           </>
         )}
 
@@ -2762,12 +2788,19 @@ function ProgramReviewSection({db,programs=[]}){
         {activeStep===4&&(
           <>
             <div className="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2">🏢 Space & Operational Efficiency</div>
-            {inp("Prime Time Space Use","prime_time_use",null,PRIME)}
-            <div className="space-y-2">
-              {chk("Time or location could be improved","time_improvable","Rescheduling or relocating could boost attendance or efficiency")}
-              {chk("Participant-to-staff ratio is appropriate","ratio_appropriate","Ratio aligns with actual enrollment, not just budgeted")}
+            <div className="rounded-lg bg-blue-50 border border-blue-100 px-4 py-3 text-xs text-blue-700 mb-2">
+              Leave any field blank if you don't have the data.
             </div>
-            {ta("Space & Operations Notes","space_notes",2,"Facility constraints, scheduling opportunities, ratio adjustments…")}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {inp("Prime Time Space Use","prime_time_use",null,PRIME)}
+              {inp("Day / Time of Program","scheduling_changes","text","",false,"E.g. Tuesday evenings, Saturday mornings")}
+            </div>
+            <div className="space-y-2">
+              {chk("Time or location could be improved","time_improvable","A different day, time, or facility could improve attendance or efficiency")}
+              {chk("Participant-to-staff ratio is appropriate","ratio_appropriate","Ratio reflects actual enrollment — not just what was budgeted")}
+            </div>
+            {ta("Facility Barriers or Constraints","facility_barriers",2,"Any issues with space availability, setup time, equipment access, or scheduling conflicts…")}
+            {ta("Space & Operations Notes","space_notes",2,"Scheduling opportunities, ratio adjustments, facility improvements that would help…")}
           </>
         )}
 
@@ -2775,14 +2808,23 @@ function ProgramReviewSection({db,programs=[]}){
         {activeStep===5&&(
           <>
             <div className="text-sm font-bold text-slate-700 border-b border-slate-100 pb-2">💡 Innovation & Responsiveness</div>
-            {chk("This is a new or pilot program","is_pilot")}
+            <div className="space-y-2 mb-4">
+              {chk("This is a new or pilot program","is_pilot","New offering within the last 2 seasons")}
+              {chk("An adaptation or change was made this season","is_adaptation","Format, pricing, timing, instructor, or audience was intentionally adjusted")}
+            </div>
             {form.is_pilot&&(
-              <div className="space-y-2 ml-4">
-                {chk("Met enrollment expectations","met_enrollment")}
-                {chk("Met financial expectations","met_financial")}
+              <div className="space-y-4 p-4 rounded-lg bg-purple-50 border border-purple-100">
+                <div className="text-xs font-bold text-purple-700 uppercase tracking-widest">Pilot Program Details</div>
+                {ta("Pilot Goal","pilot_goal",2,"What was this pilot trying to achieve? What was the hypothesis?")}
+                <div className="space-y-2">
+                  {chk("Met enrollment expectations","met_enrollment")}
+                  {chk("Met financial expectations","met_financial")}
+                </div>
               </div>
             )}
-            {ta("Innovation Notes","innovation_notes",2,"What was tried, what was learned, what would you change…")}
+            {ta("Adaptations Made This Season","adaptation_made",2,"What changed from the prior season — intentionally or in response to feedback? Leave blank if nothing changed.")}
+            {ta("Future Potential","future_potential",2,"Is there an opportunity to grow, expand, or modify this program? Any emerging community interest worth exploring?")}
+            {ta("Innovation Notes","innovation_notes",2,"Ideas, lessons learned, things you'd try differently…")}
           </>
         )}
 
@@ -2850,7 +2892,7 @@ function ProgramReviewSection({db,programs=[]}){
 
 
 // ─── Reference Tab ────────────────────────────────────────────────────────────
-function Reference({isManager,db,programs}) {
+function Reference({isManager,db,programs,staffName}) {
   const [sec,setSec] = useState("standards");
   const workload = [
     {activity:"Program planning & management", pct:"45-50%"},
@@ -3436,7 +3478,7 @@ function Reference({isManager,db,programs}) {
       )}
 
       {sec==="review"&&isManager&&(
-        <ProgramReviewSection db={db} programs={programs}/>
+        <ProgramReviewSection db={db} programs={programs} staffName={staffName} isManager={isManager}/>
       )}
 
       {sec==="training"&&(
@@ -4159,7 +4201,7 @@ export default function App() {
             {tab==="history"&&(
               <MultiSeasonView programs={programs} onEdit={p=>{setEditingProgram(p);setTab("programs");}}/>
             )}
-            {tab==="kpi"&&<Reference isManager={effectiveManager} db={supabase} programs={programs}/>}
+            {tab==="kpi"&&<Reference isManager={effectiveManager} db={supabase} programs={programs} staffName={staffName}/>}
           </>
         )}
       </main>
