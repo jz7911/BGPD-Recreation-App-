@@ -58,7 +58,7 @@ const PROGRAM_TYPES = [
 const ADMIN_OVERHEAD_RATE  = 0.1;
 const FT_ANNUAL_SALARY     = 97700;
 const FACILITY_COST_PER_HR = 3;
-const MANAGER_NAMES        = ["admin","manager","joe zimmermann","erika strojinc","dan stanczak","brian o'malley","chris eckert","chuck burgess","diana clayson","amanda busch","tim beckmann"];
+const MANAGER_NAMES        = ["admin","manager","joe zimmermann","erika strojinc","dan stanczak","brian o'malley","chris eckert","chuck burgess","diana clayson","amanda busch"];
 
 
 // Service category cost recovery targets
@@ -471,7 +471,7 @@ function ConfirmModal({message,onConfirm,onCancel,confirmLabel="Delete",confirmC
 }
 
 // ─── Cost Breakdown Panel ─────────────────────────────────────────────────────
-function CostPanel({px,p,set}) {
+function CostPanel({px,p,set,isManager=false}) {
   const isAnt = px==="ant_";
   const c   = calcCR(p, px);
   const lc  = isAnt ? "text-blue-500"  : "text-slate-500";
@@ -1675,33 +1675,48 @@ function Dashboard({programs,staffName,isManager,onEdit,onAddProgram}) {
 // ─── Multi-Season View ────────────────────────────────────────────────────────
 function MultiSeasonView({programs,onEdit}) {
   const [search,setSearch] = useState("");
+  const [showSingle,setShowSingle] = useState(false);
   const groups = useMemo(()=>{
     const map = {};
-    programs.forEach(p=>{
-      const key = `${p.name}__${p.area}__${p.staff_name}`;
+    programs.filter(p=>!p.is_archived).forEach(p=>{
+      const key = `${(p.name||"").toLowerCase().trim()}__${(p.staff_name||"").toLowerCase().trim()}`;
       if(!map[key]) map[key]={name:p.name,area:p.area,staff:p.staff_name,seasons:[]};
       const k = calcKPIs(p);
       map[key].seasons.push({...p,...k});
     });
     return Object.values(map)
-      .filter(g=>g.seasons.length>1)
-      .filter(g=>!search||g.name.toLowerCase().includes(search.toLowerCase()))
-      .sort((a,b)=>a.name.localeCompare(b.name));
-  },[programs,search]);
+      .filter(g=>showSingle||g.seasons.length>1)
+      .filter(g=>!search||g.name.toLowerCase().includes(search.toLowerCase())||g.staff?.toLowerCase().includes(search.toLowerCase()))
+      .sort((a,b)=>{
+        if(b.seasons.length!==a.seasons.length) return b.seasons.length-a.seasons.length;
+        return a.name.localeCompare(b.name);
+      });
+  },[programs,search,showSingle]);
 
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-lg shadow-sm px-4 py-3 space-y-3">
-        <div>
-          <h2 className="font-bold text-slate-700 text-sm">Multi-Season View</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Shows programs that appear in <span className="font-semibold text-slate-600">more than one season</span> — same name, area, and staff member. Sorted oldest to newest. Use this to track performance trends over time.</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="font-bold text-slate-700 text-sm">Multi-Season View</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Programs offered in more than one season — matched by name and staff member. Sorted most seasons first.</p>
+          </div>
+          <button onClick={()=>setShowSingle(s=>!s)}
+            className="text-xs px-3 py-1.5 rounded-lg border transition whitespace-nowrap shrink-0"
+            style={showSingle?{background:"#1e3a5f",color:"white",borderColor:"#1e3a5f"}:{borderColor:"#e2e8f0",color:"#64748b"}}>
+            {showSingle?"Showing all":"Show single-season"}
+          </button>
         </div>
         <input className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2"
-          placeholder="Search programs..." value={search} onChange={e=>setSearch(e.target.value)}/>
+          placeholder="Search by program name or staff..." value={search} onChange={e=>setSearch(e.target.value)}/>
       </div>
       {groups.length===0&&(
         <div className="bg-white rounded-lg shadow-sm p-8 text-center text-slate-400 text-sm">
-          {search?"No matching programs.":"No programs with multiple seasons yet."}
+          {search
+            ? "No matching programs."
+            : showSingle
+              ? "No active programs found."
+              : "No programs with more than one season yet. Try toggling \"Show single-season\" to see all programs."}
         </div>
       )}
       {groups.map(g=>(
@@ -1902,7 +1917,7 @@ function ProgramForm({initial,staffName,isManager,onSave,onDelete,onArchive,onDu
                 <div className="text-xs font-bold text-blue-600 uppercase tracking-widest">Budgeted</div>
                 <div className="text-xs text-blue-400 mt-0.5">What you think this program will do. You can update these at any time.</div>
               </div>
-              <CostPanel px="ant_" p={p} set={k=>v=>{setField(k)(v);}} />
+              <CostPanel px="ant_" p={p} set={k=>v=>{setField(k)(v);}} isManager={isManager}/>
             </div>
           )}
           {sec==="actuals"&&(
@@ -1911,7 +1926,7 @@ function ProgramForm({initial,staffName,isManager,onSave,onDelete,onArchive,onDu
                 <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Actuals</div>
                 <div className="text-xs text-slate-400 mt-0.5">Update these as the program runs or after it concludes.</div>
               </div>
-              <CostPanel px="act_" p={p} set={k=>v=>{setField(k)(v);}} />
+              <CostPanel px="act_" p={p} set={k=>v=>{setField(k)(v);}} isManager={isManager}/>
             </div>
           )}
           {sec==="summary"&&(
