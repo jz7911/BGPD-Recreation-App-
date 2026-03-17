@@ -70,10 +70,10 @@ const SVC_TARGET_MAP = {
   "Drop In Activities":                {min:1.0,  max:1.05, label:"100-105% Cost Recovery",  expectSubsidy:false},
   "Childcare Services":                {min:1.1,  max:1.3,  label:"110-130% Cost Recovery",  expectSubsidy:false},
   "Intermediate/Adv. Activities":      {min:1.1,  max:1.3,  label:"110-130% Cost Recovery",  expectSubsidy:false},
-  "Private/Semi-Private Activities":   {min:1.3,  max:1.5,  label:"130-150% Cost Recovery",  expectSubsidy:false},
-  "Specialized Activities":            {min:1.3,  max:1.5,  label:"130-150% Cost Recovery",  expectSubsidy:false},
-  "Rentals":                           {min:1.3,  max:1.5,  label:"130-150% Cost Recovery",  expectSubsidy:false},
-  "Retail & Consumables":              {min:1.3,  max:1.5,  label:"130-150% Cost Recovery",  expectSubsidy:false},
+  "Private/Semi-Private Activities":   {min:1.3,  max:1.5,  label:"130-1% Cost Recovery",  expectSubsidy:false},
+  "Specialized Activities":            {min:1.3,  max:1.5,  label:"130-1% Cost Recovery",  expectSubsidy:false},
+  "Rentals":                           {min:1.3,  max:1.5,  label:"130-1% Cost Recovery",  expectSubsidy:false},
+  "Retail & Consumables":              {min:1.3,  max:1.5,  label:"130-1% Cost Recovery",  expectSubsidy:false},
 };
 function getSvcTarget(svc, cr) {
   const t = SVC_TARGET_MAP[svc]; if(!t) return null;
@@ -189,7 +189,7 @@ const dollar  = v => (v||0)<0 ? `($${Math.abs(Math.round(v||0)).toLocaleString()
 const vDollar = v => v>0 ? `+$${Math.round(v).toLocaleString()}` : v<0 ? `($${Math.abs(Math.round(v)).toLocaleString()})` : "$0";
 const vNum    = v => v>0 ? `+${v}` : `${v}`;
 const vPct    = v => v>0 ? `+${(v*100).toFixed(1)}%` : `${(v*100).toFixed(1)}%`;
-const vc      = (v, inv) => !v||v===0 ? "text-slate-400" : (inv?v<0:v>0) ? "text-green-600 font-semibold" : "text-red-500 font-semibold";
+const vc      = (v, inv) => !v||v===0 ? "text-slate-400" : (inv?v<0:v>0) ? "text-green-600 font-semibold" : "text-red-0 font-semibold";
 
 function sColor(s) {
   if (s==="Healthy") return {bg:"#dcfce7",text:"#166534",dot:"#22c55e"};
@@ -214,7 +214,7 @@ function printSeasonReport(programs, filters) {
   const monitor     = kpis.filter(p=>p.status==="Monitor").length;
   const redesign    = kpis.filter(p=>p.status==="Needs Redesign").length;
   const healthScore = kpis.length ? Math.round((avgFill*0.4+Math.min(avgCR,2)/2*0.4+(healthy/kpis.length)*0.2)*100) : 0;
-  const healthColor = healthScore>=75?"#16a34a":healthScore>=50?"#b45309":"#dc2626";
+  const healthColor = healthScore>=75?"#16a34a":healthScore>=?"#b45309":"#dc2626";
   const needsWork   = [...kpis].filter(p=>p.status==="Needs Redesign"||p.fillRate<0.5).sort((a,b)=>a.fillRate-b.fillRate).slice(0,5);
   const topPerf     = [...kpis].filter(p=>p.hasActuals).sort((a,b)=>b.fillRate-a.fillRate).slice(0,5);
   const today       = new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
@@ -241,7 +241,7 @@ function printSeasonReport(programs, filters) {
     {label:"Needs Redesign",value:redesign, p:kpis.length?Math.round(redesign/kpis.length*100):0, color:"#dc2626",bg:"#fee2e2"},
   ].map(c=>`<div style="background:${c.bg};border-radius:6px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
     <div style="font-size:12px;font-weight:600;color:${c.color};">${c.label}</div>
-    <div style="font-size:18px;font-weight:800;color:${c.color};">${c.value} <span style="font-size:11px;font-weight:500;">(${c.p}%)</span></div>
+    <div style="font-size:18px;font-weight:800;color:${c.color};">${c.value} <span style="font-size:11px;font-weight:0;">(${c.p}%)</span></div>
   </div>`).join("");
 
   const finRows = [
@@ -291,7 +291,7 @@ function printSeasonReport(programs, filters) {
 
   // Build the body HTML separately (no wrapping html/head/body tags)
   const bodyHTML = `
-  <div style="font-family:'Segoe UI',sans-serif;color:#1e293b;background:white;width:750px;">
+  <div style="font-family:'Segoe UI',sans-serif;color:#1e293b;background:white;width:7px;">
     <div style="background:#1e3a5f;color:white;padding:20px 28px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-start;">
       <div>
         <div style="font-weight:700;font-size:20px;">BGPD Recreation — Season Performance Report</div>
@@ -343,7 +343,7 @@ function printSeasonReport(programs, filters) {
   </head><body>${bodyHTML}
   <script>
     window.onload = function() {
-      setTimeout(function() { window.print(); }, 500);
+      setTimeout(function() { window.print(); }, 0);
       window.onafterprint = function() { window.close(); };
     };
   <\/script>
@@ -411,15 +411,15 @@ function KCard({label,value,sub,accent,onClick,target}) {
 }
 
 function PBar({label,actual,budget,ff,inv}) {
-  const p    = budget>0 ? Math.min((actual/budget)*100,150) : 0;
+  const p    = budget>0 ? Math.min((actual/budget)*100,1) : 0;
   const v    = actual - budget;
   const good = inv ? v<=0 : v>=0;
   const bc   = p>=100 ? (inv?"#ef4444":"#22c55e") : p>=75 ? "#eab308" : "#ef4444";
   return (
     <div className="space-y-1">
       <div className="flex justify-between items-center">
-        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{label}</span>
-        <span className={`text-xs font-bold ${good?"text-green-600":"text-red-500"}`}>{v>=0?"+":""}{ff?ff(v):v}</span>
+        <span className="text-xs font-semibold text-slate-0 uppercase tracking-wide">{label}</span>
+        <span className={`text-xs font-bold ${good?"text-green-600":"text-red-0"}`}>{v>=0?"+":""}{ff?ff(v):v}</span>
       </div>
       <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
         <div className="h-full rounded-full" style={{width:`${Math.min(p,100)}%`,backgroundColor:bc}}/>
@@ -436,8 +436,8 @@ function Inp({label,type="text",value,onChange,options,min,max,hint,placeholder,
   const cls = "w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:border-blue-400 bg-white transition";
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-        {label}{required&&<span className="text-amber-500 ml-0.5">*</span>}
+      <label className="text-xs font-semibold text-slate-0 uppercase tracking-wide">
+        {label}{required&&<span className="text-amber-0 ml-0.5">*</span>}
       </label>
       {options
         ? <select className={cls} value={value||""} onChange={e=>onChange(e.target.value)}>
@@ -457,12 +457,12 @@ function Inp({label,type="text",value,onChange,options,min,max,hint,placeholder,
 // ─── Confirm Delete Modal ─────────────────────────────────────────────────────
 function ConfirmModal({message,onConfirm,onCancel,confirmLabel="Delete",confirmColor="#ef4444"}) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:"rgba(15,23,42,0.5)"}}>
+    <div className="fixed inset-0 z- flex items-center justify-center p-4" style={{background:"rgba(15,23,42,0.5)"}}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
         <div className="text-base font-bold text-slate-800">Are you sure?</div>
-        <div className="text-sm text-slate-500">{message}</div>
+        <div className="text-sm text-slate-0">{message}</div>
         <div className="flex justify-end gap-3 pt-2">
-          <button onClick={onCancel} className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
+          <button onClick={onCancel} className="px-4 py-2 text-sm text-slate-0 border border-slate-200 rounded-lg hover:bg-slate-">Cancel</button>
           <button onClick={onConfirm} className="px-4 py-2 text-sm font-semibold text-white rounded-lg" style={{backgroundColor:confirmColor}}>{confirmLabel}</button>
         </div>
       </div>
@@ -474,7 +474,7 @@ function ConfirmModal({message,onConfirm,onCancel,confirmLabel="Delete",confirmC
 function CostPanel({px,p,set,isManager=false}) {
   const isAnt = px==="ant_";
   const c   = calcCR(p, px);
-  const lc  = isAnt ? "text-blue-500"  : "text-slate-500";
+  const lc  = isAnt ? "text-blue-0"  : "text-slate-0";
   const vc2 = isAnt ? "text-blue-700"  : "text-slate-700";
   const rBg = isAnt ? "#eff6ff" : "#f8fafc";
   const rBd = isAnt ? "#bfdbfe" : "#e2e8f0";
@@ -494,7 +494,7 @@ function CostPanel({px,p,set,isManager=false}) {
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-1">
               <input
-                className="text-xs font-semibold text-slate-500 uppercase tracking-wide bg-transparent border-b border-dashed border-slate-300 focus:border-blue-400 focus:outline-none w-full"
+                className="text-xs font-semibold text-slate-0 uppercase tracking-wide bg-transparent border-b border-dashed border-slate-300 focus:border-blue-400 focus:outline-none w-full"
                 value={p.other1_label||"Other Direct Costs"}
                 onChange={e=>set("other1_label")(e.target.value)}
                 placeholder="Other Direct Costs"
@@ -507,7 +507,7 @@ function CostPanel({px,p,set,isManager=false}) {
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-1">
               <input
-                className="text-xs font-semibold text-slate-500 uppercase tracking-wide bg-transparent border-b border-dashed border-slate-300 focus:border-blue-400 focus:outline-none w-full"
+                className="text-xs font-semibold text-slate-0 uppercase tracking-wide bg-transparent border-b border-dashed border-slate-300 focus:border-blue-400 focus:outline-none w-full"
                 value={p.other2_label||"Other Direct Costs 2"}
                 onChange={e=>set("other2_label")(e.target.value)}
                 placeholder="Other Direct Costs 2"
@@ -534,7 +534,7 @@ function CostPanel({px,p,set,isManager=false}) {
             : isManager
               ? <Inp label="Workload % (editable)" type="number" value={p[px+"custom_workload"]||((PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.pct||0)*100).toFixed(1)} onChange={set(px+"custom_workload")} min={0} max={100} hint={`Default for ${p[px+"program_type"]}: ${((PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.pct||0)*100).toFixed(1)}%`}/>
               : <div className="flex flex-col gap-1 justify-center">
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Estimated Workload %</label>
+                  <label className="text-xs font-semibold text-slate-0 uppercase tracking-wide">Estimated Workload %</label>
                   <div className="text-lg font-bold text-slate-700">{((PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.pct||0)*100).toFixed(1)}%</div>
                   <div className="text-xs text-slate-400">Based on program type</div>
                 </div>
@@ -550,9 +550,9 @@ function CostPanel({px,p,set,isManager=false}) {
           ))}
         </div>
         <div className="grid grid-cols-3 gap-3 pt-3" style={{borderTop:`1px solid ${rBd}`}}>
-          <div><div className={`text-xs ${lc}`}>Cost Recovery</div><div className={`text-xl font-black ${c.crPct>=1?"text-green-600":"text-amber-500"}`}>{pct(c.crPct)}</div></div>
+          <div><div className={`text-xs ${lc}`}>Cost Recovery</div><div className={`text-xl font-black ${c.crPct>=1?"text-green-600":"text-amber-0"}`}>{pct(c.crPct)}</div></div>
           <div><div className={`text-xs ${lc}`}>Subsidy</div><div className={`text-xl font-black ${vc2}`}>{pct(Math.max(0,c.subPct))}</div></div>
-          <div><div className={`text-xs ${lc}`}>Net Profit/(Loss)</div><div className={`text-xl font-black ${c.profit>=0?"text-green-600":"text-red-500"}`}>{dollar(c.profit)}</div></div>
+          <div><div className={`text-xs ${lc}`}>Net Profit/(Loss)</div><div className={`text-xl font-black ${c.profit>=0?"text-green-600":"text-red-0"}`}>{dollar(c.profit)}</div></div>
         </div>
       </div>
     </div>
@@ -590,7 +590,7 @@ function DupModal({program,onConfirm,onCancel}) {
   const [carry,setCarry]   = useState(null);
   const sel = "w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white";
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:"rgba(15,23,42,0.5)"}}>
+    <div className="fixed inset-0 z- flex items-center justify-center p-4" style={{background:"rgba(15,23,42,0.5)"}}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
         <div className="px-6 py-5 border-b border-slate-100">
           <div className="text-base font-bold text-slate-800">Duplicate Program</div>
@@ -2977,7 +2977,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
 function Reference({isManager,db,programs,staffName}) {
   const [sec,setSec] = useState("standards");
   const workload = [
-    {activity:"Program planning & management", pct:"45-50%"},
+    {activity:"Program planning & management", pct:"50-60%"},
     {activity:"Meetings / admin",              pct:"20-25%"},
     {activity:"Marketing / outreach",          pct:"10-15%"},
     {activity:"Strategic work / projects",     pct:"10-15%"},
