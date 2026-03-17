@@ -1131,10 +1131,15 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
     kpis.forEach(p=>{
       const name=p.staff_name||"Unknown";
       if(!map[name]) map[name]={name,totalWL:0,count:0};
-      const wlPct = p.ant_program_type&&p.ant_program_type!=="Custom"
+      const typePct = p.ant_program_type&&p.ant_program_type!=="Custom"
         ? (PROGRAM_TYPES.find(t=>t.label===p.ant_program_type)?.pct||0)*100
-        : parseFloat(p.ant_custom_workload)||0;
+        : 0;
+      const wlPct = parseFloat(p.ant_custom_workload)>0
+        ? parseFloat(p.ant_custom_workload)
+        : typePct;
       map[name].totalWL+=wlPct; map[name].count++;
+      if(!map[name].programs) map[name].programs=[];
+      map[name].programs.push({name:p.name,wlPct,type:p.ant_program_type||"Custom"});
     });
     return Object.values(map).sort((a,b)=>b.totalWL-a.totalWL);
   },[kpis]);
@@ -1517,6 +1522,59 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
       )}
 
 
+      {/* ── Staff Workload Allocation ── */}
+      {workloadByStaff.length>0&&(
+        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-slate-700 text-sm">Staff Workload Allocation</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Total FT time allocated across all programs — 100% = one full-time salary. Over 100% means costs are being spread across more than one FT equivalent.</p>
+            </div>
+            {workloadByStaff.some(s=>s.totalWL>60)&&(
+              <span className="text-xs font-bold px-2 py-1 rounded" style={{background:"#fef3c7",color:"#92400e"}}>⚠ Over-allocation flagged</span>
+            )}
+          </div>
+          <div className="p-4 space-y-3">
+            {workloadByStaff.map(s=>{
+              const over = s.totalWL>75;
+              const warn = s.totalWL>60&&!over;
+              const color = over?"#dc2626":warn?"#d97706":"#1e3a5f";
+              const bg    = over?"#fee2e2":warn?"#fef3c7":"#e0e7ff";
+              const barW  = Math.min((s.totalWL/60)*50,100); // 60% maps to midpoint (50% of bar width)
+              const flagged = s.programs?.filter(p=>p.wlPct>0)||[];
+              return(
+                <div key={s.name}>
+                  <div className="flex items-center justify-between mb-1 gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm font-semibold text-slate-700 truncate">{s.name}</span>
+                      <span className="text-xs text-slate-400">{s.count} program{s.count!==1?"s":""}</span>
+                      {over&&<span className="text-xs font-bold px-1.5 py-0.5 rounded shrink-0" style={{background:"#fee2e2",color:"#dc2626"}}>Over-allocated</span>}
+                      {warn&&<span className="text-xs font-bold px-1.5 py-0.5 rounded shrink-0" style={{background:"#fef3c7",color:"#d97706"}}>Review needed</span>}
+                    </div>
+                    <span className="text-sm font-bold shrink-0" style={{color}}>{s.totalWL.toFixed(1)}%</span>
+                  </div>
+                  <div className="h-2 rounded-full overflow-hidden mb-1" style={{background:"#f1f5f9",position:"relative"}}>
+                    {/* 60% marker line */}
+                    <div className="absolute top-0 bottom-0 w-px bg-slate-400 opacity-50 z-10" style={{left:"50%"}}/>
+                    <div className="h-full rounded-full transition-all" style={{width:`${barW}%`,background:color}}/>
+                  </div>
+                  {(over||warn)&&flagged.length>0&&(
+                    <div className="mt-1.5 text-xs text-slate-400 flex flex-wrap gap-x-3 gap-y-0.5">
+                      {flagged.map((pr,i)=>(
+                        <span key={i}>{pr.name} <span className="font-mono font-semibold" style={{color}}>{pr.wlPct.toFixed(1)}%</span></span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 text-xs text-slate-400">
+            Bar midpoint = 60% (recommended program allocation ceiling). Amber = 60–75%, Red = over 75%. The remaining ~40% covers meetings, marketing, planning, and strategic work.
+          </div>
+        </div>
+      )}
+
       {/* ── Program Detail ── */}
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 flex-wrap gap-2">
@@ -1766,7 +1824,7 @@ function MultiSeasonView({programs,onEdit}) {
 }
 
 // ─── Program Form ─────────────────────────────────────────────────────────────
-function ProgramForm({initial,staffName,isManager,onSave,onDelete,onArchive,onDuplicate,onCancel,saving}) {
+function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,onArchive,onDuplicate,onCancel,saving}) {
   const [p,setP]             = useState(()=> initial ? {...cleanForDB(initial), decision_log: initial.decision_log||[], other1_label: initial.other1_label||"Other Direct Costs", other2_label: initial.other2_label||"Other Direct Costs 2"} : newProgram(staffName));
   const set                  = k => v => setP(prev=>({...prev,[k]:v}));
   const [sec,setSec]         = useState("info");
@@ -1776,6 +1834,25 @@ function ProgramForm({initial,staffName,isManager,onSave,onDelete,onArchive,onDu
   const [dirty,setDirty]     = useState(false);
   const isNew                = !initial;
   const canEdit              = p.staff_name===staffName||!initial||isManager;
+
+  // Compute this staff member's total workload across all their OTHER programs
+  const staffTotalWL = useMemo(()=>{
+    if(!isManager||!p.staff_name) return 0;
+    return programs
+      .filter(prog=>!prog.is_archived&&prog.staff_name===p.staff_name&&prog.id!==p.id)
+      .reduce((sum,prog)=>{
+        const cust=parseFloat(prog.ant_custom_workload)||0;
+        const typePct=prog.ant_program_type&&prog.ant_program_type!=="Custom"
+          ? (PROGRAM_TYPES.find(t=>t.label===prog.ant_program_type)?.pct||0)*100 : 0;
+        return sum+(cust>0?cust:typePct);
+      },0);
+  },[programs,p.staff_name,p.id]);
+
+  const thisWL = parseFloat(p.ant_custom_workload)>0
+    ? parseFloat(p.ant_custom_workload)
+    : p.ant_program_type&&p.ant_program_type!=="Custom"
+      ? (PROGRAM_TYPES.find(t=>t.label===p.ant_program_type)?.pct||0)*100 : 0;
+  const projectedWL = staffTotalWL + thisWL;
   const k                    = calcKPIs(p);
   const hasActuals           = k.hasActuals;
   const lastUpdated          = initial?.updated_at||initial?.created_at;
@@ -1998,6 +2075,22 @@ function ProgramForm({initial,staffName,isManager,onSave,onDelete,onArchive,onDu
           )}
         </div>
       </div>
+
+      {isManager&&projectedWL>60&&(
+        <div className="rounded-lg px-4 py-3 flex items-start gap-3 text-sm mb-2"
+          style={{background:projectedWL>120?"#fee2e2":"#fef3c7",borderLeft:`3px solid ${projectedWL>120?"#dc2626":"#d97706"}`}}>
+          <span className="shrink-0 font-bold" style={{color:projectedWL>120?"#dc2626":"#d97706"}}>⚠</span>
+          <div>
+            <div className="font-semibold" style={{color:projectedWL>120?"#991b1b":"#92400e"}}>
+              {p.staff_name||"This staff member"} would be at {projectedWL.toFixed(1)}% total workload allocation
+              {projectedWL>75?" — significantly over allocated":" — above recommended 60% ceiling"}
+            </div>
+            <div className="text-xs mt-0.5" style={{color:projectedWL>120?"#b91c1c":"#a16207"}}>
+              Other programs account for {staffTotalWL.toFixed(1)}% + this program adds {thisWL.toFixed(1)}%. The recommended ceiling is 60% to leave room for meetings, marketing, planning, and strategic work. Consider reducing the Workload % on this or related programs.
+            </div>
+          </div>
+        </div>
+      )}
 
       {canEdit&&(
         <div className="flex gap-3 justify-between">
@@ -3756,7 +3849,7 @@ function Reference({isManager,db,programs,staffName}) {
                     <p>Cost recovery tells you what percentage of the program's cost was covered by what participants paid. 100% means break-even — fees covered every dollar of cost. Below 100% means the district subsidized the rest.</p>
                     <p><span className="font-semibold text-slate-700">Example:</span> Your program cost $1,500 to run and brought in $1,200 in fees. Cost recovery = 80%. The district covered the remaining $300.</p>
                     <p className="font-semibold text-slate-700">Important context:</p>
-                    <p>Not every program is expected to reach 100%. Community Driven programs (adaptive rec, some beg/intro programs, free events) may have a target of 0–20% by design — the district intentionally subsidizes them because they serve the community. Check the District Standards tab for your specific program category's target.</p>
+                    <p>Not every program is expected to reach 100%. Community Driven programs (community events, some beg/intro programs, adaptive programs) may have a target of 0–20% by design — the district intentionally subsidizes them because they serve the community. Check the District Standards tab for your specific program category's target.</p>
                     <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-blue-800 mt-2">
                       <span className="font-bold">Low cost recovery does not mean your program was bad.</span> It depends entirely on what type of program it is. A swim lesson class should cover its costs. A free family event is not expected to.
                     </div>
@@ -4273,6 +4366,7 @@ export default function App() {
                 initial={editingProgram||null}
                 staffName={staffName}
                 isManager={effectiveManager}
+                programs={programs}
                 onSave={handleSaveProgram}
                 onDelete={handleDeleteProgram}
                 onArchive={handleArchiveProgram}
