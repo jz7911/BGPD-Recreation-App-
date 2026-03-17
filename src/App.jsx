@@ -37,7 +37,7 @@ function toFY(year) {
 }
 
 const CLASSIFICATIONS = ["Community Driven","Revenue Driven","Both"];
-const TRENDS = ["Growing","Stable","Declining"];
+const TRENDS = ["Growing","Stable","Declining","New"];
 const SERVICE_CATEGORIES = [
   "Open Access","Community Events","Specialty Events","Beg./Intro. Activities",
   "Drop In Activities","Childcare Services","Intermediate/Adv. Activities",
@@ -168,7 +168,7 @@ function newProgram(staffName) {
   return {
     name:"", area:last.area||"Youth Sports", season:last.season||"Summer", year:last.year||"25-26",
     classification:last.classification||"Community Driven", service_category:last.service_category||"",
-    trend:"Stable", nps:0, notes:"", staff_name: staffName||"", waitlist:0,
+    trend:"New", nps:0, notes:"", staff_name: staffName||"", waitlist:0,
     ant_capacity:0, ant_enrollment:0, ant_revenue:0,
     ant_personnel:0, ant_commodities:0, ant_contractuals:0,
     ant_other1:0, ant_other2:0, ant_facility_hours:0,
@@ -1899,9 +1899,6 @@ function ProgramForm({initial,staffName,isManager,onSave,onDelete,onArchive,onDu
                     <div className="mt-1 text-xs text-slate-400">Target: <span className="font-semibold text-slate-500">{SVC_TARGET_MAP[p.service_category].label}</span></div>
                   )}
                 </div>
-                <Inp label="Participation Trend" value={p.trend}                onChange={setField("trend")}             options={TRENDS}/>
-                <Inp label="NPS Score"           type="number" value={p.nps}        onChange={setField("nps")}      min={0} max={100} hint="0-100"/>
-                <Inp label="Waitlist"            type="number" value={p.waitlist||0} onChange={setField("waitlist")} min={0}/>
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Notes</label>
@@ -1927,6 +1924,14 @@ function ProgramForm({initial,staffName,isManager,onSave,onDelete,onArchive,onDu
                 <div className="text-xs text-slate-400 mt-0.5">Update these as the program runs or after it concludes.</div>
               </div>
               <CostPanel px="act_" p={p} set={k=>v=>{setField(k)(v);}} isManager={isManager}/>
+              <div className="mt-6 pt-5 border-t border-slate-100">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Post-Program Observations</div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <Inp label="Participation Trend" value={p.trend||"New"} onChange={setField("trend")} options={TRENDS}/>
+                  <Inp label="NPS Score" type="number" value={p.nps} onChange={setField("nps")} min={0} max={100} hint="0–100 · leave blank if not collected"/>
+                  <Inp label="Waitlist" type="number" value={p.waitlist||0} onChange={setField("waitlist")} min={0} hint="Participants who couldn't register"/>
+                </div>
+              </div>
             </div>
           )}
           {sec==="summary"&&(
@@ -2145,7 +2150,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   const SEASONS_LIST=["Spring","Summer","Fall","Winter","Annual","Year-Round"];
   const DECISIONS=["Continue","Adjust","Redesign","Expand","Pilot Again","Sunset Review"];
   const CLASSIFICATIONS=["Community Driven","Both","Revenue Driven"];
-  const TRENDS=["Growing","Stable","Declining"];
+  const TRENDS=["Growing","Stable","Declining","New"];
   const PRIME=["Strong","Moderate","Underutilized"];
   const RETENTION_OPTS=["Improving","Stable","Declining","N/A – First Season"];
   const WEAK_OPTS=["0","1","2","3+"];
@@ -3637,7 +3642,7 @@ function Reference({isManager,db,programs,staffName}) {
                         {field:"Area",tip:"Pick the closest match from the dropdown (Aquatics, Camps, Dance, etc.). This groups your programs with similar ones in department reports."},
                         {field:"Season & Year",tip:"The season when this program runs — Spring, Summer, Fall, or Winter. Use the year it starts. Summer 2026 = June 2026 start."},
                         {field:"Staff Name",tip:"Your name, typed exactly as you entered it when you logged in. If you manage this program with someone else, enter the primary responsible person."},
-                        {field:"Classification",tip:"Community Driven = offered for public benefit even at a subsidy (e.g. community events, adaptive programs). Revenue Driven = expected to cover costs (e.g. fitness classes, swimming lessons). Not sure? Ask your manager."},
+                        {field:"Classification",tip:"Community Driven = offered for public benefit even at a subsidy (e.g. teen drop-ins, adaptive programs). Revenue Driven = expected to cover costs (e.g. fitness classes, swimming lessons). Not sure? Ask your manager."},
                       ].map(r=>(
                         <div key={r.field} className="text-sm">
                           <div className="font-semibold text-slate-700 mb-0.5">{r.field}</div>
@@ -3751,7 +3756,7 @@ function Reference({isManager,db,programs,staffName}) {
                     <p>Cost recovery tells you what percentage of the program's cost was covered by what participants paid. 100% means break-even — fees covered every dollar of cost. Below 100% means the district subsidized the rest.</p>
                     <p><span className="font-semibold text-slate-700">Example:</span> Your program cost $1,500 to run and brought in $1,200 in fees. Cost recovery = 80%. The district covered the remaining $300.</p>
                     <p className="font-semibold text-slate-700">Important context:</p>
-                    <p>Not every program is expected to reach 100%. Community Driven programs (adaptive rec, speciality events, free events) may have a target of 0–20% by design — the district intentionally subsidizes them because they serve the community. Check the District Standards tab for your specific program category's target.</p>
+                    <p>Not every program is expected to reach 100%. Community Driven programs (adaptive rec, teen drop-ins, free events) may have a target of 0–20% by design — the district intentionally subsidizes them because they serve the community. Check the District Standards tab for your specific program category's target.</p>
                     <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-blue-800 mt-2">
                       <span className="font-bold">Low cost recovery does not mean your program was bad.</span> It depends entirely on what type of program it is. A swim lesson class should cover its costs. A free family event is not expected to.
                     </div>
