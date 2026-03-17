@@ -122,9 +122,11 @@ function calcCR(p, px) {
   const revenue      = p[px+"revenue"]        || 0;
   const enrollment   = p[px+"enrollment"]     || 0;
   const capacity     = p[px+"capacity"]       || 0;
-  const wlPct = progType && progType !== "Custom"
-    ? (PROGRAM_TYPES.find(t => t.label === progType)?.pct || 0)
-    : (parseFloat(customWL) || 0) / 100;
+  const wlPct = parseFloat(customWL) > 0
+    ? parseFloat(customWL) / 100
+    : progType && progType !== "Custom"
+      ? (PROGRAM_TYPES.find(t => t.label === progType)?.pct || 0)
+      : 0;
   const direct   = personnel + commodities + contractuals + other1 + other2;
   const ao       = direct * ADMIN_OVERHEAD_RATE;
   const ftStaff  = FT_ANNUAL_SALARY * wlPct;
@@ -521,13 +523,21 @@ function CostPanel({px,p,set}) {
       <div>
         <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Staff Workload</div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Inp label="Program Type" value={p[px+"program_type"]||"Custom"} onChange={set(px+"program_type")} options={["Custom",...PROGRAM_TYPES.map(t=>t.label)]}/>
+          <Inp label="Program Type" value={p[px+"program_type"]||"Custom"} onChange={v=>{
+            set(px+"program_type")(v);
+            // Auto-fill workload from type, but only if it's not already customized
+            const typePct = PROGRAM_TYPES.find(t=>t.label===v)?.pct||0;
+            if(v!=="Custom") set(px+"custom_workload")((typePct*100).toFixed(1));
+          }} options={["Custom",...PROGRAM_TYPES.map(t=>t.label)]}/>
           {(!p[px+"program_type"]||p[px+"program_type"]==="Custom")
             ? <Inp label="Custom Workload %" type="number" value={p[px+"custom_workload"]} onChange={set(px+"custom_workload")} min={0} max={100} hint="% of FT staff time"/>
-            : <div className="flex flex-col gap-1 justify-center">
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Estimated Workload %</label>
-                <div className="text-lg font-bold text-slate-700">{((PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.pct||0)*100).toFixed(1)}%</div>
-              </div>
+            : isManager
+              ? <Inp label="Workload % (editable)" type="number" value={p[px+"custom_workload"]||((PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.pct||0)*100).toFixed(1)} onChange={set(px+"custom_workload")} min={0} max={100} hint={`Default for ${p[px+"program_type"]}: ${((PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.pct||0)*100).toFixed(1)}%`}/>
+              : <div className="flex flex-col gap-1 justify-center">
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Estimated Workload %</label>
+                  <div className="text-lg font-bold text-slate-700">{((PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.pct||0)*100).toFixed(1)}%</div>
+                  <div className="text-xs text-slate-400">Based on program type</div>
+                </div>
           }
         </div>
       </div>
@@ -707,26 +717,106 @@ function BulkDupModal({programs,onConfirm,onCancel}) {
   );
 }
 
+
+// ─── Multi-select Filter Bar ──────────────────────────────────────────────────
+// Each filter is a Set of selected values. Empty Set = "All" (no filter applied)
+function MultiFilter({filters, onChange, counts}) {
+  // filters: { staff: Set, area: Set, season: Set, year: Set }
+  // counts: { staff:[...], area:[...], season:[...], year:[...] }
+  const [open, setOpen] = useState(null); // which dropdown is open
+
+  function toggle(key, val) {
+    const next = new Set(filters[key]);
+    if (next.has(val)) next.delete(val); else next.add(val);
+    onChange(key, next);
+  }
+
+  function clearAll() {
+    onChange('staff', new Set());
+    onChange('area',  new Set());
+    onChange('season',new Set());
+    onChange('year',  new Set());
+  }
+
+  const anyActive = ['staff','area','season','year'].some(k => filters[k].size > 0);
+
+  const LABELS = {staff:'Staff', area:'Area', season:'Season', year:'Year'};
+
+  function label(key) {
+    const sel = filters[key];
+    if (sel.size === 0) return LABELS[key];
+    if (sel.size === 1) {
+      const v = [...sel][0];
+      return key === 'year' ? `FY ${v}` : v;
+    }
+    return `${LABELS[key]} (${sel.size})`;
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm px-4 py-3 flex flex-wrap gap-2 items-center relative">
+      {['staff','area','season','year'].map(key => (
+        <div key={key} className="relative">
+          <button
+            onClick={() => setOpen(open === key ? null : key)}
+            className="flex items-center gap-1.5 text-sm rounded-lg border px-3 py-1.5 transition"
+            style={filters[key].size > 0
+              ? {background:'#1e3a5f', color:'white', borderColor:'#1e3a5f'}
+              : {background:'white', color:'#64748b', borderColor:'#e2e8f0'}}>
+            <span>{label(key)}</span>
+            <span style={{fontSize:'9px', opacity:.7}}>{open===key?'▲':'▼'}</span>
+          </button>
+          {open === key && (
+            <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 min-w-48 py-1 max-h-64 overflow-y-auto">
+              {counts[key].map(opt => {
+                const sel = filters[key].has(opt);
+                const disp = key === 'year' ? `FY ${opt}` : opt;
+                return (
+                  <button key={opt} onClick={() => toggle(key, opt)}
+                    className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-left hover:bg-slate-50 transition"
+                    style={{color: sel ? '#1e3a5f' : '#374151'}}>
+                    <span className="w-4 h-4 rounded border flex items-center justify-center shrink-0 text-xs"
+                      style={sel ? {background:'#1e3a5f', borderColor:'#1e3a5f', color:'white'} : {borderColor:'#d1d5db'}}>
+                      {sel ? '✓' : ''}
+                    </span>
+                    <span className={sel ? 'font-semibold' : ''}>{disp}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ))}
+      {anyActive && (
+        <button onClick={clearAll}
+          className="text-xs text-slate-400 hover:text-slate-600 font-medium px-1">
+          Clear all
+        </button>
+      )}
+      {/* click outside to close */}
+      {open && <div className="fixed inset-0 z-20" onClick={() => setOpen(null)}/>}
+    </div>
+  );
+}
+
 // ─── Dashboard (Staff View — unchanged from original) ─────────────────────────
 function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
-  const [sf,setSf]           = useState("All");
-  const [af,setAf]           = useState("All");
-  const [yf,setYf]           = useState("All");
-  const [snf,setSnf]         = useState("All");
+  const [filters,setFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
   const [dv,setDv]           = useState("summary");
   const [showReport,setShowReport] = useState(false);
 
-  const allStaff   = ["All",...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
-  const allAreas   = ["All",...new Set(programs.map(p=>p.area))];
-  const allYears   = ["All",...YEARS];
-  const allSeasons = ["All",...SEASONS];
+  function onFilterChange(key, val) { setFilters(f=>({...f,[key]:val})); }
+
+  const allStaff   = [...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
+  const allAreas   = [...new Set(programs.map(p=>p.area))];
+  const allYears   = [...YEARS];
+  const allSeasons = [...SEASONS];
 
   const vis  = programs
     .filter(p=>!p.is_archived)
-    .filter(p=>sf==="All"||p.staff_name===sf)
-    .filter(p=>af==="All"||p.area===af)
-    .filter(p=>yf==="All"||toFY(p.year)===yf)
-    .filter(p=>snf==="All"||p.season===snf);
+    .filter(p=>filters.staff.size===0||filters.staff.has(p.staff_name))
+    .filter(p=>filters.area.size===0||filters.area.has(p.area))
+    .filter(p=>filters.year.size===0||filters.year.has(toFY(p.year)))
+    .filter(p=>filters.season.size===0||filters.season.has(p.season));
 
   const kpis    = vis.map(p=>({...p,...calcKPIs(p)}));
   const avgFill = kpis.length ? kpis.reduce((a,p)=>a+p.fillRate,0)/kpis.length : 0;
@@ -742,38 +832,13 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
   const monitor  = kpis.filter(p=>p.status==="Monitor").length;
   const redesign = kpis.filter(p=>p.status==="Needs Redesign").length;
   const low50    = kpis.filter(p=>p.costRecovery<0.5).length;
-  const selCls = "rounded border border-slate-200 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:border-blue-400 min-w-[140px]";
-  const anyFilter = sf!=="All"||af!=="All"||yf!=="All"||snf!=="All";
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-lg shadow-sm px-4 py-3 flex flex-wrap gap-4 items-end">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Staff</label>
-          <select value={sf} onChange={e=>setSf(e.target.value)} className={selCls}>
-            {allStaff.map(s=><option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Area</label>
-          <select value={af} onChange={e=>setAf(e.target.value)} className={selCls}>
-            {allAreas.map(a=><option key={a} value={a}>{a}</option>)}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Season</label>
-          <select value={snf} onChange={e=>setSnf(e.target.value)} className={selCls}>
-            {allSeasons.map(s=><option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Year</label>
-          <select value={yf} onChange={e=>setYf(e.target.value)} className={selCls}>
-            {allYears.map(y=><option key={y} value={y}>{y==="All"?y:`FY ${y}`}</option>)}
-          </select>
-        </div>
-        {anyFilter&&<button onClick={()=>{setSf("All");setAf("All");setYf("All");setSnf("All");}} className="text-xs text-slate-400 hover:text-slate-600 pb-1.5 font-medium">Clear filters</button>}
-        <div className="flex gap-2 ml-auto">
+      <div className="space-y-2">
+        <MultiFilter filters={filters} onChange={onFilterChange}
+          counts={{staff:allStaff,area:allAreas,season:allSeasons,year:allYears}}/>
+        <div className="flex gap-2 justify-end">
           <button onClick={()=>exportCSV(vis)} className="text-xs font-semibold px-3 py-2 rounded border border-slate-200 text-slate-500 hover:bg-slate-50 transition whitespace-nowrap">↓ Export CSV</button>
           <button onClick={()=>setShowReport(true)} className="text-xs font-semibold px-3 py-2 rounded transition whitespace-nowrap text-white" style={{backgroundColor:"#1e3a5f"}}>⬜ Season Report</button>
         </div>
@@ -786,7 +851,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
             <div className="text-xs text-slate-400">{vis.length} programs with current filters applied</div>
             <div className="flex gap-3 justify-center pt-2">
               <button onClick={()=>setShowReport(false)} className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
-              <button onClick={()=>{ setShowReport(false); printSeasonReport(vis, `${sf!=="All"?`Staff: ${sf}`:"All Staff"} · ${af!=="All"?`Area: ${af}`:"All Areas"} · ${snf!=="All"?`Season: ${snf}`:"All Seasons"} · ${yf!=="All"?`Year: ${yf}`:"All Years"}`); }}
+              <button onClick={()=>{ setShowReport(false); printSeasonReport(vis, `${[...filters.staff].join(", ")||"All Staff"} · ${[...filters.area].join(", ")||"All Areas"} · ${[...filters.season].join(", ")||"All Seasons"} · ${[...filters.year].map(y=>`FY ${y}`).join(", ")||"All Years"}`); }}
                 className="px-5 py-2 text-sm font-semibold text-white rounded-lg" style={{backgroundColor:"#1e3a5f"}}>Save as PDF</button>
             </div>
           </div>
@@ -967,25 +1032,23 @@ function NeedsAttentionQueue({programs,onEdit}){
 }
 
 function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
-  const [sf,setSf]           = useState("All");
-  const [af,setAf]           = useState("All");
-  const [yf,setYf]           = useState("All");
-  const [snf,setSnf]         = useState("All");
+  const [filters,setFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
+  function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
   const [dv,setDv]           = useState("summary");
   const [sort,setSort]       = useState({col:"name",dir:1});
   const [showReport,setShowReport] = useState(false);
 
-  const allStaff   = ["All",...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
-  const allAreas   = ["All",...new Set(programs.map(p=>p.area))];
-  const allYears   = ["All",...YEARS];
-  const allSeasons = ["All",...SEASONS];
+  const allStaff   = [...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
+  const allAreas   = [...new Set(programs.map(p=>p.area))];
+  const allYears   = [...YEARS];
+  const allSeasons = [...SEASONS];
 
   const vis  = programs
     .filter(p=>!p.is_archived)
-    .filter(p=>sf==="All"||p.staff_name===sf)
-    .filter(p=>af==="All"||p.area===af)
-    .filter(p=>yf==="All"||toFY(p.year)===yf)
-    .filter(p=>snf==="All"||p.season===snf);
+    .filter(p=>filters.staff.size===0||filters.staff.has(p.staff_name))
+    .filter(p=>filters.area.size===0||filters.area.has(p.area))
+    .filter(p=>filters.year.size===0||filters.year.has(toFY(p.year)))
+    .filter(p=>filters.season.size===0||filters.season.has(p.season));
 
   const kpis = useMemo(()=>vis.map(p=>({...p,...calcKPIs(p)})),[vis]);
 
@@ -1144,42 +1207,15 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
     return Object.values(map).map(r=>({...r,avgFill:r.fillSum/r.count,avgCR:r.crSum/r.count})).sort((a,b)=>b.avgFill-a.avgFill);
   },[kpis]);
 
-  const selCls    = "rounded border border-slate-200 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:border-blue-400 min-w-[140px]";
-  const anyFilter = sf!=="All"||af!=="All"||yf!=="All"||snf!=="All";
 
   return (
     <div className="space-y-6">
 
       {/* ── Filters + Export ── */}
-      <div className="bg-white rounded-lg shadow-sm px-4 py-3 flex flex-wrap gap-4 items-end justify-between">
-        <div className="flex flex-wrap gap-4 items-end">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Staff</label>
-            <select value={sf} onChange={e=>setSf(e.target.value)} className={selCls}>
-              {allStaff.map(s=><option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Area</label>
-            <select value={af} onChange={e=>setAf(e.target.value)} className={selCls}>
-              {allAreas.map(a=><option key={a} value={a}>{a}</option>)}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Season</label>
-            <select value={snf} onChange={e=>setSnf(e.target.value)} className={selCls}>
-              {allSeasons.map(s=><option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Year</label>
-            <select value={yf} onChange={e=>setYf(e.target.value)} className={selCls}>
-              {allYears.map(y=><option key={y} value={y}>{y==="All"?y:`FY ${y}`}</option>)}
-            </select>
-          </div>
-          {anyFilter&&<button onClick={()=>{setSf("All");setAf("All");setYf("All");setSnf("All");}} className="text-xs text-slate-400 hover:text-slate-600 pb-1.5 font-medium">Clear filters</button>}
-        </div>
-        <div className="flex gap-2">
+      <div className="space-y-2">
+        <MultiFilter filters={filters} onChange={onFilterChange}
+          counts={{staff:allStaff,area:allAreas,season:allSeasons,year:allYears}}/>
+        <div className="flex gap-2 justify-end">
           <button onClick={()=>exportCSV(vis)} className="text-xs font-semibold px-3 py-2 rounded border border-slate-200 text-slate-500 hover:bg-slate-50 transition whitespace-nowrap">↓ Export CSV</button>
           <button onClick={()=>setShowReport(true)} className="text-xs font-semibold px-3 py-2 rounded transition whitespace-nowrap text-white" style={{backgroundColor:"#1e3a5f"}}>⬜ Season Report</button>
         </div>
@@ -1189,10 +1225,10 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center space-y-4">
             <div className="text-base font-bold text-slate-800">Season Performance Report</div>
             <div className="text-sm text-slate-500">This will open your browser's print dialog. Choose "Save as PDF" to export.</div>
-            <div className="text-xs text-slate-400">Filters applied: {sf!=="All"?`Staff: ${sf} · `:""}{ af!=="All"?`Area: ${af} · `:""}{ yf!=="All"?`Year: ${yf}`:"All Programs"} · {vis.length} programs</div>
+            <div className="text-xs text-slate-400">Filters applied: {[...filters.staff].join(", ")||"All Staff"} · {[...filters.area].join(", ")||"All Areas"} · {[...filters.season].join(", ")||"All Seasons"} · {[...filters.year].map(y=>`FY ${y}`).join(", ")||"All Years"} · {vis.length} programs</div>
             <div className="flex gap-3 justify-center pt-2">
               <button onClick={()=>setShowReport(false)} className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
-              <button onClick={()=>{ setShowReport(false); printSeasonReport(vis, `${sf!=="All"?`Staff: ${sf}`:"All Staff"} · ${af!=="All"?`Area: ${af}`:"All Areas"} · ${snf!=="All"?`Season: ${snf}`:"All Seasons"} · ${yf!=="All"?`Year: ${yf}`:"All Years"}`); }}
+              <button onClick={()=>{ setShowReport(false); printSeasonReport(vis, `${[...filters.staff].join(", ")||"All Staff"} · ${[...filters.area].join(", ")||"All Areas"} · ${[...filters.season].join(", ")||"All Seasons"} · ${[...filters.year].map(y=>`FY ${y}`).join(", ")||"All Years"}`); }}
                 className="px-5 py-2 text-sm font-semibold text-white rounded-lg" style={{backgroundColor:"#1e3a5f"}}>Save as PDF</button>
             </div>
           </div>
@@ -1655,7 +1691,11 @@ function MultiSeasonView({programs,onEdit}) {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-lg shadow-sm px-4 py-3">
+      <div className="bg-white rounded-lg shadow-sm px-4 py-3 space-y-3">
+        <div>
+          <h2 className="font-bold text-slate-700 text-sm">Multi-Season View</h2>
+          <p className="text-xs text-slate-400 mt-0.5">Shows programs that appear in <span className="font-semibold text-slate-600">more than one season</span> — same name, area, and staff member. Sorted oldest to newest. Use this to track performance trends over time.</p>
+        </div>
         <input className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2"
           placeholder="Search programs..." value={search} onChange={e=>setSearch(e.target.value)}/>
       </div>
@@ -1685,9 +1725,14 @@ function MultiSeasonView({programs,onEdit}) {
                 <th className="px-4 py-2 text-left font-semibold">Trend</th>
                 <th className="px-4 py-2"/>
               </tr></thead>
-              <tbody>{g.seasons.sort((a,b)=>`${a.year}${a.season}`.localeCompare(`${b.year}${b.season}`)).map((s,i)=>(
+              <tbody>{g.seasons.sort((a,b)=>{
+                const SO=["Spring","Summer","Fall","Winter","All Year"];
+                const ya=toCalYear(a.year),yb=toCalYear(b.year);
+                if(ya!==yb) return ya-yb;
+                return SO.indexOf(a.season)-SO.indexOf(b.season);
+              }).map((s,i)=>(
                 <tr key={s.id} className={`border-t border-slate-50 hover:bg-slate-50 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
-                  <td className="px-4 py-2.5 font-semibold text-slate-700 whitespace-nowrap">{s.season} {s.year}</td>
+                  <td className="px-4 py-2.5 font-semibold text-slate-700 whitespace-nowrap">{s.season} FY {toFY(s.year)}</td>
                   <td className="px-4 py-2.5 font-mono text-xs">{pct(s.fillRate)}</td>
                   <td className="px-4 py-2.5 font-mono text-xs">{pct(s.costRecovery)}</td>
                   <td className={`px-4 py-2.5 font-mono text-xs font-semibold ${s.profitLoss>=0?"text-green-700":"text-red-600"}`}>{dollar(s.profitLoss)}</td>
@@ -1958,25 +2003,22 @@ function ProgramForm({initial,staffName,isManager,onSave,onDelete,onArchive,onDu
 
 // ─── Programs List ────────────────────────────────────────────────────────────
 function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDupSingle}) {
-  const [sf,setSf]           = useState("All");
-  const [af,setAf]           = useState("All");
-  const [yf,setYf]           = useState("All");
-  const [snf,setSnf]         = useState("All");
+  const [filters,setFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
   const [search,setSearch]   = useState("");
   const [showArchived,setShowArchived] = useState(false);
+  function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
 
-  const allStaff   = ["All",...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
-  const allAreas   = ["All",...new Set(programs.map(p=>p.area))];
-  const allYears   = ["All",...YEARS];
-  const allSeasons = ["All",...SEASONS];
-  const selCls     = "rounded border border-slate-200 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:border-blue-400";
+  const allStaff   = [...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
+  const allAreas   = [...new Set(programs.map(p=>p.area))];
+  const allYears   = [...YEARS];
+  const allSeasons = [...SEASONS];
 
   const vis = programs
     .filter(p=>showArchived ? !!p.is_archived : !p.is_archived)
-    .filter(p=>sf==="All"||p.staff_name===sf)
-    .filter(p=>af==="All"||p.area===af)
-    .filter(p=>yf==="All"||toFY(p.year)===yf)
-    .filter(p=>snf==="All"||p.season===snf)
+    .filter(p=>filters.staff.size===0||filters.staff.has(p.staff_name))
+    .filter(p=>filters.area.size===0||filters.area.has(p.area))
+    .filter(p=>filters.year.size===0||filters.year.has(toFY(p.year)))
+    .filter(p=>filters.season.size===0||filters.season.has(p.season))
     .filter(p=>!search||p.name.toLowerCase().includes(search.toLowerCase()));
   const archivedCount = programs.filter(p=>p.is_archived&&(isManager||p.staff_name===staffName)).length;
 
@@ -1999,39 +2041,11 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
           {!showArchived&&<button onClick={onAdd} className="text-xs font-bold px-3 py-2 rounded text-white" style={{backgroundColor:"#1e3a5f"}}>+ Add Program</button>}
         </div>
       </div>
-      <div className="bg-white rounded-lg shadow-sm px-4 py-3 flex flex-wrap gap-3 items-end">
-        <input className="rounded border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 min-w-[180px]"
-          placeholder="Search programs..." value={search} onChange={e=>setSearch(e.target.value)}/>
-        {isManager&&(
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Staff</label>
-            <select value={sf} onChange={e=>setSf(e.target.value)} className={selCls}>
-              {allStaff.map(s=><option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-        )}
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Area</label>
-          <select value={af} onChange={e=>setAf(e.target.value)} className={selCls}>
-            {allAreas.map(a=><option key={a} value={a}>{a}</option>)}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Season</label>
-          <select value={snf} onChange={e=>setSnf(e.target.value)} className={selCls}>
-            {allSeasons.map(s=><option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Year</label>
-          <select value={yf} onChange={e=>setYf(e.target.value)} className={selCls}>
-            {allYears.map(y=><option key={y} value={y}>{y==="All"?y:`FY ${y}`}</option>)}
-          </select>
-        </div>
-        {(sf!=="All"||af!=="All"||yf!=="All"||snf!=="All"||search)&&(
-          <button onClick={()=>{setSf("All");setAf("All");setYf("All");setSnf("All");setSearch("");}}
-            className="text-xs text-slate-400 hover:text-slate-600 font-medium pb-1">Clear</button>
-        )}
+      <div className="space-y-2">
+        <MultiFilter filters={filters} onChange={onFilterChange}
+          counts={{staff:isManager?allStaff:[],area:allAreas,season:allSeasons,year:allYears}}/>
+        <input className="w-full rounded border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:border-blue-400"
+          placeholder="Search programs by name..." value={search} onChange={e=>setSearch(e.target.value)}/>
       </div>
       {vis.length===0 ? (
         <div className="bg-white rounded-lg shadow-sm p-12 text-center text-slate-400 text-sm">No programs found.</div>
