@@ -928,6 +928,44 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
 }
 
 // ─── Dashboard (Manager View — full analytics) ────────────────────────────────
+// ─── Needs Attention Accordion ───────────────────────────────────────────────
+function NeedsAttentionQueue({programs,onEdit}){
+  const [open,setOpen]=useState(true);
+  return(
+    <div className="border border-red-200 rounded-lg overflow-hidden">
+      <button onClick={()=>setOpen(o=>!o)}
+        className="w-full px-4 py-2.5 flex items-center justify-between gap-2 text-left"
+        style={{backgroundColor:"#991b1b"}}>
+        <div className="flex items-center gap-2">
+          <span className="text-white text-sm">⚠</span>
+          <span className="text-xs font-bold uppercase tracking-widest text-white">
+            Needs Attention — {programs.length} Program{programs.length!==1?"s":""}
+          </span>
+        </div>
+        <span className="text-white font-bold shrink-0" style={{fontSize:"10px",display:"inline-block",transform:open?"rotate(180deg)":"rotate(0deg)",transition:"transform .2s"}}>▼</span>
+      </button>
+      {open&&(
+        <div className="divide-y divide-red-100 bg-red-50">
+          {programs.map(p=>(
+            <div key={p.id} className="px-4 py-2.5 flex items-center justify-between gap-4 hover:bg-red-100/40">
+              <div className="flex-1 min-w-0">
+                <button onClick={()=>onEdit(p)} className="text-sm font-semibold text-slate-700 hover:text-blue-600 hover:underline text-left truncate block">{p.name}</button>
+                <div className="text-xs text-slate-400">{p.area} — {p.season} FY {toFY(p.year)} — {p.staff_name}</div>
+              </div>
+              <div className="hidden sm:flex gap-4 text-xs font-mono shrink-0">
+                <span className="text-slate-500">Fill: <span className={p.fillRate<0.6?"text-red-600 font-bold":""}>{pct(p.fillRate)}</span></span>
+                <span className="text-slate-500">Recovery: <span className={p.costRecovery<0.5?"text-red-600 font-bold":""}>{pct(p.costRecovery)}</span></span>
+                <span className={p.trend==="Declining"?"text-amber-600 font-semibold":"text-slate-400"}>{p.trend}</span>
+              </div>
+              <Badge status={p.status}/>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   const [sf,setSf]           = useState("All");
   const [af,setAf]           = useState("All");
@@ -1162,30 +1200,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
       )}
 
       {/* ── Needs Attention Queue ── */}
-      {needsAttention.length>0&&(
-        <div className="bg-red-50 border border-red-200 rounded-lg overflow-hidden">
-          <div className="px-4 py-2.5 flex items-center gap-2" style={{backgroundColor:"#991b1b"}}>
-            <span className="text-white text-sm">⚠</span>
-            <span className="text-xs font-bold uppercase tracking-widest text-white">Needs Attention — {needsAttention.length} Program{needsAttention.length!==1?"s":""}</span>
-          </div>
-          <div className="divide-y divide-red-100">
-            {needsAttention.map(p=>(
-              <div key={p.id} className="px-4 py-2.5 flex items-center justify-between gap-4 hover:bg-red-50/50">
-                <div className="flex-1 min-w-0">
-                  <button onClick={()=>onEdit(p)} className="text-sm font-semibold text-slate-700 hover:text-blue-600 hover:underline text-left truncate block">{p.name}</button>
-                  <div className="text-xs text-slate-400">{p.area} — {p.season} FY {toFY(p.year)} — {p.staff_name}</div>
-                </div>
-                <div className="hidden sm:flex gap-4 text-xs font-mono shrink-0">
-                  <span className="text-slate-500">Fill: <span className={p.fillRate<0.6?"text-red-600 font-bold":""}>{pct(p.fillRate)}</span></span>
-                  <span className="text-slate-500">Recovery: <span className={p.costRecovery<0.5?"text-red-600 font-bold":""}>{pct(p.costRecovery)}</span></span>
-                  <span className={p.trend==="Declining"?"text-amber-600 font-semibold":"text-slate-400"}>{p.trend}</span>
-                </div>
-                <Badge status={p.status}/>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {needsAttention.length>0&&<NeedsAttentionQueue programs={needsAttention} onEdit={onEdit}/>}
 
       {/* ── Missing actuals alert ── */}
       {noActuals>0&&(
