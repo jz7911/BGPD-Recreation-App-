@@ -48,12 +48,12 @@ const PROGRAM_TYPES = [
   {label:"Large Contractual Program",  pct:0.01,  hint:"Multi-session contractual series (Karate, Chess, Fencing, Tennis). Staff monitors enrollment, communicates with contractor, handles complaints."},
   {label:"Drop-In Program",            pct:0.015, hint:"Open gym, open arts studio, drop-in museum visits. No registration pipeline. Staff manages scheduling and facility coordination only."},
   {label:"Small Event",                pct:0.025, hint:"Single-day community events under ~200 participants (Kite Fly, Canine Costume, Green Fair, Trick or Treat Trail). Moderate day-of coordination."},
-  {label:"Small Program",              pct:0.03,  hint:"Short-run registered programs (4–8 weeks): fitness classes, beginner sports clinics, youth enrichment. Staff manages registration and instructor."},
-  {label:"Large Event",                pct:0.05,  hint:"High-attendance or revenue events (5K, Boat Regatta, Senior Expo, Holiday Shop, Bow Wow, Huck Finn). Multi-week planning and day-of coordination."},
-  {label:"Large Program",              pct:0.06,  hint:"Ongoing multi-session programs: swim lessons, advanced martial arts, dance, sports leagues, aquatics. Higher registration volume and instructor oversight."},
+  {label:"Small Program",              pct:0.03,  hint:"Short-run registered programs (4–8 weeks): fitness classes, beginner sports clinics, EC classes, youth enrichment. Staff manages registration and instructor."},
+  {label:"Large Event",                pct:0.05,  hint:"High-attendance or revenue events (BG Days, Uniquely Us, Summer Concert Series, 5K, Boat Regatta, Senior Expo). Multi-week planning and day-of coordination."},
+  {label:"Large Program",              pct:0.06,  hint:"Ongoing multi-session programs: swim lessons, advanced martial arts, dance, BG Singers, sports leagues, aquatics. Higher registration volume and instructor oversight."},
   {label:"League",                     pct:0.07,  hint:"Season-long competitive or recreational leagues (Flag Football, House League Basketball, Adult Softball, Soccer, Volleyball). Ongoing scheduling and facility management."},
-  {label:"Camp",                       pct:0.09,  hint:"Day camps, specialty camps, preschool, EC classes. High complexity: part-time staff management, licensing, safety, parent communication. Enter per curriculum group — not per week."},
-  {label:"Production / Major Program", pct:0.10,  hint:"Clubhouse (per site), theater productions, BG Singers, Dance Company, Fitness Center operations. Year-round high-touch programs. For multi-site supervisors: use Custom % to reflect actual portfolio load."},
+  {label:"Camp",                       pct:0.09,  hint:"Day camps and specialty camps. High complexity: part-time staff management, licensing, safety, parent communication. Enter per curriculum group — not per week. Supervisors overseeing multiple camps: use Custom % for your full portfolio."},
+  {label:"Production / Major Program", pct:0.10,  hint:"Preschool, Clubhouse (per site), theater productions, Dance Company, Fitness Center operations. Year-round high-touch programs. Multi-site supervisors: use Custom % to reflect your full portfolio load."},
 ];
 const ADMIN_OVERHEAD_RATE  = 0.1;
 const FT_ANNUAL_SALARY     = 97700;
@@ -2024,12 +2024,57 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                 <div><div className="text-xs text-slate-400">Net Profit/(Loss)</div><div className={`text-xl font-bold ${k.profitLoss>=0?"text-green-700":"text-red-600"}`}>{dollar(k.profitLoss)}</div></div>
                 <div><div className="text-xs text-slate-400">Status</div><div className="mt-1"><Badge status={k.status}/></div></div>
               </div>
-              {svcTarget&&hasActuals&&(
-                <div className={`rounded-lg px-3 py-2 flex items-center gap-2 text-xs border ${svcTarget.onTarget?"bg-green-50 border-green-200 text-green-800":"bg-amber-50 border-amber-200 text-amber-800"}`}>
-                  <span>{svcTarget.onTarget?"✓":"⚠"}</span>
-                  <span><strong>{p.service_category}</strong> target: {svcTarget.label} · Actual: {pct(k.costRecovery)}</span>
-                </div>
-              )}
+              {svcTarget&&hasActuals&&(()=>{
+                const targetCR = svcTarget.min;
+                const actualCR = k.costRecovery;
+                const onTarget = actualCR >= targetCR;
+                const gap = k.totalCost * targetCR - k.revenue;
+                const enrollment = p.act_enrollment||1;
+                const suggestedFeeIncrease = enrollment>0 ? gap/enrollment : null;
+                const currentFeePerHead = enrollment>0 ? k.revenue/enrollment : null;
+                const suggestedFee = suggestedFeeIncrease!=null&&currentFeePerHead!=null ? currentFeePerHead+suggestedFeeIncrease : null;
+                return(
+                  <div className={`rounded-xl border overflow-hidden`}
+                    style={{borderColor:onTarget?"#bbf7d0":"#fde68a"}}>
+                    <div className="px-4 py-3 flex items-center gap-2 text-sm"
+                      style={{background:onTarget?"#f0fdf4":"#fffbeb"}}>
+                      <span className="text-base">{onTarget?"✓":"⚠"}</span>
+                      <div className="flex-1">
+                        <span className="font-semibold" style={{color:onTarget?"#166534":"#92400e"}}>
+                          {p.service_category} target: {svcTarget.label}
+                        </span>
+                        <span className="ml-2 text-xs opacity-75" style={{color:onTarget?"#166534":"#92400e"}}>
+                          Actual: {pct(actualCR)}
+                        </span>
+                      </div>
+                    </div>
+                    {!onTarget&&gap>0&&(
+                      <div className="px-4 py-3 border-t grid grid-cols-1 gap-2 sm:grid-cols-3 text-sm"
+                        style={{borderColor:"#fde68a",background:"#fefce8"}}>
+                        <div>
+                          <div className="text-xs text-amber-700 font-semibold mb-0.5">Revenue Gap</div>
+                          <div className="text-base font-bold text-amber-800">{dollar(Math.ceil(gap))}</div>
+                          <div className="text-xs text-amber-600">needed to hit {svcTarget.label}</div>
+                        </div>
+                        {suggestedFeeIncrease!=null&&(
+                          <div>
+                            <div className="text-xs text-amber-700 font-semibold mb-0.5">Fee Increase Needed</div>
+                            <div className="text-base font-bold text-amber-800">+{dollar(Math.ceil(suggestedFeeIncrease))}/participant</div>
+                            <div className="text-xs text-amber-600">based on {enrollment} enrolled</div>
+                          </div>
+                        )}
+                        {suggestedFee!=null&&(
+                          <div>
+                            <div className="text-xs text-amber-700 font-semibold mb-0.5">Suggested Fee</div>
+                            <div className="text-base font-bold text-amber-800">{dollar(Math.ceil(suggestedFee))}/participant</div>
+                            <div className="text-xs text-amber-600">vs current {dollar(Math.round(currentFeePerHead||0))}/participant</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               <div className="border-t border-slate-100 pt-4 space-y-4">
                 <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Variance vs Budget</div>
                 <PBar label="Enrollment"        actual={p.act_enrollment||0} budget={p.ant_enrollment||0} ff={v=>v.toString()}/>
@@ -3072,6 +3117,464 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
 
 
 // ─── Reference Tab ────────────────────────────────────────────────────────────
+// ─── Program Guide Section ────────────────────────────────────────────────────
+const BUILTIN_GUIDE = [
+  // ─ Open Access ──────────────────────────────────────────────────────────────
+  {program:"Alcott Center and Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Apple Hill",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Bicentennial Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Bison Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Cambridge Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Candlewood Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Canterbury Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Cherbourg Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Children's Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Churchill Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Commons Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Cooper Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Crossings Pond",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Didier Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Drazner Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Emmerich Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Frenchman's Cove",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Ivy Hall Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Kilmer Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Lions Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Longfellow Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Marth Weiss Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Mill Creek Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Mirielle Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Nicole / Site 21",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Northwood / Detention",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Old Farm Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Oxford Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Prairie Grove Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Prairie School Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Raupp Museum",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Reiner Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Reservoir 7",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Risinger Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Rolling Hills",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Rolling Hills North",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Rylko Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Sommerset / Detention",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Tartan Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Veterans Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Weidner Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Wellington Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Westchester Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Willow Stream Park North",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Willow Stream Park South",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Windfield / Detention",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Windsor Ridge Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  {program:"Woodland Park",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"},
+  // ─ Community Events ─────────────────────────────────────────────────────────
+  {program:"Veterans Day",type:"Small Event",bucket:"Community Events",cr:"80-100% Subsidy"},
+  {program:"Uniquely Us Events",type:"Large Event",bucket:"Community Events",cr:"80-100% Subsidy"},
+  {program:"Earth Day Celebration",type:"Small Event",bucket:"Community Events",cr:"80-100% Subsidy"},
+  {program:"Kite Fly",type:"Small Event",bucket:"Community Events",cr:"80-100% Subsidy"},
+  {program:"Mighty Machine Meet-Up",type:"Small Event",bucket:"Community Events",cr:"80-100% Subsidy"},
+  {program:"Flag Day",type:"Small Event",bucket:"Community Events",cr:"80-100% Subsidy"},
+  {program:"NNO",type:"Small Event",bucket:"Community Events",cr:"80-100% Subsidy"},
+  {program:"Movies Under the Stars",type:"Small Event",bucket:"Community Events",cr:"80-100% Subsidy"},
+  {program:"BG Days",type:"Large Event",bucket:"Community Events",cr:"80-100% Subsidy"},
+  {program:"Summer Kickoff",type:"Small Event",bucket:"Community Events",cr:"80-100% Subsidy"},
+  {program:"Summer Concert Series",type:"Large Event",bucket:"Community Events",cr:"80-100% Subsidy"},
+  {program:"Tots in the Park",type:"Small Event",bucket:"Community Events",cr:"80-100% Subsidy"},
+  {program:"Canine Costume Contest",type:"Small Event",bucket:"Community Events",cr:"80-100% Subsidy"},
+  {program:"Green Fair",type:"Small Event",bucket:"Community Events",cr:"80-100% Subsidy"},
+  {program:"Trick or Treat Trail",type:"Small Event",bucket:"Community Events",cr:"80-100% Subsidy"},
+  // ─ Specialty Events ─────────────────────────────────────────────────────────
+  {program:"Senior Expo",type:"Large Event",bucket:"Specialty Events",cr:"0-5% Subsidy"},
+  {program:"Scout Badge Day",type:"Small Event",bucket:"Specialty Events",cr:"0-5% Subsidy"},
+  {program:"Puzzle Palooza",type:"Small Event",bucket:"Specialty Events",cr:"0-5% Subsidy"},
+  {program:"Productions / Recitals",type:"Production / Major Program",bucket:"Specialty Events",cr:"0-5% Subsidy"},
+  {program:"Arts & Crafts Fair",type:"Large Event",bucket:"Specialty Events",cr:"0-5% Subsidy"},
+  {program:"Holiday Shop",type:"Large Event",bucket:"Specialty Events",cr:"0-5% Subsidy"},
+  {program:"Santa's Mailbox",type:"Small Event",bucket:"Specialty Events",cr:"0-5% Subsidy"},
+  {program:"Superhero and Princess Party",type:"Small Event",bucket:"Specialty Events",cr:"0-5% Subsidy"},
+  {program:"BG STEM Expo",type:"Large Event",bucket:"Specialty Events",cr:"0-5% Subsidy"},
+  {program:"You've Been Egged",type:"Small Event",bucket:"Specialty Events",cr:"0-5% Subsidy"},
+  {program:"Night Owl Egg Hunt",type:"Small Event",bucket:"Specialty Events",cr:"0-5% Subsidy"},
+  {program:"Disc Golf Tournament",type:"Small Event",bucket:"Specialty Events",cr:"0-5% Subsidy"},
+  {program:"Bow Wow Dog Expo",type:"Large Event",bucket:"Specialty Events",cr:"0-5% Subsidy"},
+  {program:"Camping Under the Stars",type:"Small Event",bucket:"Specialty Events",cr:"0-5% Subsidy"},
+  {program:"Glow & Show 5K",type:"Large Event",bucket:"Specialty Events",cr:"0-5% Subsidy"},
+  {program:"Huck Finn Fishing Derby",type:"Large Event",bucket:"Specialty Events",cr:"0-5% Subsidy"},
+  {program:"AARP",type:"Small Event",bucket:"Specialty Events",cr:"0-5% Subsidy"},
+  {program:"Cardboard Boat Regatta",type:"Large Event",bucket:"Specialty Events",cr:"0-5% Subsidy"},
+  {program:"Membership Appreciation",type:"Small Event",bucket:"Specialty Events",cr:"0-5% Subsidy"},
+  // ─ Beg/Intro Activities ─────────────────────────────────────────────────────
+  {program:"Kid Rock",type:"Large Contractual Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Gymnastics 2-6",type:"Large Contractual Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Karate Beginner",type:"Large Contractual Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Cricket Beginner",type:"Large Contractual Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Chess Beginner",type:"Large Contractual Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Karate Adult/Youth Beginning",type:"Large Contractual Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Tennis 4-6",type:"Large Contractual Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Twin Rinks",type:"Large Contractual Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Hot Shots",type:"Large Contractual Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Tae Kwon Do Beginner",type:"Large Contractual Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Safety Town",type:"Small Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Fencing Beginner",type:"Large Contractual Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Pickleball Clinic",type:"Small Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Junior Golf Level 1",type:"Large Contractual Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Adult Golf Level 1",type:"Large Contractual Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Lifeguard Classes",type:"Large Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Camp in a Bag",type:"Small Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"School Educational Programs",type:"Small Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Thanksgiving Class",type:"Small Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Love, Murder, Science",type:"Small Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Gardening Classes",type:"Small Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Mom and Me Tea",type:"Small Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Scout Programs",type:"Small Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Water Babies",type:"Large Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Water Tots",type:"Large Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Tadpoles",type:"Large Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Broadway Buddies",type:"Small Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Showbiz Kids",type:"Small Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Center Stage Stars",type:"Small Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Acting, Improv, Musical Theater",type:"Small Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Visual Arts Classes Beginners",type:"Small Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Dance Academy",type:"Large Contractual Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Nature Classroom Programs",type:"Small Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Family Dig Day",type:"Small Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  {program:"Affiliates",type:"Large Contractual Program",bucket:"Beg/Intro Activities",cr:"100%+"},
+  // ─ Drop-In Activities ───────────────────────────────────────────────────────
+  {program:"Open Gym Sports",type:"Drop-In Program",bucket:"Drop-In Activities",cr:"100-105%+"},
+  {program:"Open Arts Studio",type:"Drop-In Program",bucket:"Drop-In Activities",cr:"100-105%+"},
+  {program:"Drop-In Fencing",type:"Drop-In Program",bucket:"Drop-In Activities",cr:"100-105%+"},
+  {program:"Drop-In Museum Visits",type:"Drop-In Program",bucket:"Drop-In Activities",cr:"100-105%+"},
+  // ─ Childcare Services ───────────────────────────────────────────────────────
+  {program:"Camps (all)",type:"Camp",bucket:"Childcare Services",cr:"110-130%+"},
+  {program:"Preschool",type:"Production / Major Program",bucket:"Childcare Services",cr:"110-130%+"},
+  {program:"Clubhouse (all sites)",type:"Production / Major Program",bucket:"Childcare Services",cr:"110-130%+"},
+  {program:"EC Classes",type:"Small Program",bucket:"Childcare Services",cr:"110-130%+"},
+  // ─ Int/Adv Activities ───────────────────────────────────────────────────────
+  {program:"Chess Intermediate / Advanced",type:"Large Contractual Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Computer Explorers",type:"Large Contractual Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Gymnastics 5-10",type:"Large Contractual Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Karate (Intermediate/Adv)",type:"Large Contractual Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Lacrosse",type:"League",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Tennis 7-15",type:"Large Contractual Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Cheerleading",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Boys Flag Football",type:"League",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Girls Flag Football",type:"League",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"All-Star Sports",type:"League",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"OTA",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Tae Kwon Do (Adv)",type:"Large Contractual Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Fencing (Intermediate/Adv)",type:"Large Contractual Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Adult Softball",type:"League",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Adult Pickleball",type:"League",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Adult Volleyball",type:"League",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Adult Bags",type:"League",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Adult Whiffleball",type:"League",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Adult Kickball",type:"League",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Aqua Arthritis",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Choose to Lose / Spring Fit",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Stress Management",type:"Small Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Team Fit & Strong",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Group Weight Lifting",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"TRX Core Training",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Youth Boxing",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Strong Girls",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Youth Fitness",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Teen Boxing",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Swim for Fitness",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Evolution Basketball Camp",type:"Camp",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Junior Golf Level 2",type:"Large Contractual Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Adult Golf Level 2",type:"Large Contractual Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Challenger Soccer Camp",type:"Camp",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Spring Fit Challenge",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Rotational Sports Conditioning",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Kickboxing Fitness",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Sound Journeys",type:"Small Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"FC Member Workshops",type:"Small Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Drawing & Painting",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Mah Jongg Tournament",type:"Small Event",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Adult Trips",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Cyclones Swim Team",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Hurricane Swim Team",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Group Swim Lessons",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Forever Fit",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Hatha Yoga",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Zumba",type:"Large Contractual Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Zumba Gold",type:"Large Contractual Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Wedding Dress Workshop",type:"Small Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Bingo Luncheon",type:"Small Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Monthly Parties",type:"Small Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Holiday Party",type:"Small Event",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Luncheons",type:"Small Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Youth Soccer",type:"League",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"BG Singers",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"BG Singers Encore",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Scene Study",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Skyline Theater",type:"Production / Major Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Big Deal Acting Troupe",type:"Production / Major Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Visual Arts (Advanced)",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Dance Company",type:"Production / Major Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Winter Dance Prep",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"House League BBall",type:"League",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Adult Non-Musical",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Fall Children's Theater",type:"Production / Major Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Winter Teen Theater",type:"Production / Major Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Summer Musical",type:"Production / Major Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Fall Young Children's Musical",type:"Production / Major Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Spring Children's Theater",type:"Production / Major Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Swim Team Prep",type:"Large Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Audition Workshops",type:"Small Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  {program:"Swim Team Tryouts",type:"Small Program",bucket:"Int/Adv Activities",cr:"110-130%+"},
+  // ─ Private/Semi-Private ─────────────────────────────────────────────────────
+  {program:"FC Personal Training",type:"Large Program",bucket:"Private/Semi-Private",cr:"130-150%+"},
+  {program:"FC Reformer",type:"Large Program",bucket:"Private/Semi-Private",cr:"130-150%+"},
+  {program:"FC Pilates",type:"Large Program",bucket:"Private/Semi-Private",cr:"130-150%+"},
+  {program:"FC Wellness Coaching",type:"Large Program",bucket:"Private/Semi-Private",cr:"130-150%+"},
+  {program:"Golf Pro Lessons",type:"Large Contractual Program",bucket:"Private/Semi-Private",cr:"130-150%+"},
+  {program:"Private Swim Lessons",type:"Large Program",bucket:"Private/Semi-Private",cr:"130-150%+"},
+  {program:"Piano Lessons",type:"Large Contractual Program",bucket:"Private/Semi-Private",cr:"130-150%+"},
+  {program:"Swim Team Privates",type:"Large Program",bucket:"Private/Semi-Private",cr:"130-150%+"},
+  // ─ Specialized Services ─────────────────────────────────────────────────────
+  {program:"FC Memberships",type:"Production / Major Program",bucket:"Specialized Services",cr:"130-150%+"},
+  {program:"5 Hour Pass",type:"Small Contractual Program",bucket:"Specialized Services",cr:"130-150%+"},
+  {program:"Season Pass",type:"Small Contractual Program",bucket:"Specialized Services",cr:"130-150%+"},
+  {program:"Golf Dome (admissions)",type:"Small Contractual Program",bucket:"Specialized Services",cr:"130-150%+"},
+  {program:"Dog Park",type:"Small Contractual Program",bucket:"Specialized Services",cr:"130-150%+"},
+  {program:"SNP Admission / Passes",type:"Small Contractual Program",bucket:"Specialized Services",cr:"130-150%+"},
+  {program:"WSP Admission / Passes",type:"Small Contractual Program",bucket:"Specialized Services",cr:"130-150%+"},
+  {program:"Senior Membership Fee",type:"Small Contractual Program",bucket:"Specialized Services",cr:"130-150%+"},
+  // ─ Rentals ──────────────────────────────────────────────────────────────────
+  {program:"CAC Rentals",type:"Small Contractual Program",bucket:"Rentals",cr:"130-150%+"},
+  {program:"Alcott Rentals",type:"Small Contractual Program",bucket:"Rentals",cr:"130-150%+"},
+  {program:"GD Rentals",type:"Small Contractual Program",bucket:"Rentals",cr:"130-150%+"},
+  {program:"SNP Rentals",type:"Small Contractual Program",bucket:"Rentals",cr:"130-150%+"},
+  {program:"WSP Rentals",type:"Small Contractual Program",bucket:"Rentals",cr:"130-150%+"},
+  {program:"Amphitheater Rentals",type:"Small Contractual Program",bucket:"Rentals",cr:"130-150%+"},
+  {program:"Shelter Rentals",type:"Small Contractual Program",bucket:"Rentals",cr:"130-150%+"},
+  {program:"Fields & Courts Rentals",type:"Small Contractual Program",bucket:"Rentals",cr:"130-150%+"},
+  {program:"FC Rentals",type:"Small Contractual Program",bucket:"Rentals",cr:"130-150%+"},
+  {program:"Birthday Parties",type:"Small Contractual Program",bucket:"Rentals",cr:"130-150%+"},
+  {program:"Food Trucks",type:"Small Contractual Program",bucket:"Rentals",cr:"130-150%+"},
+  // ─ Retail ───────────────────────────────────────────────────────────────────
+  {program:"Concessions",type:"Small Contractual Program",bucket:"Retail",cr:"130-150%+"},
+  {program:"Pro Shop",type:"Small Contractual Program",bucket:"Retail",cr:"130-150%+"},
+];
+
+const BUCKET_COLORS={"Open Access":"#e0e7ff","Community Events":"#fef3c7","Specialty Events":"#fef9c3","Beg/Intro Activities":"#dcfce7","Drop-In Activities":"#d1fae5","Childcare Services":"#dbeafe","Int/Adv Activities":"#ede9fe","Private/Semi-Private":"#fce7f3","Specialized Services":"#fee2e2","Rentals":"#f1f5f9","Retail":"#f1f5f9"};
+const BUCKET_TEXT={"Open Access":"#3730a3","Community Events":"#92400e","Specialty Events":"#854d0e","Beg/Intro Activities":"#166534","Drop-In Activities":"#065f46","Childcare Services":"#1e40af","Int/Adv Activities":"#5b21b6","Private/Semi-Private":"#9d174d","Specialized Services":"#991b1b","Rentals":"#334155","Retail":"#334155"};
+const BUCKET_CR={"Open Access":"100% Subsidy","Community Events":"80-100% Subsidy","Specialty Events":"0-5% Subsidy","Beg/Intro Activities":"100%+ CR","Drop-In Activities":"100-105%+ CR","Childcare Services":"110-130%+ CR","Int/Adv Activities":"110-130%+ CR","Private/Semi-Private":"130-150%+ CR","Specialized Services":"130-150%+ CR","Rentals":"130-150%+ CR","Retail":"130-150%+ CR"};
+
+function ProgramGuideSection({isManager,db}){
+  const [search,setSearch]=useState("");
+  const [custom,setCustom]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [showAdd,setShowAdd]=useState(false);
+  const [editRow,setEditRow]=useState(null);
+  const [form,setForm]=useState({program:"",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"});
+  const [saving,setSaving]=useState(false);
+
+  const BUCKETS=[...new Set(BUILTIN_GUIDE.map(g=>g.bucket))];
+  const CR_OPTIONS=["100% Subsidy","80-100% Subsidy","0-5% Subsidy","100%+","100-105%+","110-130%+","130-150%+"];
+
+  async function loadCustom(){
+    setLoading(true);
+    const {data}=await db.from("admin_program_guide").select("*").order("bucket").order("program");
+    setCustom(data||[]);
+    setLoading(false);
+  }
+  useEffect(()=>{loadCustom();},[]);
+
+  async function saveEntry(){
+    if(!form.program.trim()) return;
+    setSaving(true);
+    if(editRow){
+      await db.from("admin_program_guide").update({...form}).eq("id",editRow.id);
+    } else {
+      await db.from("admin_program_guide").insert({...form});
+    }
+    setSaving(false);
+    setShowAdd(false);
+    setEditRow(null);
+    setForm({program:"",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"});
+    loadCustom();
+  }
+  async function deleteEntry(id){
+    await db.from("admin_program_guide").delete().eq("id",id);
+    loadCustom();
+  }
+  function startEdit(row){
+    setEditRow(row);
+    setForm({program:row.program,type:row.type,bucket:row.bucket,cr:row.cr});
+    setShowAdd(true);
+  }
+
+  const allEntries=[...BUILTIN_GUIDE,...custom.map(c=>({...c,custom:true}))];
+  const q=search.trim().toLowerCase();
+  const filtered=q?allEntries.filter(g=>g.program.toLowerCase().includes(q)||g.type.toLowerCase().includes(q)||g.bucket.toLowerCase().includes(q)):null;
+
+  const selCls="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white";
+
+  return(
+    <div className="p-5 space-y-5">
+      <div>
+        <h2 className="font-bold text-slate-800 text-base mb-1">Program Types & Guide</h2>
+        <p className="text-sm text-slate-500">Every BGPD program mapped to its Program Type and 110% cost recovery target. Use this when entering a new program to pick the right type.</p>
+      </div>
+
+      {/* Program Type workload table */}
+      <div className="rounded-xl border border-slate-200 overflow-hidden">
+        <div className="px-4 py-2.5 bg-slate-800 text-slate-100 text-xs font-bold uppercase tracking-widest">Program Type Workload Reference</div>
+        <table className="w-full text-xs">
+          <thead><tr className="bg-slate-50 text-slate-400 uppercase tracking-wider text-left">
+            <th className="px-4 py-2 font-semibold">Program Type</th>
+            <th className="px-4 py-2 font-semibold">Default %</th>
+            <th className="px-4 py-2 font-semibold">When to use</th>
+          </tr></thead>
+          <tbody>{PROGRAM_TYPES.map((t,i)=>(
+            <tr key={t.label} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
+              <td className="px-4 py-2.5 font-semibold text-slate-700">{t.label}</td>
+              <td className="px-4 py-2.5 font-mono text-slate-500">{(t.pct*100).toFixed(1)}%</td>
+              <td className="px-4 py-2.5 text-slate-400 leading-snug">{t.hint}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+        <div className="px-4 py-3 bg-amber-50 border-t border-amber-100 text-xs text-amber-800">
+          <span className="font-bold">Camp & Clubhouse / Preschool supervisors:</span> Both types can stack quickly across multiple programs. Use <span className="font-semibold">Custom Workload %</span> to enter your actual total allocation for the full portfolio in one entry.
+        </div>
+      </div>
+
+      {/* Search + add */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <input value={search} onChange={e=>setSearch(e.target.value)}
+          placeholder="Search program name, type, or bucket…"
+          className="flex-1 min-w-48 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:border-blue-400"/>
+        {search&&<button onClick={()=>setSearch("")} className="text-xs text-slate-400 hover:text-slate-600">Clear</button>}
+        <span className="text-xs text-slate-400">{filtered?`${filtered.length} match${filtered.length!==1?"es":""}`:`${allEntries.length} programs${custom.length>0?` (${custom.length} custom)`:""}`}</span>
+        {isManager&&(
+          <button onClick={()=>{setShowAdd(true);setEditRow(null);setForm({program:"",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"});}}
+            className="text-xs font-bold px-3 py-2 rounded-lg text-white shrink-0" style={{background:"#1e3a5f"}}>
+            + Add Program
+          </button>
+        )}
+      </div>
+
+      {/* Manager add/edit form */}
+      {isManager&&showAdd&&(
+        <div className="rounded-xl border border-slate-200 p-5 space-y-4 bg-slate-50">
+          <div className="font-semibold text-slate-700 text-sm">{editRow?"Edit Entry":"Add Program to Guide"}</div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Program Name *</label>
+              <input value={form.program} onChange={e=>setForm(f=>({...f,program:e.target.value}))}
+                className={selCls} placeholder="e.g. New Pilates Class"/>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Program Type</label>
+              <select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))} className={selCls}>
+                {PROGRAM_TYPES.map(t=><option key={t.label}>{t.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">110% Bucket</label>
+              <select value={form.bucket} onChange={e=>setForm(f=>({...f,bucket:e.target.value}))} className={selCls}>
+                {BUCKETS.map(b=><option key={b}>{b}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">CR Target</label>
+              <select value={form.cr} onChange={e=>setForm(f=>({...f,cr:e.target.value}))} className={selCls}>
+                {CR_OPTIONS.map(o=><option key={o}>{o}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <button onClick={saveEntry} disabled={!form.program.trim()||saving}
+              className="px-4 py-2 text-sm font-bold rounded-lg text-white disabled:opacity-40"
+              style={{background:"#1e3a5f"}}>{saving?"Saving…":editRow?"Update":"Save"}</button>
+            <button onClick={()=>{setShowAdd(false);setEditRow(null);}}
+              className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Search results */}
+      {filtered&&(
+        <div className="rounded-xl border border-slate-200 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead><tr className="bg-slate-50 text-xs text-slate-400 uppercase tracking-wider">
+              <th className="px-4 py-2 text-left font-semibold">Program</th>
+              <th className="px-4 py-2 text-left font-semibold">Program Type</th>
+              <th className="px-4 py-2 text-left font-semibold">110% Bucket</th>
+              <th className="px-4 py-2 text-left font-semibold">CR Target</th>
+              {isManager&&<th className="px-4 py-2"/>}
+            </tr></thead>
+            <tbody>{filtered.map((g,i)=>(
+              <tr key={i} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
+                <td className="px-4 py-2.5 font-medium text-slate-700">
+                  {g.program}
+                  {g.custom&&<span className="ml-1.5 text-xs font-semibold text-blue-500">custom</span>}
+                </td>
+                <td className="px-4 py-2.5 text-slate-400 text-xs">{g.type}</td>
+                <td className="px-4 py-2.5">
+                  <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full"
+                    style={{background:BUCKET_COLORS[g.bucket]||"#f1f5f9",color:BUCKET_TEXT[g.bucket]||"#334155"}}>
+                    {g.bucket}
+                  </span>
+                </td>
+                <td className="px-4 py-2.5 text-slate-400 text-xs font-mono">{g.cr}</td>
+                {isManager&&<td className="px-4 py-2.5 text-right">
+                  {g.custom&&<><button onClick={()=>startEdit(g)} className="text-xs text-slate-400 hover:text-slate-700 mr-2">Edit</button>
+                  <button onClick={()=>deleteEntry(g.id)} className="text-xs text-red-300 hover:text-red-600">Delete</button></>}
+                </td>}
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Grouped by bucket */}
+      {!filtered&&BUCKETS.map(bucket=>{
+        const builtIn=BUILTIN_GUIDE.filter(g=>g.bucket===bucket);
+        const cust=custom.filter(g=>g.bucket===bucket);
+        const items=[...builtIn,...cust.map(c=>({...c,custom:true}))];
+        const bg=BUCKET_COLORS[bucket]||"#f1f5f9";
+        const tx=BUCKET_TEXT[bucket]||"#334155";
+        return(
+          <div key={bucket} className="rounded-xl border border-slate-200 overflow-hidden">
+            <div className="px-4 py-2.5 flex items-center justify-between" style={{background:bg}}>
+              <span className="text-xs font-bold uppercase tracking-widest" style={{color:tx}}>{bucket}</span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-mono font-semibold" style={{color:tx}}>{BUCKET_CR[bucket]}</span>
+                <span className="text-xs" style={{color:tx,opacity:.7}}>{items.length} program{items.length!==1?"s":""}</span>
+              </div>
+            </div>
+            <table className="w-full text-sm">
+              <thead><tr className="bg-white text-xs text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                <th className="px-4 py-2 text-left font-semibold">Program</th>
+                <th className="px-4 py-2 text-left font-semibold">Program Type to Use</th>
+                {isManager&&<th className="px-4 py-2"/>}
+              </tr></thead>
+              <tbody>{items.map((g,i)=>(
+                <tr key={i} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
+                  <td className="px-4 py-2.5 text-slate-700 font-medium">
+                    {g.program}
+                    {g.custom&&<span className="ml-1.5 text-xs font-semibold text-blue-500">custom</span>}
+                  </td>
+                  <td className="px-4 py-2.5 text-slate-400 text-xs">{g.type}</td>
+                  {isManager&&<td className="px-4 py-2.5 text-right">
+                    {g.custom&&<><button onClick={()=>startEdit(g)} className="text-xs text-slate-400 hover:text-slate-700 mr-2">Edit</button>
+                    <button onClick={()=>deleteEntry(g.id)} className="text-xs text-red-300 hover:text-red-600">Delete</button></>}
+                  </td>}
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+
 function Reference({isManager,db,programs,staffName}) {
   const [sec,setSec] = useState("standards");
   const workload = [
@@ -3198,395 +3701,7 @@ function Reference({isManager,db,programs,staffName}) {
           </div>
         </div>
       )}
-      {sec==="kpis"&&(()=>{
-        const [kpiSearch,setKpiSearch]=useState("");
-
-        // Program type → {type, cr target, 110% bucket}
-        const PROGRAM_GUIDE = [
-          // ─ Open Access (100% Subsidy) ─────────────────────────────────────
-          {program:"Alcott Center and Park",       type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Apple Hill",                   type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Bicentennial Park",            type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Bison Park",                   type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Cambridge Park",               type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Candlewood Park",              type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Canterbury Park",              type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Cherbourg Park",               type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Children's Park",              type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Churchill Park",               type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Commons Park",                 type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Cooper Park",                  type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Crossings Pond",               type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Didier Park",                  type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Drazner Park",                 type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Emmerich Park",                type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Frenchman's Cove",             type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Ivy Hall Park",                type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Kilmer Park",                  type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Lions Park",                   type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Longfellow Park",              type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Marth Weiss Park",             type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Mill Creek Park",              type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Mirielle Park",                type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Nicole / Site 21",             type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Northwood / Detention",        type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Old Farm Park",                type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Oxford Park",                  type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Prairie Grove Park",           type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Prairie School Park",          type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Raupp Museum",                 type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Reiner Park",                  type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Reservoir 7",                  type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Risinger Park",                type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Rolling Hills",                type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Rolling Hills North",          type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Rylko Park",                   type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Sommerset / Detention",        type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Tartan Park",                  type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Veterans Park",                type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Weidner Park",                 type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Wellington Park",              type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Westchester Park",             type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Willow Stream Park North",     type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Willow Stream Park South",     type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Windfield / Detention",        type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Windsor Ridge Park",           type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          {program:"Woodland Park",                type:"Small Contractual Program", bucket:"Open Access",     cr:"100% Subsidy"},
-          // ─ Community Events (80–100% Subsidy) ────────────────────────────
-          {program:"Veterans Day",                 type:"Small Event",               bucket:"Community Events", cr:"80-100% Subsidy"},
-          {program:"Uniquely Us Events",           type:"Small Event",               bucket:"Community Events", cr:"80-100% Subsidy"},
-          {program:"Earth Day Celebration",        type:"Small Event",               bucket:"Community Events", cr:"80-100% Subsidy"},
-          {program:"Kite Fly",                     type:"Small Event",               bucket:"Community Events", cr:"80-100% Subsidy"},
-          {program:"Mighty Machine Meet-Up",       type:"Small Event",               bucket:"Community Events", cr:"80-100% Subsidy"},
-          {program:"Flag Day",                     type:"Small Event",               bucket:"Community Events", cr:"80-100% Subsidy"},
-          {program:"NNO",                          type:"Small Event",               bucket:"Community Events", cr:"80-100% Subsidy"},
-          {program:"Movies Under the Stars",       type:"Small Event",               bucket:"Community Events", cr:"80-100% Subsidy"},
-          {program:"Summer Kickoff",               type:"Small Event",               bucket:"Community Events", cr:"80-100% Subsidy"},
-          {program:"Summer Concerts",              type:"Small Event",               bucket:"Community Events", cr:"80-100% Subsidy"},
-          {program:"Tots in the Park",             type:"Small Event",               bucket:"Community Events", cr:"80-100% Subsidy"},
-          {program:"Canine Costume Contest",       type:"Small Event",               bucket:"Community Events", cr:"80-100% Subsidy"},
-          {program:"Green Fair",                   type:"Small Event",               bucket:"Community Events", cr:"80-100% Subsidy"},
-          {program:"Trick or Treat Trail",         type:"Small Event",               bucket:"Community Events", cr:"80-100% Subsidy"},
-          // ─ Specialty Events (0–5% Subsidy) ───────────────────────────────
-          {program:"Senior Expo",                  type:"Large Event",               bucket:"Specialty Events", cr:"0-5% Subsidy"},
-          {program:"Scout Badge Day",              type:"Small Event",               bucket:"Specialty Events", cr:"0-5% Subsidy"},
-          {program:"Puzzle Palooza",               type:"Small Event",               bucket:"Specialty Events", cr:"0-5% Subsidy"},
-          {program:"Productions / Recitals",       type:"Production / Major Program",bucket:"Specialty Events", cr:"0-5% Subsidy"},
-          {program:"Arts & Crafts Fair",           type:"Large Event",               bucket:"Specialty Events", cr:"0-5% Subsidy"},
-          {program:"Holiday Shop",                 type:"Large Event",               bucket:"Specialty Events", cr:"0-5% Subsidy"},
-          {program:"Santa's Mailbox",              type:"Small Event",               bucket:"Specialty Events", cr:"0-5% Subsidy"},
-          {program:"Superhero and Princess Party", type:"Small Event",               bucket:"Specialty Events", cr:"0-5% Subsidy"},
-          {program:"BG STEM Expo",                 type:"Large Event",               bucket:"Specialty Events", cr:"0-5% Subsidy"},
-          {program:"You've Been Egged",            type:"Small Event",               bucket:"Specialty Events", cr:"0-5% Subsidy"},
-          {program:"Night Owl Egg Hunt",           type:"Small Event",               bucket:"Specialty Events", cr:"0-5% Subsidy"},
-          {program:"Disc Golf Tournament",         type:"Small Event",               bucket:"Specialty Events", cr:"0-5% Subsidy"},
-          {program:"Bow Wow Dog Expo",             type:"Large Event",               bucket:"Specialty Events", cr:"0-5% Subsidy"},
-          {program:"Camping Under the Stars",      type:"Small Event",               bucket:"Specialty Events", cr:"0-5% Subsidy"},
-          {program:"Glow & Show 5K",               type:"Large Event",               bucket:"Specialty Events", cr:"0-5% Subsidy"},
-          {program:"Huck Finn Fishing Derby",      type:"Large Event",               bucket:"Specialty Events", cr:"0-5% Subsidy"},
-          {program:"AARP",                         type:"Small Event",               bucket:"Specialty Events", cr:"0-5% Subsidy"},
-          {program:"Cardboard Boat Regatta",       type:"Large Event",               bucket:"Specialty Events", cr:"0-5% Subsidy"},
-          {program:"Membership Appreciation",      type:"Small Event",               bucket:"Specialty Events", cr:"0-5% Subsidy"},
-          // ─ Beg / Intro Activities (100%+ CR) ─────────────────────────────
-          {program:"Kid Rock",                     type:"Large Contractual Program",  bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Gymnastics 2-6",               type:"Large Contractual Program",  bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Karate Beginner",              type:"Large Contractual Program",  bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Cricket Beginner",             type:"Large Contractual Program",  bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Chess Beginner",               type:"Large Contractual Program",  bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Karate Adult/Youth Beginning", type:"Large Contractual Program",  bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Tennis 4-6",                   type:"Large Contractual Program",  bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Twin Rinks",                   type:"Large Contractual Program",  bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Hot Shots",                    type:"Large Contractual Program",  bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Tae Kwon Do Beginner",         type:"Large Contractual Program",  bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Safety Town",                  type:"Small Program",              bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Fencing Beginner",             type:"Large Contractual Program",  bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Pickleball Clinic",            type:"Small Program",              bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Junior Golf Level 1",          type:"Large Contractual Program",  bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Adult Golf Level 1",           type:"Large Contractual Program",  bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Lifeguard Classes",            type:"Large Program",              bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Camp in a Bag",                type:"Small Program",              bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"School Educational Programs",  type:"Small Program",              bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Thanksgiving Class",           type:"Small Program",              bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Love, Murder, Science",        type:"Small Program",              bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Gardening Classes",            type:"Small Program",              bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Mom and Me Tea",               type:"Small Program",              bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Scout Programs",               type:"Small Program",              bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Water Babies",                 type:"Large Program",              bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Water Tots",                   type:"Large Program",              bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Tadpoles",                     type:"Large Program",              bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Broadway Buddies",             type:"Small Program",              bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Showbiz Kids",                 type:"Small Program",              bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Center Stage Stars",           type:"Small Program",              bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Acting, Improv, Musical Theater",type:"Small Program",            bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Visual Arts Classes Beginners",type:"Small Program",              bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Dance Academy",                type:"Large Contractual Program",  bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Nature Classroom Programs",    type:"Small Program",              bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Family Dig Day",               type:"Small Program",              bucket:"Beg/Intro Activities", cr:"100%+"},
-          {program:"Affiliates",                   type:"Large Contractual Program",  bucket:"Beg/Intro Activities", cr:"100%+"},
-          // ─ Drop-In Activities (100–105%+ CR) ─────────────────────────────
-          {program:"Open Gym Sports",              type:"Drop-In Program",           bucket:"Drop-In Activities",   cr:"100-105%+"},
-          {program:"Open Arts Studio",             type:"Drop-In Program",           bucket:"Drop-In Activities",   cr:"100-105%+"},
-          {program:"Drop-In Fencing",              type:"Drop-In Program",           bucket:"Drop-In Activities",   cr:"100-105%+"},
-          {program:"Drop-In Museum Visits",        type:"Drop-In Program",           bucket:"Drop-In Activities",   cr:"100-105%+"},
-          // ─ Childcare Services (110–130%+ CR) ─────────────────────────────
-          {program:"Camps (all)",                  type:"Camp",                      bucket:"Childcare Services",   cr:"110-130%+"},
-          {program:"Preschool",                    type:"Camp",                      bucket:"Childcare Services",   cr:"110-130%+"},
-          {program:"Clubhouse (all sites)",        type:"Production / Major Program",bucket:"Childcare Services",   cr:"110-130%+"},
-          {program:"EC Classes",                   type:"Camp",                      bucket:"Childcare Services",   cr:"110-130%+"},
-          // ─ Intermediate / Advanced (110–130%+ CR) ────────────────────────
-          {program:"Chess Intermediate / Advanced",type:"Large Contractual Program", bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Computer Explorers",           type:"Large Contractual Program", bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Gymnastics 5-10",              type:"Large Contractual Program", bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Karate (Intermediate/Adv)",    type:"Large Contractual Program", bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Lacrosse",                     type:"League",                    bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Tennis 7-15",                  type:"Large Contractual Program", bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Cheerleading",                 type:"Large Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Boys Flag Football",           type:"League",                    bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Girls Flag Football",          type:"League",                    bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"All-Star Sports",              type:"League",                    bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"OTA",                          type:"Large Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Tae Kwon Do (Adv)",            type:"Large Contractual Program", bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Fencing (Intermediate/Adv)",   type:"Large Contractual Program", bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Adult Softball",               type:"League",                    bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Adult Pickleball",             type:"League",                    bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Adult Volleyball",             type:"League",                    bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Adult Bags",                   type:"League",                    bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Adult Whiffleball",            type:"League",                    bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Adult Kickball",               type:"League",                    bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Aqua Arthritis",               type:"Large Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Choose to Lose / Spring Fit",  type:"Large Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Stress Management",            type:"Small Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Team Fit & Strong",            type:"Large Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Group Weight Lifting",         type:"Large Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"TRX Core Training",            type:"Large Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Youth Boxing",                 type:"Large Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Strong Girls",                 type:"Large Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Youth Fitness",                type:"Large Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Teen Boxing",                  type:"Large Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Swim for Fitness",             type:"Large Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Evolution Basketball Camp",    type:"Camp",                      bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Junior Golf Level 2",          type:"Large Contractual Program", bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Adult Golf Level 2",           type:"Large Contractual Program", bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Challenger Soccer Camp",       type:"Camp",                      bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Spring Fit Challenge",         type:"Large Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Rotational Sports Conditioning",type:"Large Program",            bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Kickboxing Fitness",           type:"Large Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Sound Journeys",               type:"Small Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"FC Member Workshops",          type:"Small Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Drawing & Painting",           type:"Large Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Mah Jongg Tournament",         type:"Small Event",               bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Adult Trips",                  type:"Large Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Cyclones Swim Team",           type:"Large Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Hurricane Swim Team",          type:"Large Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Group Swim Lessons",           type:"Large Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Forever Fit",                  type:"Large Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Hatha Yoga",                   type:"Large Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Zumba",                        type:"Large Contractual Program", bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Zumba Gold",                   type:"Large Contractual Program", bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Wedding Dress Workshop",       type:"Small Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Bingo Luncheon",               type:"Small Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Monthly Parties",              type:"Small Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Holiday Party",                type:"Small Event",               bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Luncheons",                    type:"Small Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Youth Soccer",                 type:"League",                    bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"BG Singers",                   type:"Production / Major Program",bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"BG Singers Encore",            type:"Production / Major Program",bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Scene Study",                  type:"Large Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Skyline Theater",              type:"Production / Major Program",bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Big Deal Acting Troupe",       type:"Production / Major Program",bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Visual Arts (Advanced)",       type:"Large Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Dance Company",                type:"Production / Major Program",bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Winter Dance Prep",            type:"Large Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"House League BBall",           type:"League",                    bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Adult Non-Musical",            type:"Large Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Fall Children's Theater",      type:"Production / Major Program",bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Winter Teen Theater",          type:"Production / Major Program",bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Summer Musical",               type:"Production / Major Program",bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Fall Young Children's Musical",type:"Production / Major Program",bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Spring Children's Theater",    type:"Production / Major Program",bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Swim Team Prep",               type:"Large Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Audition Workshops",           type:"Small Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          {program:"Swim Team Tryouts",            type:"Small Program",             bucket:"Int/Adv Activities",   cr:"110-130%+"},
-          // ─ Private / Semi-Private (130–150%+ CR) ─────────────────────────
-          {program:"FC Personal Training",         type:"Large Program",             bucket:"Private/Semi-Private", cr:"130-150%+"},
-          {program:"FC Reformer",                  type:"Large Program",             bucket:"Private/Semi-Private", cr:"130-150%+"},
-          {program:"FC Pilates",                   type:"Large Program",             bucket:"Private/Semi-Private", cr:"130-150%+"},
-          {program:"FC Wellness Coaching",         type:"Large Program",             bucket:"Private/Semi-Private", cr:"130-150%+"},
-          {program:"Golf Pro Lessons",             type:"Large Contractual Program", bucket:"Private/Semi-Private", cr:"130-150%+"},
-          {program:"Private Swim Lessons",         type:"Large Program",             bucket:"Private/Semi-Private", cr:"130-150%+"},
-          {program:"Piano Lessons",                type:"Large Contractual Program", bucket:"Private/Semi-Private", cr:"130-150%+"},
-          {program:"Swim Team Privates",           type:"Large Program",             bucket:"Private/Semi-Private", cr:"130-150%+"},
-          // ─ Specialized Business Services (130–150%+ CR) ──────────────────
-          {program:"FC Memberships",               type:"Production / Major Program",bucket:"Specialized Services", cr:"130-150%+"},
-          {program:"5 Hour Pass",                  type:"Small Contractual Program", bucket:"Specialized Services", cr:"130-150%+"},
-          {program:"Season Pass",                  type:"Small Contractual Program", bucket:"Specialized Services", cr:"130-150%+"},
-          {program:"Golf Dome (30-min admissions)", type:"Small Contractual Program",bucket:"Specialized Services", cr:"130-150%+"},
-          {program:"Dog Park",                     type:"Small Contractual Program", bucket:"Specialized Services", cr:"130-150%+"},
-          {program:"SNP Admission / Passes",       type:"Small Contractual Program", bucket:"Specialized Services", cr:"130-150%+"},
-          {program:"WSP Admission / Passes",       type:"Small Contractual Program", bucket:"Specialized Services", cr:"130-150%+"},
-          {program:"Senior Membership Fee",        type:"Small Contractual Program", bucket:"Specialized Services", cr:"130-150%+"},
-          // ─ Rentals (130–150%+ CR) ─────────────────────────────────────────
-          {program:"CAC Rentals",                  type:"Small Contractual Program", bucket:"Rentals",             cr:"130-150%+"},
-          {program:"Alcott Rentals",               type:"Small Contractual Program", bucket:"Rentals",             cr:"130-150%+"},
-          {program:"GD Rentals",                   type:"Small Contractual Program", bucket:"Rentals",             cr:"130-150%+"},
-          {program:"SNP Rentals",                  type:"Small Contractual Program", bucket:"Rentals",             cr:"130-150%+"},
-          {program:"WSP Rentals",                  type:"Small Contractual Program", bucket:"Rentals",             cr:"130-150%+"},
-          {program:"Amphitheater Rentals",         type:"Small Contractual Program", bucket:"Rentals",             cr:"130-150%+"},
-          {program:"Shelter Rentals",              type:"Small Contractual Program", bucket:"Rentals",             cr:"130-150%+"},
-          {program:"Fields & Courts Rentals",      type:"Small Contractual Program", bucket:"Rentals",             cr:"130-150%+"},
-          {program:"FC Rentals",                   type:"Small Contractual Program", bucket:"Rentals",             cr:"130-150%+"},
-          {program:"Birthday Parties",             type:"Small Contractual Program", bucket:"Rentals",             cr:"130-150%+"},
-          {program:"Food Trucks",                  type:"Small Contractual Program", bucket:"Rentals",             cr:"130-150%+"},
-          // ─ Retail & Consumables ───────────────────────────────────────────
-          {program:"Concessions",                  type:"Small Contractual Program", bucket:"Retail",              cr:"130-150%+"},
-          {program:"Pro Shop",                     type:"Small Contractual Program", bucket:"Retail",              cr:"130-150%+"},
-        ];
-
-        const BUCKET_COLORS = {
-          "Open Access":        "#e0e7ff",
-          "Community Events":   "#fef3c7",
-          "Specialty Events":   "#fef9c3",
-          "Beg/Intro Activities":"#dcfce7",
-          "Drop-In Activities": "#d1fae5",
-          "Childcare Services": "#dbeafe",
-          "Int/Adv Activities": "#ede9fe",
-          "Private/Semi-Private":"#fce7f3",
-          "Specialized Services":"#fee2e2",
-          "Rentals":            "#f1f5f9",
-          "Retail":             "#f1f5f9",
-        };
-        const BUCKET_TEXT = {
-          "Open Access":        "#3730a3",
-          "Community Events":   "#92400e",
-          "Specialty Events":   "#854d0e",
-          "Beg/Intro Activities":"#166534",
-          "Drop-In Activities": "#065f46",
-          "Childcare Services": "#1e40af",
-          "Int/Adv Activities": "#5b21b6",
-          "Private/Semi-Private":"#9d174d",
-          "Specialized Services":"#991b1b",
-          "Rentals":            "#334155",
-          "Retail":             "#334155",
-        };
-        const BUCKET_CR = {
-          "Open Access":        "100% Subsidy",
-          "Community Events":   "80-100% Subsidy",
-          "Specialty Events":   "0-5% Subsidy",
-          "Beg/Intro Activities":"100%+ CR",
-          "Drop-In Activities": "100-105%+ CR",
-          "Childcare Services": "110-130%+ CR",
-          "Int/Adv Activities": "110-130%+ CR",
-          "Private/Semi-Private":"130-150%+ CR",
-          "Specialized Services":"130-150%+ CR",
-          "Rentals":            "130-150%+ CR",
-          "Retail":             "130-150%+ CR",
-        };
-
-        const buckets = [...new Set(PROGRAM_GUIDE.map(g=>g.bucket))];
-        const filtered = kpiSearch.trim()
-          ? PROGRAM_GUIDE.filter(g=>g.program.toLowerCase().includes(kpiSearch.toLowerCase())||g.type.toLowerCase().includes(kpiSearch.toLowerCase())||g.bucket.toLowerCase().includes(kpiSearch.toLowerCase()))
-          : null;
-
-        return(
-          <div className="p-5 space-y-5">
-            {/* Header */}
-            <div>
-              <h2 className="font-bold text-slate-800 text-base mb-1">Program Types & Guide</h2>
-              <p className="text-sm text-slate-500">Every BGPD program mapped to its Program Type and 110% cost recovery target. Use this to select the right type when entering a program. Programs are grouped by their 110% Financial Sustainability bucket.</p>
-            </div>
-
-            {/* Program Type quick-ref */}
-            <div className="rounded-xl border border-slate-200 overflow-hidden">
-              <div className="px-4 py-2.5 bg-slate-800 text-slate-100 text-xs font-bold uppercase tracking-widest">Program Type Workload Reference</div>
-              <table className="w-full text-xs">
-                <thead><tr className="bg-slate-50 text-slate-400 uppercase tracking-wider text-left">
-                  <th className="px-4 py-2 font-semibold">Program Type</th>
-                  <th className="px-4 py-2 font-semibold">Default %</th>
-                  <th className="px-4 py-2 font-semibold">When to use</th>
-                </tr></thead>
-                <tbody>{PROGRAM_TYPES.map((t,i)=>(
-                  <tr key={t.label} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
-                    <td className="px-4 py-2.5 font-semibold text-slate-700">{t.label}</td>
-                    <td className="px-4 py-2.5 font-mono text-slate-500">{(t.pct*100).toFixed(1)}%</td>
-                    <td className="px-4 py-2.5 text-slate-400 leading-snug">{t.hint}</td>
-                  </tr>
-                ))}</tbody>
-              </table>
-              <div className="px-4 py-3 bg-amber-50 border-t border-amber-100 text-xs text-amber-800">
-                <span className="font-bold">Camp & Clubhouse supervisors:</span> Both program types can stack quickly if you oversee multiple camps or sites. Use <span className="font-semibold">Custom Workload %</span> to enter your actual total allocation for the full portfolio — not the default % per entry.
-              </div>
-            </div>
-
-            {/* Search */}
-            <div className="flex items-center gap-3">
-              <input value={kpiSearch} onChange={e=>setKpiSearch(e.target.value)}
-                placeholder="Search any program name, type, or bucket…"
-                className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:border-blue-400"/>
-              {kpiSearch&&<button onClick={()=>setKpiSearch("")} className="text-xs text-slate-400 hover:text-slate-600">Clear</button>}
-              <span className="text-xs text-slate-400 shrink-0">{filtered?`${filtered.length} match${filtered.length!==1?"es":""}`:`${PROGRAM_GUIDE.length} programs`}</span>
-            </div>
-
-            {/* Results when searching */}
-            {filtered&&(
-              <div className="rounded-xl border border-slate-200 overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead><tr className="bg-slate-50 text-xs text-slate-400 uppercase tracking-wider">
-                    <th className="px-4 py-2 text-left font-semibold">Program</th>
-                    <th className="px-4 py-2 text-left font-semibold">Program Type</th>
-                    <th className="px-4 py-2 text-left font-semibold">110% Bucket</th>
-                    <th className="px-4 py-2 text-left font-semibold">CR Target</th>
-                  </tr></thead>
-                  <tbody>{filtered.map((g,i)=>(
-                    <tr key={i} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
-                      <td className="px-4 py-2.5 font-semibold text-slate-700">{g.program}</td>
-                      <td className="px-4 py-2.5 text-slate-500 text-xs">{g.type}</td>
-                      <td className="px-4 py-2.5">
-                        <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full"
-                          style={{background:BUCKET_COLORS[g.bucket]||"#f1f5f9",color:BUCKET_TEXT[g.bucket]||"#334155"}}>
-                          {g.bucket}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5 text-slate-400 text-xs font-mono">{g.cr}</td>
-                    </tr>
-                  ))}</tbody>
-                </table>
-              </div>
-            )}
-
-            {/* Grouped by bucket when not searching */}
-            {!filtered&&buckets.map(bucket=>{
-              const items=PROGRAM_GUIDE.filter(g=>g.bucket===bucket);
-              const bg=BUCKET_COLORS[bucket]||"#f1f5f9";
-              const tx=BUCKET_TEXT[bucket]||"#334155";
-              const crLabel=BUCKET_CR[bucket]||"";
-              return(
-                <div key={bucket} className="rounded-xl border border-slate-200 overflow-hidden">
-                  <div className="px-4 py-2.5 flex items-center justify-between"
-                    style={{background:bg}}>
-                    <span className="text-xs font-bold uppercase tracking-widest" style={{color:tx}}>{bucket}</span>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-mono font-semibold" style={{color:tx}}>{crLabel}</span>
-                      <span className="text-xs" style={{color:tx,opacity:0.7}}>{items.length} program{items.length!==1?"s":""}</span>
-                    </div>
-                  </div>
-                  <table className="w-full text-sm">
-                    <thead><tr className="bg-white text-xs text-slate-400 uppercase tracking-wider border-b border-slate-100">
-                      <th className="px-4 py-2 text-left font-semibold">Program</th>
-                      <th className="px-4 py-2 text-left font-semibold">Program Type to Use</th>
-                    </tr></thead>
-                    <tbody>{items.map((g,i)=>(
-                      <tr key={i} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
-                        <td className="px-4 py-2.5 text-slate-700 font-medium">{g.program}</td>
-                        <td className="px-4 py-2.5 text-slate-400 text-xs">{g.type}</td>
-                      </tr>
-                    ))}</tbody>
-                  </table>
-                </div>
-              );
-            })}
-          </div>
-        );
-      })()}
+      {sec==="kpis"&&<ProgramGuideSection isManager={isManager} db={db}/>}
 
       {sec==="guide"&&(
         <div className="p-5 space-y-8">
@@ -4555,8 +4670,7 @@ function Reference({isManager,db,programs,staffName}) {
             </>
           )}
         </div>
-      )
-}
+      )}
     </div>
   );
 }
