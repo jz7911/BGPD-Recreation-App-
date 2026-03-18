@@ -101,6 +101,7 @@ const DB_FIELDS = [
   "act_program_type","act_custom_workload",
   "decision_log",
   "is_archived",
+  "fee",
 ];
 
 function cleanForDB(p) {
@@ -180,6 +181,7 @@ function newProgram(staffName) {
     other1_label:"Other Direct Costs", other2_label:"Other Direct Costs 2",
     decision_log: [],
     is_archived: false,
+    fee: 0,
   };
 }
 
@@ -396,9 +398,11 @@ function CRGapPanel({svcTarget,k,p}){
   const targetRevenue = k.totalCost * targetCR;
   const gap = targetRevenue - k.revenue;
   const enrollment = p.act_enrollment||0;
-  const currentFeePerHead = enrollment>0 ? k.revenue/enrollment : null;
+  // Use explicitly entered fee if available, otherwise fall back to implied fee
+  const currentFeePerHead = p.fee>0 ? p.fee : (enrollment>0 ? k.revenue/enrollment : null);
   const suggestedFee = enrollment>0 ? targetRevenue/enrollment : null;
   const suggestedFeeIncrease = suggestedFee!=null&&currentFeePerHead!=null ? suggestedFee-currentFeePerHead : null;
+  const usingEnteredFee = p.fee>0;
   return(
     <div className="rounded-xl border overflow-hidden"
       style={{borderColor:onTarget?"#bbf7d0":"#fde68a"}}>
@@ -433,7 +437,7 @@ function CRGapPanel({svcTarget,k,p}){
             <div>
               <div className="text-xs text-amber-700 font-semibold mb-0.5">Suggested Fee</div>
               <div className="text-base font-bold text-amber-800">{dollar(Math.ceil(suggestedFee))}/participant</div>
-              <div className="text-xs text-amber-600">vs current {dollar(Math.round(currentFeePerHead||0))}/participant</div>
+              <div className="text-xs text-amber-600">vs current {dollar(Math.round(currentFeePerHead||0))}/participant{!usingEnteredFee?" (implied from revenue)":""}</div>
             </div>
           )}
         </div>
@@ -958,7 +962,20 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
               </tr></thead>
               <tbody>{kpis.map((p,i)=>(
                 <tr key={p.id} className={`border-t border-slate-50 hover:bg-slate-50 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
-                  <td className="px-3 py-2.5 font-semibold text-slate-700"><button onClick={()=>onEdit(p)} className="hover:text-blue-600 hover:underline text-left">{p.name}</button></td>
+                  <td className="px-3 py-2.5 font-semibold text-slate-700">
+                    <button onClick={()=>onEdit(p)} className="hover:text-blue-600 hover:underline text-left">{p.name}</button>
+                    {(()=>{
+                      const svt=getSvcTarget(p.service_category,p.costRecovery);
+                      if(!svt||!p.hasActuals||p.costRecovery>=svt.min) return null;
+                      const enrollment=p.act_enrollment||0;
+                      const targetRev=p.totalCost*svt.min;
+                      const currentFee=p.fee>0?p.fee:(enrollment>0?p.revenue/enrollment:null);
+                      const sugFee=enrollment>0?targetRev/enrollment:null;
+                      const gap=sugFee!=null&&currentFee!=null?sugFee-currentFee:null;
+                      if(!gap||gap<=0) return null;
+                      return <span className="ml-2 text-xs font-semibold px-1.5 py-0.5 rounded" style={{background:"#fef3c7",color:"#92400e"}}>+{dollar(Math.ceil(gap))}/person needed</span>;
+                    })()}
+                  </td>
                   <td className="px-3 py-2.5 text-slate-400 text-xs">{p.staff_name}</td>
                   <td className="px-3 py-2.5 text-slate-500">{p.area}</td>
                   <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{p.season} FY {toFY(p.year)}</td>
@@ -2079,6 +2096,27 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                 <div><div className="text-xs text-slate-400">Net Profit/(Loss)</div><div className={`text-xl font-bold ${k.profitLoss>=0?"text-green-700":"text-red-600"}`}>{dollar(k.profitLoss)}</div></div>
                 <div><div className="text-xs text-slate-400">Status</div><div className="mt-1"><Badge status={k.status}/></div></div>
               </div>
+              {canEdit&&(
+                <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="flex-1">
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">In-District Fee per Participant</label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-400 text-sm">$</span>
+                      <input type="number" value={p.fee||""} onChange={e=>setField("fee")(parseFloat(e.target.value)||0)}
+                        className="w-32 rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:border-blue-400"
+                        placeholder="0" min={0}
+                        style={{MozAppearance:"textfield"}}/>
+                      <span className="text-xs text-slate-400">Enter what participants are currently charged</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {!canEdit&&p.fee>0&&(
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">In-District Fee per Participant</div>
+                  <div className="text-xl font-bold text-slate-700">{dollar(p.fee)}</div>
+                </div>
+              )}
               {svcTarget&&hasActuals&&<CRGapPanel svcTarget={svcTarget} k={k} p={p}/>}
               <div className="border-t border-slate-100 pt-4 space-y-4">
                 <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Variance vs Budget</div>
