@@ -1634,7 +1634,6 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
               </div>
             </div>
           )}
-          </div>
         </div>
       )}
 
