@@ -1584,6 +1584,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
               ))}</tbody>
             </table>
           </div>
+          </div>}
         </div>
       )}
 
