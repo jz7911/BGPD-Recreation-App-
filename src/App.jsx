@@ -160,7 +160,7 @@ function calcKPIs(p) {
     varFill:   b.fillRate   - a.fillRate,
     varCR:     b.crPct      - a.crPct,
     varProfit: b.profit     - a.profit,
-    hasActuals: b.enrollment > 0 || b.revenue > 0 || b.direct > 0,
+    hasActuals: b.enrollment > 0 || b.revenue > 0,
   };
 }
 
@@ -388,6 +388,15 @@ function exportCSV(programs) {
   a.click();
 }
 
+// ─── Program Completion Status ────────────────────────────────────────────────
+function completionTag(p) {
+  const hasBudget = (p.ant_enrollment||0)>0 || (p.ant_revenue||0)>0;
+  const hasActs   = (p.act_enrollment||0)>0 || (p.act_revenue||0)>0;
+  if(hasActs)   return {label:"Complete",     bg:"#dcfce7",text:"#166534"};
+  if(hasBudget) return {label:"Needs Actuals",bg:"#fef3c7",text:"#92400e"};
+  return            {label:"Budgeted Only",   bg:"#f1f5f9",text:"#64748b"};
+}
+
 // ─── UI Primitives ────────────────────────────────────────────────────────────
 // ─── Cost Recovery Gap Panel ──────────────────────────────────────────────────
 function CRGapPanel({svcTarget,k,p}){
@@ -595,9 +604,9 @@ function CostPanel({px,p,set,isManager=false}) {
             })()}
           </div>
           {(!p[px+"program_type"]||p[px+"program_type"]==="Custom")
-            ? <Inp label="Custom Workload %" type="number" value={p[px+"custom_workload"]} onChange={set(px+"custom_workload")} min={0} max={100} hint="% of FT staff time"/>
+            ? <Inp label="Custom Workload %" type="number" value={p[px+"custom_workload"]} onChange={set(px+"custom_workload")} min={0} max={100} hint="% of the $97,700 FT annual salary attributed to this program. Not your overall job — just this program's share."/>
             : isManager
-              ? <Inp label="Workload % (editable)" type="number" value={p[px+"custom_workload"]||((PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.pct||0)*100).toFixed(1)} onChange={set(px+"custom_workload")} min={0} max={100} hint={`Default for ${p[px+"program_type"]}: ${((PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.pct||0)*100).toFixed(1)}%`}/>
+              ? <Inp label="Workload % (editable)" type="number" value={p[px+"custom_workload"]||((PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.pct||0)*100).toFixed(1)} onChange={set(px+"custom_workload")} min={0} max={100} hint={`% of the $97,700 FT salary for this program only — not overall job. Default for ${p[px+"program_type"]}: ${((PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.pct||0)*100).toFixed(1)}%`}/>
               : <div className="flex flex-col gap-1 justify-center">
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Estimated Workload %</label>
                   <div className="text-lg font-bold text-slate-700">{((PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.pct||0)*100).toFixed(1)}%</div>
@@ -625,22 +634,59 @@ function CostPanel({px,p,set,isManager=false}) {
 }
 
 // ─── Staff Setup ──────────────────────────────────────────────────────────────
+function BGPDLogo({size=48}){
+  // Inline SVG recreation of BGPD logo: bison silhouette in a sky-blue circle
+  return(
+    <svg width={size} height={size} viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      {/* Sky blue ring */}
+      <circle cx="50" cy="50" r="44" fill="none" stroke="#29ABE2" strokeWidth="6"/>
+      <circle cx="50" cy="50" r="38" fill="none" stroke="#29ABE2" strokeWidth="2" opacity="0.5"/>
+      {/* Bison silhouette in bronze */}
+      <g transform="translate(18,22) scale(0.64)">
+        <path fill="#8B7335" d="M14,45 C14,45 10,38 12,30 C14,22 20,18 26,20 C28,14 34,10 40,12
+          C42,8 48,6 52,10 C58,6 66,8 68,16 C74,16 80,22 78,30
+          C82,32 84,38 80,44 C84,46 86,54 80,58
+          C84,64 80,72 72,70 C70,76 62,78 56,72
+          C52,76 44,76 40,70 C34,74 26,70 26,62
+          C18,62 12,54 14,45 Z"/>
+      </g>
+    </svg>
+  );
+}
+
 function StaffSetup({onConfirm}) {
   const [name,setName] = useState("");
   return (
-    <div className="min-h-screen flex items-center justify-center p-6" style={{background:"#f1f5f9"}}>
-      <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-sm">
-        <div className="text-center mb-6">
-          <div className="text-2xl font-bold text-slate-800 mb-1">BGPD Recreation</div>
-          <div className="text-sm text-slate-400">Enter your first and last name to get started</div>
+    <div className="min-h-screen flex items-center justify-center p-6"
+      style={{background:"linear-gradient(160deg,#0a1628 0%,#0d2140 60%,#0a1628 100%)"}}>
+      <div className="w-full max-w-sm space-y-5">
+        {/* Brand header */}
+        <div className="text-center pb-2">
+          <div className="flex justify-center mb-4">
+            <BGPDLogo size={80}/>
+          </div>
+          <div className="text-2xl font-black text-white tracking-tight">Buffalo Grove</div>
+          <div className="text-sm font-bold tracking-widest uppercase mt-0.5" style={{color:"#29ABE2"}}>Park District</div>
+          <div className="mt-1 text-xs font-semibold tracking-wider uppercase" style={{color:"#8B7335"}}>Recreation Program Management</div>
         </div>
-        <div className="space-y-4">
-          <Inp label="First & Last Name" value={name} onChange={setName} placeholder="e.g. Jane Smith" required/>
-          <button onClick={()=>name.trim()&&onConfirm(name.trim())} disabled={!name.trim()}
-            className="w-full py-2.5 text-sm font-bold text-white rounded-lg transition disabled:opacity-40"
-            style={{backgroundColor:"#1e3a5f"}}>Get Started</button>
+        {/* Login card */}
+        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+          <div style={{background:"#29ABE2",height:"4px"}}/>
+          <div className="p-8">
+            <div className="text-center mb-6">
+              <div className="text-base font-bold text-slate-700 mb-1">Sign In</div>
+              <div className="text-sm text-slate-400">Enter your first and last name to continue</div>
+            </div>
+            <div className="space-y-4">
+              <Inp label="First & Last Name" value={name} onChange={setName} placeholder="e.g. Jane Smith" required/>
+              <button onClick={()=>name.trim()&&onConfirm(name.trim())} disabled={!name.trim()}
+                className="w-full py-2.5 text-sm font-bold text-white rounded-lg transition disabled:opacity-40"
+                style={{backgroundColor:"#29ABE2"}}>Get Started →</button>
+            </div>
+            <p className="text-xs text-slate-400 text-center mt-4">Your name is saved on this device only.</p>
+          </div>
         </div>
-        <p className="text-xs text-slate-400 text-center mt-4">Your name will be saved on this device.</p>
+        <p className="text-center text-xs opacity-40 text-white">© Buffalo Grove Park District</p>
       </div>
     </div>
   );
@@ -986,7 +1032,10 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
                   <td className="px-3 py-2.5 font-mono text-slate-500">{dollar(p.totalCost)}</td>
                   <td className="px-3 py-2.5 text-slate-500">{p.waitlist||0}</td>
                   <td className="px-3 py-2.5 text-slate-500">{p.trend}</td>
-                  <td className="px-3 py-2.5"><Badge status={p.status}/></td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">
+                    <Badge status={p.status}/>
+                    {(()=>{const t=completionTag(p);return <span className="ml-1.5 text-xs font-semibold px-1.5 py-0.5 rounded" style={{background:t.bg,color:t.text}}>{t.label}</span>;})()}
+                  </td>
                   <td className="px-3 py-2.5"><button onClick={()=>onEdit(p)} className="text-xs text-slate-400 hover:text-slate-700 font-medium">Edit</button></td>
                 </tr>
               ))}</tbody>
@@ -1015,7 +1064,26 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
               </thead>
               <tbody>{kpis.map((p,i)=>(
                 <tr key={p.id} className={`border-t border-slate-50 hover:bg-slate-50 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
-                  <td className="px-3 py-2.5 font-semibold text-slate-700 whitespace-nowrap"><button onClick={()=>onEdit(p)} className="hover:text-blue-600 hover:underline text-left">{p.name}</button></td>
+                  <td className="px-3 py-2.5 font-semibold text-slate-700 whitespace-nowrap">
+                    <button onClick={()=>onEdit(p)} className="hover:text-blue-600 hover:underline text-left">{p.name}</button>
+                    {!p.hasActuals&&!p.is_archived&&(
+                      <span className="ml-2 text-xs px-1.5 py-0.5 rounded font-semibold" style={{background:"#fef3c7",color:"#92400e"}}>Budgeted Only</span>
+                    )}
+                    {p.hasActuals&&(p.act_enrollment>0&&p.act_revenue>0&&p.ant_enrollment>0)&&(
+                      <span className="ml-2 text-xs px-1.5 py-0.5 rounded font-semibold" style={{background:"#dcfce7",color:"#166534"}}>Complete</span>
+                    )}
+                    {(()=>{
+                      const svt=getSvcTarget(p.service_category,p.costRecovery);
+                      if(!svt||!p.hasActuals||p.costRecovery>=svt.min) return null;
+                      const enrollment=p.act_enrollment||0;
+                      const targetRev=p.totalCost*svt.min;
+                      const currentFee=p.fee>0?p.fee:(enrollment>0?p.revenue/enrollment:null);
+                      const sugFee=enrollment>0?targetRev/enrollment:null;
+                      const gap=sugFee!=null&&currentFee!=null?sugFee-currentFee:null;
+                      if(!gap||gap<=0) return null;
+                      return <span className="ml-2 text-xs font-semibold px-1.5 py-0.5 rounded" style={{background:"#fee2e2",color:"#991b1b"}}>+{dollar(Math.ceil(gap))}/person needed</span>;
+                    })()}
+                  </td>
                   <td className="px-2 py-2.5 text-center text-slate-400 font-mono text-xs">{p.ant_enrollment}</td>
                   <td className="px-2 py-2.5 text-center font-mono text-xs">{p.act_enrollment}</td>
                   <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varEnr)}`}>{vNum(p.varEnr)}</td>
@@ -1043,7 +1111,10 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
                   <button onClick={()=>onEdit(p)} className="font-semibold text-slate-700 hover:text-blue-600 hover:underline text-left">{p.name}</button>
                   <div className="text-xs text-slate-400">{p.area} - {p.season} FY {toFY(p.year)}</div>
                 </div>
-                <Badge status={p.status}/>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge status={p.status}/>
+                  {(()=>{const t=completionTag(p);return <span className="text-xs font-semibold px-1.5 py-0.5 rounded" style={{background:t.bg,color:t.text}}>{t.label}</span>;})()}
+                </div>
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <PBar label="Enrollment"  actual={p.act_enrollment} budget={p.ant_enrollment} ff={v=>v.toString()}/>
@@ -1112,6 +1183,23 @@ function NeedsAttentionQueue({programs,onEdit}){
 function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   const [filters,setFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
   function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
+  const [collapsed,setCollapsed] = useState({});
+  function toggleSection(id){setCollapsed(s=>({...s,[id]:!s[id]}));}
+  function SectionHeader({id,title,sub,badge}){
+    const open = !collapsed[id];
+    return(
+      <button onClick={()=>toggleSection(id)} className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-50 transition border-b border-slate-100">
+        <div>
+          <div className="flex items-center gap-2">
+            <h3 className="font-bold text-slate-700 text-sm">{title}</h3>
+            {badge&&<span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{background:"#fef3c7",color:"#92400e"}}>{badge}</span>}
+          </div>
+          {sub&&<p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+        </div>
+        <span className="text-slate-400 text-xs font-bold ml-4 shrink-0" style={{transform:open?"rotate(180deg)":"rotate(0deg)",display:"inline-block",transition:"transform .2s"}}>▼</span>
+      </button>
+    );
+  }
   const [dv,setDv]           = useState("summary");
   const [sort,setSort]       = useState({col:"name",dir:1});
   const [showReport,setShowReport] = useState(false);
@@ -1157,8 +1245,19 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   const noActuals= kpis.filter(p=>!p.hasActuals).length;
 
   // ── Program Snapshot health score (0–100) ──
+  // Health Score: fill rate (30%) + cost recovery vs target (30%) +
+  //   program status (20%) + participation trend (10%) + waitlist demand (10%)
+  const trendScore = kpis.length
+    ? kpis.reduce((a,p)=>{
+        const t=p.trend||"";
+        return a+(t==="Growing"?1:t==="Stable"?0.75:t==="New"?0.6:t==="Declining"?0.2:0.5);
+      },0)/kpis.length
+    : 0;
+  const waitlistScore = kpis.length
+    ? Math.min(kpis.filter(p=>(p.waitlist||0)>0).length/kpis.length, 1)
+    : 0;
   const healthScore = kpis.length
-    ? Math.round((avgFill*0.4 + Math.min(avgCR,2)/2*0.4 + (healthy/kpis.length)*0.2)*100)
+    ? Math.round((avgFill*0.3 + Math.min(avgCR,2)/2*0.3 + (healthy/kpis.length)*0.2 + trendScore*0.1 + waitlistScore*0.1)*100)
     : 0;
   const healthColor = healthScore>=75?"#22c55e":healthScore>=50?"#eab308":"#ef4444";
 
@@ -1336,7 +1435,8 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
             <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Health Score</div>
           </div>
           <div className="text-2xl font-bold" style={{color:healthColor}}>{healthScore}<span className="text-sm font-normal text-slate-400">/100</span></div>
-          <div className="text-xs text-slate-400 mt-0.5">Fill · Recovery · Status</div>
+          <div className="text-xs text-slate-400 mt-1">Fill rate · Cost recovery · Program mix · Trend · Waitlist</div>
+          <div className="text-xs text-slate-400 mt-0.5">Fill rate (30%) · Cost recovery (30%) · Status (20%) · Trend (10%) · Waitlist (10%)</div>
         </div>
         <KCard label="Avg Fill Rate"     value={pct(avgFill)}    accent="#d4a017" target="≥70%"/>
         <KCard label="Avg Cost Recovery" value={pct(avgCR)}      accent="#d4a017" target="≥100%"/>
@@ -1414,7 +1514,9 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
 
       {/* ── Top/Bottom Performers ── */}
       {kpis.length>=3&&(
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <SectionHeader id="topbottom" title="Top & Bottom Performers" sub="Fill rate and cost recovery leaders and laggards"/>
+          {!collapsed["topbottom"]&&<div className="p-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {[
             {title:"Top 3 — Fill Rate",           data:top3Fill, metric:p=>pct(p.fillRate),    good:true},
             {title:"Bottom 3 — Fill Rate",         data:bot3Fill, metric:p=>pct(p.fillRate),    good:false},
@@ -1434,6 +1536,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
               ))}
             </div>
           ))}
+          </div>}
         </div>
       )}
 
@@ -1461,10 +1564,8 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
       {/* ── Revenue per Participant by Area ── */}
       {rppByArea.filter(r=>r.enr>0).length>1&&(
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100">
-            <h3 className="font-bold text-slate-700 text-sm">Revenue per Participant by Area</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Overall avg: {totalActEnr>0?dollar(revPerPart):"—"}</p>
-          </div>
+          <SectionHeader id="rpp" title="Revenue per Participant by Area" sub={`Overall avg: ${totalActEnr>0?dollar(revPerPart):"—"}`}/>
+          {!collapsed["rpp"]&&<div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="bg-slate-50 text-xs text-slate-400 uppercase tracking-wider">
@@ -1532,17 +1633,15 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
               </div>
             </div>
           )}
+          </div>}
         </div>
       )}
 
       {/* ── Capacity Utilization by Area ── */}
       {areaRollup.length>1&&(
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100">
-            <h3 className="font-bold text-slate-700 text-sm">Capacity Utilization by Area</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Avg fill rate per area — green ≥70%, yellow 60–69%, red &lt;60%</p>
-          </div>
-          <div className="p-4 space-y-3">
+          <SectionHeader id="capacity" title="Capacity Utilization by Area" sub="Avg fill rate per area — green ≥70%, yellow 60–69%, red <60%"/>
+          {!collapsed["capacity"]&&<div className="p-4 space-y-3">
             {[...areaRollup].sort((a,b)=>b.avgFill-a.avgFill).map(r=>{
               const fillColor = r.avgFill>=0.7?"#22c55e":r.avgFill>=0.6?"#eab308":"#ef4444";
               return(
@@ -1565,18 +1664,15 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                 </div>
               );
             })}
-          </div>
+          </div>}
         </div>
       )}
 
       {/* ── Classification Mix ── */}
       {classMix.length>0&&(
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100">
-            <h3 className="font-bold text-slate-700 text-sm">Program Mix by Classification</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Balance of community service vs. revenue-generating programs</p>
-          </div>
-          <div className="p-4">
+          <SectionHeader id="classmix" title="Program Mix by Classification" sub="Balance of community service vs. revenue-generating programs"/>
+          {!collapsed["classmix"]&&<div className="p-4">
             <div className="flex h-4 rounded-full overflow-hidden mb-4 gap-0.5">
               {classMix.map(c=>(
                 <div key={c.label} title={`${c.label}: ${c.count} programs`}
@@ -1595,7 +1691,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                 </div>
               ))}
             </div>
-          </div>
+          </div>}
         </div>
       )}
 
@@ -1603,16 +1699,10 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
       {/* ── Staff Workload Allocation ── */}
       {workloadByStaff.length>0&&(
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-            <div>
-              <h3 className="font-bold text-slate-700 text-sm">Staff Workload Allocation</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Total FT time allocated across all programs — 100% = one full-time salary. Over 100% means costs are being spread across more than one FT equivalent.</p>
-            </div>
-            {workloadByStaff.some(s=>s.totalWL>60)&&(
-              <span className="text-xs font-bold px-2 py-1 rounded" style={{background:"#fef3c7",color:"#92400e"}}>⚠ Over-allocation flagged</span>
-            )}
-          </div>
-          <div className="p-4 space-y-3">
+          <SectionHeader id="workload" title="Staff Workload Allocation"
+            sub="Total FT time across all programs — 100% = one full-time salary"
+            badge={workloadByStaff.some(s=>s.totalWL>60)?"⚠ Over-allocation flagged":null}/>
+          {!collapsed["workload"]&&<div className="p-4 space-y-3">
             {workloadByStaff.map(s=>{
               const over = s.totalWL>75;
               const warn = s.totalWL>60&&!over;
@@ -1700,7 +1790,10 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                   <td className="px-3 py-2.5 font-mono text-slate-500">{dollar(p.totalCost)}</td>
                   <td className="px-3 py-2.5 text-slate-500">{p.waitlist||0}</td>
                   <td className="px-3 py-2.5 text-slate-500">{p.trend}</td>
-                  <td className="px-3 py-2.5"><Badge status={p.status}/></td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">
+                    <Badge status={p.status}/>
+                    {(()=>{const t=completionTag(p);return <span className="ml-1.5 text-xs font-semibold px-1.5 py-0.5 rounded" style={{background:t.bg,color:t.text}}>{t.label}</span>;})()}
+                  </td>
                   <td className="px-3 py-2.5 whitespace-nowrap">
                     {prior ? (
                       <div className="text-xs space-y-0.5">
@@ -1745,7 +1838,26 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
               </thead>
               <tbody>{kpis.map((p,i)=>(
                 <tr key={p.id} className={`border-t border-slate-50 hover:bg-slate-50 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
-                  <td className="px-3 py-2.5 font-semibold text-slate-700 whitespace-nowrap"><button onClick={()=>onEdit(p)} className="hover:text-blue-600 hover:underline text-left">{p.name}</button></td>
+                  <td className="px-3 py-2.5 font-semibold text-slate-700 whitespace-nowrap">
+                    <button onClick={()=>onEdit(p)} className="hover:text-blue-600 hover:underline text-left">{p.name}</button>
+                    {!p.hasActuals&&!p.is_archived&&(
+                      <span className="ml-2 text-xs px-1.5 py-0.5 rounded font-semibold" style={{background:"#fef3c7",color:"#92400e"}}>Budgeted Only</span>
+                    )}
+                    {p.hasActuals&&(p.act_enrollment>0&&p.act_revenue>0&&p.ant_enrollment>0)&&(
+                      <span className="ml-2 text-xs px-1.5 py-0.5 rounded font-semibold" style={{background:"#dcfce7",color:"#166534"}}>Complete</span>
+                    )}
+                    {(()=>{
+                      const svt=getSvcTarget(p.service_category,p.costRecovery);
+                      if(!svt||!p.hasActuals||p.costRecovery>=svt.min) return null;
+                      const enrollment=p.act_enrollment||0;
+                      const targetRev=p.totalCost*svt.min;
+                      const currentFee=p.fee>0?p.fee:(enrollment>0?p.revenue/enrollment:null);
+                      const sugFee=enrollment>0?targetRev/enrollment:null;
+                      const gap=sugFee!=null&&currentFee!=null?sugFee-currentFee:null;
+                      if(!gap||gap<=0) return null;
+                      return <span className="ml-2 text-xs font-semibold px-1.5 py-0.5 rounded" style={{background:"#fee2e2",color:"#991b1b"}}>+{dollar(Math.ceil(gap))}/person needed</span>;
+                    })()}
+                  </td>
                   <td className="px-2 py-2.5 text-center text-slate-400 font-mono text-xs">{p.ant_enrollment}</td>
                   <td className="px-2 py-2.5 text-center font-mono text-xs">{p.act_enrollment}</td>
                   <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varEnr)}`}>{vNum(p.varEnr)}</td>
@@ -1812,6 +1924,14 @@ function Dashboard({programs,staffName,isManager,onEdit,onAddProgram}) {
 function MultiSeasonView({programs,onEdit}) {
   const [search,setSearch] = useState("");
   const [showSingle,setShowSingle] = useState(false);
+  const multiCount = (() => {
+    const groups = {};
+    programs.filter(p=>!p.is_archived).forEach(p=>{
+      const k = `${p.name}||${p.staff_name}`;
+      groups[k] = (groups[k]||0)+1;
+    });
+    return Object.values(groups).filter(v=>v>=2).length;
+  })();
   const groups = useMemo(()=>{
     const map = {};
     programs.filter(p=>!p.is_archived).forEach(p=>{
@@ -1831,6 +1951,13 @@ function MultiSeasonView({programs,onEdit}) {
 
   return (
     <div className="space-y-4">
+      {multiCount===0&&(
+        <div className="rounded-xl border border-slate-200 p-5 text-center space-y-2 bg-slate-50">
+          <div className="text-2xl">📅</div>
+          <div className="font-bold text-slate-700 text-sm">Multi-Season View</div>
+          <div className="text-sm text-slate-500 max-w-sm mx-auto">This view groups programs that run across multiple seasons, showing trends over time. It becomes most valuable once you have two or more seasons of data entered. Keep entering programs and come back here next season.</div>
+        </div>
+      )}
       <div className="bg-white rounded-lg shadow-sm px-4 py-3 space-y-3">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -1970,7 +2097,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
     setDirty(true);
   };
 
-  const tabs = [{id:"info",label:"Program Info"},{id:"budgeted",label:"Budgeted"},{id:"actuals",label:"Actuals"},{id:"summary",label:"Summary"},{id:"log",label:`Log${log.length>0?" ("+log.length+")":""}`}];
+  const tabs = [{id:"info",label:"Program Info"},{id:"budgeted",label:p.ant_enrollment>0||p.ant_revenue>0?"Budgeted ✓":"Budgeted"},{id:"actuals",label:"Actuals"},{id:"summary",label:"Summary"},{id:"log",label:`Log${log.length>0?" ("+log.length+")":""}`}];
 
   return (
     <div className="space-y-4">
@@ -2013,8 +2140,18 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
         </div>
       )}
       {!hasActuals&&!isNew&&(
-        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-700">
-          No actuals entered yet. Switch to the <button onClick={()=>setSec("actuals")} className="underline font-semibold">Actuals tab</button> to add them.
+        <div className="rounded-xl border-2 px-5 py-5 flex items-start gap-4"
+          style={{background:"#fffbeb",borderColor:"#d4a017"}}>
+          <span className="text-2xl shrink-0">📋</span>
+          <div className="flex-1">
+            <div className="font-bold text-amber-800 text-base mb-1">No actuals entered yet</div>
+            <div className="text-amber-700 text-sm mb-3">Once your program has run, come back and fill in the Actuals tab — enrollment, revenue, and any direct costs. This unlocks your cost recovery analysis, fee gap, and suggested pricing on the Summary tab.</div>
+            <button onClick={()=>setSec("actuals")}
+              className="inline-flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-lg text-white transition"
+              style={{backgroundColor:"#d4a017",color:"#1e3a5f"}}>
+              Go to Actuals tab →
+            </button>
+          </div>
         </div>
       )}
 
@@ -2031,10 +2168,10 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
       )}
 
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-        <div className="flex border-b border-slate-100 overflow-x-auto">
+        <div className="flex border-b border-slate-100 overflow-x-auto scrollbar-none">
           {tabs.map(s=>(
             <button key={s.id} onClick={()=>setSec(s.id)}
-              className={`px-4 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition ${sec===s.id?"text-slate-800":"border-transparent text-slate-400 hover:text-slate-600"}`}
+              className={`px-3 py-3 text-xs sm:text-sm font-semibold whitespace-nowrap border-b-2 transition ${sec===s.id?"text-slate-800":"border-transparent text-slate-400 hover:text-slate-600"}`}
               style={sec===s.id?{borderColor:"#d4a017"}:{}}>{s.label}</button>
           ))}
         </div>
@@ -2065,11 +2202,24 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
           )}
           {sec==="budgeted"&&(
             <div>
-              <div className="mb-5 p-3 bg-blue-50 border border-blue-100 rounded-lg">
-                <div className="text-xs font-bold text-blue-600 uppercase tracking-widest">Budgeted</div>
-                <div className="text-xs text-blue-400 mt-0.5">What you think this program will do. You can update these at any time.</div>
+              <div className="mb-5 p-3 bg-blue-50 border border-blue-100 rounded-lg flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs font-bold text-blue-600 uppercase tracking-widest">Budgeted</div>
+                  <div className="text-xs text-blue-400 mt-0.5">What you think this program will do. You can update these at any time.</div>
+                </div>
+                {(p.ant_enrollment>0||p.ant_revenue>0||p.ant_capacity>0)&&(
+                  <div className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold" style={{background:"#dcfce7",color:"#166534"}}>
+                    <span>✓</span><span>Budgeted</span>
+                  </div>
+                )}
               </div>
               <CostPanel px="ant_" p={p} set={k=>v=>{setField(k)(v);}} isManager={isManager}/>
+              {(p.ant_enrollment>0||p.ant_revenue>0||p.ant_capacity>0)&&!hasActuals&&(
+                <div className="mt-5 p-4 rounded-xl border-2 border-dashed text-center" style={{borderColor:"#d4a017",background:"#fffbeb"}}>
+                  <div className="text-sm font-bold mb-1" style={{color:"#92400e"}}>✓ Budgeted complete — you're done for now</div>
+                  <div className="text-xs" style={{color:"#b45309"}}>Come back after the season runs to enter actuals on the Actuals tab. That's when the cost recovery and fee gap analysis will appear.</div>
+                </div>
+              )}
             </div>
           )}
           {sec==="actuals"&&(
@@ -2101,14 +2251,15 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                 <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
                   <div className="flex-1">
                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">In-District Fee per Participant</label>
-                    <div className="flex items-center gap-2">
+                      <p className="text-xs text-slate-400 mb-2">Enter your program fee to see if your pricing is on track to meet your cost recovery target.</p>
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-slate-400 text-sm">$</span>
                       <input type="number" value={p.fee||""} onChange={e=>setField("fee")(parseFloat(e.target.value)||0)}
                         className="w-32 rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:border-blue-400"
                         placeholder="0" min={0}
                         style={{MozAppearance:"textfield"}}/>
-                      <span className="text-xs text-slate-400">Enter what participants are currently charged</span>
                     </div>
+                    <div className="mt-1.5 text-xs text-blue-600 font-medium">💡 Enter your program fee to see if your pricing is on track for your cost recovery target</div>
                   </div>
                 </div>
               )}
@@ -2572,6 +2723,13 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   // ── LIST VIEW ─────────────────────────────────────────────────────────────
   if(view==="list") return(
     <div>
+      <div className="rounded-xl border border-slate-200 p-4 mb-5 flex items-start gap-3" style={{background:"#f8fafc"}}>
+        <span className="text-lg shrink-0">📋</span>
+        <div>
+          <div className="font-bold text-slate-700 text-sm mb-1">Why we do Program Reviews</div>
+          <p className="text-xs text-slate-500 leading-relaxed">Structured program reviews are a best practice required for CAPRA accreditation and recommended by NRPA and IPRA. They create a documented record of every program decision — why a program was continued, adjusted, expanded, or sunset — protecting the district and demonstrating data-driven management to the board. Complete a review for every program each quarter, or at minimum after each season it runs.</p>
+        </div>
+      </div>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="font-bold text-slate-800" style={{fontSize:"18px"}}>Program Review Checklist</h2>
@@ -4252,7 +4410,7 @@ function Reference({isManager,db,programs,staffName}) {
                     {icon:"📊",label:"Dashboard",color:"#1e3a5f",desc:"Your home screen. Shows all your programs as a list with performance numbers. This is where you'll spend most of your time — checking fill rates, updating status, and spotting anything that needs attention."},
                     {icon:"📁",label:"Programs",color:"#0f766e",desc:"Where you add new programs and edit existing ones. Think of this as your filing cabinet — every program you run gets an entry here with its enrollment, costs, and revenue."},
                     {icon:"📅",label:"Multi-Season",color:"#7c3aed",desc:"A side-by-side view of the same program across multiple seasons. Useful when your manager asks how Fall Dance has trended over the past few years."},
-                    {icon:"📚",label:"Reference",color:"#d4a017",desc:"District standards, formulas, and this training guide. If you ever wonder what a number means or how it's calculated, this is where to look."},
+                    {icon:"📚",label:"Guide & Resources",color:"#d4a017",desc:"District standards, formulas, and this training guide. If you ever wonder what a number means or how it's calculated, this is where to look."},
                   ].map(t=>(
                     <div key={t.label} className="flex gap-3 p-4 rounded-lg border border-slate-100 bg-slate-50">
                       <div className="text-2xl shrink-0">{t.icon}</div>
@@ -4282,7 +4440,7 @@ function Reference({isManager,db,programs,staffName}) {
                         {field:"Area",tip:"Pick the closest match from the dropdown (Aquatics, Camps, Dance, etc.). This groups your programs with similar ones in department reports."},
                         {field:"Season & Year",tip:"The season when this program runs — Spring, Summer, Fall, or Winter. Use the year it starts. Summer 2026 = June 2026 start."},
                         {field:"Staff Name",tip:"Your name, typed exactly as you entered it when you logged in. If you manage this program with someone else, enter the primary responsible person."},
-                        {field:"Classification",tip:"Community Driven = offered for public benefit even at a subsidy (e.g. community events, some beg/intro programs, adaptive programs). Revenue Driven = expected to cover costs (e.g. fitness classes, swimming lessons). Not sure? Ask your manager."},
+                        {field:"Classification",tip:"Community Driven = offered for public benefit even at a subsidy (e.g. teen drop-ins, adaptive programs). Revenue Driven = expected to cover costs (e.g. fitness classes, swimming lessons). Not sure? Ask your manager."},
                       ].map(r=>(
                         <div key={r.field} className="text-sm">
                           <div className="font-semibold text-slate-700 mb-0.5">{r.field}</div>
@@ -4396,7 +4554,7 @@ function Reference({isManager,db,programs,staffName}) {
                     <p>Cost recovery tells you what percentage of the program's cost was covered by what participants paid. 100% means break-even — fees covered every dollar of cost. Below 100% means the district subsidized the rest.</p>
                     <p><span className="font-semibold text-slate-700">Example:</span> Your program cost $1,500 to run and brought in $1,200 in fees. Cost recovery = 80%. The district covered the remaining $300.</p>
                     <p className="font-semibold text-slate-700">Important context:</p>
-                    <p>Not every program is expected to reach 100%. Community Driven programs (community events, some beg/intro programs, adaptive programs) may have a target of 0–20% by design — the district intentionally subsidizes them because they serve the community. Check the District Standards tab for your specific program category's target.</p>
+                    <p>Not every program is expected to reach 100%. Community Driven programs (adaptive rec, teen drop-ins, free events) may have a target of 0–20% by design — the district intentionally subsidizes them because they serve the community. Check the District Standards tab for your specific program category's target.</p>
                     <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-blue-800 mt-2">
                       <span className="font-bold">Low cost recovery does not mean your program was bad.</span> It depends entirely on what type of program it is. A swim lesson class should cover its costs. A free family event is not expected to.
                     </div>
@@ -4832,7 +4990,7 @@ export default function App() {
     {id:"dashboard",label:"Dashboard"},
     {id:"programs",label:"Programs"},
     {id:"history",label:"Multi-Season"},
-    {id:"kpi",label:"Reference"},
+    {id:"kpi",label:"Guide & Resources"},
   ];
   const showingForm = editingProgram||addingProgram;
 
@@ -4849,10 +5007,13 @@ export default function App() {
 
       <header style={{backgroundColor:"#1e3a5f"}} className="px-4 py-4 shadow-lg">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div>
-            <div className="text-white font-bold text-lg leading-tight">BGPD Recreation</div>
-            <div style={{color:"#d4a017"}} className="text-xs font-semibold tracking-widest uppercase">
-              {staffName}{isManager?(effectiveManager?" · Manager View":" · Staff View"):""}
+          <div className="flex items-center gap-3">
+            <BGPDLogo size={36}/>
+            <div>
+              <div className="text-white font-bold text-base leading-tight">Buffalo Grove Park District</div>
+              <div className="text-xs font-semibold tracking-widest uppercase" style={{color:"#29ABE2"}}>
+                {staffName}{isManager?(effectiveManager?" · Manager View":" · Staff View"):""}
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
