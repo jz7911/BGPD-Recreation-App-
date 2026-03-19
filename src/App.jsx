@@ -1411,7 +1411,7 @@ function NeedsAttentionQueue({programs,onEdit}){
 function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   const [filters,setFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
   function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
-  const [collapsed,setCollapsed] = useState({topbottom:true,rpp:true,capacity:true,classmix:true,workload:true,snapshot:true,areabreakdown:true});
+  const [collapsed,setCollapsed] = useState({topbottom:true,rpp:true,capacity:true,classmix:true,workload:true,snapshot:true,areabreakdown:true,nps:true});
   function toggleSection(id){setCollapsed(s=>({...s,[id]:!s[id]}));}
   function SectionHeader({id,title,sub,badge}){
     const open = !collapsed[id];
@@ -1811,11 +1811,8 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
       {/* ── NPS Summary ── */}
       {withNPS.length>0&&(
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-            <div>
-              <h3 className="font-bold text-slate-700 text-sm">NPS Summary</h3>
-              <p className="text-xs text-slate-400 mt-0.5">{withNPS.length} of {kpis.length} programs have NPS data · NPS = ((Promoters − Detractors) ÷ Total) × 100</p>
-            </div>
+          <SectionHeader id="nps" title="NPS Summary" sub={`${withNPS.length} of ${kpis.length} programs have NPS data · Portfolio avg NPS: ${avgNPS??'—'}`} badge={avgNPS!=null?(avgNPS>=50?"Strong":avgNPS>=0?"Acceptable":"Needs Review"):null}/>
+          {!collapsed["nps"]&&<><div className="px-4 py-3 border-b border-slate-100 flex items-center justify-end">
             <div className="text-right">
               <div className="text-xs text-slate-400">Portfolio Avg NPS</div>
               <div className={`text-2xl font-black ${avgNPS>=50?"text-green-600":avgNPS>=0?"text-amber-500":"text-red-500"}`}>{avgNPS??"—"}</div>
@@ -1871,6 +1868,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
               </table>
             </div>
           )}
+        </>}
         </div>
       )}
 
