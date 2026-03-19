@@ -53,7 +53,7 @@ const PROGRAM_TYPES = [
   {label:"Large Program",              pct:0.06,  hint:"Ongoing multi-session programs: swim lessons, advanced martial arts, dance, BG Singers, sports leagues, aquatics. Higher registration volume and instructor oversight."},
   {label:"League",                     pct:0.07,  hint:"Season-long competitive or recreational leagues (Flag Football, House League Basketball, Adult Softball, Soccer, Volleyball). Ongoing scheduling and facility management."},
   {label:"Camp",                       pct:0.09,  hint:"Day camps and specialty camps. High complexity: part-time staff management, licensing, safety, parent communication. Enter per curriculum group — not per week. Supervisors overseeing multiple camps: use Custom % for your full portfolio."},
-  {label:"Production / Major Program", pct:0.10,  hint:"Preschool, Clubhouse (per site), theater productions, Dance Company, Fitness Center operations. Year-round high-touch programs. Multi-site supervisors: use Custom % to reflect your full portfolio load."},
+  {label:"Production / Major Program", pct:0.10,  hint:"Preschool, Clubhouse, theater productions, Dance Company, Fitness Center operations. Year-round high-touch programs. Multi-site supervisors: use Custom % to reflect your full portfolio load."},
 ];
 const ADMIN_OVERHEAD_RATE  = 0.1;
 const FT_ANNUAL_SALARY     = 97700;
