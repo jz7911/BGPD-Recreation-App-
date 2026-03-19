@@ -1601,7 +1601,6 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
           </div>
           <div className="text-2xl font-bold" style={{color:healthColor}}>{healthScore}<span className="text-sm font-normal text-slate-400">/100</span></div>
           <div className="text-xs text-slate-400 mt-1">Fill rate (35%) · Cost recovery (35%) · Program mix (15%) · Net P/L (15%)</div>
-          <div className="text-xs text-slate-400 mt-0.5">Fill rate (30%) · Cost recovery (30%) · Status (20%) · Trend (10%) · Waitlist (10%)</div>
         </div>
         <KCard label="Avg Fill Rate"     value={pct(avgFill)}    accent="#d4a017" target="≥70%"/>
         <KCard label="Avg Cost Recovery" value={pct(avgCR)}      accent="#d4a017" target="≥100%"/>
