@@ -103,6 +103,7 @@ const DB_FIELDS = [
   "is_archived",
   "fee",
   "nps_promoters","nps_passives","nps_detractors","nps_total",
+  "pricing_decision","pricing_target_fee","pricing_rationale","pricing_notes","pricing_subsidy",
 ];
 
 function cleanForDB(p) {
@@ -184,6 +185,7 @@ function newProgram(staffName) {
     is_archived: false,
     fee: 0,
     nps_promoters:0,nps_passives:0,nps_detractors:0,nps_total:0,
+    pricing_decision:"",pricing_target_fee:0,pricing_rationale:"",pricing_notes:"",pricing_subsidy:null,
   };
 }
 
@@ -219,7 +221,7 @@ function printSeasonReport(programs, filters) {
   const redesign    = kpis.filter(p=>p.status==="Needs Redesign").length;
   const surplus     = kpis.reduce((a,p)=>a+(p.profitLoss||0),0);
   const plSignal    = surplus>=0 ? 1 : Math.max(0, 1+(surplus/(Math.max(kpis.reduce((a,p)=>a+(p.totalCost||0),0),1)*0.5)));
-  const healthScore = kpis.length ? Math.round((avgFill*0.35 + Math.min(avgCR,2)/2*0.35 + (healthy/kpis.length)*0.15 + plSignal*0.15)*100) : 0;
+  const healthScore = kpis.length ? Math.round((Math.min(avgCR,2)/2*0.40 + avgFill*0.35 + plSignal*0.15 + (healthy/kpis.length)*0.10)*100) : 0;
   const healthColor = healthScore>=75?"#16a34a":healthScore>=50?"#b45309":"#dc2626";
   const needsWork   = [...kpis].filter(p=>p.status==="Needs Redesign"||p.fillRate<0.5).sort((a,b)=>a.fillRate-b.fillRate).slice(0,5);
   const topPerf     = [...kpis].filter(p=>p.hasActuals).sort((a,b)=>b.fillRate-a.fillRate).slice(0,5);
@@ -1354,7 +1356,7 @@ function NeedsAttentionQueue({programs,onEdit}){
 function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   const [filters,setFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
   function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
-  const [collapsed,setCollapsed] = useState({topbottom:true,rpp:true,capacity:true,classmix:true,workload:true});
+  const [collapsed,setCollapsed] = useState({topbottom:true,rpp:true,capacity:true,classmix:true,workload:true,snapshot:true,areabreakdown:true});
   function toggleSection(id){setCollapsed(s=>({...s,[id]:!s[id]}));}
   function SectionHeader({id,title,sub,badge}){
     const open = !collapsed[id];
@@ -1422,7 +1424,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   const totalCosts  = kpis.reduce((a,p)=>a+(p.totalCost||0),0);
   const plSignalMgr = totalPL>=0 ? 1 : Math.max(0, 1+(totalPL/(Math.max(totalCosts,1)*0.5)));
   const healthScore = kpis.length
-    ? Math.round((avgFill*0.35 + Math.min(avgCR,2)/2*0.35 + (healthy/kpis.length)*0.15 + plSignalMgr*0.15)*100)
+    ? Math.round((Math.min(avgCR,2)/2*0.40 + avgFill*0.35 + plSignalMgr*0.15 + (healthy/kpis.length)*0.10)*100)
     : 0;
   const healthColor = healthScore>=75?"#22c55e":healthScore>=50?"#eab308":"#ef4444";
 
@@ -1600,7 +1602,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
             <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Health Score</div>
           </div>
           <div className="text-2xl font-bold" style={{color:healthColor}}>{healthScore}<span className="text-sm font-normal text-slate-400">/100</span></div>
-          <div className="text-xs text-slate-400 mt-1">Fill rate (35%) · Cost recovery (35%) · Program mix (15%) · Net P/L (15%)</div>
+          <div className="text-xs text-slate-400 mt-1">Cost recovery (40%) · Fill rate (35%) · Net P/L (15%) · Program mix (10%)</div>
         </div>
         <KCard label="Avg Fill Rate"     value={pct(avgFill)}    accent="#d4a017" target="≥70%"/>
         <KCard label="Avg Cost Recovery" value={pct(avgCR)}      accent="#d4a017" target="≥100%"/>
@@ -1634,21 +1636,20 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
       </div>
 
       {/* ── Program Snapshot bars ── */}
-      <div className="bg-white rounded-lg shadow-sm p-5 space-y-5">
-        <h3 className="font-bold text-slate-700 text-sm">Program Snapshot: Budgeted vs Actual</h3>
-        <PBar label="Total Revenue"      actual={actRev}  budget={antRev}  ff={v=>dollar(v)}/>
-        <PBar label="Total Enrollment"   actual={actEnr}  budget={antEnr}  ff={v=>v.toString()}/>
-        <PBar label="Total Program Cost" actual={actCost} budget={antCost} ff={v=>dollar(v)} inv/>
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+        <SectionHeader id="snapshot" title="Program Snapshot: Budgeted vs Actual" sub="Portfolio totals — revenue, enrollment, and cost vs. plan"/>
+        {!collapsed["snapshot"]&&<div className="p-5 space-y-5">
+          <PBar label="Total Revenue"      actual={actRev}  budget={antRev}  ff={v=>dollar(v)}/>
+          <PBar label="Total Enrollment"   actual={actEnr}  budget={antEnr}  ff={v=>v.toString()}/>
+          <PBar label="Total Program Cost" actual={actCost} budget={antCost} ff={v=>dollar(v)} inv/>
+        </div>}
       </div>
 
       {/* ── Programs by Area ── */}
       {areaRollup.length>0&&(
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100">
-            <h3 className="font-bold text-slate-700 text-sm">Programs by Area</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Inventory distribution across program areas</p>
-          </div>
-          <div className="p-4 space-y-2.5">
+          <SectionHeader id="areabreakdown" title="Programs by Area" sub="Inventory distribution, avg fill rate, and net P/L by area"/>
+          {!collapsed["areabreakdown"]&&<div className="p-4 space-y-2.5">
             {[...areaRollup].sort((a,b)=>b.count-a.count).map(r=>{
               const barW = Math.round((r.count/kpis.length)*100);
               const barColor = r.avgFill>=0.7?"#22c55e":r.avgFill>=0.6?"#eab308":"#ef4444";
@@ -1672,7 +1673,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
               );
             })}
             <p className="text-xs text-slate-400 pt-1">Bar width = share of total programs · Bar color = avg fill rate (green ≥70%, yellow 60–69%, red &lt;60%)</p>
-          </div>
+          </div>}
         </div>
       )}
 
@@ -2276,7 +2277,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
     setDirty(true);
   };
 
-  const tabs = [{id:"info",label:"Program Info"},{id:"budgeted",label:p.ant_enrollment>0||p.ant_revenue>0?"Budgeted ✓":"Budgeted"},{id:"actuals",label:"Actuals"},{id:"summary",label:"Summary"},{id:"log",label:`Log${log.length>0?" ("+log.length+")":""}`}];
+  const tabs = [{id:"info",label:"Program Info"},{id:"budgeted",label:p.ant_enrollment>0||p.ant_revenue>0?"Budgeted ✓":"Budgeted"},{id:"actuals",label:"Actuals"},{id:"summary",label:"Summary"},...(isManager?[{id:"pricing",label:"💰 Pricing"}]:[]),{id:"log",label:`Log${log.length>0?" ("+log.length+")":""}`}];
 
   return (
     <div className="space-y-4">
@@ -2412,33 +2413,73 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                 <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Post-Program Observations</div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <Inp label="Participation Trend" value={p.trend||"New"} onChange={setField("trend")} options={TRENDS}/>
-                  {isManager&&(
-                    <div className="sm:col-span-3 mt-2">
-                      <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">NPS — Upload Survey Responses</div>
-                      <NPSUploader
-                        programId={p.id||"new"}
-                        programName={p.name}
-                        currentNPS={p.nps||0}
-                        onSave={(nps,promoters,passives,detractors,total)=>{
-                          setField("nps")(nps);
-                          setField("nps_promoters")(promoters);
-                          setField("nps_passives")(passives);
-                          setField("nps_detractors")(detractors);
-                          setField("nps_total")(total);
-                        }}
-                      />
-                      {p.nps>0&&!isManager&&(
-                        <div className="text-sm text-slate-500 mt-1">NPS Score: <span className="font-bold text-slate-700">{p.nps}</span></div>
-                      )}
-                    </div>
-                  )}
-                  {!isManager&&p.nps>0&&(
-                    <div className="sm:col-span-3 mt-2 p-3 rounded-lg border border-slate-100 bg-slate-50">
-                      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">NPS Score</div>
-                      <div className="text-2xl font-black" style={{color:p.nps>=50?"#16a34a":p.nps>=0?"#d97706":"#dc2626"}}>{p.nps}</div>
-                      <div className="text-xs text-slate-400 mt-0.5">{p.nps_total>0?`Based on ${p.nps_total} responses`:""}</div>
-                    </div>
-                  )}
+                  <div className="sm:col-span-3 mt-2">
+                    <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">NPS — Net Promoter Score</div>
+                    {isManager?(
+                      <div className="space-y-4">
+                        {/* Toggle */}
+                        <div className="flex gap-2">
+                          {["manual","upload"].map(mode=>(
+                            <button key={mode} onClick={()=>setField("_npsMode")(mode)}
+                              className="text-xs px-3 py-1.5 rounded-lg border font-semibold transition"
+                              style={(p._npsMode||"manual")===mode
+                                ?{background:"#1e3a5f",color:"#fff",borderColor:"#1e3a5f"}
+                                :{background:"#f8fafc",color:"#475569",borderColor:"#e2e8f0"}}>
+                              {mode==="manual"?"✏ Enter manually":"📊 Upload CSV"}
+                            </button>
+                          ))}
+                        </div>
+                        {(p._npsMode||"manual")==="manual"?(
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                              <Inp label="NPS Score (-100 to 100)" type="number" value={p.nps||""} onChange={setField("nps")} min={-100} max={100} hint="Calculated or estimated"/>
+                              <Inp label="Promoters (9–10)" type="number" value={p.nps_promoters||""} onChange={setField("nps_promoters")} min={0} hint="Optional"/>
+                              <Inp label="Passives (7–8)" type="number" value={p.nps_passives||""} onChange={setField("nps_passives")} min={0} hint="Optional"/>
+                              <Inp label="Detractors (0–6)" type="number" value={p.nps_detractors||""} onChange={setField("nps_detractors")} min={0} hint="Optional"/>
+                            </div>
+                            {p.nps_promoters>0||p.nps_passives>0||p.nps_detractors>0?(
+                              <div className="text-xs text-slate-400 p-3 rounded-lg bg-slate-50 border border-slate-100">
+                                {(()=>{
+                                  const total=(parseInt(p.nps_promoters)||0)+(parseInt(p.nps_passives)||0)+(parseInt(p.nps_detractors)||0);
+                                  const calc=total>0?Math.round(((parseInt(p.nps_promoters)||0)-(parseInt(p.nps_detractors)||0))/total*100):null;
+                                  return calc!=null?(<span>Calculated NPS from breakdown: <strong className="text-slate-700">{calc}</strong> · {total} total responses</span>):null;
+                                })()}
+                              </div>
+                            ):null}
+                          </div>
+                        ):(
+                          <NPSUploader
+                            programId={p.id||"new"}
+                            programName={p.name}
+                            currentNPS={p.nps||0}
+                            onSave={(nps,promoters,passives,detractors,total)=>{
+                              setField("nps")(nps);
+                              setField("nps_promoters")(promoters);
+                              setField("nps_passives")(passives);
+                              setField("nps_detractors")(detractors);
+                              setField("nps_total")(total);
+                            }}
+                          />
+                        )}
+                      </div>
+                    ):(
+                      /* Staff: manual entry only */
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                          <Inp label="NPS Score (-100 to 100)" type="number" value={p.nps||""} onChange={setField("nps")} min={-100} max={100} hint="From your survey results"/>
+                          <Inp label="Promoters (9–10)" type="number" value={p.nps_promoters||""} onChange={setField("nps_promoters")} min={0} hint="Optional"/>
+                          <Inp label="Passives (7–8)" type="number" value={p.nps_passives||""} onChange={setField("nps_passives")} min={0} hint="Optional"/>
+                          <Inp label="Detractors (0–6)" type="number" value={p.nps_detractors||""} onChange={setField("nps_detractors")} min={0} hint="Optional"/>
+                        </div>
+                        {(p.nps_promoters>0||p.nps_passives>0||p.nps_detractors>0)&&(()=>{
+                          const total=(parseInt(p.nps_promoters)||0)+(parseInt(p.nps_passives)||0)+(parseInt(p.nps_detractors)||0);
+                          const calc=total>0?Math.round(((parseInt(p.nps_promoters)||0)-(parseInt(p.nps_detractors)||0))/total*100):null;
+                          return calc!=null?(<div className="text-xs text-slate-400 p-3 rounded-lg bg-slate-50 border border-slate-100">Calculated NPS from breakdown: <strong className="text-slate-700">{calc}</strong> · {total} total responses</div>):null;
+                        })()}
+                        <p className="text-xs text-slate-400">Enter the NPS score from your survey results. The score ranges from −100 to +100 — positive is good, 50+ is excellent.</p>
+                      </div>
+                    )}
+                  </div>
                   <Inp label="Waitlist" type="number" value={p.waitlist||0} onChange={setField("waitlist")} min={0} hint="Participants who couldn't register"/>
                 </div>
               </div>
@@ -2452,29 +2493,21 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                 <div><div className="text-xs text-slate-400">Net Profit/(Loss)</div><div className={`text-xl font-bold ${k.profitLoss>=0?"text-green-700":"text-red-600"}`}>{dollar(k.profitLoss)}</div></div>
                 <div><div className="text-xs text-slate-400">Status</div><div className="mt-1"><Badge status={k.status}/></div></div>
               </div>
-              {canEdit&&(
-                <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                  <div className="flex-1">
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">In-District Fee per Participant</label>
-                      <p className="text-xs text-slate-400 mb-2">Enter your program fee to see if your pricing is on track to meet your cost recovery target.</p>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-slate-400 text-sm">$</span>
-                      <input type="number" value={p.fee||""} onChange={e=>setField("fee")(parseFloat(e.target.value)||0)}
-                        className="w-32 rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:border-blue-400"
-                        placeholder="0" min={0}
-                        style={{MozAppearance:"textfield"}}/>
+              {/* Read-only CR status for all users on Summary tab */}
+              {svcTarget&&(hasActuals||p.fee>0)&&(()=>{
+                const onTarget=k.costRecovery>=svcTarget.min;
+                return(
+                  <div className={`rounded-xl px-4 py-3 flex items-center gap-3 border text-sm ${onTarget?"bg-green-50 border-green-200":"bg-amber-50 border-amber-200"}`}>
+                    <span className="text-lg">{onTarget?"✓":"⚠"}</span>
+                    <div className="flex-1">
+                      <span className="font-semibold" style={{color:onTarget?"#166534":"#92400e"}}>{p.service_category} target: {svcTarget.label}</span>
+                      <span className="ml-2 text-xs opacity-75" style={{color:onTarget?"#166534":"#92400e"}}>Actual: {pct(k.costRecovery)}</span>
+                      {!onTarget&&<span className="ml-2 text-xs font-medium" style={{color:"#92400e"}}>— {isManager?"See Pricing tab for fee analysis":"Below target"}</span>}
                     </div>
-                    <div className="mt-1.5 text-xs text-blue-600 font-medium">💡 Enter your program fee to see if your pricing is on track for your cost recovery target</div>
+                    {p.fee>0&&<div className="text-right"><div className="text-xs text-slate-400">Current fee</div><div className="font-bold text-slate-700">{dollar(p.fee)}/person</div></div>}
                   </div>
-                </div>
-              )}
-              {!canEdit&&p.fee>0&&(
-                <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                  <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">In-District Fee per Participant</div>
-                  <div className="text-xl font-bold text-slate-700">{dollar(p.fee)}</div>
-                </div>
-              )}
-              {svcTarget&&(hasActuals||p.fee>0)&&<CRGapPanel svcTarget={svcTarget} k={k} p={p}/>}
+                );
+              })()}
               <div className="border-t border-slate-100 pt-4 space-y-4">
                 <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Variance vs Budget</div>
                 <PBar label="Enrollment"        actual={p.act_enrollment||0} budget={p.ant_enrollment||0} ff={v=>v.toString()}/>
@@ -2490,6 +2523,149 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                   <div key={l}><div className="text-xs text-slate-400">{l}</div><div className={`text-base font-bold ${c}`}>{v}</div></div>
                 ))}
               </div>
+            </div>
+          )}
+          {sec==="pricing"&&isManager&&(
+            <div className="space-y-5">
+              <div>
+                <h3 className="font-bold text-slate-700 text-sm mb-1">Pricing Analysis</h3>
+                <p className="text-xs text-slate-400">Set the in-district fee, review the cost recovery gap, and document any intentional subsidy decisions.</p>
+              </div>
+
+              {/* Fee input */}
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-3">
+                <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">In-District Fee per Participant</div>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="text-slate-400 text-sm">$</span>
+                  <input type="number" value={p.fee||""} onChange={e=>setField("fee")(parseFloat(e.target.value)||0)}
+                    className="w-32 rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:border-blue-400"
+                    placeholder="0" min={0} style={{MozAppearance:"textfield"}}/>
+                  <span className="text-xs text-slate-400">what participants are currently charged</span>
+                </div>
+              </div>
+
+              {/* Full CR gap panel */}
+              {svcTarget&&(hasActuals||p.fee>0)&&<CRGapPanel svcTarget={svcTarget} k={k} p={p}/>}
+
+              {/* Subsidy adjustment — manager only */}
+              {svcTarget&&(hasActuals||p.fee>0)&&(()=>{
+                const onTarget=k.costRecovery>=svcTarget.min;
+                const targetRev=k.totalCost*svcTarget.min;
+                const gap=targetRev-k.revenue;
+                const enrollment=p.act_enrollment||p.ant_enrollment||0;
+                const sugFee=enrollment>0?targetRev/enrollment:null;
+                const currentFee=p.fee>0?p.fee:(enrollment>0?k.revenue/enrollment:null);
+                const feeGap=sugFee!=null&&currentFee!=null?sugFee-currentFee:null;
+                if(onTarget||gap<=0) return null;
+                const subsidyKey="pricing_subsidy_"+p.id;
+                const savedSubsidy=p.pricing_subsidy||{};
+                return(
+                  <div className="rounded-xl border border-slate-200 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between" style={{background:"#f0f4ff"}}>
+                      <div>
+                        <div className="text-xs font-bold text-slate-700 uppercase tracking-widest">Manager Pricing Decision</div>
+                        <div className="text-xs text-slate-500 mt-0.5">Document the intentional subsidy or realistic target fee for this program</div>
+                      </div>
+                      <span className="text-xs font-bold px-2 py-1 rounded" style={{background:"#e0e7ff",color:"#3730a3"}}>Manager only</span>
+                    </div>
+                    <div className="p-4 space-y-4">
+                      {/* Decision type */}
+                      <div>
+                        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Pricing decision</div>
+                        <div className="flex gap-2 flex-wrap">
+                          {["Full price increase","Partial increase + subsidy","Intentional full subsidy"].map(opt=>(
+                            <button key={opt} onClick={()=>setField("pricing_decision")(opt)}
+                              className="text-xs px-3 py-1.5 rounded-lg border transition font-medium"
+                              style={p.pricing_decision===opt
+                                ?{background:"#1e3a5f",color:"#fff",borderColor:"#1e3a5f"}
+                                :{background:"#f8fafc",color:"#475569",borderColor:"#e2e8f0"}}>
+                              {opt}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Realistic target fee */}
+                      {p.pricing_decision&&p.pricing_decision!=="Intentional full subsidy"&&(
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-500 mb-1">Realistic target fee <span className="font-normal text-slate-400">(/person)</span></label>
+                            <div className="flex items-center gap-2">
+                              <span className="text-slate-400 text-sm">$</span>
+                              <input type="number" value={p.pricing_target_fee||""} onChange={e=>setField("pricing_target_fee")(parseFloat(e.target.value)||0)}
+                                className="w-28 rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:border-blue-400"
+                                min={0} style={{MozAppearance:"textfield"}} placeholder={sugFee?Math.ceil(sugFee):""}/>
+                            </div>
+                            {p.pricing_target_fee>0&&currentFee!=null&&(
+                              <div className="text-xs mt-1" style={{color:p.pricing_target_fee>currentFee?"#16a34a":"#dc2626"}}>
+                                {p.pricing_target_fee>currentFee?`↑ +${dollar(p.pricing_target_fee-currentFee)} from current`:`↓ ${dollar(currentFee-p.pricing_target_fee)} below current`}
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-500 mb-1">Intentional subsidy</label>
+                            <div className="text-xl font-bold text-slate-700">
+                              {p.pricing_target_fee&&enrollment>0
+                                ?dollar(Math.max(0,targetRev-p.pricing_target_fee*enrollment))
+                                :"—"}
+                            </div>
+                            <div className="text-xs text-slate-400 mt-0.5">remaining gap after fee adjustment</div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Subsidy justification */}
+                      {p.pricing_decision&&(
+                        <div>
+                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Justification (required)</div>
+                          <div className="flex gap-2 flex-wrap mb-2">
+                            {["Community access / equity","New program — building enrollment","Board-directed mission program","Contractual obligation","Other"].map(r=>(
+                              <button key={r} onClick={()=>setField("pricing_rationale")(r)}
+                                className="text-xs px-2.5 py-1 rounded-full border transition"
+                                style={p.pricing_rationale===r
+                                  ?{background:"#e0e7ff",color:"#3730a3",borderColor:"#a5b4fc"}
+                                  :{background:"#f8fafc",color:"#64748b",borderColor:"#e2e8f0"}}>
+                                {r}
+                              </button>
+                            ))}
+                          </div>
+                          <textarea value={p.pricing_notes||""} onChange={e=>setField("pricing_notes")(e.target.value)}
+                            placeholder="Add context — this will carry into the Program Review..."
+                            className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:border-blue-400 resize-y"
+                            style={{minHeight:"60px",fontFamily:"inherit"}}/>
+                        </div>
+                      )}
+
+                      {/* Summary */}
+                      {p.pricing_decision&&p.pricing_rationale&&(
+                        <div className="rounded-lg border border-slate-200 p-3 text-sm space-y-1.5 bg-slate-50">
+                          {p.pricing_target_fee>0&&enrollment>0&&(
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Gap closed by fee increase</span>
+                              <span className="font-semibold text-green-700">{dollar(Math.max(0,(p.pricing_target_fee-currentFee)*enrollment))}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between">
+                            <span className="text-slate-500">Intentional district subsidy</span>
+                            <span className="font-semibold" style={{color:"#3730a3"}}>
+                              {p.pricing_decision==="Intentional full subsidy"
+                                ?dollar(Math.ceil(gap))
+                                :p.pricing_target_fee&&enrollment>0
+                                  ?dollar(Math.max(0,targetRev-p.pricing_target_fee*enrollment))
+                                  :"—"}
+                            </span>
+                          </div>
+                          <div className="flex justify-between border-t border-slate-200 pt-1.5">
+                            <span className="font-semibold">Unresolved gap</span>
+                            <span className="font-bold" style={{color:"#16a34a"}}>$0</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
             </div>
           )}
           {sec==="log"&&(
@@ -2928,20 +3104,22 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   // ── LIST VIEW ─────────────────────────────────────────────────────────────
   if(view==="list") return(
     <div>
-      <div className="rounded-xl border border-slate-200 p-4 mb-5 flex items-start gap-3" style={{background:"#f8fafc"}}>
-        <span className="text-lg shrink-0">📋</span>
-        <div>
-          <div className="font-bold text-slate-700 text-sm mb-1">Why we do Program Reviews</div>
-          <p className="text-xs text-slate-500 leading-relaxed">Structured program reviews are a best practice required for CAPRA accreditation and recommended by NRPA and IPRA. They create a documented record of every program decision — why a program was continued, adjusted, expanded, or sunset — protecting the district and demonstrating data-driven management to the board. Complete a review for every program each quarter, or at minimum after each season it runs.</p>
+      {isManager&&(
+        <div className="rounded-xl border border-slate-200 p-4 mb-5 flex items-start gap-3" style={{background:"#f8fafc"}}>
+          <span className="text-lg shrink-0">📋</span>
+          <div>
+            <div className="font-bold text-slate-700 text-sm mb-1">Why BGPD does Program Reviews</div>
+            <p className="text-xs text-slate-500 leading-relaxed">Program reviews are how BGPD makes intentional, documented decisions about its programming portfolio — a direct commitment from the 2025–2028 Strategic Plan's focus on fiscal sustainability and data-driven management. Every review creates a permanent record of why a program was continued, adjusted, expanded, or sunset, grounded in the 110% cost recovery framework. This protects the district from reactive decision-making, gives the board confidence that programming choices are strategic, and helps BGPD move its overall program margin toward long-term financial health. Complete a review for every program at the end of each season it runs.</p>
+          </div>
         </div>
-      </div>
+      )}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="font-bold text-slate-800" style={{fontSize:"18px"}}>Program Review Checklist</h2>
           <p className="text-sm text-slate-400 mt-0.5">
             {isManager
-              ? "All program reviews — visible to all managers"
-              : `Reviews for your programs — only you can see and create these`}
+              ? "All program reviews — visible to managers"
+              : `Your program reviews — complete one after each season`}
           </p>
         </div>
         <button onClick={startNew} className="px-4 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>
@@ -3848,7 +4026,7 @@ function ProgramGuideSection({isManager,db}){
     <div className="p-5 space-y-5">
       <div>
         <h2 className="font-bold text-slate-800 text-base mb-1">Program Types & Guide</h2>
-        <p className="text-sm text-slate-500">Every BGPD program mapped to its Program Type and cost recovery target. Use this when entering a new program to pick the right type.</p>
+        <p className="text-sm text-slate-500">Every BGPD program mapped to its Program Type and 110% cost recovery target. Use this when entering a new program to pick the right type.</p>
       </div>
 
       {/* Program Type workload table */}
@@ -4231,7 +4409,7 @@ function Reference({isManager,db,programs,staffName}) {
               ))}
             </div>
             <div className="p-3 rounded-lg bg-slate-800 text-slate-100 font-mono text-xs mb-3">
-              Score = (avgFill × 35) + (min(avgCR, 2)/2 × 35) + (healthyPct × 15) + (plSignal × 15)
+              Score = (min(avgCR, 2)/2 × 40) + (avgFill × 35) + (plSignal × 15) + (healthyPct × 10)
             </div>
             <div className="grid grid-cols-3 gap-2 text-xs text-center">
               <div className="p-2 rounded-lg bg-green-50 border border-green-200"><span className="font-bold text-green-700">75–100</span><div className="text-slate-500 mt-0.5">Strong</div></div>
@@ -5042,9 +5220,9 @@ function Reference({isManager,db,programs,staffName}) {
                   </tr></thead>
                   <tbody>
                     {[
-                      {c:"Fill Rate",         w:"35%",d:"Are people showing up? Most direct demand signal."},
-                      {c:"Cost Recovery",     w:"35%",d:"Are programs meeting their financial targets? Capped at 200% so outliers don't skew the score."},
-                      {c:"Program Mix",       w:"15%",d:"What proportion of programs have Healthy status — rewards a well-distributed portfolio."},
+                      {c:"Cost Recovery",     w:"40%",d:"Are programs meeting their service category financial targets? Primary signal — aligned with the 110% fiscal sustainability framework."},
+                      {c:"Fill Rate",         w:"35%",d:"Are people showing up? Strong demand signal."},
+                      {c:"Program Mix",       w:"10%",d:"What proportion of programs have Healthy status — lowest weight, as it flows from fill rate and CR."},
                       {c:"Net P/L Signal",    w:"15%",d:"Is the portfolio generating surplus or running a loss? Surplus = full credit, scales down for losses."},
                     ].map((r,i)=>(
                       <tr key={r.c} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
@@ -5095,7 +5273,7 @@ function Reference({isManager,db,programs,staffName}) {
                 <div className="space-y-3">
                   {[
                     {q:"A program shows Needs Redesign but the staff member says it went great. How do I reconcile that?",a:"Check whether actuals have been updated. If Actual Enrollment and Actual Revenue are still blank or showing budgeted numbers, the status is based on pre-program estimates. Ask the staff member to update their actuals first — then revisit the status."},
-                    {q:"The Health Score dropped significantly. What should I look for?",a:"Health Score weights fill rate and cost recovery equally (35% each), with program mix (15%) and net P/L (15%) rounding it out. A significant drop usually means enrollment fell, cost recovery slipped below targets, or the ratio of Healthy programs declined. Filter by season or area to isolate which segment pulled the score down."},
+                    {q:"The Health Score dropped significantly. What should I look for?",a:"Health Score weights cost recovery most heavily (40%), reflecting the 110% fiscal sustainability framework, then fill rate (35%), net P/L (15%), and program mix (10%). A significant drop usually means enrollment fell, cost recovery slipped below targets, or the ratio of Healthy programs declined. Filter by season or area to isolate which segment pulled the score down."},
                     {q:"How do I prepare for an annual report using this app?",a:"Clear all filters to show the full portfolio. Note the Health Score, total Net P/(L), and Subsidy Burden. Use the Classification Mix section for the community-benefit vs. revenue narrative. Export CSV for a full data appendix. Export Season Report as a PDF summary. Admin → Executive Summary has fund-level P&L."},
                     {q:"A staff member left. What happens to their programs?",a:"Their programs stay in the system under their name. You can edit each program and reassign it to a new staff member by changing the Staff Name field. Alternatively, leave them as-is for historical accuracy and create new entries for the replacement's future work."},
                     {q:"Can I see how a specific program has performed over multiple years?",a:"Yes — use the Multi-Season tab. Search for the program by name and you'll see its enrollment, revenue, fill rate, and cost recovery side-by-side across all seasons it's been offered."},
