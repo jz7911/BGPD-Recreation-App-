@@ -2452,7 +2452,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
               <div className="mb-5 p-3 bg-blue-50 border border-blue-100 rounded-lg flex items-start justify-between gap-3">
                 <div>
                   <div className="text-xs font-bold text-blue-600 uppercase tracking-widest">Budgeted</div>
-                  <div className="text-xs text-blue-400 mt-0.5">What you think this program will do. You can update these at any time.</div>
+                  <div className="text-xs text-blue-400 mt-0.5">What you think this program will do. What you enter into InCode.</div>
                 </div>
                 {(p.ant_enrollment>0||p.ant_revenue>0||p.ant_capacity>0)&&(
                   <div className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold" style={{background:"#dcfce7",color:"#166534"}}>
