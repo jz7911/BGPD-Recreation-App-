@@ -217,7 +217,9 @@ function printSeasonReport(programs, filters) {
   const healthy     = kpis.filter(p=>p.status==="Healthy").length;
   const monitor     = kpis.filter(p=>p.status==="Monitor").length;
   const redesign    = kpis.filter(p=>p.status==="Needs Redesign").length;
-  const healthScore = kpis.length ? Math.round((avgFill*0.4+Math.min(avgCR,2)/2*0.4+(healthy/kpis.length)*0.2)*100) : 0;
+  const surplus     = kpis.reduce((a,p)=>a+(p.profitLoss||0),0);
+  const plSignal    = surplus>=0 ? 1 : Math.max(0, 1+(surplus/(Math.max(kpis.reduce((a,p)=>a+(p.totalCost||0),0),1)*0.5)));
+  const healthScore = kpis.length ? Math.round((avgFill*0.35 + Math.min(avgCR,2)/2*0.35 + (healthy/kpis.length)*0.15 + plSignal*0.15)*100) : 0;
   const healthColor = healthScore>=75?"#16a34a":healthScore>=50?"#b45309":"#dc2626";
   const needsWork   = [...kpis].filter(p=>p.status==="Needs Redesign"||p.fillRate<0.5).sort((a,b)=>a.fillRate-b.fillRate).slice(0,5);
   const topPerf     = [...kpis].filter(p=>p.hasActuals).sort((a,b)=>b.fillRate-a.fillRate).slice(0,5);
@@ -1416,17 +1418,11 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   // ── Program Snapshot health score (0–100) ──
   // Health Score: fill rate (30%) + cost recovery vs target (30%) +
   //   program status (20%) + participation trend (10%) + waitlist demand (10%)
-  const trendScore = kpis.length
-    ? kpis.reduce((a,p)=>{
-        const t=p.trend||"";
-        return a+(t==="Growing"?1:t==="Stable"?0.75:t==="New"?0.6:t==="Declining"?0.2:0.5);
-      },0)/kpis.length
-    : 0;
-  const waitlistScore = kpis.length
-    ? Math.min(kpis.filter(p=>(p.waitlist||0)>0).length/kpis.length, 1)
-    : 0;
+  const totalPL     = kpis.reduce((a,p)=>a+(p.profitLoss||0),0);
+  const totalCosts  = kpis.reduce((a,p)=>a+(p.totalCost||0),0);
+  const plSignalMgr = totalPL>=0 ? 1 : Math.max(0, 1+(totalPL/(Math.max(totalCosts,1)*0.5)));
   const healthScore = kpis.length
-    ? Math.round((avgFill*0.3 + Math.min(avgCR,2)/2*0.3 + (healthy/kpis.length)*0.2 + trendScore*0.1 + waitlistScore*0.1)*100)
+    ? Math.round((avgFill*0.35 + Math.min(avgCR,2)/2*0.35 + (healthy/kpis.length)*0.15 + plSignalMgr*0.15)*100)
     : 0;
   const healthColor = healthScore>=75?"#22c55e":healthScore>=50?"#eab308":"#ef4444";
 
@@ -1604,7 +1600,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
             <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Health Score</div>
           </div>
           <div className="text-2xl font-bold" style={{color:healthColor}}>{healthScore}<span className="text-sm font-normal text-slate-400">/100</span></div>
-          <div className="text-xs text-slate-400 mt-1">Fill rate · Cost recovery · Program mix · Trend · Waitlist</div>
+          <div className="text-xs text-slate-400 mt-1">Fill rate (35%) · Cost recovery (35%) · Program mix (15%) · Net P/L (15%)</div>
           <div className="text-xs text-slate-400 mt-0.5">Fill rate (30%) · Cost recovery (30%) · Status (20%) · Trend (10%) · Waitlist (10%)</div>
         </div>
         <KCard label="Avg Fill Rate"     value={pct(avgFill)}    accent="#d4a017" target="≥70%"/>
@@ -4954,7 +4950,7 @@ function Reference({isManager,db,programs,staffName}) {
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {[
                     {icon:"👁",label:"Full portfolio view",desc:"See every staff member's programs, not just your own. Filter by staff name, area, season, or year in any combination."},
-                    {icon:"📊",label:"Health Score (0–100)",desc:"A composite score across fill rate, cost recovery, trend, and NPS. One number that tells you how the portfolio is doing at a glance."},
+                    {icon:"📊",label:"Health Score (0–100)",desc:"A composite score: Fill rate (35%) + Cost recovery vs. target (35%) + Program mix — % healthy (15%) + Net P/L signal (15%). One number that tells you how the portfolio is doing at a glance."},
                     {icon:"🚨",label:"Needs Attention queue",desc:"Auto-surfaced programs falling below thresholds. Your weekly action list — sorted worst first."},
                     {icon:"↕",label:"Year-over-year comparison",desc:"Each program row shows how fill rate and cost recovery changed vs. the same season last year."},
                     {icon:"💰",label:"Subsidy Burden",desc:"Total dollar amount the district subsidizes — the sum of all program deficits. Useful for budget conversations."},
@@ -5077,7 +5073,7 @@ function Reference({isManager,db,programs,staffName}) {
                 <div className="space-y-3">
                   {[
                     {q:"A program shows Needs Redesign but the staff member says it went great. How do I reconcile that?",a:"Check whether actuals have been updated. If Actual Enrollment and Actual Revenue are still blank or showing budgeted numbers, the status is based on pre-program estimates. Ask the staff member to update their actuals first — then revisit the status."},
-                    {q:"The Health Score dropped significantly. What should I look for?",a:"Health Score weights fill rate most heavily (40%). A significant drop usually means one or more high-enrollment programs declined, or a batch of new programs with low actuals were added. Filter by season or area to isolate which segment pulled the score down."},
+                    {q:"The Health Score dropped significantly. What should I look for?",a:"Health Score weights fill rate and cost recovery equally (35% each), with program mix (15%) and net P/L (15%) rounding it out. A significant drop usually means enrollment fell, cost recovery slipped below targets, or the ratio of Healthy programs declined. Filter by season or area to isolate which segment pulled the score down."},
                     {q:"How do I prepare for an annual report using this app?",a:"Clear all filters to show the full portfolio. Note the Health Score, total Net P/(L), and Subsidy Burden. Use the Classification Mix section for the community-benefit vs. revenue narrative. Export CSV for a full data appendix. Export Season Report as a PDF summary. Admin → Executive Summary has fund-level P&L."},
                     {q:"A staff member left. What happens to their programs?",a:"Their programs stay in the system under their name. You can edit each program and reassign it to a new staff member by changing the Staff Name field. Alternatively, leave them as-is for historical accuracy and create new entries for the replacement's future work."},
                     {q:"Can I see how a specific program has performed over multiple years?",a:"Yes — use the Multi-Season tab. Search for the program by name and you'll see its enrollment, revenue, fill rate, and cost recovery side-by-side across all seasons it's been offered."},
