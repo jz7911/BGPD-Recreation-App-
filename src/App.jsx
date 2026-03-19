@@ -1230,7 +1230,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="bg-slate-50 text-xs text-slate-400 uppercase tracking-wider">
-                {["Program","Staff","Area","Season","Fill Rate","Cost Recovery","Net P/(L)","Total Cost","Waitlist","Trend","Status",""].map(h=>(
+                {["Program","Staff","Area","Season","Fill Rate","Cost Recovery","Net P/(L)","Total Cost","Waitlist","Trend","NPS","Status",""].map(h=>(
                   <th key={h} className="px-3 py-2 text-left font-semibold">{h}</th>
                 ))}
               </tr></thead>
@@ -1259,6 +1259,9 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
                   <td className="px-3 py-2.5 font-mono text-slate-500">{dollar(p.totalCost)}</td>
                   <td className="px-3 py-2.5 text-slate-500">{p.waitlist||0}</td>
                   <td className="px-3 py-2.5 text-slate-500">{p.trend}</td>
+                  <td className="px-3 py-2.5 font-mono text-xs">
+                    {p.nps>0?<span className="font-bold" style={{color:p.nps>=50?"#16a34a":p.nps>=0?"#d97706":"#dc2626"}}>{p.nps}</span>:<span className="text-slate-300">—</span>}
+                  </td>
                   <td className="px-3 py-2.5 whitespace-nowrap">
                     <Badge status={p.status}/>
                     
@@ -1998,7 +2001,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="bg-slate-50 text-xs text-slate-400 uppercase tracking-wider">
-                {[["name","Program"],["staff_name","Staff"],["area","Area"],["season","Season"],["fillRate","Fill Rate"],["costRecovery","Cost Recovery"],["profitLoss","Net P/(L)"],["totalCost","Total Cost"],["waitlist","Waitlist"],["trend","Trend"],["status","Status"],[null,"vs Prior"],[null,""]].map(([col,h])=>(
+                {[["name","Program"],["staff_name","Staff"],["area","Area"],["season","Season"],["fillRate","Fill Rate"],["costRecovery","Cost Recovery"],["profitLoss","Net P/(L)"],["totalCost","Total Cost"],["waitlist","Waitlist"],["trend","Trend"],["nps","NPS"],["status","Status"],[null,"vs Prior"],[null,""]].map(([col,h])=>(
                   <th key={h} className={col?`px-3 py-2 text-left font-semibold cursor-pointer hover:text-slate-700 select-none ${sort.col===col?"text-slate-700":""}`:"px-3 py-2 text-left font-semibold"}
                     onClick={col?()=>toggleSort(col):undefined}>
                     {h}{col&&<span className="ml-1 text-slate-300">{sortIcon(col)}</span>}
@@ -2039,6 +2042,9 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                   <td className="px-3 py-2.5 font-mono text-slate-500">{dollar(p.totalCost)}</td>
                   <td className="px-3 py-2.5 text-slate-500">{p.waitlist||0}</td>
                   <td className="px-3 py-2.5 text-slate-500">{p.trend}</td>
+                  <td className="px-3 py-2.5 font-mono text-xs">
+                    {p.nps>0?<span className="font-bold" style={{color:p.nps>=50?"#16a34a":p.nps>=0?"#d97706":"#dc2626"}}>{p.nps}</span>:<span className="text-slate-300">—</span>}
+                  </td>
                   <td className="px-3 py-2.5 whitespace-nowrap">
                     <Badge status={p.status}/>
                     
@@ -2452,7 +2458,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
               <div className="mb-5 p-3 bg-blue-50 border border-blue-100 rounded-lg flex items-start justify-between gap-3">
                 <div>
                   <div className="text-xs font-bold text-blue-600 uppercase tracking-widest">Budgeted</div>
-                  <div className="text-xs text-blue-400 mt-0.5">What you think this program will do. What you enter into InCode.</div>
+                  <div className="text-xs text-blue-400 mt-0.5">What you think this program will do. You can update these at any time.</div>
                 </div>
                 {(p.ant_enrollment>0||p.ant_revenue>0||p.ant_capacity>0)&&(
                   <div className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold" style={{background:"#dcfce7",color:"#166534"}}>
@@ -5070,7 +5076,7 @@ function Reference({isManager,db,programs,staffName}) {
                     <p>Cost recovery tells you what percentage of the program's cost was covered by what participants paid. 100% means break-even — fees covered every dollar of cost. Below 100% means the district subsidized the rest.</p>
                     <p><span className="font-semibold text-slate-700">Example:</span> Your program cost $1,500 to run and brought in $1,200 in fees. Cost recovery = 80%. The district covered the remaining $300.</p>
                     <p className="font-semibold text-slate-700">Important context:</p>
-                    <p>Not every program is expected to reach 100%. Community Driven programs (community events, some beg/intro programs, adaptive rec) may have a target of 0–20% by design — the district intentionally subsidizes them because they serve the community. Check the District Standards tab for your specific program category's target.</p>
+                    <p>Not every program is expected to reach 100%. Community Driven programs (adaptive rec, community events, free events) may have a target of 0–20% by design — the district intentionally subsidizes them because they serve the community. Check the District Standards tab for your specific program category's target.</p>
                     <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-blue-800 mt-2">
                       <span className="font-bold">Low cost recovery does not mean your program was bad.</span> It depends entirely on what type of program it is. A swim lesson class should cover its costs. A free family event is not expected to.
                     </div>
