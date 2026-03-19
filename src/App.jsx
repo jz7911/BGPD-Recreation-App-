@@ -1634,7 +1634,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
               </div>
             </div>
           )}
-          </div>}
+          </div>
         </div>
       )}
 
@@ -1737,7 +1737,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                 </div>
               );
             })}
-          </div>
+          </div>}
           <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 text-xs text-slate-400">
             Bar midpoint = 60% (recommended program allocation ceiling). Amber = 60–75%, Red = over 75%. The remaining ~40% covers meetings, marketing, planning, and strategic work.
           </div>
