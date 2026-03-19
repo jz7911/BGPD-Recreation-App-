@@ -53,7 +53,7 @@ const PROGRAM_TYPES = [
   {label:"Large Program",              pct:0.06,  hint:"Ongoing multi-session programs: swim lessons, advanced martial arts, dance, BG Singers, sports leagues, aquatics. Higher registration volume and instructor oversight."},
   {label:"League",                     pct:0.07,  hint:"Season-long competitive or recreational leagues (Flag Football, House League Basketball, Adult Softball, Soccer, Volleyball). Ongoing scheduling and facility management."},
   {label:"Camp",                       pct:0.09,  hint:"Day camps and specialty camps. High complexity: part-time staff management, licensing, safety, parent communication. Enter per curriculum group — not per week. Supervisors overseeing multiple camps: use Custom % for your full portfolio."},
-  {label:"Production / Major Program", pct:0.10,  hint:"Preschool, Clubhouse, theater productions, Dance Company, Fitness Center operations. Year-round high-touch programs. Multi-site supervisors: use Custom % to reflect your full portfolio load."},
+  {label:"Production / Major Program", pct:0.10,  hint:"Preschool, Clubhouse (per site), theater productions, Dance Company, Fitness Center operations. Year-round high-touch programs. Multi-site supervisors: use Custom % to reflect your full portfolio load."},
 ];
 const ADMIN_OVERHEAD_RATE  = 0.1;
 const FT_ANNUAL_SALARY     = 97700;
@@ -3796,7 +3796,13 @@ function ProgramGuideSection({isManager,db}){
     if(!form.program.trim()) return;
     setSaving(true);
     if(editRow){
-      await db.from("admin_program_guide").update({...form}).eq("id",editRow.id);
+      // editRow may be a custom DB row or a built-in being overridden
+      if(editRow.id){
+        await db.from("admin_program_guide").update({program:form.program,type:form.type,bucket:form.bucket,cr:form.cr}).eq("id",editRow.id);
+      } else {
+        // Built-in being edited — save as an override with builtin_key
+        await db.from("admin_program_guide").insert({...form,builtin_key:editRow.builtin_key||editRow.program});
+      }
     } else {
       await db.from("admin_program_guide").insert({...form});
     }
@@ -3806,8 +3812,13 @@ function ProgramGuideSection({isManager,db}){
     setForm({program:"",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"});
     loadCustom();
   }
-  async function deleteEntry(id){
-    await db.from("admin_program_guide").delete().eq("id",id);
+  async function deleteEntry(id,builtinKey){
+    if(id){
+      await db.from("admin_program_guide").delete().eq("id",id);
+    } else if(builtinKey){
+      // Mark built-in as deleted by inserting a tombstone
+      await db.from("admin_program_guide").insert({program:builtinKey,type:"",bucket:"",cr:"",builtin_key:builtinKey,is_deleted:true});
+    }
     loadCustom();
   }
   function startEdit(row){
@@ -3816,7 +3827,18 @@ function ProgramGuideSection({isManager,db}){
     setShowAdd(true);
   }
 
-  const allEntries=[...BUILTIN_GUIDE,...custom.map(c=>({...c,custom:true}))];
+  // Build merged entry list:
+  // - Deleted built-ins are excluded
+  // - Overridden built-ins show the override instead
+  // - New custom entries appended
+  const deletedKeys = new Set(custom.filter(c=>c.is_deleted&&c.builtin_key).map(c=>c.builtin_key));
+  const overrideMap = {};
+  custom.filter(c=>!c.is_deleted&&c.builtin_key).forEach(c=>{overrideMap[c.builtin_key]=c;});
+  const mergedBuiltins = BUILTIN_GUIDE
+    .filter(g=>!deletedKeys.has(g.program))
+    .map(g=>overrideMap[g.program]?{...overrideMap[g.program],overridden:true}:{...g,builtin:true});
+  const pureCustom = custom.filter(c=>!c.is_deleted&&!c.builtin_key).map(c=>({...c,custom:true}));
+  const allEntries=[...mergedBuiltins,...pureCustom];
   const q=search.trim().toLowerCase();
   const filtered=q?allEntries.filter(g=>g.program.toLowerCase().includes(q)||g.type.toLowerCase().includes(q)||g.bucket.toLowerCase().includes(q)):null;
 
@@ -3923,7 +3945,7 @@ function ProgramGuideSection({isManager,db}){
               <tr key={i} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
                 <td className="px-4 py-2.5 font-medium text-slate-700">
                   {g.program}
-                  {g.custom&&<span className="ml-1.5 text-xs font-semibold text-blue-500">custom</span>}
+                  {g.custom&&<span className="ml-1.5 text-xs font-semibold text-blue-500">custom</span>}{g.overridden&&<span className="ml-1.5 text-xs font-semibold text-amber-500">edited</span>}
                 </td>
                 <td className="px-4 py-2.5 text-slate-400 text-xs">{g.type}</td>
                 <td className="px-4 py-2.5">
@@ -3933,9 +3955,9 @@ function ProgramGuideSection({isManager,db}){
                   </span>
                 </td>
                 <td className="px-4 py-2.5 text-slate-400 text-xs font-mono">{g.cr}</td>
-                {isManager&&<td className="px-4 py-2.5 text-right">
-                  {g.custom&&<><button onClick={()=>startEdit(g)} className="text-xs text-slate-400 hover:text-slate-700 mr-2">Edit</button>
-                  <button onClick={()=>deleteEntry(g.id)} className="text-xs text-red-300 hover:text-red-600">Delete</button></>}
+                {isManager&&<td className="px-4 py-2.5 text-right whitespace-nowrap">
+                  <button onClick={()=>startEdit(g)} className="text-xs text-slate-400 hover:text-slate-700 mr-2">Edit</button>
+                  <button onClick={()=>deleteEntry(g.id,!g.id?g.program:null)} className="text-xs text-red-300 hover:text-red-600">Delete</button>
                 </td>}
               </tr>
             ))}</tbody>
@@ -3974,12 +3996,12 @@ function ProgramGuideSection({isManager,db}){
                   <tr key={i} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
                     <td className="px-4 py-2.5 text-slate-700 font-medium">
                       {g.program}
-                      {g.custom&&<span className="ml-1.5 text-xs font-semibold text-blue-500">custom</span>}
+                      {g.custom&&<span className="ml-1.5 text-xs font-semibold text-blue-500">custom</span>}{g.overridden&&<span className="ml-1.5 text-xs font-semibold text-amber-500">edited</span>}
                     </td>
                     <td className="px-4 py-2.5 text-slate-400 text-xs">{g.type}</td>
-                    {isManager&&<td className="px-4 py-2.5 text-right">
-                      {g.custom&&<><button onClick={()=>startEdit(g)} className="text-xs text-slate-400 hover:text-slate-700 mr-2">Edit</button>
-                      <button onClick={()=>deleteEntry(g.id)} className="text-xs text-red-300 hover:text-red-600">Delete</button></>}
+                    {isManager&&<td className="px-4 py-2.5 text-right whitespace-nowrap">
+                      <button onClick={()=>startEdit(g)} className="text-xs text-slate-400 hover:text-slate-700 mr-2">Edit</button>
+                      <button onClick={()=>deleteEntry(g.id,!g.id?g.program:null)} className="text-xs text-red-300 hover:text-red-600">Delete</button>
                     </td>}
                   </tr>
                 ))}</tbody>
@@ -4191,12 +4213,13 @@ function Reference({isManager,db,programs,staffName}) {
 
           {/* ── Health Score — manager only ── */}
           {isManager&&<GuideSection title="Health Score (0–100)" accent="#d4a017">
-            <p className="text-sm text-slate-600 mb-3">A single composite number summarizing overall program inventory performance. Weighted across three dimensions:</p>
+            <p className="text-sm text-slate-600 mb-3">A single composite number summarizing overall program inventory performance. Weighted across four dimensions:</p>
             <div className="space-y-2 mb-4">
               {[
-                {weight:"40%", label:"Average Fill Rate",      desc:"Across all visible programs. Higher attendance = higher score."},
-                {weight:"40%", label:"Average Cost Recovery",  desc:"Capped at 200% so one exceptionally profitable program doesn't skew the whole score. At 100% recovery you get the full 40 points."},
-                {weight:"20%", label:"% of Programs Healthy",  desc:"What proportion of programs have Healthy status. Rewards a well-distributed inventory, not just a few standouts."},
+                {weight:"35%", label:"Average Fill Rate",      desc:"Across all visible programs. Are people showing up? The most direct demand signal."},
+                {weight:"35%", label:"Average Cost Recovery",  desc:"How well programs are meeting their financial targets. Capped at 200% so outliers don't skew the score."},
+                {weight:"15%", label:"% of Programs Healthy",  desc:"What proportion of programs have Healthy status. Rewards a well-distributed portfolio, not just a few standouts."},
+                {weight:"15%", label:"Net P/L Signal",         desc:"Is the portfolio generating a surplus or running a loss? Surplus = full credit, scales down proportionally for losses."},
               ].map(r=>(
                 <div key={r.label} className="flex gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
                   <div className="text-sm font-black text-slate-700 w-10 shrink-0">{r.weight}</div>
@@ -4208,7 +4231,7 @@ function Reference({isManager,db,programs,staffName}) {
               ))}
             </div>
             <div className="p-3 rounded-lg bg-slate-800 text-slate-100 font-mono text-xs mb-3">
-              Score = (avgFill × 40) + (min(avgCR, 2)/2 × 40) + (healthyPct × 20)
+              Score = (avgFill × 35) + (min(avgCR, 2)/2 × 35) + (healthyPct × 15) + (plSignal × 15)
             </div>
             <div className="grid grid-cols-3 gap-2 text-xs text-center">
               <div className="p-2 rounded-lg bg-green-50 border border-green-200"><span className="font-bold text-green-700">75–100</span><div className="text-slate-500 mt-0.5">Strong</div></div>
@@ -4645,7 +4668,7 @@ function Reference({isManager,db,programs,staffName}) {
                         {field:"Area",tip:"Pick the closest match from the dropdown (Aquatics, Camps, Dance, etc.). This groups your programs with similar ones in department reports."},
                         {field:"Season & Year",tip:"The season when this program runs — Spring, Summer, Fall, or Winter. Use the year it starts. Summer 2026 = June 2026 start."},
                         {field:"Staff Name",tip:"Your name, typed exactly as you entered it when you logged in. If you manage this program with someone else, enter the primary responsible person."},
-                        {field:"Classification",tip:"Community Driven = offered for public benefit even at a subsidy (e.g. community events, some beg/intro programs, adaptive programs). Revenue Driven = expected to cover costs (e.g. fitness classes, swimming lessons). Not sure? Ask your manager."},
+                        {field:"Classification",tip:"Community Driven = offered for public benefit even at a subsidy (e.g. teen drop-ins, adaptive programs). Revenue Driven = expected to cover costs (e.g. fitness classes, swimming lessons). Not sure? Ask your manager."},
                       ].map(r=>(
                         <div key={r.field} className="text-sm">
                           <div className="font-semibold text-slate-700 mb-0.5">{r.field}</div>
@@ -4759,7 +4782,7 @@ function Reference({isManager,db,programs,staffName}) {
                     <p>Cost recovery tells you what percentage of the program's cost was covered by what participants paid. 100% means break-even — fees covered every dollar of cost. Below 100% means the district subsidized the rest.</p>
                     <p><span className="font-semibold text-slate-700">Example:</span> Your program cost $1,500 to run and brought in $1,200 in fees. Cost recovery = 80%. The district covered the remaining $300.</p>
                     <p className="font-semibold text-slate-700">Important context:</p>
-                    <p>Not every program is expected to reach 100%. Community Driven programs (community events, some beg/intro programs, adaptive programs) may have a target of 0–20% by design — the district intentionally subsidizes them because they serve the community. Check the District Standards tab for your specific program category's target.</p>
+                    <p>Not every program is expected to reach 100%. Community Driven programs (adaptive rec, teen drop-ins, free events) may have a target of 0–20% by design — the district intentionally subsidizes them because they serve the community. Check the District Standards tab for your specific program category's target.</p>
                     <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-blue-800 mt-2">
                       <span className="font-bold">Low cost recovery does not mean your program was bad.</span> It depends entirely on what type of program it is. A swim lesson class should cover its costs. A free family event is not expected to.
                     </div>
@@ -5010,7 +5033,7 @@ function Reference({isManager,db,programs,staffName}) {
 
               {/* ── HEALTH SCORE ── */}
               <GuideSection title="The Health Score — What It Measures" accent="#d4a017">
-                <p className="text-sm text-slate-600 mb-3">A composite 0–100 score combining the four most important signals. Useful for quick portfolio scanning and board-level communication.</p>
+                <p className="text-sm text-slate-600 mb-3">A composite 0–100 score combining four key signals. Useful for quick portfolio scanning and board-level communication.</p>
                 <table className="w-full text-sm mb-4">
                   <thead><tr className="bg-slate-50 text-xs text-slate-400 uppercase tracking-wider">
                     <th className="px-4 py-2 text-left font-semibold">Component</th>
@@ -5019,10 +5042,10 @@ function Reference({isManager,db,programs,staffName}) {
                   </tr></thead>
                   <tbody>
                     {[
-                      {c:"Fill Rate",w:"40%",d:"Are people showing up? Highest weight — most direct demand signal."},
-                      {c:"Cost Recovery",w:"30%",d:"Is the program meeting its financial target? Community benefit programs get credit at lower levels."},
-                      {c:"Trend",w:"20%",d:"Is enrollment growing, stable, or declining vs. same season last year?"},
-                      {c:"NPS",w:"10%",d:"Are participants satisfied? Only scored when NPS data exists; excluded if blank."},
+                      {c:"Fill Rate",         w:"35%",d:"Are people showing up? Most direct demand signal."},
+                      {c:"Cost Recovery",     w:"35%",d:"Are programs meeting their financial targets? Capped at 200% so outliers don't skew the score."},
+                      {c:"Program Mix",       w:"15%",d:"What proportion of programs have Healthy status — rewards a well-distributed portfolio."},
+                      {c:"Net P/L Signal",    w:"15%",d:"Is the portfolio generating surplus or running a loss? Surplus = full credit, scales down for losses."},
                     ].map((r,i)=>(
                       <tr key={r.c} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
                         <td className="px-4 py-2.5 font-semibold text-slate-700">{r.c}</td>
