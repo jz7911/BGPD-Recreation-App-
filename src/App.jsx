@@ -3848,7 +3848,7 @@ function ProgramGuideSection({isManager,db}){
     <div className="p-5 space-y-5">
       <div>
         <h2 className="font-bold text-slate-800 text-base mb-1">Program Types & Guide</h2>
-        <p className="text-sm text-slate-500">Every BGPD program mapped to its Program Type and 110% cost recovery target. Use this when entering a new program to pick the right type.</p>
+        <p className="text-sm text-slate-500">Every BGPD program mapped to its Program Type and cost recovery target. Use this when entering a new program to pick the right type.</p>
       </div>
 
       {/* Program Type workload table */}
