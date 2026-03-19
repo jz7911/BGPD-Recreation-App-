@@ -102,6 +102,7 @@ const DB_FIELDS = [
   "decision_log",
   "is_archived",
   "fee",
+  "nps_promoters","nps_passives","nps_detractors","nps_total",
 ];
 
 function cleanForDB(p) {
@@ -182,6 +183,7 @@ function newProgram(staffName) {
     decision_log: [],
     is_archived: false,
     fee: 0,
+    nps_promoters:0,nps_passives:0,nps_detractors:0,nps_total:0,
   };
 }
 
@@ -399,6 +401,175 @@ function completionTag(p) {
 
 // ─── UI Primitives ────────────────────────────────────────────────────────────
 // ─── Cost Recovery Gap Panel ──────────────────────────────────────────────────
+// ─── NPS CSV Uploader ──────────────────────────────────────────────────────────
+// Reads a CSV where one column contains 1-10 ratings, calculates NPS
+// Promoters = 9-10, Passives = 7-8, Detractors = 0-6
+// NPS = ((Promoters - Detractors) / Total) * 100, rounded to nearest whole number
+function NPSUploader({programId,programName,currentNPS,onSave}){
+  const [dragging,setDragging]=useState(false);
+  const [result,setResult]=useState(null);
+  const [error,setError]=useState("");
+  const [preview,setPreview]=useState(null);
+  const [ratingCol,setRatingCol]=useState("");
+  const [headers,setHeaders]=useState([]);
+  const [rows,setRows]=useState([]);
+  const [saving,setSaving]=useState(false);
+
+  function parseCSV(text){
+    const lines=text.trim().split(/\r?\n/);
+    if(lines.length<2){setError("CSV needs at least a header row and one data row.");return;}
+    // Parse with basic CSV logic (handles quoted fields)
+    const parseRow=(line)=>{
+      const cells=[];let cur="";let inQ=false;
+      for(let i=0;i<line.length;i++){
+        const ch=line[i];
+        if(ch==='"'){inQ=!inQ;}
+        else if(ch===","&&!inQ){cells.push(cur.trim());cur="";}
+        else{cur+=ch;}
+      }
+      cells.push(cur.trim());
+      return cells;
+    };
+    const hdrs=parseRow(lines[0]);
+    const data=lines.slice(1).map(parseRow);
+    setHeaders(hdrs);
+    setRows(data);
+    setError("");
+    // Auto-detect the rating column: look for col with mostly 1-10 integers
+    let bestCol="";let bestScore=0;
+    hdrs.forEach((h,i)=>{
+      const vals=data.map(r=>parseFloat(r[i])).filter(v=>!isNaN(v)&&v>=0&&v<=10);
+      const score=vals.length/data.length;
+      if(score>bestScore){bestScore=score;bestCol=h;}
+    });
+    if(bestCol)setRatingCol(bestCol);
+    setResult(null);
+    setPreview({hdrs,data});
+  }
+
+  function handleFile(file){
+    if(!file){return;}
+    if(!file.name.match(/\.csv$/i)){setError("Please upload a .csv file.");return;}
+    const reader=new FileReader();
+    reader.onload=e=>parseCSV(e.target.result);
+    reader.readAsText(file);
+  }
+
+  function calculate(){
+    if(!ratingCol){setError("Select the column containing ratings.");return;}
+    const colIdx=headers.indexOf(ratingCol);
+    if(colIdx<0){setError("Column not found.");return;}
+    let promoters=0,passives=0,detractors=0,invalid=0;
+    rows.forEach(row=>{
+      const val=parseFloat(row[colIdx]);
+      if(isNaN(val)||val<0||val>10){invalid++;return;}
+      const rounded=Math.round(val);
+      if(rounded>=9)promoters++;
+      else if(rounded>=7)passives++;
+      else detractors++;
+    });
+    const total=promoters+passives+detractors;
+    if(total===0){setError("No valid 0–10 ratings found in that column.");return;}
+    const nps=Math.round(((promoters-detractors)/total)*100);
+    setResult({promoters,passives,detractors,total,nps,invalid});
+    setError("");
+  }
+
+  async function saveNPS(){
+    if(!result)return;
+    setSaving(true);
+    onSave(result.nps,result.promoters,result.passives,result.detractors,result.total);
+    setSaving(false);
+    setPreview(null);setRows([]);setHeaders([]);setResult(null);setRatingCol("");
+  }
+
+  const npsColor=result?(result.nps>=50?"#16a34a":result.nps>=0?"#d97706":"#dc2626"):"#64748b";
+
+  return(
+    <div className="space-y-4">
+      {/* Current NPS display */}
+      {currentNPS>0&&(
+        <div className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 bg-slate-50">
+          <div>
+            <div className="text-xs text-slate-400 uppercase tracking-wide font-semibold">Current NPS Score</div>
+            <div className="text-2xl font-black" style={{color:currentNPS>=50?"#16a34a":currentNPS>=0?"#d97706":"#dc2626"}}>{currentNPS}</div>
+          </div>
+          <div className="text-xs text-slate-400 leading-relaxed">
+            NPS ranges from −100 to +100.<br/>≥50 = Excellent · ≥0 = Good · &lt;0 = Needs work
+          </div>
+        </div>
+      )}
+
+      {/* Upload zone */}
+      <div
+        onDragOver={e=>{e.preventDefault();setDragging(true);}}
+        onDragLeave={()=>setDragging(false)}
+        onDrop={e=>{e.preventDefault();setDragging(false);handleFile(e.dataTransfer.files[0]);}}
+        className="rounded-xl border-2 border-dashed p-6 text-center transition cursor-pointer"
+        style={{borderColor:dragging?"#29ABE2":"#cbd5e1",background:dragging?"#f0f9ff":"#f8fafc"}}
+        onClick={()=>document.getElementById("nps-csv-"+programId)?.click()}>
+        <input id={"nps-csv-"+programId} type="file" accept=".csv" className="hidden"
+          onChange={e=>handleFile(e.target.files[0])}/>
+        <div className="text-2xl mb-2">📊</div>
+        <div className="text-sm font-semibold text-slate-700">Drop your survey CSV here or click to browse</div>
+        <div className="text-xs text-slate-400 mt-1">Export your survey results as CSV — the app will find the rating column automatically</div>
+      </div>
+
+      {error&&<div className="text-sm text-red-600 font-medium">{error}</div>}
+
+      {/* Column selector + calculate */}
+      {preview&&(
+        <div className="space-y-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex-1 min-w-48">
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Which column has the 1–10 ratings?</label>
+              <select value={ratingCol} onChange={e=>setRatingCol(e.target.value)}
+                className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
+                <option value="">Select column…</option>
+                {headers.map(h=><option key={h}>{h}</option>)}
+              </select>
+            </div>
+            <button onClick={calculate}
+              className="shrink-0 px-4 py-2 text-sm font-bold rounded-lg text-white mt-4"
+              style={{background:"#1e3a5f"}}>
+              Calculate NPS
+            </button>
+          </div>
+          <div className="text-xs text-slate-400">{preview.data.length} response{preview.data.length!==1?"s":""} loaded · {headers.length} columns detected</div>
+        </div>
+      )}
+
+      {/* Result */}
+      {result&&(
+        <div className="rounded-xl border overflow-hidden" style={{borderColor:"#e2e8f0"}}>
+          <div className="px-4 py-3 flex items-center justify-between" style={{background:"#f8fafc"}}>
+            <div>
+              <div className="text-xs text-slate-400 uppercase tracking-wide font-semibold mb-0.5">Calculated NPS</div>
+              <div className="text-3xl font-black" style={{color:npsColor}}>{result.nps}</div>
+            </div>
+            <div className="text-right text-xs text-slate-500 space-y-0.5">
+              <div><span className="font-bold text-green-600">{result.promoters}</span> Promoters (9–10)</div>
+              <div><span className="font-bold text-amber-500">{result.passives}</span> Passives (7–8)</div>
+              <div><span className="font-bold text-red-500">{result.detractors}</span> Detractors (0–6)</div>
+              <div className="text-slate-400">{result.total} total · {result.invalid>0?`${result.invalid} skipped`:""}</div>
+            </div>
+          </div>
+          <div className="px-4 py-2 text-xs text-slate-400 border-t border-slate-100">
+            Formula: ((Promoters − Detractors) ÷ Total) × 100
+          </div>
+          <div className="px-4 py-3 border-t border-slate-100 flex justify-end">
+            <button onClick={saveNPS} disabled={saving}
+              className="px-5 py-2 text-sm font-bold rounded-lg text-white disabled:opacity-40"
+              style={{background:"#1e3a5f"}}>
+              {saving?"Saving…":"Save NPS to Program →"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CRGapPanel({svcTarget,k,p}){
   if(!svcTarget) return null;
   const targetCR = svcTarget.min;
@@ -1034,7 +1205,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
                   <td className="px-3 py-2.5 text-slate-500">{p.trend}</td>
                   <td className="px-3 py-2.5 whitespace-nowrap">
                     <Badge status={p.status}/>
-                    {(()=>{const t=completionTag(p);return <span className="ml-1.5 text-xs font-semibold px-1.5 py-0.5 rounded" style={{background:t.bg,color:t.text}}>{t.label}</span>;})()}
+                    
                   </td>
                   <td className="px-3 py-2.5"><button onClick={()=>onEdit(p)} className="text-xs text-slate-400 hover:text-slate-700 font-medium">Edit</button></td>
                 </tr>
@@ -1069,9 +1240,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
                     {!p.hasActuals&&!p.is_archived&&(
                       <span className="ml-2 text-xs px-1.5 py-0.5 rounded font-semibold" style={{background:"#fef3c7",color:"#92400e"}}>Budgeted Only</span>
                     )}
-                    {p.hasActuals&&(p.act_enrollment>0&&p.act_revenue>0&&p.ant_enrollment>0)&&(
-                      <span className="ml-2 text-xs px-1.5 py-0.5 rounded font-semibold" style={{background:"#dcfce7",color:"#166534"}}>Complete</span>
-                    )}
+
                     {(()=>{
                       const svt=getSvcTarget(p.service_category,p.costRecovery);
                       if(!svt||!p.hasActuals||p.costRecovery>=svt.min) return null;
@@ -1113,7 +1282,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <Badge status={p.status}/>
-                  {(()=>{const t=completionTag(p);return <span className="text-xs font-semibold px-1.5 py-0.5 rounded" style={{background:t.bg,color:t.text}}>{t.label}</span>;})()}
+                  
                 </div>
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -1144,7 +1313,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
 // ─── Dashboard (Manager View — full analytics) ────────────────────────────────
 // ─── Needs Attention Accordion ───────────────────────────────────────────────
 function NeedsAttentionQueue({programs,onEdit}){
-  const [open,setOpen]=useState(true);
+  const [open,setOpen]=useState(false);
   return(
     <div className="border border-red-200 rounded-lg overflow-hidden">
       <button onClick={()=>setOpen(o=>!o)}
@@ -1183,7 +1352,7 @@ function NeedsAttentionQueue({programs,onEdit}){
 function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   const [filters,setFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
   function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
-  const [collapsed,setCollapsed] = useState({});
+  const [collapsed,setCollapsed] = useState({topbottom:true,rpp:true,capacity:true,classmix:true,workload:true});
   function toggleSection(id){setCollapsed(s=>({...s,[id]:!s[id]}));}
   function SectionHeader({id,title,sub,badge}){
     const open = !collapsed[id];
@@ -1594,11 +1763,11 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
           <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
             <div>
               <h3 className="font-bold text-slate-700 text-sm">NPS Summary</h3>
-              <p className="text-xs text-slate-400 mt-0.5">{withNPS.length} of {kpis.length} programs have NPS data</p>
+              <p className="text-xs text-slate-400 mt-0.5">{withNPS.length} of {kpis.length} programs have NPS data · NPS = ((Promoters − Detractors) ÷ Total) × 100</p>
             </div>
             <div className="text-right">
-              <div className="text-xs text-slate-400">Snapshot Avg</div>
-              <div className={`text-2xl font-black ${avgNPS>=70?"text-green-600":avgNPS>=50?"text-amber-500":"text-red-500"}`}>{avgNPS}</div>
+              <div className="text-xs text-slate-400">Portfolio Avg NPS</div>
+              <div className={`text-2xl font-black ${avgNPS>=50?"text-green-600":avgNPS>=0?"text-amber-500":"text-red-500"}`}>{avgNPS??"—"}</div>
             </div>
           </div>
           {npsByArea.length>1&&(
@@ -1621,17 +1790,34 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
               </table>
             </div>
           )}
-          {lowNPS.length>0&&(
-            <div className="px-4 py-3 border-t border-slate-100 bg-red-50">
-              <div className="text-xs font-bold text-red-600 uppercase tracking-widest mb-2">Low NPS Programs (below 50)</div>
-              <div className="space-y-1">
-                {lowNPS.map(p=>(
-                  <div key={p.id} className="flex items-center justify-between">
-                    <button onClick={()=>onEdit(p)} className="text-sm text-slate-700 hover:text-blue-600 hover:underline">{p.name}</button>
-                    <span className="text-sm font-bold text-red-600">{p.nps}</span>
-                  </div>
-                ))}
-              </div>
+          {withNPS.length>0&&(
+            <div className="overflow-x-auto border-t border-slate-100">
+              <table className="w-full text-xs">
+                <thead><tr className="bg-slate-50 text-slate-400 uppercase tracking-wider">
+                  <th className="px-4 py-2 text-left font-semibold">Program</th>
+                  <th className="px-4 py-2 text-center font-semibold text-green-600">Promoters</th>
+                  <th className="px-4 py-2 text-center font-semibold text-amber-500">Passives</th>
+                  <th className="px-4 py-2 text-center font-semibold text-red-500">Detractors</th>
+                  <th className="px-4 py-2 text-center font-semibold">Total</th>
+                  <th className="px-4 py-2 text-center font-semibold">NPS</th>
+                </tr></thead>
+                <tbody>{withNPS.sort((a,b)=>b.nps-a.nps).map((p,i)=>{
+                  const npsColor=p.nps>=50?"#16a34a":p.nps>=0?"#d97706":"#dc2626";
+                  return(
+                    <tr key={p.id} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
+                      <td className="px-4 py-2.5">
+                        <button onClick={()=>onEdit(p)} className="font-semibold text-slate-700 hover:text-blue-600 hover:underline text-left">{p.name}</button>
+                        <div className="text-slate-400">{p.area} · {p.season}</div>
+                      </td>
+                      <td className="px-4 py-2.5 text-center font-bold text-green-600">{p.nps_promoters||"—"}</td>
+                      <td className="px-4 py-2.5 text-center font-bold text-amber-500">{p.nps_passives||"—"}</td>
+                      <td className="px-4 py-2.5 text-center font-bold text-red-500">{p.nps_detractors||"—"}</td>
+                      <td className="px-4 py-2.5 text-center text-slate-400">{p.nps_total||"—"}</td>
+                      <td className="px-4 py-2.5 text-center font-black" style={{color:npsColor}}>{p.nps}</td>
+                    </tr>
+                  );
+                })}</tbody>
+              </table>
             </div>
           )}
         </div>
@@ -1792,7 +1978,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                   <td className="px-3 py-2.5 text-slate-500">{p.trend}</td>
                   <td className="px-3 py-2.5 whitespace-nowrap">
                     <Badge status={p.status}/>
-                    {(()=>{const t=completionTag(p);return <span className="ml-1.5 text-xs font-semibold px-1.5 py-0.5 rounded" style={{background:t.bg,color:t.text}}>{t.label}</span>;})()}
+                    
                   </td>
                   <td className="px-3 py-2.5 whitespace-nowrap">
                     {prior ? (
@@ -1843,9 +2029,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                     {!p.hasActuals&&!p.is_archived&&(
                       <span className="ml-2 text-xs px-1.5 py-0.5 rounded font-semibold" style={{background:"#fef3c7",color:"#92400e"}}>Budgeted Only</span>
                     )}
-                    {p.hasActuals&&(p.act_enrollment>0&&p.act_revenue>0&&p.ant_enrollment>0)&&(
-                      <span className="ml-2 text-xs px-1.5 py-0.5 rounded font-semibold" style={{background:"#dcfce7",color:"#166534"}}>Complete</span>
-                    )}
+
                     {(()=>{
                       const svt=getSvcTarget(p.service_category,p.costRecovery);
                       if(!svt||!p.hasActuals||p.costRecovery>=svt.min) return null;
@@ -2233,7 +2417,33 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                 <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Post-Program Observations</div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <Inp label="Participation Trend" value={p.trend||"New"} onChange={setField("trend")} options={TRENDS}/>
-                  <Inp label="NPS Score" type="number" value={p.nps} onChange={setField("nps")} min={0} max={100} hint="0–100 · leave blank if not collected"/>
+                  {isManager&&(
+                    <div className="sm:col-span-3 mt-2">
+                      <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">NPS — Upload Survey Responses</div>
+                      <NPSUploader
+                        programId={p.id||"new"}
+                        programName={p.name}
+                        currentNPS={p.nps||0}
+                        onSave={(nps,promoters,passives,detractors,total)=>{
+                          setField("nps")(nps);
+                          setField("nps_promoters")(promoters);
+                          setField("nps_passives")(passives);
+                          setField("nps_detractors")(detractors);
+                          setField("nps_total")(total);
+                        }}
+                      />
+                      {p.nps>0&&!isManager&&(
+                        <div className="text-sm text-slate-500 mt-1">NPS Score: <span className="font-bold text-slate-700">{p.nps}</span></div>
+                      )}
+                    </div>
+                  )}
+                  {!isManager&&p.nps>0&&(
+                    <div className="sm:col-span-3 mt-2 p-3 rounded-lg border border-slate-100 bg-slate-50">
+                      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">NPS Score</div>
+                      <div className="text-2xl font-black" style={{color:p.nps>=50?"#16a34a":p.nps>=0?"#d97706":"#dc2626"}}>{p.nps}</div>
+                      <div className="text-xs text-slate-400 mt-0.5">{p.nps_total>0?`Based on ${p.nps_total} responses`:""}</div>
+                    </div>
+                  )}
                   <Inp label="Waitlist" type="number" value={p.waitlist||0} onChange={setField("waitlist")} min={0} hint="Participants who couldn't register"/>
                 </div>
               </div>
