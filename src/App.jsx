@@ -1177,7 +1177,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
     <div className="space-y-6">
       <div className="space-y-2">
         <MultiFilter filters={filters} onChange={onFilterChange}
-          counts={{staff:[],area:allAreas,season:allSeasons,year:allYears}}/>
+          counts={{staff:allStaff,area:allAreas,season:allSeasons,year:allYears}}/>
         <div className="flex gap-2 justify-end">
           <button onClick={()=>exportCSV(vis)} className="text-xs font-semibold px-3 py-2 rounded border border-slate-200 text-slate-500 hover:bg-slate-50 transition whitespace-nowrap">↓ Export CSV</button>
           <button onClick={()=>setShowReport(true)} className="text-xs font-semibold px-3 py-2 rounded transition whitespace-nowrap text-white" style={{backgroundColor:"#1e3a5f"}}>⬜ Season Report</button>
