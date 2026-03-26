@@ -104,6 +104,7 @@ const DB_FIELDS = [
   "fee",
   "nps_promoters","nps_passives","nps_detractors","nps_total",
   "pricing_decision","pricing_target_fee","pricing_rationale","pricing_notes","pricing_subsidy","pricing_subsidy_amount",
+  "budget_mode","sub_programs",
 ];
 
 function cleanForDB(p) {
@@ -186,6 +187,7 @@ function newProgram(staffName) {
     fee: 0,
     nps_promoters:0,nps_passives:0,nps_detractors:0,nps_total:0,
     pricing_decision:"",pricing_target_fee:0,pricing_rationale:"",pricing_notes:"",pricing_subsidy:null,pricing_subsidy_amount:0,
+    budget_mode:"seasonal",sub_programs:[],
   };
 }
 
@@ -1175,7 +1177,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
     <div className="space-y-6">
       <div className="space-y-2">
         <MultiFilter filters={filters} onChange={onFilterChange}
-          counts={{staff:allStaff,area:allAreas,season:allSeasons,year:allYears}}/>
+          counts={{staff:[],area:allAreas,season:allSeasons,year:allYears}}/>
         <div className="flex gap-2 justify-end">
           <button onClick={()=>exportCSV(vis)} className="text-xs font-semibold px-3 py-2 rounded border border-slate-200 text-slate-500 hover:bg-slate-50 transition whitespace-nowrap">↓ Export CSV</button>
           <button onClick={()=>setShowReport(true)} className="text-xs font-semibold px-3 py-2 rounded transition whitespace-nowrap text-white" style={{backgroundColor:"#1e3a5f"}}>⬜ Season Report</button>
@@ -2280,6 +2282,242 @@ function MultiSeasonView({programs,onEdit}) {
 }
 
 // ─── Program Form ─────────────────────────────────────────────────────────────
+
+
+// ─── Clubhouse Cost Allocator ─────────────────────────────────────────────────
+const CB_COST_CATEGORIES = [
+  "Program Supplies","Office Supplies","Staff Shirts","Kid Shirts",
+  "MIS / Technology","Staffing","Other",
+];
+function ClubhouseCostAllocator({sites,totalCosts,onApply}){
+  const [open,setOpen]=useState(false);
+  const [mode,setMode]=useState("enrollment"); // "enrollment" | "manual"
+  const [catTotals,setCatTotals]=useState(Object.fromEntries(CB_COST_CATEGORIES.map(c=>[c,""])));
+  const [enrollments,setEnrollments]=useState(Object.fromEntries((sites||[]).map(s=>[s,""])));
+  const [manualPcts,setManualPcts]=useState(Object.fromEntries((sites||[]).map(s=>[s,""])));
+  const [result,setResult]=useState(null);
+
+  const totalEnr=Object.values(enrollments).reduce((a,v)=>a+(parseFloat(v)||0),0);
+  const totalPct=Object.values(manualPcts).reduce((a,v)=>a+(parseFloat(v)||0),0);
+  const grandTotal=Object.values(catTotals).reduce((a,v)=>a+(parseFloat(v)||0),0);
+
+  function calculate(){
+    const pcts={};
+    if(mode==="enrollment"){
+      (sites||[]).forEach(s=>{
+        pcts[s]=totalEnr>0?(parseFloat(enrollments[s])||0)/totalEnr:1/(sites||[]).length;
+      });
+    } else {
+      (sites||[]).forEach(s=>{
+        pcts[s]=(parseFloat(manualPcts[s])||0)/100;
+      });
+    }
+    const alloc={};
+    (sites||[]).forEach(s=>{
+      alloc[s]={};
+      CB_COST_CATEGORIES.forEach(cat=>{
+        alloc[s][cat]=Math.round((parseFloat(catTotals[cat])||0)*pcts[s]);
+      });
+      alloc[s].total=Object.values(alloc[s]).reduce((a,v)=>a+v,0);
+    });
+    setResult({pcts,alloc,grandTotal});
+  }
+
+  return(
+    <div className="rounded-xl border border-blue-200 overflow-hidden">
+      <button onClick={()=>setOpen(o=>!o)}
+        className="w-full px-4 py-3 flex items-center justify-between text-left transition"
+        style={{background:"#eff6ff"}}>
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-blue-800">🏫 Clubhouse Cost Allocator</span>
+            <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-blue-100 text-blue-700">Optional</span>
+          </div>
+          <div className="text-xs text-blue-500 mt-0.5">Enter district-level cost totals → get per-site allocations automatically</div>
+        </div>
+        <span className="text-blue-400 text-xs font-bold ml-4 shrink-0" style={{transform:open?"rotate(180deg)":"rotate(0deg)",display:"inline-block",transition:"transform .2s"}}>▼</span>
+      </button>
+      {open&&(
+        <div className="p-5 space-y-5 bg-white">
+          {/* Mode toggle */}
+          <div className="flex gap-2">
+            {[["enrollment","By Enrollment"],["manual","Manual %"]].map(([m,l])=>(
+              <button key={m} onClick={()=>setMode(m)}
+                className="text-xs px-3 py-1.5 rounded-lg border font-semibold transition"
+                style={mode===m?{background:"#1e3a5f",color:"white",borderColor:"#1e3a5f"}:{background:"#f8fafc",color:"#475569",borderColor:"#e2e8f0"}}>
+                {l}
+              </button>
+            ))}
+          </div>
+
+          {/* Cost category totals */}
+          <div>
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">District-Wide Cost Totals</div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {CB_COST_CATEGORIES.map(cat=>(
+                <div key={cat}>
+                  <label className="block text-xs text-slate-500 mb-1">{cat}</label>
+                  <input type="number" min={0} value={catTotals[cat]} onChange={e=>setCatTotals(t=>({...t,[cat]:e.target.value}))}
+                    placeholder="0" className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1"
+                    style={{MozAppearance:"textfield"}}/>
+                </div>
+              ))}
+            </div>
+            {grandTotal>0&&<div className="mt-2 text-xs text-slate-500">Total: <span className="font-bold text-slate-700">${Math.round(grandTotal).toLocaleString()}</span></div>}
+          </div>
+
+          {/* Allocation basis */}
+          <div>
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
+              {mode==="enrollment"?"Enrollment per Site (for weighting)":"Manual % per Site"}
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+              {(sites||[]).map(s=>(
+                <div key={s}>
+                  <label className="block text-xs text-slate-500 mb-1 truncate">{s.replace(/ /g," ")}</label>
+                  <input type="number" min={0} max={mode==="manual"?100:undefined}
+                    value={mode==="enrollment"?enrollments[s]:manualPcts[s]}
+                    onChange={e=>{
+                      const v=e.target.value;
+                      if(mode==="enrollment") setEnrollments(t=>({...t,[s]:v}));
+                      else setManualPcts(t=>({...t,[s]:v}));
+                    }}
+                    placeholder={mode==="manual"?"10":""} className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1"
+                    style={{MozAppearance:"textfield"}}/>
+                </div>
+              ))}
+            </div>
+            {mode==="manual"&&<div className="mt-1.5 text-xs" style={{color:Math.abs(totalPct-100)<0.5?"#16a34a":"#dc2626"}}>
+              Total: {totalPct.toFixed(1)}% {Math.abs(totalPct-100)<0.5?"✓ Adds to 100%":"— must equal 100%"}
+            </div>}
+          </div>
+
+          <button onClick={calculate}
+            disabled={grandTotal===0||(mode==="enrollment"&&totalEnr===0)||(mode==="manual"&&Math.abs(totalPct-100)>1)}
+            className="px-4 py-2 text-sm font-bold rounded-lg text-white disabled:opacity-40"
+            style={{background:"#1e3a5f"}}>
+            Calculate Allocations
+          </button>
+
+          {result&&(
+            <div className="space-y-3">
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Allocated Cost per Site</div>
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full text-xs">
+                  <thead><tr className="bg-slate-50 text-slate-400 uppercase tracking-wider">
+                    <th className="px-3 py-2 text-left font-semibold">Site</th>
+                    <th className="px-3 py-2 text-center font-semibold">Share</th>
+                    {CB_COST_CATEGORIES.map(cat=><th key={cat} className="px-3 py-2 text-right font-semibold whitespace-nowrap">{cat}</th>)}
+                    <th className="px-3 py-2 text-right font-semibold">Total</th>
+                  </tr></thead>
+                  <tbody>{(sites||[]).map((s,i)=>(
+                    <tr key={s} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
+                      <td className="px-3 py-2 font-semibold text-slate-700 whitespace-nowrap">{s}</td>
+                      <td className="px-3 py-2 text-center text-slate-400">{((result.pcts[s]||0)*100).toFixed(1)}%</td>
+                      {CB_COST_CATEGORIES.map(cat=>(
+                        <td key={cat} className="px-3 py-2 text-right font-mono text-slate-500">${(result.alloc[s][cat]||0).toLocaleString()}</td>
+                      ))}
+                      <td className="px-3 py-2 text-right font-mono font-bold text-slate-700">${(result.alloc[s].total||0).toLocaleString()}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={()=>onApply(result.alloc)}
+                  className="px-4 py-2 text-xs font-bold rounded-lg text-white" style={{background:"#16a34a"}}>
+                  ✓ Apply to Site Entries
+                </button>
+                <span className="text-xs text-slate-400 self-center">This will pre-fill the Personnel/Commodities/Contractuals fields on each site program entry.</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Sub-Program / Session Tracker ───────────────────────────────────────────
+function SubProgramTracker({programs,onChange}){
+  const [open,setOpen]=useState(false);
+  const list=Array.isArray(programs)?programs:[];
+
+  function addRow(){
+    onChange([...list,{id:Date.now(),label:"",day:"",time:"",capacity:0,enrollment:0}]);
+  }
+  function updateRow(id,field,val){
+    onChange(list.map(r=>r.id===id?{...r,[field]:val}:r));
+  }
+  function removeRow(id){
+    onChange(list.filter(r=>r.id!==id));
+  }
+
+  const totalCap=list.reduce((a,r)=>a+(parseInt(r.capacity)||0),0);
+  const totalEnr=list.reduce((a,r)=>a+(parseInt(r.enrollment)||0),0);
+  const overallFill=totalCap>0?(totalEnr/totalCap)*100:0;
+
+  return(
+    <div className="rounded-xl border border-slate-200 overflow-hidden">
+      <button onClick={()=>setOpen(o=>!o)}
+        className="w-full px-4 py-3 flex items-center justify-between text-left bg-slate-50 hover:bg-slate-100 transition">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-slate-700">📋 Individual Classes / Sessions</span>
+            {list.length>0&&<span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{background:"#e0e7ff",color:"#3730a3"}}>{list.length} session{list.length!==1?"s":""}</span>}
+          </div>
+          <div className="text-xs text-slate-400 mt-0.5">Optional — track separate days/times within this program (e.g. Mon 5pm, Wed 6pm)</div>
+        </div>
+        <span className="text-slate-400 text-xs font-bold ml-4 shrink-0" style={{transform:open?"rotate(180deg)":"rotate(0deg)",display:"inline-block",transition:"transform .2s"}}>▼</span>
+      </button>
+      {open&&(
+        <div className="p-4 space-y-3">
+          {list.length>0&&(
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead><tr className="bg-slate-50 text-slate-400 uppercase tracking-wider">
+                  <th className="px-2 py-1.5 text-left font-semibold">Class / Session</th>
+                  <th className="px-2 py-1.5 text-left font-semibold">Day</th>
+                  <th className="px-2 py-1.5 text-left font-semibold">Time</th>
+                  <th className="px-2 py-1.5 text-center font-semibold">Capacity</th>
+                  <th className="px-2 py-1.5 text-center font-semibold">Enrolled</th>
+                  <th className="px-2 py-1.5 text-center font-semibold">Fill %</th>
+                  <th className="px-2 py-1.5"/>
+                </tr></thead>
+                <tbody>{list.map((r,i)=>{
+                  const fill=r.capacity>0?Math.round((r.enrollment/r.capacity)*100):null;
+                  const fillColor=fill!=null?(fill>=70?"#16a34a":fill>=60?"#d97706":"#dc2626"):"#94a3b8";
+                  return(
+                    <tr key={r.id} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
+                      <td className="px-2 py-1.5"><input value={r.label} onChange={e=>updateRow(r.id,"label",e.target.value)} placeholder="e.g. Beginners" className="w-full rounded border border-slate-200 px-2 py-1 text-xs focus:outline-none focus:ring-1"/></td>
+                      <td className="px-2 py-1.5"><input value={r.day} onChange={e=>updateRow(r.id,"day",e.target.value)} placeholder="Mon" className="w-16 rounded border border-slate-200 px-2 py-1 text-xs focus:outline-none focus:ring-1"/></td>
+                      <td className="px-2 py-1.5"><input value={r.time} onChange={e=>updateRow(r.id,"time",e.target.value)} placeholder="5:00pm" className="w-20 rounded border border-slate-200 px-2 py-1 text-xs focus:outline-none focus:ring-1"/></td>
+                      <td className="px-2 py-1.5"><input type="number" min={0} value={r.capacity||""} onChange={e=>updateRow(r.id,"capacity",parseInt(e.target.value)||0)} className="w-16 rounded border border-slate-200 px-2 py-1 text-xs text-center focus:outline-none focus:ring-1" style={{MozAppearance:"textfield"}}/></td>
+                      <td className="px-2 py-1.5"><input type="number" min={0} value={r.enrollment||""} onChange={e=>updateRow(r.id,"enrollment",parseInt(e.target.value)||0)} className="w-16 rounded border border-slate-200 px-2 py-1 text-xs text-center focus:outline-none focus:ring-1" style={{MozAppearance:"textfield"}}/></td>
+                      <td className="px-2 py-1.5 text-center font-bold" style={{color:fillColor}}>{fill!=null?fill+"%":"—"}</td>
+                      <td className="px-2 py-1.5"><button onClick={()=>removeRow(r.id)} className="text-red-300 hover:text-red-500 text-xs font-bold">✕</button></td>
+                    </tr>
+                  );
+                })}</tbody>
+              </table>
+            </div>
+          )}
+          {list.length>0&&(
+            <div className="flex items-center gap-4 px-3 py-2 rounded-lg bg-slate-50 border border-slate-100 text-xs">
+              <span className="text-slate-500">Total: <span className="font-bold text-slate-700">{totalEnr}/{totalCap}</span> enrolled</span>
+              <span className="font-bold" style={{color:overallFill>=70?"#16a34a":overallFill>=60?"#d97706":"#dc2626"}}>{totalCap>0?Math.round(overallFill)+"%":"—"} overall fill</span>
+              {totalCap>0&&overallFill<70&&<span className="text-amber-600 font-semibold">⚠ Some classes may be underperforming</span>}
+            </div>
+          )}
+          <button onClick={addRow} className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-50 transition">
+            + Add Session
+          </button>
+          <p className="text-xs text-slate-400">Sessions are saved with this program. The main Enrollment field above should still reflect the total across all sessions.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,onArchive,onDuplicate,onCancel,saving}) {
   const [p,setP]             = useState(()=> initial ? {...cleanForDB(initial), decision_log: initial.decision_log||[], other1_label: initial.other1_label||"Other Direct Costs", other2_label: initial.other2_label||"Other Direct Costs 2"} : newProgram(staffName));
   const set                  = k => v => setP(prev=>({...prev,[k]:v}));
@@ -2426,6 +2664,14 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
               style={sec===s.id?{borderColor:"#d4a017"}:{}}>{s.label}</button>
           ))}
         </div>
+        {!isNew&&p.name&&(
+          <div className="px-5 py-2 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-500 truncate">{p.name}</span>
+            {p.area&&<span className="text-xs text-slate-300">·</span>}
+            {p.area&&<span className="text-xs text-slate-400">{p.area}</span>}
+            {p.season&&p.year&&<><span className="text-xs text-slate-300">·</span><span className="text-xs text-slate-400">{p.season} FY {toFY(p.year)}</span></>}
+          </div>
+        )}
         <div className="p-5">
           {sec==="info"&&(
             <div className="space-y-4">
@@ -2433,7 +2679,14 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                 <Inp label="Program Name"        value={p.name}                 onChange={setField("name")}              required placeholder="e.g. Youth Basketball"/>
                 <Inp label="Staff Member"        value={p.staff_name}           onChange={setField("staff_name")}        required placeholder="Your name"/>
                 <Inp label="Area"                value={p.area}                 onChange={setField("area")}              options={AREAS}/>
-                <Inp label="Season"              value={p.season}               onChange={setField("season")}            options={SEASONS}/>
+                <div>
+                  <Inp label="Season"              value={p.season}               onChange={v=>{setField("season")(v);setField("budget_mode")(v==="All Year"?"annual":"seasonal");}}  options={SEASONS}/>
+                  {p.season==="All Year"&&(
+                    <div className="mt-1 px-3 py-2 rounded-lg bg-blue-50 border border-blue-100 text-xs text-blue-700">
+                      <span className="font-bold">Annual Budget Mode.</span> Costs and revenue are for the full year. Fill rate and cost recovery are calculated normally — but in dashboard filters, this program shows under "All Year" rather than a specific season.
+                    </div>
+                  )}
+                </div>
                 <Inp label="Year"                value={p.year}                 onChange={setField("year")}              options={YEARS}/>
                 <Inp label="Classification"      value={p.classification}       onChange={setField("classification")}    options={CLASSIFICATIONS}/>
                 <div>
@@ -2465,6 +2718,17 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                 )}
               </div>
               <CostPanel px="ant_" p={p} set={k=>v=>{setField(k)(v);}} isManager={isManager}/>
+              {p.area==="Clubhouse"&&(
+                <ClubhouseCostAllocator
+                  sites={["Country Meadows","Ivy Hall","Kildeer","Kilmer","Longfellow","Meridian","Prairie","Pritchett","Tripp","Willow Grove"]}
+                  totalCosts={{}}
+                  onApply={alloc=>{
+                    // Store allocations in notes as a convenience reference
+                    const summary=Object.entries(alloc).map(([site,costs])=>`${site}: $${costs.total.toLocaleString()}`).join(" | ");
+                    setField("notes")(p.notes?p.notes+"\n\n[Cost Allocation]\n"+summary:"[Cost Allocation]\n"+summary);
+                  }}
+                />
+              )}
               {(p.ant_enrollment>0||p.ant_revenue>0||p.ant_capacity>0)&&!hasActuals&&(
                 <div className="mt-5 p-4 rounded-xl border-2 border-dashed text-center" style={{borderColor:"#d4a017",background:"#fffbeb"}}>
                   <div className="text-sm font-bold mb-1" style={{color:"#92400e"}}>✓ Budgeted complete — you're done for now</div>
@@ -2559,9 +2823,12 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                       </div>
                     )}
                   </div>
-                  <Inp label="Waitlist" type="number" value={p.waitlist||0} onChange={setField("waitlist")} min={0} hint="Participants who couldn't register"/>
+                  <Inp label="Waitlist" type="number" value={p.waitlist!=null?p.waitlist:""} onChange={v=>setField("waitlist")(v===""?null:Math.max(0,parseInt(v)||0))} min={0} hint="Enter 0 to confirm no waitlist, or leave blank if unknown"/>
                 </div>
               </div>
+              <SubProgramTracker
+                programs={Array.isArray(p.sub_programs)?p.sub_programs:[]}
+                onChange={v=>setField("sub_programs")(v)}/>
             </div>
           )}
           {sec==="summary"&&(
@@ -2952,6 +3219,8 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   const [decFilter,setDecFilter]=useState("all");
   const [search,setSearch]=useState("");
   const [matchedProgram,setMatchedProgram]=useState(null);
+  const [savedId,setSavedId]=useState(null);
+  const [toast,setToast]=useState("");
 
   const emptyForm={
     // Info
@@ -3104,8 +3373,19 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
       
       pillars_met:pillarsStr,
     };
-    if(editRow){await db.from("admin_reviews").update(d).eq("id",editRow.id);}
-    else{await db.from("admin_reviews").insert(d);}
+    let savedRow;
+    if(editRow){
+      await db.from("admin_reviews").update(d).eq("id",editRow.id);
+      savedRow=editRow;
+    } else {
+      const {data:ins}=await db.from("admin_reviews").insert(d).select().single();
+      savedRow=ins;
+    }
+    // Clear all filters so the review is visible, then highlight it
+    setFyFilter("all");setDecFilter("all");setSearch("");
+    setSavedId(savedRow?.id||null);
+    setToast(editRow?"Review updated ✓":"Review saved ✓");
+    setTimeout(()=>{setToast("");setSavedId(null);},4000);
     setView("list");setEditRow(null);setForm(emptyForm);setActiveStep(0);setMatchedProgram(null);load();
   }
 
@@ -3227,6 +3507,11 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
           </div>
         </div>
       )}
+      {toast&&(
+        <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-green-800 bg-green-50 border border-green-200">
+          <span className="text-lg">✓</span>{toast}
+        </div>
+      )}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="font-bold text-slate-800" style={{fontSize:"18px"}}>Program Review Checklist</h2>
@@ -3290,7 +3575,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
             const dc=dcColor[r.decision]||"#64748b";
             const frDelta=r.prior_fill_rate?r.fill_rate-r.prior_fill_rate:null;
             return(
-              <div key={r.id} className={`${i>0?"border-t border-slate-50":""} px-4 py-4 flex items-start gap-4 hover:bg-slate-50 transition`}>
+              <div key={r.id} className={`${i>0?"border-t border-slate-50":""} px-4 py-4 flex items-start gap-4 hover:bg-slate-50 transition ${savedId===r.id?"bg-green-50 border-l-4 border-green-400":""}`}>
                 <div className="shrink-0 mt-0.5 w-24 text-center">
                   <span className="inline-block px-2 py-1 rounded text-xs font-bold text-white w-full" style={{background:dc}}>{r.decision||"—"}</span>
                   <div className="text-xs text-slate-400 mt-1">{r.season} {r.fy?.slice(2,4)}</div>
