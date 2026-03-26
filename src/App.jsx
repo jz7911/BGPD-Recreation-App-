@@ -3221,6 +3221,8 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   const [matchedProgram,setMatchedProgram]=useState(null);
   const [savedId,setSavedId]=useState(null);
   const [toast,setToast]=useState("");
+  const [reviewMode,setReviewMode]=useState("full"); // "full" | "quick"
+  const [autoSaving,setAutoSaving]=useState(false);
 
   const emptyForm={
     // Info
@@ -3391,10 +3393,39 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
 
   async function del(id){await db.from("admin_reviews").delete().eq("id",id);setConfirm(null);load();}
 
-  function startNew(){
+  // Auto-save on Next — saves current form state without leaving the form
+  async function autoSave(){
+    if(autoSaving) return;
+    setAutoSaving(true);
+    const pillarsStr=computePillars(form).filter(p=>p.met).map(p=>p.n).join(",");
+    const d={...form,
+      revenue:parseFloat(form.revenue)||0,
+      direct_costs:parseFloat(form.direct_costs)||0,
+      cost_recovery:parseFloat(form.cost_recovery)||0,
+      prior_cr:parseFloat(form.prior_cr)||0,
+      fill_rate:parseFloat(form.fill_rate)||0,
+      prior_fill_rate:parseFloat(form.prior_fill_rate)||0,
+      seasons_below_threshold:parseInt(form.seasons_below_threshold)||0,
+      nps:form.nps?parseInt(form.nps):null,
+      enrollment:parseInt(form.enrollment)||0,
+      capacity:parseInt(form.capacity)||0,
+      waitlist:parseInt(form.waitlist)||0,
+      pillars_met:pillarsStr,
+    };
+    if(editRow){
+      await db.from("admin_reviews").update(d).eq("id",editRow.id);
+    } else {
+      // First auto-save: insert and store row so subsequent saves are updates
+      const {data:ins}=await db.from("admin_reviews").insert(d).select().single();
+      if(ins) setEditRow(ins);
+    }
+    setAutoSaving(false);
+  }
+
+  function startNew(mode="full"){
     setEditRow(null);
     setForm({...emptyForm, supervisor: isManager ? "" : staffName});
-    setActiveStep(0);setMatchedProgram(null);setView("form");
+    setActiveStep(0);setMatchedProgram(null);setReviewMode(mode);setView("form");
   }
   function startEdit(r){
     setEditRow(r);
@@ -3521,9 +3552,14 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               : `Your program reviews — complete one after each season`}
           </p>
         </div>
-        <button onClick={startNew} className="px-4 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>
-          + New Review
-        </button>
+        <div className="flex gap-2">
+          <button onClick={()=>startNew("quick")} className="px-4 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#d4a017",color:"#1e3a5f"}}>
+            ⚡ Quick Review
+          </button>
+          <button onClick={()=>startNew("full")} className="px-4 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>
+            + Full Review
+          </button>
+        </div>
       </div>
 
       {/* Summary cards */}
@@ -3782,12 +3818,28 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   return(
     <div>
       <button onClick={()=>{setView("list");setActiveStep(0);setMatchedProgram(null);}} className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 mb-5">← All reviews</button>
-      <div className="mb-5">
-        <h2 className="font-bold text-slate-800 text-lg">{editRow?"Edit Review":"New Program Review"}</h2>
-        <p className="text-sm text-slate-400 mt-0.5">Complete all sections, then submit</p>
+      <div className="mb-5 flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="font-bold text-slate-800 text-lg">{editRow?"Edit Review":reviewMode==="quick"?"⚡ Quick Review":"New Program Review"}</h2>
+          <p className="text-sm text-slate-400 mt-0.5">
+            {reviewMode==="quick"
+              ? "Essential fields only — saves automatically as you go"
+              : "Complete all sections, then submit"}
+          </p>
+        </div>
+        {!editRow&&(
+          <button onClick={()=>setReviewMode(m=>m==="quick"?"full":"quick")}
+            className="text-xs px-3 py-1.5 rounded-lg border font-semibold transition"
+            style={reviewMode==="quick"
+              ?{background:"#1e3a5f",color:"white",borderColor:"#1e3a5f"}
+              :{background:"#fef3c7",color:"#92400e",borderColor:"#fde68a"}}>
+            {reviewMode==="quick"?"Switch to Full Review →":"⚡ Switch to Quick Review"}
+          </button>
+        )}
       </div>
 
-      {/* Step nav */}
+      {/* Step nav — full mode only */}
+      {reviewMode==="full"&&(
       <div className="flex gap-1 mb-5 overflow-x-auto pb-1">
         {STEPS.map((st,i)=>{
           const done=i<activeStep; const active=i===activeStep;
@@ -3800,9 +3852,10 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
           );
         })}
       </div>
+      )}
 
-      {/* Live pillar bar */}
-      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 mb-5">
+      {/* Live pillar bar — full mode only */}
+      {reviewMode==="full"&&<div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 mb-5">
         <div className="flex items-center justify-between mb-2">
           <div className="text-xs font-bold text-slate-600 uppercase tracking-widest">Pillar Score</div>
           <div className={`text-sm font-bold ${overallPass?"text-green-600":"text-red-500"}`}>
@@ -3817,9 +3870,79 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
             </div>
           ))}
         </div>
-      </div>
+      </div>}
 
-      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6 space-y-5">
+      {/* ── QUICK REVIEW FORM ── */}
+      {reviewMode==="quick"&&(
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6 space-y-5">
+          <div className="rounded-lg bg-amber-50 border border-amber-100 px-4 py-3 text-xs text-amber-700">
+            <span className="font-bold">Quick Review</span> — fill in what you know and hit Next to auto-save. You can come back and add more detail anytime.
+          </div>
+          {/* Program Info */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Program Name <span className="text-red-400">*</span></label>
+              <input value={form.program_name} onChange={e=>handleProgramName(e.target.value)}
+                list="program-list-q" className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2"/>
+              <datalist id="program-list-q">
+                {[...new Set((reviewablePrograms||[]).map(p=>p.name).filter(Boolean))].map(n=><option key={n} value={n}/>)}
+              </datalist>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Supervisor</label>
+              <input value={form.supervisor} onChange={e=>s("supervisor",e.target.value)} className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2"/>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Season</label>
+              <select value={form.season} onChange={e=>s("season",e.target.value)} className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
+                {["","Spring","Summer","Fall","Winter","Annual","Year-Round"].map(o=><option key={o}>{o}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Fiscal Year</label>
+              <select value={form.fy} onChange={e=>s("fy",e.target.value)} className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
+                {ADMIN_FYS.map(f=><option key={f}>{f}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Fill Rate (%)</label>
+              <input type="number" value={form.fill_rate} onChange={e=>s("fill_rate",e.target.value)} className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2" style={{MozAppearance:"textfield"}} placeholder="e.g. 72"/>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Cost Recovery (%)</label>
+              <input type="number" value={form.cost_recovery} onChange={e=>s("cost_recovery",e.target.value)} className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2" style={{MozAppearance:"textfield"}} placeholder="e.g. 105"/>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Trend</label>
+              <select value={form.trend} onChange={e=>s("trend",e.target.value)} className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
+                {["Growing","Stable","Declining","New"].map(o=><option key={o}>{o}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Decision</label>
+              <select value={form.decision} onChange={e=>s("decision",e.target.value)} className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
+                {DECISIONS.map(d=><option key={d}>{d}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Notes / Action Items</label>
+            <textarea value={form.action_items} onChange={e=>s("action_items",e.target.value)} rows={3}
+              placeholder="Key observations, next steps…"
+              className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 resize-none"/>
+          </div>
+          {autoSaving&&<div className="text-xs text-slate-400 italic">Saving…</div>}
+          <div className="flex justify-between pt-2 border-t border-slate-100">
+            <button onClick={()=>{setView("list");setActiveStep(0);setMatchedProgram(null);}} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600">← Back</button>
+            <button onClick={async()=>{await autoSave();setView("list");setActiveStep(0);setMatchedProgram(null);load();}}
+              className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>
+              Save & Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {reviewMode==="full"&&<div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6 space-y-5">
 
         {/* ── STEP 0: Program Info ── */}
         {activeStep===0&&(
@@ -4084,17 +4207,20 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
         <div className="flex items-center justify-between pt-4 border-t border-slate-100">
           <button onClick={()=>setActiveStep(a=>Math.max(0,a-1))} disabled={activeStep===0}
             className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600 disabled:opacity-30">← Back</button>
-          {activeStep<STEPS.length-1?(
-            <button onClick={()=>setActiveStep(a=>a+1)}
-              className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>Next →</button>
-          ):(
-            <button onClick={save}
-              className="px-6 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#16a34a"}}>
-              {editRow?"Update Review":"Save Review"}
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {autoSaving&&<span className="text-xs text-slate-400 italic">Saving…</span>}
+            {activeStep<STEPS.length-1?(
+              <button onClick={async()=>{await autoSave();setActiveStep(a=>a+1);}}
+                className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>Next →</button>
+            ):(
+              <button onClick={save}
+                className="px-6 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#16a34a"}}>
+                {editRow?"Update Review":"Save Review"}
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }
