@@ -3774,7 +3774,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
           })}
         </div>
       )}
-      {confirm&&<AConfirm message="Delete this review?" onConfirm={()=>del(confirm)} onCancel={()=>setConfirm(null)}/>}
+      {confirm&&<ConfirmModal message="Delete this review? This cannot be undone." onConfirm={()=>del(confirm)} onCancel={()=>setConfirm(null)} confirmLabel="Delete" confirmColor="#ef4444"/>}
     </div>
   );
 
