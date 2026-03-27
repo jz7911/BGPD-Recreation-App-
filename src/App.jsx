@@ -3387,8 +3387,9 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
     setFyFilter("all");setDecFilter("all");setSearch("");
     setSavedId(savedRow?.id||null);
     setToast(editRow?"Review updated ✓":"Review saved ✓");
-    setTimeout(()=>{setToast("");setSavedId(null);},4000);
-    setView("list");setEditRow(null);setForm(emptyForm);setActiveStep(0);setMatchedProgram(null);load();
+    setTimeout(()=>{setToast("");setSavedId(null);},5000);
+    await load(); // wait for fresh data before switching view
+    setView("list");setEditRow(null);setForm(emptyForm);setActiveStep(0);setMatchedProgram(null);
   }
 
   async function del(id){await db.from("admin_reviews").delete().eq("id",id);setConfirm(null);load();}
@@ -3443,8 +3444,13 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   }
 
   const filtered=reviews.filter(r=>{
-    // Staff only see reviews for programs they created
-    if(!isManager && staffName && r.supervisor?.toLowerCase().trim()!==staffName.toLowerCase().trim()) return false;
+    // Staff only see reviews where they are the supervisor (case-insensitive)
+    // Always show the just-saved review regardless of name match
+    if(!isManager && staffName && r.id!==savedId) {
+      const sup=(r.supervisor||"").toLowerCase().trim();
+      const me=staffName.toLowerCase().trim();
+      if(sup!==me) return false;
+    }
     if(fyFilter!=="all"&&r.fy!==fyFilter) return false;
     if(decFilter!=="all"&&r.decision!==decFilter) return false;
     if(search&&!r.program_name?.toLowerCase().includes(search.toLowerCase())&&!r.supervisor?.toLowerCase().includes(search.toLowerCase())) return false;
@@ -3934,7 +3940,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
           {autoSaving&&<div className="text-xs text-slate-400 italic">Saving…</div>}
           <div className="flex justify-between pt-2 border-t border-slate-100">
             <button onClick={()=>{setView("list");setActiveStep(0);setMatchedProgram(null);}} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600">← Back</button>
-            <button onClick={async()=>{await autoSave();setView("list");setActiveStep(0);setMatchedProgram(null);load();}}
+            <button onClick={async()=>{await autoSave();setFyFilter("all");setDecFilter("all");setSearch("");await load();setView("list");setActiveStep(0);setMatchedProgram(null);}}
               className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#1e3a5f"}}>
               Save & Close
             </button>
