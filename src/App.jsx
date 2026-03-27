@@ -1147,13 +1147,14 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
   function onFilterChange(key, val) { setFilters(f=>({...f,[key]:val})); }
 
   const allStaff   = [...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
-  const myPrograms = isManager ? programs : programs.filter(p=>p.staff_name?.toLowerCase().trim()===staffName.toLowerCase().trim());
+  const myPrograms = programs.filter(p=>p.staff_name?.toLowerCase().trim()===staffName.toLowerCase().trim());
   const allAreas   = [...new Set(myPrograms.map(p=>p.area))];
   const allYears   = [...YEARS];
   const allSeasons = [...SEASONS];
 
   const vis  = programs
     .filter(p=>!p.is_archived)
+    .filter(p=>p.staff_name?.toLowerCase().trim()===staffName.toLowerCase().trim())
     .filter(p=>filters.staff.size===0||filters.staff.has(p.staff_name))
     .filter(p=>filters.area.size===0||filters.area.has(p.area))
     .filter(p=>filters.year.size===0||filters.year.has(toFY(p.year)))
