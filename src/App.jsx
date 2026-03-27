@@ -3221,6 +3221,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   const [matchedProgram,setMatchedProgram]=useState(null);
   const [savedId,setSavedId]=useState(null);
   const [toast,setToast]=useState("");
+  const [dbError,setDbError]=useState("");
   const [reviewMode,setReviewMode]=useState("full"); // "full" | "quick"
   const [autoSaving,setAutoSaving]=useState(false);
 
@@ -3270,10 +3271,20 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
     {label:"Decision",icon:"✅"},
   ];
 
-  async function load(){
+  async function load(localRow){
     setLoading(true);
-    const {data}=await db.from("admin_reviews").select("*").order("created_at",{ascending:false});
-    setReviews(data||[]);
+    setDbError("");
+    const {data,error}=await db.from("admin_reviews").select("*").order("created_at",{ascending:false});
+    if(error){
+      setDbError("Could not load reviews: "+error.message+". Check Supabase RLS policies on admin_reviews table — staff may need SELECT access.");
+      // If we have a locally saved row, show it anyway so it's not invisible
+      if(localRow) setReviews(prev=>{
+        const exists=prev.find(r=>r.id===localRow.id);
+        return exists?prev:[localRow,...prev];
+      });
+    } else {
+      setReviews(data||[]);
+    }
     setLoading(false);
   }
   useEffect(()=>{load();},[]);
@@ -3288,6 +3299,8 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
     if(match){
       const kpis=calcKPIs(match);
       setMatchedProgram(match);
+      // direct costs = sum of all actual cost lines
+      const directCosts=(match.act_personnel||0)+(match.act_commodities||0)+(match.act_contractuals||0)+(match.act_other1||0)+(match.act_other2||0);
       setForm(prev=>({
         ...prev,
         program_name:name,
@@ -3295,12 +3308,17 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
         area:match.area||prev.area,
         season:match.season||prev.season,
         classification:match.classification||prev.classification,
+        // calculated metrics
         fill_rate:kpis.fillRate?Math.round(kpis.fillRate*100):"",
         cost_recovery:kpis.costRecovery?Math.round(kpis.costRecovery*100):"",
+        // actuals — financial
         revenue:match.act_revenue||"",
+        direct_costs:directCosts||"",
+        // actuals — participation
         enrollment:match.act_enrollment||"",
         capacity:match.act_capacity||"",
-        waitlist:match.waitlist||"",
+        waitlist:match.waitlist!=null?match.waitlist:"",
+        // quality & trend
         nps:match.nps||"",
         trend:match.trend||"Stable",
       }));
@@ -3388,7 +3406,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
     setSavedId(savedRow?.id||null);
     setToast(editRow?"Review updated ✓":"Review saved ✓");
     setTimeout(()=>{setToast("");setSavedId(null);},5000);
-    await load(); // wait for fresh data before switching view
+    await load(savedRow); // pass savedRow so it shows even if RLS blocks SELECT
     setView("list");setEditRow(null);setForm(emptyForm);setActiveStep(0);setMatchedProgram(null);
   }
 
@@ -3547,6 +3565,16 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
       {toast&&(
         <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-green-800 bg-green-50 border border-green-200">
           <span className="text-lg">✓</span>{toast}
+        </div>
+      )}
+      {dbError&&(
+        <div className="mb-4 px-4 py-3 rounded-xl text-sm text-red-700 bg-red-50 border border-red-200 space-y-1">
+          <div className="font-bold">⚠ Database access issue</div>
+          <div className="text-xs">{dbError}</div>
+          <div className="text-xs font-semibold mt-1">Quick fix — run this in Supabase SQL Editor:<br/>
+            <code className="bg-red-100 px-1 rounded">ALTER TABLE admin_reviews ENABLE ROW LEVEL SECURITY;</code><br/>
+            <code className="bg-red-100 px-1 rounded">CREATE POLICY "allow_all" ON admin_reviews FOR ALL USING (true) WITH CHECK (true);</code>
+          </div>
         </div>
       )}
       <div className="flex items-center justify-between mb-6">
@@ -3963,15 +3991,23 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               <datalist id="program-list">
                 {[...new Set((reviewablePrograms||[]).map(p=>p.name).filter(Boolean))].map(n=><option key={n} value={n}/>)}
               </datalist>
-              {matchedProgram&&(
-                <div className="mt-1.5 px-3 py-2 rounded-lg bg-blue-50 border border-blue-100 text-xs text-blue-700 flex items-center gap-2">
-                  <span>✓ Matched in app — </span>
-                  <span>Fill: <b>{Math.round((calcKPIs(matchedProgram).fillRate||0)*100)}%</b></span>
-                  <span>CR: <b>{Math.round((calcKPIs(matchedProgram).costRecovery||0)*100)}%</b></span>
-                  <span>Status: <b>{calcKPIs(matchedProgram).status}</b></span>
-                  <span className="text-blue-500">Fields pre-filled ↓</span>
-                </div>
-              )}
+              {matchedProgram&&(()=>{
+                const mk=calcKPIs(matchedProgram);
+                const dc=(matchedProgram.act_personnel||0)+(matchedProgram.act_commodities||0)+(matchedProgram.act_contractuals||0)+(matchedProgram.act_other1||0)+(matchedProgram.act_other2||0);
+                return(
+                  <div className="mt-1.5 px-3 py-2 rounded-lg bg-blue-50 border border-blue-100 text-xs text-blue-700 space-y-1">
+                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 items-center">
+                      <span className="font-bold">✓ Matched —</span>
+                      <span>Fill: <b>{Math.round((mk.fillRate||0)*100)}%</b></span>
+                      <span>CR: <b>{Math.round((mk.costRecovery||0)*100)}%</b></span>
+                      <span>Revenue: <b>{dollar(matchedProgram.act_revenue||0)}</b></span>
+                      <span>Direct Costs: <b>{dollar(dc)}</b></span>
+                      {matchedProgram.act_enrollment>0&&<span>Enrolled: <b>{matchedProgram.act_enrollment}/{matchedProgram.act_capacity}</b></span>}
+                      <span className="text-blue-500">All fields pre-filled ↓</span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
