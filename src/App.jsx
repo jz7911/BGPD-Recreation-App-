@@ -1147,14 +1147,12 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
   function onFilterChange(key, val) { setFilters(f=>({...f,[key]:val})); }
 
   const allStaff   = [...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
-  const myPrograms = programs.filter(p=>p.staff_name?.toLowerCase().trim()===staffName.toLowerCase().trim());
-  const allAreas   = [...new Set(myPrograms.map(p=>p.area))];
+  const allAreas   = [...new Set(programs.map(p=>p.area))];
   const allYears   = [...YEARS];
   const allSeasons = [...SEASONS];
 
   const vis  = programs
     .filter(p=>!p.is_archived)
-    .filter(p=>p.staff_name?.toLowerCase().trim()===staffName.toLowerCase().trim())
     .filter(p=>filters.staff.size===0||filters.staff.has(p.staff_name))
     .filter(p=>filters.area.size===0||filters.area.has(p.area))
     .filter(p=>filters.year.size===0||filters.year.has(toFY(p.year)))
@@ -3137,7 +3135,6 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
 
   const vis = programs
     .filter(p=>showArchived ? !!p.is_archived : !p.is_archived)
-    .filter(p=>isManager||(p.staff_name?.toLowerCase().trim()===staffName.toLowerCase().trim()))
     .filter(p=>filters.staff.size===0||filters.staff.has(p.staff_name))
     .filter(p=>filters.area.size===0||filters.area.has(p.area))
     .filter(p=>filters.year.size===0||filters.year.has(toFY(p.year)))
@@ -3166,7 +3163,7 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
       </div>
       <div className="space-y-2">
         <MultiFilter filters={filters} onChange={onFilterChange}
-          counts={{staff:isManager?allStaff:[],area:allAreas,season:allSeasons,year:allYears}}/>
+          counts={{staff:allStaff,area:allAreas,season:allSeasons,year:allYears}}/>
         <input className="w-full rounded border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:border-blue-400"
           placeholder="Search programs by name..." value={search} onChange={e=>setSearch(e.target.value)}/>
       </div>
