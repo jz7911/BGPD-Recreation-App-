@@ -3275,9 +3275,9 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
     setLoading(true);
     setDbError("");
     const {data,error}=await db.from("admin_reviews").select("*").order("created_at",{ascending:false});
+    console.log("[ReviewLoad] data:", data, "error:", error, "staffName:", staffName, "isManager:", isManager);
     if(error){
       setDbError("Could not load reviews: "+error.message+". Check Supabase RLS policies on admin_reviews table — staff may need SELECT access.");
-      // If we have a locally saved row, show it anyway so it's not invisible
       if(localRow) setReviews(prev=>{
         const exists=prev.find(r=>r.id===localRow.id);
         return exists?prev:[localRow,...prev];
@@ -3378,19 +3378,66 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
 
   async function save(){
     const pillarsStr=pillars.filter(p=>p.met).map(p=>p.n).join(",");
-    const d={...form,
+    // Explicitly pick only known DB columns — Supabase rejects unknown fields
+    const d={
+      program_name:form.program_name||"",
+      supervisor:form.supervisor||"",
+      season:form.season||"",
+      fy:form.fy||"",
+      review_date:form.review_date||new Date().toISOString().slice(0,10),
+      classification:form.classification||"",
+      target_age:form.target_age||"",
+      seasons_offered:parseInt(form.seasons_offered)||0,
+      area:form.area||"",
       revenue:parseFloat(form.revenue)||0,
       direct_costs:parseFloat(form.direct_costs)||0,
       cost_recovery:parseFloat(form.cost_recovery)||0,
       prior_cr:parseFloat(form.prior_cr)||0,
+      below_50_cr:!!form.below_50_cr,
+      cr_action:form.cr_action||"",
+      fs_acceptable:form.fs_acceptable!==false,
+      fs_notes:form.fs_notes||"",
+      fs_strengths:form.fs_strengths||"",
+      fs_concerns:form.fs_concerns||"",
       fill_rate:parseFloat(form.fill_rate)||0,
       prior_fill_rate:parseFloat(form.prior_fill_rate)||0,
       seasons_below_threshold:parseInt(form.seasons_below_threshold)||0,
+      below_60_fill:!!form.below_60_fill,
+      needs_review:!!form.needs_review,
+      review_action:form.review_action||"",
+      trend:form.trend||"Stable",
       nps:form.nps?parseInt(form.nps):null,
+      da_notes:form.da_notes||"",
+      da_strengths:form.da_strengths||"",
+      da_concerns:form.da_concerns||"",
       enrollment:parseInt(form.enrollment)||0,
       capacity:parseInt(form.capacity)||0,
       waitlist:parseInt(form.waitlist)||0,
-      
+      retention_trend:form.retention_trend||"",
+      clear_audience:form.clear_audience!==false,
+      community_benefit:form.community_benefit!==false,
+      documented_need:!!form.documented_need,
+      ci_notes:form.ci_notes||"",
+      ci_strengths:form.ci_strengths||"",
+      ci_concerns:form.ci_concerns||"",
+      prime_time_use:form.prime_time_use||"",
+      time_improvable:!!form.time_improvable,
+      ratio_appropriate:form.ratio_appropriate!==false,
+      space_notes:form.space_notes||"",
+      scheduling_changes:form.scheduling_changes||"",
+      facility_barriers:form.facility_barriers||"",
+      is_pilot:!!form.is_pilot,
+      is_adaptation:!!form.is_adaptation,
+      pilot_goal:form.pilot_goal||"",
+      met_enrollment:!!form.met_enrollment,
+      met_financial:!!form.met_financial,
+      adaptation_made:form.adaptation_made||"",
+      future_potential:form.future_potential||"",
+      innovation_notes:form.innovation_notes||"",
+      decision:form.decision||"Continue",
+      decision_reason:form.decision_reason||"",
+      action_items:form.action_items||"",
+      next_review:form.next_review||null,
       pillars_met:pillarsStr,
     };
     let savedRow;
@@ -3398,9 +3445,11 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
       await db.from("admin_reviews").update(d).eq("id",editRow.id);
       savedRow=editRow;
     } else {
-      const {data:ins}=await db.from("admin_reviews").insert(d).select().single();
+      const {data:ins,error:insErr}=await db.from("admin_reviews").insert(d).select().single();
+      console.log("[ReviewSave] insert result:", ins, "error:", insErr);
       savedRow=ins;
     }
+    console.log("[ReviewSave] savedRow:", savedRow, "supervisor field:", d.supervisor);
     // Clear all filters so the review is visible, then highlight it
     setFyFilter("all");setDecFilter("all");setSearch("");
     setSavedId(savedRow?.id||null);
@@ -3417,18 +3466,65 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
     if(autoSaving) return;
     setAutoSaving(true);
     const pillarsStr=computePillars(form).filter(p=>p.met).map(p=>p.n).join(",");
-    const d={...form,
+    const d={
+      program_name:form.program_name||"",
+      supervisor:form.supervisor||"",
+      season:form.season||"",
+      fy:form.fy||"",
+      review_date:form.review_date||new Date().toISOString().slice(0,10),
+      classification:form.classification||"",
+      target_age:form.target_age||"",
+      seasons_offered:parseInt(form.seasons_offered)||0,
+      area:form.area||"",
       revenue:parseFloat(form.revenue)||0,
       direct_costs:parseFloat(form.direct_costs)||0,
       cost_recovery:parseFloat(form.cost_recovery)||0,
       prior_cr:parseFloat(form.prior_cr)||0,
+      below_50_cr:!!form.below_50_cr,
+      cr_action:form.cr_action||"",
+      fs_acceptable:form.fs_acceptable!==false,
+      fs_notes:form.fs_notes||"",
+      fs_strengths:form.fs_strengths||"",
+      fs_concerns:form.fs_concerns||"",
       fill_rate:parseFloat(form.fill_rate)||0,
       prior_fill_rate:parseFloat(form.prior_fill_rate)||0,
       seasons_below_threshold:parseInt(form.seasons_below_threshold)||0,
+      below_60_fill:!!form.below_60_fill,
+      needs_review:!!form.needs_review,
+      review_action:form.review_action||"",
+      trend:form.trend||"Stable",
       nps:form.nps?parseInt(form.nps):null,
+      da_notes:form.da_notes||"",
+      da_strengths:form.da_strengths||"",
+      da_concerns:form.da_concerns||"",
       enrollment:parseInt(form.enrollment)||0,
       capacity:parseInt(form.capacity)||0,
       waitlist:parseInt(form.waitlist)||0,
+      retention_trend:form.retention_trend||"",
+      clear_audience:form.clear_audience!==false,
+      community_benefit:form.community_benefit!==false,
+      documented_need:!!form.documented_need,
+      ci_notes:form.ci_notes||"",
+      ci_strengths:form.ci_strengths||"",
+      ci_concerns:form.ci_concerns||"",
+      prime_time_use:form.prime_time_use||"",
+      time_improvable:!!form.time_improvable,
+      ratio_appropriate:form.ratio_appropriate!==false,
+      space_notes:form.space_notes||"",
+      scheduling_changes:form.scheduling_changes||"",
+      facility_barriers:form.facility_barriers||"",
+      is_pilot:!!form.is_pilot,
+      is_adaptation:!!form.is_adaptation,
+      pilot_goal:form.pilot_goal||"",
+      met_enrollment:!!form.met_enrollment,
+      met_financial:!!form.met_financial,
+      adaptation_made:form.adaptation_made||"",
+      future_potential:form.future_potential||"",
+      innovation_notes:form.innovation_notes||"",
+      decision:form.decision||"Continue",
+      decision_reason:form.decision_reason||"",
+      action_items:form.action_items||"",
+      next_review:form.next_review||null,
       pillars_met:pillarsStr,
     };
     if(editRow){
@@ -3461,6 +3557,8 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
     setActiveStep(0);setView("form");
   }
 
+  // Debug: log every time filtered recalculates
+  if(typeof window!=="undefined") console.log("[ReviewFilter] reviews count:", reviews.length, "isManager:", isManager, "staffName:", staffName, "savedId:", savedId, "reviews:", reviews.map(r=>({id:r.id,sup:r.supervisor,fy:r.fy,dec:r.decision})));
   const filtered=reviews.filter(r=>{
     // Staff only see reviews where they are the supervisor (case-insensitive)
     // Always show the just-saved review regardless of name match
