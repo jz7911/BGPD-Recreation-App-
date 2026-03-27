@@ -58,7 +58,7 @@ const PROGRAM_TYPES = [
 const ADMIN_OVERHEAD_RATE  = 0.1;
 const FT_ANNUAL_SALARY     = 97700;
 const FACILITY_COST_PER_HR = 3;
-const MANAGER_NAMES        = ["admin","manager","joe zimmermann","erika strojinc","dan stanczak","brian o'malley","chris eckert","chuck burgess","diana clayson","amanda busch","lacy marinenko"];
+const MANAGER_NAMES        = ["admin","manager","joe zimmermann","erika strojinc","dan stanczak","brian o'malley","chris eckert","chuck burgess","diana clayson","amanda busch"];
 
 
 // Service category cost recovery targets
@@ -1147,7 +1147,8 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
   function onFilterChange(key, val) { setFilters(f=>({...f,[key]:val})); }
 
   const allStaff   = [...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
-  const allAreas   = [...new Set(programs.map(p=>p.area))];
+  const myPrograms = isManager ? programs : programs.filter(p=>p.staff_name?.toLowerCase().trim()===staffName.toLowerCase().trim());
+  const allAreas   = [...new Set(myPrograms.map(p=>p.area))];
   const allYears   = [...YEARS];
   const allSeasons = [...SEASONS];
 
@@ -3135,6 +3136,7 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
 
   const vis = programs
     .filter(p=>showArchived ? !!p.is_archived : !p.is_archived)
+    .filter(p=>isManager||(p.staff_name?.toLowerCase().trim()===staffName.toLowerCase().trim()))
     .filter(p=>filters.staff.size===0||filters.staff.has(p.staff_name))
     .filter(p=>filters.area.size===0||filters.area.has(p.area))
     .filter(p=>filters.year.size===0||filters.year.has(toFY(p.year)))
