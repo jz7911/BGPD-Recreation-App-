@@ -104,7 +104,7 @@ const DB_FIELDS = [
   "fee",
   "nps_promoters","nps_passives","nps_detractors","nps_total",
   "pricing_decision","pricing_target_fee","pricing_rationale","pricing_notes","pricing_subsidy","pricing_subsidy_amount",
-  "budget_mode","sub_programs",
+  "budget_mode","sub_programs","clubhouse_alloc",
 ];
 
 function cleanForDB(p) {
@@ -187,7 +187,7 @@ function newProgram(staffName) {
     fee: 0,
     nps_promoters:0,nps_passives:0,nps_detractors:0,nps_total:0,
     pricing_decision:"",pricing_target_fee:0,pricing_rationale:"",pricing_notes:"",pricing_subsidy:null,pricing_subsidy_amount:0,
-    budget_mode:"seasonal",sub_programs:[],
+    budget_mode:"seasonal",sub_programs:[],clubhouse_alloc:null,
   };
 }
 
@@ -2289,17 +2289,21 @@ const CB_COST_CATEGORIES = [
   "Program Supplies","Office Supplies","Staff Shirts","Kid Shirts",
   "MIS / Technology","Staffing","Other",
 ];
-function ClubhouseCostAllocator({sites,totalCosts,onApply}){
+function ClubhouseCostAllocator({sites,savedAlloc,onApply,onClear}){
+  // savedAlloc: {catTotals, enrollments, manualPcts, mode, result, appliedAt} | null
   const [open,setOpen]=useState(false);
-  const [mode,setMode]=useState("enrollment"); // "enrollment" | "manual"
-  const [catTotals,setCatTotals]=useState(Object.fromEntries(CB_COST_CATEGORIES.map(c=>[c,""])));
-  const [enrollments,setEnrollments]=useState(Object.fromEntries((sites||[]).map(s=>[s,""])));
-  const [manualPcts,setManualPcts]=useState(Object.fromEntries((sites||[]).map(s=>[s,""])));
-  const [result,setResult]=useState(null);
+  const [mode,setMode]=useState(savedAlloc?.mode||"enrollment");
+  const [catTotals,setCatTotals]=useState(savedAlloc?.catTotals||Object.fromEntries(CB_COST_CATEGORIES.map(c=>[c,""])));
+  const [enrollments,setEnrollments]=useState(savedAlloc?.enrollments||Object.fromEntries((sites||[]).map(s=>[s,""])));
+  const [manualPcts,setManualPcts]=useState(savedAlloc?.manualPcts||Object.fromEntries((sites||[]).map(s=>[s,""])));
+  const [result,setResult]=useState(savedAlloc?.result||null);
+  const [confirmClear,setConfirmClear]=useState(false);
 
   const totalEnr=Object.values(enrollments).reduce((a,v)=>a+(parseFloat(v)||0),0);
   const totalPct=Object.values(manualPcts).reduce((a,v)=>a+(parseFloat(v)||0),0);
   const grandTotal=Object.values(catTotals).reduce((a,v)=>a+(parseFloat(v)||0),0);
+  const hasData=grandTotal>0||(mode==="manual"&&totalPct>0)||(mode==="enrollment"&&totalEnr>0);
+  const isApplied=!!savedAlloc?.appliedAt;
 
   function calculate(){
     const pcts={};
@@ -2320,22 +2324,61 @@ function ClubhouseCostAllocator({sites,totalCosts,onApply}){
       });
       alloc[s].total=Object.values(alloc[s]).reduce((a,v)=>a+v,0);
     });
-    setResult({pcts,alloc,grandTotal});
+    const r={pcts,alloc,grandTotal};
+    setResult(r);
+    return r;
+  }
+
+  function handleApply(){
+    const r=result||calculate();
+    const snapshot={
+      catTotals,enrollments,manualPcts,mode,
+      result:r,
+      appliedAt:new Date().toISOString(),
+    };
+    onApply(r.alloc,snapshot);
   }
 
   return(
-    <div className="rounded-xl border border-blue-200 overflow-hidden">
+    <div className="rounded-xl border overflow-hidden" style={{borderColor:isApplied?"#93c5fd":"#bfdbfe"}}>
       <button onClick={()=>setOpen(o=>!o)}
         className="w-full px-4 py-3 flex items-center justify-between text-left transition"
-        style={{background:"#eff6ff"}}>
+        style={{background:isApplied?"#dbeafe":"#eff6ff"}}>
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-bold text-blue-800">🏫 Clubhouse Cost Allocator</span>
-            <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-blue-100 text-blue-700">Optional</span>
+            {isApplied?(
+              <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-green-100 text-green-700">
+                ✓ Applied {new Date(savedAlloc.appliedAt).toLocaleDateString()} {new Date(savedAlloc.appliedAt).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}
+              </span>
+            ):(
+              <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-blue-100 text-blue-700">Not yet applied</span>
+            )}
           </div>
-          <div className="text-xs text-blue-500 mt-0.5">Enter district-level cost totals → get per-site allocations automatically</div>
+          <div className="text-xs text-blue-500 mt-0.5">
+            {isApplied
+              ? `$${Math.round(savedAlloc.result?.grandTotal||0).toLocaleString()} total allocated across ${sites?.length||0} sites`
+              : "Enter district-level cost totals → get per-site allocations automatically"}
+          </div>
         </div>
-        <span className="text-blue-400 text-xs font-bold ml-4 shrink-0" style={{transform:open?"rotate(180deg)":"rotate(0deg)",display:"inline-block",transition:"transform .2s"}}>▼</span>
+        <div className="flex items-center gap-2 shrink-0">
+          {isApplied&&!confirmClear&&(
+            <button onClick={e=>{e.stopPropagation();setConfirmClear(true);}}
+              className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition">
+              Clear
+            </button>
+          )}
+          {confirmClear&&(
+            <div className="flex items-center gap-1.5" onClick={e=>e.stopPropagation()}>
+              <span className="text-xs text-slate-500">Clear allocation?</span>
+              <button onClick={e=>{e.stopPropagation();onClear();setResult(null);setCatTotals(Object.fromEntries(CB_COST_CATEGORIES.map(c=>[c,""])));setEnrollments(Object.fromEntries((sites||[]).map(s=>[s,""])));setManualPcts(Object.fromEntries((sites||[]).map(s=>[s,""])));setConfirmClear(false);}}
+                className="text-xs font-bold text-white px-2 py-1 rounded" style={{background:"#ef4444"}}>Yes, clear</button>
+              <button onClick={e=>{e.stopPropagation();setConfirmClear(false);}}
+                className="text-xs text-slate-500 hover:text-slate-700">Cancel</button>
+            </div>
+          )}
+          <span className="text-blue-400 text-xs font-bold" style={{transform:open?"rotate(180deg)":"rotate(0deg)",display:"inline-block",transition:"transform .2s"}}>▼</span>
+        </div>
       </button>
       {open&&(
         <div className="p-5 space-y-5 bg-white">
@@ -2374,7 +2417,7 @@ function ClubhouseCostAllocator({sites,totalCosts,onApply}){
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
               {(sites||[]).map(s=>(
                 <div key={s}>
-                  <label className="block text-xs text-slate-500 mb-1 truncate">{s.replace(/ /g," ")}</label>
+                  <label className="block text-xs text-slate-500 mb-1 truncate">{s}</label>
                   <input type="number" min={0} max={mode==="manual"?100:undefined}
                     value={mode==="enrollment"?enrollments[s]:manualPcts[s]}
                     onChange={e=>{
@@ -2422,12 +2465,12 @@ function ClubhouseCostAllocator({sites,totalCosts,onApply}){
                   ))}</tbody>
                 </table>
               </div>
-              <div className="flex gap-3">
-                <button onClick={()=>onApply(result.alloc)}
+              <div className="flex items-center gap-3 flex-wrap">
+                <button onClick={handleApply}
                   className="px-4 py-2 text-xs font-bold rounded-lg text-white" style={{background:"#16a34a"}}>
-                  ✓ Apply to Site Entries
+                  ✓ {isApplied?"Re-apply to Site Entries":"Apply to Site Entries"}
                 </button>
-                <span className="text-xs text-slate-400 self-center">This will pre-fill the Personnel/Commodities/Contractuals fields on each site program entry.</span>
+                <span className="text-xs text-slate-400">Saves allocation data with this program and stores totals in the notes field for reference.</span>
               </div>
             </div>
           )}
@@ -2436,6 +2479,7 @@ function ClubhouseCostAllocator({sites,totalCosts,onApply}){
     </div>
   );
 }
+
 
 // ─── Sub-Program / Session Tracker ───────────────────────────────────────────
 function SubProgramTracker({programs,onChange}){
@@ -2721,11 +2765,28 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
               {p.area==="Clubhouse"&&(
                 <ClubhouseCostAllocator
                   sites={["Country Meadows","Ivy Hall","Kildeer","Kilmer","Longfellow","Meridian","Prairie","Pritchett","Tripp","Willow Grove"]}
-                  totalCosts={{}}
-                  onApply={alloc=>{
-                    // Store allocations in notes as a convenience reference
+                  savedAlloc={p.clubhouse_alloc||null}
+                  onApply={(alloc,snapshot)=>{
+                    // Save the full snapshot so it reloads correctly
+                    setField("clubhouse_alloc")(snapshot);
+                    // Also store a readable summary in notes
                     const summary=Object.entries(alloc).map(([site,costs])=>`${site}: $${costs.total.toLocaleString()}`).join(" | ");
-                    setField("notes")(p.notes?p.notes+"\n\n[Cost Allocation]\n"+summary:"[Cost Allocation]\n"+summary);
+                    const noteTag="[Cost Allocation]";
+                    const noteBody=`${noteTag} Updated ${new Date().toLocaleDateString()}\n${summary}`;
+                    const existingNotes=(p.notes||"").replace(/\[Cost Allocation\][^
+]*
+[^
+]*/,"").trim();
+                    setField("notes")(existingNotes?existingNotes+"\n\n"+noteBody:noteBody);
+                  }}
+                  onClear={()=>{
+                    setField("clubhouse_alloc")(null);
+                    // Strip cost allocation note
+                    const cleaned=(p.notes||"").replace(/\[Cost Allocation\][^
+]*(
+[^
+]*)?/,"").trim();
+                    setField("notes")(cleaned);
                   }}
                 />
               )}
