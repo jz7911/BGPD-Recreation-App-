@@ -825,7 +825,7 @@ function CostPanel({px,p,set,isManager=false}) {
                 value={p[px+"clubhouse_fee"]||""}
                 onChange={set(px+"clubhouse_fee")}
                 min={0}
-                hint="Site-specific allocated costs from the Clubhouse Cost Allocator — kept separate from general personnel, commodities, and contractuals above."/>
+                hint="Set automatically by the Clubhouse Allocation Tool in Guide & Resources. Site-specific allocated costs — kept separate from general personnel, commodities, and contractuals above."/>
             </div>
           )}
         </div>
@@ -2307,7 +2307,7 @@ const CB_COST_CATEGORIES = [
   "Program Supplies","Office Supplies","Staff Shirts","Kid Shirts",
   "MIS / Technology","Staffing","Other",
 ];
-function ClubhouseCostAllocator({sites,savedAlloc,onApply,onClear}){
+){
   // savedAlloc: {catTotals, enrollments, manualPcts, mode, result, appliedAt} | null
   const [open,setOpen]=useState(false);
   const [mode,setMode]=useState(savedAlloc?.mode||"enrollment");
@@ -2780,22 +2780,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                 )}
               </div>
               <CostPanel px="ant_" p={p} set={k=>v=>{setField(k)(v);}} isManager={isManager}/>
-              {p.area==="Clubhouse"&&(
-                <ClubhouseCostAllocator
-                  sites={["Country Meadows","Ivy Hall","Kildeer","Kilmer","Longfellow","Meridian","Prairie","Pritchett","Tripp","Willow Grove"]}
-                  savedAlloc={p.clubhouse_alloc||null}
-                  onApply={(alloc,snapshot)=>{
-                    setField("clubhouse_alloc")(snapshot);
-                    // Sum all site totals → populate ant_clubhouse_fee
-                    const totalAllocated=Object.values(alloc).reduce((sum,s)=>sum+(s.total||0),0);
-                    setField("ant_clubhouse_fee")(totalAllocated);
-                  }}
-                  onClear={()=>{
-                    setField("clubhouse_alloc")(null);
-                    setField("ant_clubhouse_fee")(0);
-                  }}
-                />
-              )}
+              
               {(p.ant_enrollment>0||p.ant_revenue>0||p.ant_capacity>0)&&!hasActuals&&(
                 <div className="mt-5 p-4 rounded-xl border-2 border-dashed text-center" style={{borderColor:"#d4a017",background:"#fffbeb"}}>
                   <div className="text-sm font-bold mb-1" style={{color:"#92400e"}}>✓ Budgeted complete — you're done for now</div>
@@ -2893,21 +2878,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                   <Inp label="Waitlist" type="number" value={p.waitlist!=null?p.waitlist:""} onChange={v=>setField("waitlist")(v===""?null:Math.max(0,parseInt(v)||0))} min={0} hint="Enter 0 to confirm no waitlist, or leave blank if unknown"/>
                 </div>
               </div>
-              {p.area==="Clubhouse"&&(
-                <ClubhouseCostAllocator
-                  sites={["Country Meadows","Ivy Hall","Kildeer","Kilmer","Longfellow","Meridian","Prairie","Pritchett","Tripp","Willow Grove"]}
-                  savedAlloc={p.clubhouse_alloc_act||null}
-                  onApply={(alloc,snapshot)=>{
-                    setField("clubhouse_alloc_act")(snapshot);
-                    const totalAllocated=Object.values(alloc).reduce((sum,s)=>sum+(s.total||0),0);
-                    setField("act_clubhouse_fee")(totalAllocated);
-                  }}
-                  onClear={()=>{
-                    setField("clubhouse_alloc_act")(null);
-                    setField("act_clubhouse_fee")(0);
-                  }}
-                />
-              )}
+              
               <SubProgramTracker
                 programs={Array.isArray(p.sub_programs)?p.sub_programs:[]}
                 onChange={v=>setField("sub_programs")(v)}/>
@@ -6264,8 +6235,8 @@ function ClubhouseAllocationTool({db,programs,staffName}){
     "Meridian","Prairie","Pritchett","Tripp","Willow Grove",
   ];
 
-  const [season,setSeason]   = useState("All Year");
-  const [year,setYear]       = useState("25-26");
+  const [season,setSeason]   = useState("all");
+  const [year,setYear]       = useState("all");
   const [which,setWhich]     = useState("budgeted");
   const [mode,setMode]       = useState("enrollment"); // "enrollment"|"manual"
   const [catTotals,setCatTotals] = useState(Object.fromEntries(CB_COST_CATEGORIES.map(c=>[c,""])));
