@@ -104,7 +104,8 @@ const DB_FIELDS = [
   "fee",
   "nps_promoters","nps_passives","nps_detractors","nps_total",
   "pricing_decision","pricing_target_fee","pricing_rationale","pricing_notes","pricing_subsidy","pricing_subsidy_amount",
-  "budget_mode","sub_programs","clubhouse_alloc",
+  "budget_mode","sub_programs","clubhouse_alloc","clubhouse_alloc_act",
+  "ant_clubhouse_fee","act_clubhouse_fee",
 ];
 
 function cleanForDB(p) {
@@ -120,6 +121,7 @@ function calcCR(p, px) {
   const contractuals = p[px+"contractuals"]   || 0;
   const other1       = p[px+"other1"]         || 0;
   const other2       = p[px+"other2"]         || 0;
+  const clubhouseFee = p[px+"clubhouse_fee"]  || 0;
   const facHrs       = p[px+"facility_hours"] || 0;
   const progType     = p[px+"program_type"]   || "";
   const customWL     = p[px+"custom_workload"]|| 0;
@@ -131,7 +133,7 @@ function calcCR(p, px) {
     : progType && progType !== "Custom"
       ? (PROGRAM_TYPES.find(t => t.label === progType)?.pct || 0)
       : 0;
-  const direct   = personnel + commodities + contractuals + other1 + other2;
+  const direct   = personnel + commodities + contractuals + other1 + other2 + clubhouseFee;
   const ao       = direct * ADMIN_OVERHEAD_RATE;
   const ftStaff  = FT_ANNUAL_SALARY * wlPct;
   const facility = FACILITY_COST_PER_HR * facHrs;
@@ -187,7 +189,8 @@ function newProgram(staffName) {
     fee: 0,
     nps_promoters:0,nps_passives:0,nps_detractors:0,nps_total:0,
     pricing_decision:"",pricing_target_fee:0,pricing_rationale:"",pricing_notes:"",pricing_subsidy:null,pricing_subsidy_amount:0,
-    budget_mode:"seasonal",sub_programs:[],clubhouse_alloc:null,
+    budget_mode:"seasonal",sub_programs:[],clubhouse_alloc:null,clubhouse_alloc_act:null,
+    ant_clubhouse_fee:0,act_clubhouse_fee:0,
   };
 }
 
@@ -816,6 +819,15 @@ function CostPanel({px,p,set,isManager=false}) {
             <input type="number" min={0} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-300" value={p[px+"other2"]||""} onChange={e=>set(px+"other2")(parseFloat(e.target.value)||0)} placeholder="0"/>
           </div>
           <Inp label="Facility Hours"           type="number" value={p[px+"facility_hours"]} onChange={set(px+"facility_hours")} min={0} hint={"$"+FACILITY_COST_PER_HR+"/hr allocated"}/>
+          {p.area==="Clubhouse"&&(
+            <div className="sm:col-span-2">
+              <Inp label="Clubhouse Allocation Fees ($)" type="number"
+                value={p[px+"clubhouse_fee"]||""}
+                onChange={set(px+"clubhouse_fee")}
+                min={0}
+                hint="Site-specific allocated costs from the Clubhouse Cost Allocator — kept separate from general personnel, commodities, and contractuals above."/>
+            </div>
+          )}
         </div>
       </div>
       <div>
@@ -2767,26 +2779,14 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                   sites={["Country Meadows","Ivy Hall","Kildeer","Kilmer","Longfellow","Meridian","Prairie","Pritchett","Tripp","Willow Grove"]}
                   savedAlloc={p.clubhouse_alloc||null}
                   onApply={(alloc,snapshot)=>{
-                    // Save the full snapshot so it reloads correctly
                     setField("clubhouse_alloc")(snapshot);
-                    // Also store a readable summary in notes
-                    const summary=Object.entries(alloc).map(([site,costs])=>`${site}: $${costs.total.toLocaleString()}`).join(" | ");
-                    const noteTag="[Cost Allocation]";
-                    const noteBody=`${noteTag} Updated ${new Date().toLocaleDateString()}\n${summary}`;
-                    const existingNotes=(p.notes||"").replace(/\[Cost Allocation\][^
-]*
-[^
-]*/,"").trim();
-                    setField("notes")(existingNotes?existingNotes+"\n\n"+noteBody:noteBody);
+                    // Sum all site totals → populate ant_clubhouse_fee
+                    const totalAllocated=Object.values(alloc).reduce((sum,s)=>sum+(s.total||0),0);
+                    setField("ant_clubhouse_fee")(totalAllocated);
                   }}
                   onClear={()=>{
                     setField("clubhouse_alloc")(null);
-                    // Strip cost allocation note
-                    const cleaned=(p.notes||"").replace(/\[Cost Allocation\][^
-]*(
-[^
-]*)?/,"").trim();
-                    setField("notes")(cleaned);
+                    setField("ant_clubhouse_fee")(0);
                   }}
                 />
               )}
@@ -2887,6 +2887,21 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                   <Inp label="Waitlist" type="number" value={p.waitlist!=null?p.waitlist:""} onChange={v=>setField("waitlist")(v===""?null:Math.max(0,parseInt(v)||0))} min={0} hint="Enter 0 to confirm no waitlist, or leave blank if unknown"/>
                 </div>
               </div>
+              {p.area==="Clubhouse"&&(
+                <ClubhouseCostAllocator
+                  sites={["Country Meadows","Ivy Hall","Kildeer","Kilmer","Longfellow","Meridian","Prairie","Pritchett","Tripp","Willow Grove"]}
+                  savedAlloc={p.clubhouse_alloc_act||null}
+                  onApply={(alloc,snapshot)=>{
+                    setField("clubhouse_alloc_act")(snapshot);
+                    const totalAllocated=Object.values(alloc).reduce((sum,s)=>sum+(s.total||0),0);
+                    setField("act_clubhouse_fee")(totalAllocated);
+                  }}
+                  onClear={()=>{
+                    setField("clubhouse_alloc_act")(null);
+                    setField("act_clubhouse_fee")(0);
+                  }}
+                />
+              )}
               <SubProgramTracker
                 programs={Array.isArray(p.sub_programs)?p.sub_programs:[]}
                 onChange={v=>setField("sub_programs")(v)}/>
