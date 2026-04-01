@@ -2302,201 +2302,11 @@ function MultiSeasonView({programs,onEdit}) {
 // ─── Program Form ─────────────────────────────────────────────────────────────
 
 
-// ─── Clubhouse Cost Allocator ─────────────────────────────────────────────────
 const CB_COST_CATEGORIES = [
   "Program Supplies","Office Supplies","Staff Shirts","Kid Shirts",
   "MIS / Technology","Staffing","Other",
 ];
-){
-  // savedAlloc: {catTotals, enrollments, manualPcts, mode, result, appliedAt} | null
-  const [open,setOpen]=useState(false);
-  const [mode,setMode]=useState(savedAlloc?.mode||"enrollment");
-  const [catTotals,setCatTotals]=useState(savedAlloc?.catTotals||Object.fromEntries(CB_COST_CATEGORIES.map(c=>[c,""])));
-  const [enrollments,setEnrollments]=useState(savedAlloc?.enrollments||Object.fromEntries((sites||[]).map(s=>[s,""])));
-  const [manualPcts,setManualPcts]=useState(savedAlloc?.manualPcts||Object.fromEntries((sites||[]).map(s=>[s,""])));
-  const [result,setResult]=useState(savedAlloc?.result||null);
-  const [confirmClear,setConfirmClear]=useState(false);
 
-  const totalEnr=Object.values(enrollments).reduce((a,v)=>a+(parseFloat(v)||0),0);
-  const totalPct=Object.values(manualPcts).reduce((a,v)=>a+(parseFloat(v)||0),0);
-  const grandTotal=Object.values(catTotals).reduce((a,v)=>a+(parseFloat(v)||0),0);
-  const hasData=grandTotal>0||(mode==="manual"&&totalPct>0)||(mode==="enrollment"&&totalEnr>0);
-  const isApplied=!!savedAlloc?.appliedAt;
-
-  function calculate(){
-    const pcts={};
-    if(mode==="enrollment"){
-      (sites||[]).forEach(s=>{
-        pcts[s]=totalEnr>0?(parseFloat(enrollments[s])||0)/totalEnr:1/(sites||[]).length;
-      });
-    } else {
-      (sites||[]).forEach(s=>{
-        pcts[s]=(parseFloat(manualPcts[s])||0)/100;
-      });
-    }
-    const alloc={};
-    (sites||[]).forEach(s=>{
-      alloc[s]={};
-      CB_COST_CATEGORIES.forEach(cat=>{
-        alloc[s][cat]=Math.round((parseFloat(catTotals[cat])||0)*pcts[s]);
-      });
-      alloc[s].total=Object.values(alloc[s]).reduce((a,v)=>a+v,0);
-    });
-    const r={pcts,alloc,grandTotal};
-    setResult(r);
-    return r;
-  }
-
-  function handleApply(){
-    const r=result||calculate();
-    const snapshot={
-      catTotals,enrollments,manualPcts,mode,
-      result:r,
-      appliedAt:new Date().toISOString(),
-    };
-    onApply(r.alloc,snapshot);
-  }
-
-  return(
-    <div className="rounded-xl border overflow-hidden" style={{borderColor:isApplied?"#93c5fd":"#bfdbfe"}}>
-      <button onClick={()=>setOpen(o=>!o)}
-        className="w-full px-4 py-3 flex items-center justify-between text-left transition"
-        style={{background:isApplied?"#dbeafe":"#eff6ff"}}>
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-bold text-blue-800">🏫 Clubhouse Cost Allocator</span>
-            {isApplied?(
-              <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-green-100 text-green-700">
-                ✓ Applied {new Date(savedAlloc.appliedAt).toLocaleDateString()} {new Date(savedAlloc.appliedAt).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}
-              </span>
-            ):(
-              <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-blue-100 text-blue-700">Not yet applied</span>
-            )}
-          </div>
-          <div className="text-xs text-blue-500 mt-0.5">
-            {isApplied
-              ? `$${Math.round(savedAlloc.result?.grandTotal||0).toLocaleString()} total allocated across ${sites?.length||0} sites`
-              : "Enter district-level cost totals → get per-site allocations automatically"}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {isApplied&&!confirmClear&&(
-            <button onClick={e=>{e.stopPropagation();setConfirmClear(true);}}
-              className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition">
-              Clear
-            </button>
-          )}
-          {confirmClear&&(
-            <div className="flex items-center gap-1.5" onClick={e=>e.stopPropagation()}>
-              <span className="text-xs text-slate-500">Clear allocation?</span>
-              <button onClick={e=>{e.stopPropagation();onClear();setResult(null);setCatTotals(Object.fromEntries(CB_COST_CATEGORIES.map(c=>[c,""])));setEnrollments(Object.fromEntries((sites||[]).map(s=>[s,""])));setManualPcts(Object.fromEntries((sites||[]).map(s=>[s,""])));setConfirmClear(false);}}
-                className="text-xs font-bold text-white px-2 py-1 rounded" style={{background:"#ef4444"}}>Yes, clear</button>
-              <button onClick={e=>{e.stopPropagation();setConfirmClear(false);}}
-                className="text-xs text-slate-500 hover:text-slate-700">Cancel</button>
-            </div>
-          )}
-          <span className="text-blue-400 text-xs font-bold" style={{transform:open?"rotate(180deg)":"rotate(0deg)",display:"inline-block",transition:"transform .2s"}}>▼</span>
-        </div>
-      </button>
-      {open&&(
-        <div className="p-5 space-y-5 bg-white">
-          {/* Mode toggle */}
-          <div className="flex gap-2">
-            {[["enrollment","By Enrollment"],["manual","Manual %"]].map(([m,l])=>(
-              <button key={m} onClick={()=>setMode(m)}
-                className="text-xs px-3 py-1.5 rounded-lg border font-semibold transition"
-                style={mode===m?{background:"#1e3a5f",color:"white",borderColor:"#1e3a5f"}:{background:"#f8fafc",color:"#475569",borderColor:"#e2e8f0"}}>
-                {l}
-              </button>
-            ))}
-          </div>
-
-          {/* Cost category totals */}
-          <div>
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">District-Wide Cost Totals</div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {CB_COST_CATEGORIES.map(cat=>(
-                <div key={cat}>
-                  <label className="block text-xs text-slate-500 mb-1">{cat}</label>
-                  <input type="number" min={0} value={catTotals[cat]} onChange={e=>setCatTotals(t=>({...t,[cat]:e.target.value}))}
-                    placeholder="0" className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1"
-                    style={{MozAppearance:"textfield"}}/>
-                </div>
-              ))}
-            </div>
-            {grandTotal>0&&<div className="mt-2 text-xs text-slate-500">Total: <span className="font-bold text-slate-700">${Math.round(grandTotal).toLocaleString()}</span></div>}
-          </div>
-
-          {/* Allocation basis */}
-          <div>
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
-              {mode==="enrollment"?"Enrollment per Site (for weighting)":"Manual % per Site"}
-            </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-              {(sites||[]).map(s=>(
-                <div key={s}>
-                  <label className="block text-xs text-slate-500 mb-1 truncate">{s}</label>
-                  <input type="number" min={0} max={mode==="manual"?100:undefined}
-                    value={mode==="enrollment"?enrollments[s]:manualPcts[s]}
-                    onChange={e=>{
-                      const v=e.target.value;
-                      if(mode==="enrollment") setEnrollments(t=>({...t,[s]:v}));
-                      else setManualPcts(t=>({...t,[s]:v}));
-                    }}
-                    placeholder={mode==="manual"?"10":""} className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1"
-                    style={{MozAppearance:"textfield"}}/>
-                </div>
-              ))}
-            </div>
-            {mode==="manual"&&<div className="mt-1.5 text-xs" style={{color:Math.abs(totalPct-100)<0.5?"#16a34a":"#dc2626"}}>
-              Total: {totalPct.toFixed(1)}% {Math.abs(totalPct-100)<0.5?"✓ Adds to 100%":"— must equal 100%"}
-            </div>}
-          </div>
-
-          <button onClick={calculate}
-            disabled={grandTotal===0||(mode==="enrollment"&&totalEnr===0)||(mode==="manual"&&Math.abs(totalPct-100)>1)}
-            className="px-4 py-2 text-sm font-bold rounded-lg text-white disabled:opacity-40"
-            style={{background:"#1e3a5f"}}>
-            Calculate Allocations
-          </button>
-
-          {result&&(
-            <div className="space-y-3">
-              <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Allocated Cost per Site</div>
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
-                <table className="w-full text-xs">
-                  <thead><tr className="bg-slate-50 text-slate-400 uppercase tracking-wider">
-                    <th className="px-3 py-2 text-left font-semibold">Site</th>
-                    <th className="px-3 py-2 text-center font-semibold">Share</th>
-                    {CB_COST_CATEGORIES.map(cat=><th key={cat} className="px-3 py-2 text-right font-semibold whitespace-nowrap">{cat}</th>)}
-                    <th className="px-3 py-2 text-right font-semibold">Total</th>
-                  </tr></thead>
-                  <tbody>{(sites||[]).map((s,i)=>(
-                    <tr key={s} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
-                      <td className="px-3 py-2 font-semibold text-slate-700 whitespace-nowrap">{s}</td>
-                      <td className="px-3 py-2 text-center text-slate-400">{((result.pcts[s]||0)*100).toFixed(1)}%</td>
-                      {CB_COST_CATEGORIES.map(cat=>(
-                        <td key={cat} className="px-3 py-2 text-right font-mono text-slate-500">${(result.alloc[s][cat]||0).toLocaleString()}</td>
-                      ))}
-                      <td className="px-3 py-2 text-right font-mono font-bold text-slate-700">${(result.alloc[s].total||0).toLocaleString()}</td>
-                    </tr>
-                  ))}</tbody>
-                </table>
-              </div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <button onClick={handleApply}
-                  className="px-4 py-2 text-xs font-bold rounded-lg text-white" style={{background:"#16a34a"}}>
-                  ✓ {isApplied?"Re-apply to Site Entries":"Apply to Site Entries"}
-                </button>
-                <span className="text-xs text-slate-400">Saves allocation data with this program and stores totals in the notes field for reference.</span>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 
 // ─── Sub-Program / Session Tracker ───────────────────────────────────────────
@@ -4687,23 +4497,27 @@ function ProgramGuideSection({isManager,db}){
   async function saveEntry(){
     if(!form.program.trim()) return;
     setSaving(true);
-    if(editRow){
-      // editRow may be a custom DB row or a built-in being overridden
-      if(editRow.id){
-        const {error:ue}=await db.from("admin_program_guide").update({program:form.program,type:form.type,bucket:form.bucket,cr:form.cr}).eq("id",editRow.id);
-        if(ue) throw ue;
+    try {
+      if(editRow){
+        if(editRow.id){
+          const {error:ue}=await db.from("admin_program_guide").update({program:form.program,type:form.type,bucket:form.bucket,cr:form.cr}).eq("id",editRow.id);
+          if(ue) throw ue;
+        } else {
+          const {error:be}=await db.from("admin_program_guide").insert({...form,builtin_key:editRow.builtin_key||editRow.program});
+          if(be) throw be;
+        }
       } else {
-        // Built-in being edited — save as an override with builtin_key
-        await db.from("admin_program_guide").insert({...form,builtin_key:editRow.builtin_key||editRow.program});
+        const {error:ne}=await db.from("admin_program_guide").insert({...form});
+        if(ne) throw ne;
       }
-    } else {
-      await db.from("admin_program_guide").insert({...form});
+      setShowAdd(false);
+      setEditRow(null);
+      setForm({program:"",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"});
+      loadCustom();
+    } catch(err){
+      alert("Failed to save guide entry: "+(err.message||"unknown error"));
     }
     setSaving(false);
-    setShowAdd(false);
-    setEditRow(null);
-    setForm({program:"",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"});
-    loadCustom();
   }
   async function deleteEntry(id,builtinKey){
     if(id){
