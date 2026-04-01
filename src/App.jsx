@@ -1723,7 +1723,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
       {/* ── Programs by Area ── */}
       {areaRollup.length>0&&(
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <SectionHeader id="areabreakdown" title="Programs by Area" sub="Inventory distribution, avg fill rate, and net P/L by area"/>
+          <SectionHeader id="areabreakdown" title="Programs by Area" sub="Inventory distribution, avg fill rate, and net P/L by area" collapsed={collapsed} onToggle={toggleSection}/>
           {!collapsed["areabreakdown"]&&<div className="p-4 space-y-2.5">
             {[...areaRollup].sort((a,b)=>b.count-a.count).map(r=>{
               const barW = Math.round((r.count/kpis.length)*100);
