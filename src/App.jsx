@@ -3747,9 +3747,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                 r.trend,r.decision,r.pillars_met,r.action_items||""
               ].map(v=>`"${String(v||"").replace(/"/g,'""')}"`).join(","));
               const headers=["Program","Supervisor","Area","Season","FY","Review Date","Fill %","CR %","Revenue","Direct Costs","Trend","Decision","Pillars Met","Action Items"].join(",");
-              const blob=new Blob([headers+"
-"+rows.join("
-")],{type:"text/csv"});
+              const blob=new Blob([headers+"\n"+rows.join("\n")],{type:"text/csv"});
               const a=document.createElement("a");
               a.href=URL.createObjectURL(blob);
               a.download=`BGPD_Program_Reviews_${new Date().toISOString().slice(0,10)}.csv`;
