@@ -758,7 +758,7 @@ function Inp({label,type="text",value,onChange,options,min,max,hint,placeholder,
 // ─── Confirm Delete Modal ─────────────────────────────────────────────────────
 function ConfirmModal({message,onConfirm,onCancel,confirmLabel="Delete",confirmColor="#ef4444"}) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:"rgba(15,23,42,0.5)"}}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:"rgba(15,23,42,0.5)"}} role="dialog" aria-modal="true">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
         <div className="text-base font-bold text-slate-800">Are you sure?</div>
         <div className="text-sm text-slate-500">{message}</div>
@@ -1110,6 +1110,8 @@ function MultiFilter({filters, onChange, counts}) {
         <div key={key} className="relative">
           <button
             onClick={() => setOpen(open === key ? null : key)}
+            aria-expanded={open===key}
+            aria-label={`Filter by ${LABELS[key]}`}
             className="flex items-center gap-1.5 text-sm rounded-lg border px-3 py-1.5 transition"
             style={filters[key].size > 0
               ? {background:'#1e3a5f', color:'white', borderColor:'#1e3a5f'}
@@ -1152,7 +1154,8 @@ function MultiFilter({filters, onChange, counts}) {
 
 // ─── Dashboard (Staff View — unchanged from original) ─────────────────────────
 function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
-  const [filters,setFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
+  // Default to filtering by own name so staff see their programs immediately
+  const [filters,setFilters] = useState({staff:new Set([staffName].filter(Boolean)),area:new Set(),season:new Set(),year:new Set()});
   const [dv,setDv]           = useState("summary");
   const [showReport,setShowReport] = useState(false);
 
@@ -1384,6 +1387,23 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
 }
 
 // ─── Dashboard (Manager View — full analytics) ────────────────────────────────
+// ─── Section Header (shared by ManagerDashboard) ─────────────────────────────
+function SectionHeader({id,title,sub,badge,collapsed,onToggle}) {
+  const open = !collapsed[id];
+  return(
+    <button onClick={()=>onToggle(id)} className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-50 transition border-b border-slate-100">
+      <div>
+        <div className="flex items-center gap-2">
+          <h3 className="font-bold text-slate-700 text-sm">{title}</h3>
+          {badge&&<span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{background:"#fef3c7",color:"#92400e"}}>{badge}</span>}
+        </div>
+        {sub&&<p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+      </div>
+      <span className="text-slate-400 text-xs font-bold ml-4 shrink-0" style={{transform:open?"rotate(180deg)":"rotate(0deg)",display:"inline-block",transition:"transform .2s"}}>▼</span>
+    </button>
+  );
+}
+
 // ─── Needs Attention Accordion ───────────────────────────────────────────────
 function NeedsAttentionQueue({programs,onEdit}){
   const [open,setOpen]=useState(false);
@@ -1427,21 +1447,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
   const [collapsed,setCollapsed] = useState({topbottom:true,rpp:true,capacity:true,classmix:true,workload:true,snapshot:true,areabreakdown:true,nps:true});
   function toggleSection(id){setCollapsed(s=>({...s,[id]:!s[id]}));}
-  function SectionHeader({id,title,sub,badge}){
-    const open = !collapsed[id];
-    return(
-      <button onClick={()=>toggleSection(id)} className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-50 transition border-b border-slate-100">
-        <div>
-          <div className="flex items-center gap-2">
-            <h3 className="font-bold text-slate-700 text-sm">{title}</h3>
-            {badge&&<span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{background:"#fef3c7",color:"#92400e"}}>{badge}</span>}
-          </div>
-          {sub&&<p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
-        </div>
-        <span className="text-slate-400 text-xs font-bold ml-4 shrink-0" style={{transform:open?"rotate(180deg)":"rotate(0deg)",display:"inline-block",transition:"transform .2s"}}>▼</span>
-      </button>
-    );
-  }
+  // SectionHeader hoisted to module level — see below ManagerDashboard
   const [dv,setDv]           = useState("summary");
   const [sort,setSort]       = useState({col:"name",dir:1});
   const [showReport,setShowReport] = useState(false);
@@ -1706,7 +1712,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
 
       {/* ── Program Snapshot bars ── */}
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-        <SectionHeader id="snapshot" title="Program Snapshot: Budgeted vs Actual" sub="Portfolio totals — revenue, enrollment, and cost vs. plan"/>
+        <SectionHeader id="snapshot" title="Program Snapshot: Budgeted vs Actual" sub="Portfolio totals — revenue, enrollment, and cost vs. plan" collapsed={collapsed} onToggle={toggleSection}/>
         {!collapsed["snapshot"]&&<div className="p-5 space-y-5">
           <PBar label="Total Revenue"      actual={actRev}  budget={antRev}  ff={v=>dollar(v)}/>
           <PBar label="Total Enrollment"   actual={actEnr}  budget={antEnr}  ff={v=>v.toString()}/>
@@ -1749,7 +1755,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
       {/* ── Top/Bottom Performers ── */}
       {kpis.length>=3&&(
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <SectionHeader id="topbottom" title="Top & Bottom Performers" sub="Fill rate and cost recovery leaders and laggards"/>
+          <SectionHeader id="topbottom" title="Top & Bottom Performers" sub="Fill rate and cost recovery leaders and laggards" collapsed={collapsed} onToggle={toggleSection}/>
           {!collapsed["topbottom"]&&<div className="p-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {[
             {title:"Top 3 — Fill Rate",           data:top3Fill, metric:p=>pct(p.fillRate),    good:true},
@@ -1798,7 +1804,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
       {/* ── Revenue per Participant by Area ── */}
       {rppByArea.filter(r=>r.enr>0).length>1&&(
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <SectionHeader id="rpp" title="Revenue per Participant by Area" sub={`Overall avg: ${totalActEnr>0?dollar(revPerPart):"—"}`}/>
+          <SectionHeader id="rpp" title="Revenue per Participant by Area" sub={`Overall avg: ${totalActEnr>0?dollar(revPerPart):"—"}`} collapsed={collapsed} onToggle={toggleSection}/>
           {!collapsed["rpp"]&&<div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -1825,7 +1831,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
       {/* ── NPS Summary ── */}
       {withNPS.length>0&&(
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <SectionHeader id="nps" title="NPS Summary" sub={`${withNPS.length} of ${kpis.length} programs have NPS data · Portfolio avg NPS: ${avgNPS??'—'}`} badge={avgNPS!=null?(avgNPS>=50?"Strong":avgNPS>=0?"Acceptable":"Needs Review"):null}/>
+          <SectionHeader id="nps" title="NPS Summary" sub={`${withNPS.length} of ${kpis.length} programs have NPS data · Portfolio avg NPS: ${avgNPS??'—'}`} badge={avgNPS!=null?(avgNPS>=50?"Strong":avgNPS>=0?"Acceptable":"Needs Review"):null} collapsed={collapsed} onToggle={toggleSection}/>
           {!collapsed["nps"]&&<><div className="px-4 py-3 border-b border-slate-100 flex items-center justify-end">
             <div className="text-right">
               <div className="text-xs text-slate-400">Portfolio Avg NPS</div>
@@ -1889,7 +1895,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
       {/* ── Capacity Utilization by Area ── */}
       {areaRollup.length>1&&(
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <SectionHeader id="capacity" title="Capacity Utilization by Area" sub="Avg fill rate per area — green ≥70%, yellow 60–69%, red <60%"/>
+          <SectionHeader id="capacity" title="Capacity Utilization by Area" sub="Avg fill rate per area — green ≥70%, yellow 60–69%, red <60%" collapsed={collapsed} onToggle={toggleSection}/>
           {!collapsed["capacity"]&&<div className="p-4 space-y-3">
             {[...areaRollup].sort((a,b)=>b.avgFill-a.avgFill).map(r=>{
               const fillColor = r.avgFill>=0.7?"#22c55e":r.avgFill>=0.6?"#eab308":"#ef4444";
@@ -1920,7 +1926,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
       {/* ── Classification Mix ── */}
       {classMix.length>0&&(
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <SectionHeader id="classmix" title="Program Mix by Classification" sub="Balance of community service vs. revenue-generating programs"/>
+          <SectionHeader id="classmix" title="Program Mix by Classification" sub="Balance of community service vs. revenue-generating programs" collapsed={collapsed} onToggle={toggleSection}/>
           {!collapsed["classmix"]&&<div className="p-4">
             <div className="flex h-4 rounded-full overflow-hidden mb-4 gap-0.5">
               {classMix.map(c=>(
@@ -1950,7 +1956,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
           <SectionHeader id="workload" title="Staff Workload Allocation"
             sub="Total FT time across all programs — 100% = one full-time salary"
-            badge={workloadByStaff.some(s=>s.totalWL>60)?"⚠ Over-allocation flagged":null}/>
+            badge={workloadByStaff.some(s=>s.totalWL>60)?"⚠ Over-allocation flagged":null} collapsed={collapsed} onToggle={toggleSection}/>
           {!collapsed["workload"]&&<div className="p-4 space-y-3">
             {workloadByStaff.map(s=>{
               const over = s.totalWL>75;
@@ -2642,7 +2648,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
     setDirty(true);
   };
 
-  const tabs = [{id:"info",label:"Program Info"},{id:"budgeted",label:p.ant_enrollment>0||p.ant_revenue>0?"Budgeted ✓":"Budgeted"},{id:"actuals",label:"Actuals"},{id:"summary",label:"Summary"},...(isManager?[{id:"pricing",label:"💰 Pricing"}]:[]),{id:"log",label:`Log${log.length>0?" ("+log.length+")":""}`}];
+  const tabs = [{id:"info",label:"Program Info"},{id:"budgeted",label:p.ant_enrollment>0||p.ant_revenue>0?"Budgeted ✓":"Budgeted"},{id:"actuals",label:p.act_enrollment>0||p.act_revenue>0?"Actuals ✓":"Actuals"},{id:"summary",label:"Summary"},...(isManager?[{id:"pricing",label:"💰 Pricing"}]:[]),{id:"log",label:`Log${log.length>0?" ("+log.length+")":""}`}];
 
   return (
     <div className="space-y-4">
@@ -3188,6 +3194,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
           <div className="flex gap-3">
             <button onClick={handleBack} className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded">Cancel</button>
             <button onClick={handleSave} disabled={!p.name||saving}
+              title="Save (Ctrl+S)"
               className="px-5 py-2 text-sm font-semibold text-white rounded disabled:opacity-40"
               style={{backgroundColor:"#1e3a5f"}}>{saving?"Saving...":isNew?"Save Program":"Update Program"}</button>
           </div>
@@ -3268,6 +3275,7 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
                 <div className="text-center"><div className="text-xs text-slate-400">Net P/(L)</div><div className={`font-mono font-semibold ${k.profitLoss>=0?"text-green-700":"text-red-600"}`}>{dollar(k.profitLoss)}</div></div>
               </div>
               <div className="flex items-center gap-2">
+                {p.is_archived&&<span className="text-xs font-semibold px-1.5 py-0.5 rounded" style={{background:"#f1f5f9",color:"#64748b"}}>Archived</span>}
                 <button onClick={e=>{e.stopPropagation();onDupSingle(p);}}
                   className="text-xs text-slate-400 hover:text-slate-700 font-medium px-2 py-1 rounded hover:bg-slate-100 transition">Copy</button>
                 <Badge status={k.status}/>
@@ -3351,7 +3359,6 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
     setLoading(true);
     setDbError("");
     const {data,error}=await db.from("admin_reviews").select("*").order("created_at",{ascending:false});
-    console.log("[ReviewLoad] data:", data, "error:", error, "staffName:", staffName, "isManager:", isManager);
     if(error){
       setDbError("Could not load reviews: "+error.message+". Check Supabase RLS policies on admin_reviews table — staff may need SELECT access.");
       if(localRow) setReviews(prev=>{
@@ -3380,7 +3387,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
       setForm(prev=>({
         ...prev,
         program_name:name,
-        supervisor:match.staff_name||prev.supervisor,
+        supervisor:prev.supervisor||match.staff_name||"",  // only fill if blank
         area:match.area||prev.area,
         season:match.season||prev.season,
         classification:match.classification||prev.classification,
@@ -3397,6 +3404,19 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
         // quality & trend
         nps:match.nps||"",
         trend:match.trend||"Stable",
+        // auto-calculate seasons below threshold from program history
+        seasons_below_threshold:(()=>{
+          const history=(programs||[]).filter(p=>
+            p.name?.toLowerCase()===name.toLowerCase()&&
+            p.area===match.area&&
+            p.id!==match.id
+          );
+          const weakSeasons=history.filter(p=>{
+            const k=calcKPIs(p);
+            return k.fillRate>0&&(k.fillRate<0.6||k.costRecovery<0.5);
+          }).length;
+          return weakSeasons>3?"3+":String(weakSeasons);
+        })(),
       }));
     } else {
       setMatchedProgram(null);
@@ -3447,15 +3467,9 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
     ];
   }
 
-  const pillars=computePillars(form);
-  const metCount=pillars.filter(p=>p.met).length;
-  const requiredMet=pillars.filter(p=>p.required).every(p=>p.met);
-  const overallPass=metCount>=3&&requiredMet;
-
-  async function save(){
-    const pillarsStr=pillars.filter(p=>p.met).map(p=>p.n).join(",");
-    // Explicitly pick only known DB columns — Supabase rejects unknown fields
-    const d={
+  // Shared payload builder — used by both save() and autoSave()
+  function buildReviewPayload(pillarsStr){
+    return {
       program_name:form.program_name||"",
       supervisor:form.supervisor||"",
       season:form.season||"",
@@ -3516,16 +3530,31 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
       next_review:form.next_review||null,
       pillars_met:pillarsStr,
     };
+  }
+
+  const pillars=computePillars(form);
+  const metCount=pillars.filter(p=>p.met).length;
+  const requiredMet=pillars.filter(p=>p.required).every(p=>p.met);
+  const overallPass=metCount>=3&&requiredMet;
+
+  async function save(){
+    const pillarsStr=pillars.filter(p=>p.met).map(p=>p.n).join(",");
+    const d=buildReviewPayload(pillarsStr);
     let savedRow;
-    if(editRow){
-      await db.from("admin_reviews").update(d).eq("id",editRow.id);
-      savedRow=editRow;
-    } else {
-      const {data:ins,error:insErr}=await db.from("admin_reviews").insert(d).select().single();
-      console.log("[ReviewSave] insert result:", ins, "error:", insErr);
-      savedRow=ins;
+    try {
+      if(editRow){
+        const {error:e}=await db.from("admin_reviews").update(d).eq("id",editRow.id);
+        if(e) throw e;
+        savedRow=editRow;
+      } else {
+        const {data:ins,error:e}=await db.from("admin_reviews").insert(d).select().single();
+        if(e) throw e;
+        savedRow=ins;
+      }
+    } catch(err){
+      setDbError("Failed to save review: "+(err.message||"unknown error")+". Please try again.");
+      return;
     }
-    console.log("[ReviewSave] savedRow:", savedRow, "supervisor field:", d.supervisor);
     // Clear all filters so the review is visible, then highlight it
     setFyFilter("all");setDecFilter("all");setSearch("");
     setSavedId(savedRow?.id||null);
@@ -3535,80 +3564,30 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
     setView("list");setEditRow(null);setForm(emptyForm);setActiveStep(0);setMatchedProgram(null);
   }
 
-  async function del(id){await db.from("admin_reviews").delete().eq("id",id);setConfirm(null);load();}
+  async function del(id){
+    const {error:e}=await db.from("admin_reviews").delete().eq("id",id);
+    if(e){setDbError("Failed to delete review: "+e.message);return;}
+    setConfirm(null);load();
+  }
 
   // Auto-save on Next — saves current form state without leaving the form
   async function autoSave(){
     if(autoSaving) return;
     setAutoSaving(true);
     const pillarsStr=computePillars(form).filter(p=>p.met).map(p=>p.n).join(",");
-    const d={
-      program_name:form.program_name||"",
-      supervisor:form.supervisor||"",
-      season:form.season||"",
-      fy:form.fy||"",
-      review_date:form.review_date||new Date().toISOString().slice(0,10),
-      classification:form.classification||"",
-      target_age:form.target_age||"",
-      seasons_offered:parseInt(form.seasons_offered)||0,
-      area:form.area||"",
-      revenue:parseFloat(form.revenue)||0,
-      direct_costs:parseFloat(form.direct_costs)||0,
-      cost_recovery:parseFloat(form.cost_recovery)||0,
-      prior_cr:parseFloat(form.prior_cr)||0,
-      below_50_cr:!!form.below_50_cr,
-      cr_action:form.cr_action||"",
-      fs_acceptable:form.fs_acceptable!==false,
-      fs_notes:form.fs_notes||"",
-      fs_strengths:form.fs_strengths||"",
-      fs_concerns:form.fs_concerns||"",
-      fill_rate:parseFloat(form.fill_rate)||0,
-      prior_fill_rate:parseFloat(form.prior_fill_rate)||0,
-      seasons_below_threshold:parseInt(form.seasons_below_threshold)||0,
-      below_60_fill:!!form.below_60_fill,
-      needs_review:!!form.needs_review,
-      review_action:form.review_action||"",
-      trend:form.trend||"Stable",
-      nps:form.nps?parseInt(form.nps):null,
-      da_notes:form.da_notes||"",
-      da_strengths:form.da_strengths||"",
-      da_concerns:form.da_concerns||"",
-      enrollment:parseInt(form.enrollment)||0,
-      capacity:parseInt(form.capacity)||0,
-      waitlist:parseInt(form.waitlist)||0,
-      retention_trend:form.retention_trend||"",
-      clear_audience:form.clear_audience!==false,
-      community_benefit:form.community_benefit!==false,
-      documented_need:!!form.documented_need,
-      ci_notes:form.ci_notes||"",
-      ci_strengths:form.ci_strengths||"",
-      ci_concerns:form.ci_concerns||"",
-      prime_time_use:form.prime_time_use||"",
-      time_improvable:!!form.time_improvable,
-      ratio_appropriate:form.ratio_appropriate!==false,
-      space_notes:form.space_notes||"",
-      scheduling_changes:form.scheduling_changes||"",
-      facility_barriers:form.facility_barriers||"",
-      is_pilot:!!form.is_pilot,
-      is_adaptation:!!form.is_adaptation,
-      pilot_goal:form.pilot_goal||"",
-      met_enrollment:!!form.met_enrollment,
-      met_financial:!!form.met_financial,
-      adaptation_made:form.adaptation_made||"",
-      future_potential:form.future_potential||"",
-      innovation_notes:form.innovation_notes||"",
-      decision:form.decision||"Continue",
-      decision_reason:form.decision_reason||"",
-      action_items:form.action_items||"",
-      next_review:form.next_review||null,
-      pillars_met:pillarsStr,
-    };
-    if(editRow){
-      await db.from("admin_reviews").update(d).eq("id",editRow.id);
-    } else {
-      // First auto-save: insert and store row so subsequent saves are updates
-      const {data:ins}=await db.from("admin_reviews").insert(d).select().single();
-      if(ins) setEditRow(ins);
+    const d=buildReviewPayload(pillarsStr);
+    try {
+      if(editRow){
+        const {error:e}=await db.from("admin_reviews").update(d).eq("id",editRow.id);
+        if(e) throw e;
+      } else {
+        // First auto-save: insert and store row so subsequent saves are updates
+        const {data:ins,error:e}=await db.from("admin_reviews").insert(d).select().single();
+        if(e) throw e;
+        if(ins) setEditRow(ins);
+      }
+    } catch(err){
+      setDbError("Auto-save failed: "+(err.message||"unknown error"));
     }
     setAutoSaving(false);
   }
@@ -3634,7 +3613,6 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   }
 
   // Debug: log every time filtered recalculates
-  if(typeof window!=="undefined") console.log("[ReviewFilter] reviews count:", reviews.length, "isManager:", isManager, "staffName:", staffName, "savedId:", savedId, "reviews:", reviews.map(r=>({id:r.id,sup:r.supervisor,fy:r.fy,dec:r.decision})));
   const filtered=reviews.filter(r=>{
     // Staff only see reviews where they are the supervisor (case-insensitive)
     // Always show the just-saved review regardless of name match
@@ -3760,7 +3738,26 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               : `Your program reviews — complete one after each season`}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          {isManager&&filtered.length>0&&(
+            <button onClick={()=>{
+              const rows=filtered.map(r=>[
+                r.program_name,r.supervisor,r.area,r.season,r.fy,r.review_date,
+                r.fill_rate||0,r.cost_recovery||0,r.revenue||0,r.direct_costs||0,
+                r.trend,r.decision,r.pillars_met,r.action_items||""
+              ].map(v=>`"${String(v||"").replace(/"/g,'""')}"`).join(","));
+              const headers=["Program","Supervisor","Area","Season","FY","Review Date","Fill %","CR %","Revenue","Direct Costs","Trend","Decision","Pillars Met","Action Items"].join(",");
+              const blob=new Blob([headers+"
+"+rows.join("
+")],{type:"text/csv"});
+              const a=document.createElement("a");
+              a.href=URL.createObjectURL(blob);
+              a.download=`BGPD_Program_Reviews_${new Date().toISOString().slice(0,10)}.csv`;
+              a.click();
+            }} className="px-4 py-2 text-sm font-semibold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
+              ↓ Export CSV
+            </button>
+          )}
           <button onClick={()=>startNew("quick")} className="px-4 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#d4a017",color:"#1e3a5f"}}>
             ⚡ Quick Review
           </button>
@@ -3826,7 +3823,9 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-slate-800">{r.program_name}</div>
-                  <div className="text-xs text-slate-400 mt-0.5">{r.supervisor}{r.area?` · ${r.area}`:""} · {r.season&&r.fy?`${r.season} FY ${r.fy} · `:""}{r.review_date}</div>
+                  <div className="text-xs text-slate-400 mt-0.5">{r.supervisor}{r.area?` · ${r.area}`:""} · {r.season&&r.fy?`${r.season} FY ${r.fy} · `:""}{r.review_date}
+                    {r.updated_at&&<span className="ml-2 text-slate-300">· saved {new Date(r.updated_at).toLocaleDateString()}</span>}
+                  </div>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs">
                     <span className="text-slate-500">Fill: <span className="font-bold">{r.fill_rate||0}%</span>
                       {frDelta!==null&&<span style={{color:frDelta>=0?"#16a34a":"#dc2626",marginLeft:"3px"}}>{frDelta>=0?"▲":"▼"}{Math.abs(frDelta).toFixed(0)}pp</span>}
@@ -4093,7 +4092,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               <input value={form.program_name} onChange={e=>handleProgramName(e.target.value)}
                 list="program-list-q" className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2"/>
               <datalist id="program-list-q">
-                {[...new Set((reviewablePrograms||[]).map(p=>p.name).filter(Boolean))].map(n=><option key={n} value={n}/>)}
+                {[...new Set((programs||[]).map(p=>p.name).filter(Boolean))].sort().map(n=><option key={n} value={n}/>)}
               </datalist>
             </div>
             <div>
@@ -4163,7 +4162,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               <input value={form.program_name} onChange={e=>handleProgramName(e.target.value)}
                 list="program-list" className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2"/>
               <datalist id="program-list">
-                {[...new Set((reviewablePrograms||[]).map(p=>p.name).filter(Boolean))].map(n=><option key={n} value={n}/>)}
+                {[...new Set((programs||[]).map(p=>p.name).filter(Boolean))].sort().map(n=><option key={n} value={n}/>)}
               </datalist>
               {matchedProgram&&(()=>{
                 const mk=calcKPIs(matchedProgram);
@@ -4442,6 +4441,279 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
 }
 
 
+
+// ─── Clubhouse Standalone Allocation Tool ────────────────────────────────────
+){
+  const [season,setSeason]     = useState("All Year");
+  const [year,setYear]         = useState("25-26");
+  const [which,setWhich]       = useState("budgeted"); // "budgeted" | "actuals"
+  const [catTotals,setCatTotals] = useState(Object.fromEntries(CB_COST_CATEGORIES.map(c=>[c,""])));
+  const [result,setResult]     = useState(null);
+  const [applying,setApplying] = useState(false);
+  const [applyStatus,setApplyStatus] = useState({}); // programId → "ok"|"error"
+  const [lastApplied,setLastApplied] = useState(null);
+
+  const px       = which==="budgeted" ? "ant_" : "act_";
+  const feeField = which==="budgeted" ? "ant_clubhouse_fee" : "act_clubhouse_fee";
+  const allocField = which==="budgeted" ? "clubhouse_alloc" : "clubhouse_alloc_act";
+
+  // All active Clubhouse programs for selected period — auto-updates when programs change
+  const clubhouseProgs = useMemo(()=>
+    programs.filter(p=>
+      !p.is_archived &&
+      p.area==="Clubhouse" &&
+      (season==="all" || p.season===season) &&
+      (year==="all"  || toFY(p.year)===year)
+    ).sort((a,b)=>a.name.localeCompare(b.name))
+  ,[programs,season,year]);
+
+  const siteCount   = clubhouseProgs.length;
+  const grandTotal  = Object.values(catTotals).reduce((a,v)=>a+(parseFloat(v)||0),0);
+  const shareEach   = siteCount>0 ? (1/siteCount) : 0;
+  const canCalc     = grandTotal>0 && siteCount>0;
+
+  // Auto-recalculate whenever programs list or totals change
+  const liveAlloc = useMemo(()=>{
+    if(!canCalc) return null;
+    const alloc={};
+    clubhouseProgs.forEach(p=>{
+      alloc[p.id]={name:p.name,season:p.season,year:p.year};
+      CB_COST_CATEGORIES.forEach(cat=>{
+        alloc[p.id][cat]=Math.round((parseFloat(catTotals[cat])||0)*shareEach);
+      });
+      // Distribute rounding remainders to first site
+      alloc[p.id].total=CB_COST_CATEGORIES.reduce((s,cat)=>s+(alloc[p.id][cat]||0),0);
+    });
+    // Fix rounding: adjust last site so sum equals grandTotal exactly
+    if(clubhouseProgs.length>0){
+      const distributed=Object.values(alloc).reduce((s,a)=>s+a.total,0);
+      const diff=Math.round(grandTotal)-distributed;
+      if(diff!==0){
+        const lastId=clubhouseProgs[clubhouseProgs.length-1].id;
+        alloc[lastId].total+=diff;
+        // Adjust the largest category for the last site
+        const bigCat=CB_COST_CATEGORIES.reduce((a,b)=>
+          (parseFloat(catTotals[b])||0)>(parseFloat(catTotals[a])||0)?b:a,CB_COST_CATEGORIES[0]);
+        alloc[lastId][bigCat]+=diff;
+      }
+    }
+    return alloc;
+  },[clubhouseProgs,catTotals,grandTotal,shareEach,canCalc]);
+
+  async function applyAll(){
+    if(!liveAlloc) return;
+    setApplying(true);
+    const status={};
+    const now=new Date().toISOString();
+
+    for(const prog of clubhouseProgs){
+      const fee=liveAlloc[prog.id]?.total||0;
+      const snapshot={catTotals,siteCount,shareEach,which,season,year,appliedAt:now,siteTotal:fee};
+      try{
+        const {error:e}=await db.from("programs")
+          .update({[feeField]:fee,[allocField]:snapshot})
+          .eq("id",prog.id);
+        status[prog.id]=e?"error":"ok";
+      } catch{
+        status[prog.id]="error";
+      }
+    }
+    setApplyStatus(status);
+    setLastApplied(now);
+    setApplying(false);
+  }
+
+  const appliedCount=Object.values(applyStatus).filter(v=>v==="ok").length;
+  const errorCount=Object.values(applyStatus).filter(v=>v==="error").length;
+
+  return(
+    <div className="p-5 space-y-6">
+
+      {/* Header */}
+      <div className="rounded-xl p-5 text-white" style={{background:"linear-gradient(135deg,#1e3a5f,#0f2d4a)"}}>
+        <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{color:"#29ABE2"}}>Clubhouse</div>
+        <div className="text-xl font-black mb-1">Cost Allocation Tool</div>
+        <p className="text-sm opacity-80">Enter district-wide cost totals once. The tool finds all Clubhouse programs for the selected period, divides the costs equally across all sites, and applies directly to each program record — recalculating automatically as programs are added or removed.</p>
+      </div>
+
+      {/* Step 1 — Period */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
+          <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Step 1 — Select Period & Type</div>
+        </div>
+        <div className="p-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Season</label>
+            <select value={season} onChange={e=>{setSeason(e.target.value);setResult(null);setApplyStatus({});}}
+              className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
+              <option value="all">All Seasons</option>
+              {SEASONS.map(s=><option key={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Fiscal Year</label>
+            <select value={year} onChange={e=>{setYear(e.target.value);setResult(null);setApplyStatus({});}}
+              className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
+              <option value="all">All Years</option>
+              {YEARS.map(y=><option key={y}>{`FY ${y}`}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Apply To</label>
+            <select value={which} onChange={e=>{setWhich(e.target.value);setApplyStatus({});}}
+              className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
+              <option value="budgeted">Budgeted Costs</option>
+              <option value="actuals">Actual Costs</option>
+            </select>
+          </div>
+        </div>
+        {/* Live site count */}
+        <div className="px-5 pb-5">
+          {siteCount===0?(
+            <div className="rounded-lg bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-amber-700">
+              ⚠ No Clubhouse programs found for this period. Add programs with <strong>Area = Clubhouse</strong> for the selected season and year first.
+            </div>
+          ):(
+            <div className="rounded-lg bg-green-50 border border-green-100 px-4 py-3 text-sm text-green-700 flex items-center justify-between flex-wrap gap-2">
+              <span>✓ <strong>{siteCount} Clubhouse program{siteCount!==1?"s":""}</strong> found — costs will be split equally ({(shareEach*100).toFixed(1)}% each)</span>
+              {lastApplied&&<span className="text-xs text-green-600">Last applied {new Date(lastApplied).toLocaleString()}</span>}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Step 2 — Cost Totals */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
+          <div className="text-xs font-bold uppercase tracking-widest text-slate-500">
+            Step 2 — District-Wide {which==="budgeted"?"Budgeted":"Actual"} Cost Totals
+          </div>
+          <div className="text-xs text-slate-400 mt-0.5">Enter the total for all sites combined — the tool splits them equally</div>
+        </div>
+        <div className="p-5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {CB_COST_CATEGORIES.map(cat=>(
+              <div key={cat}>
+                <label className="block text-xs text-slate-500 mb-1">{cat}</label>
+                <input type="number" min={0} value={catTotals[cat]}
+                  onChange={e=>setCatTotals(t=>({...t,[cat]:e.target.value}))}
+                  placeholder="0" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                  style={{MozAppearance:"textfield"}}/>
+              </div>
+            ))}
+          </div>
+          {grandTotal>0&&(
+            <div className="mt-4 flex items-center gap-6 text-sm">
+              <span className="text-slate-500">District Total: <span className="font-bold text-slate-700">${Math.round(grandTotal).toLocaleString()}</span></span>
+              {siteCount>0&&<span className="text-slate-500">Per Site: <span className="font-bold text-slate-700">${Math.round(grandTotal/siteCount).toLocaleString()}</span></span>}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Step 3 — Live Allocation Preview */}
+      {liveAlloc&&(
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Step 3 — Allocation Preview</div>
+              <div className="text-xs text-slate-400 mt-0.5">Updates automatically as programs are added or removed</div>
+            </div>
+            {Object.keys(applyStatus).length>0&&(
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{
+                background:errorCount>0?"#fee2e2":"#dcfce7",
+                color:errorCount>0?"#991b1b":"#166534"
+              }}>
+                {errorCount>0?`✗ ${errorCount} error${errorCount!==1?"s":""}`:
+                  `✓ Applied to ${appliedCount} program${appliedCount!==1?"s":""}`}
+              </span>
+            )}
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="bg-slate-50 text-xs text-slate-400 uppercase tracking-wider">
+                <th className="px-4 py-2 text-left font-semibold">Program / Site</th>
+                <th className="px-4 py-2 text-center font-semibold">Share</th>
+                {CB_COST_CATEGORIES.map(cat=>(
+                  <th key={cat} className="px-3 py-2 text-right font-semibold whitespace-nowrap">{cat}</th>
+                ))}
+                <th className="px-4 py-2 text-right font-semibold">Total Fee</th>
+                <th className="px-4 py-2 text-center font-semibold">Status</th>
+              </tr></thead>
+              <tbody>{clubhouseProgs.map((prog,i)=>{
+                const a=liveAlloc[prog.id];
+                const st=applyStatus[prog.id];
+                const prevFee=prog[feeField]||0;
+                return(
+                  <tr key={prog.id} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
+                    <td className="px-4 py-2.5">
+                      <div className="font-semibold text-slate-700">{prog.name}</div>
+                      <div className="text-xs text-slate-400">{prog.season} FY {toFY(prog.year)}</div>
+                    </td>
+                    <td className="px-4 py-2.5 text-center text-slate-400 text-xs font-mono">{(shareEach*100).toFixed(1)}%</td>
+                    {CB_COST_CATEGORIES.map(cat=>(
+                      <td key={cat} className="px-3 py-2.5 text-right font-mono text-xs text-slate-500">
+                        ${(a?.[cat]||0).toLocaleString()}
+                      </td>
+                    ))}
+                    <td className="px-4 py-2.5 text-right">
+                      <div className="font-mono font-bold text-slate-700">${(a?.total||0).toLocaleString()}</div>
+                      {prevFee>0&&prevFee!==(a?.total||0)&&(
+                        <div className="text-xs text-amber-600">was ${Math.round(prevFee).toLocaleString()}</div>
+                      )}
+                      {prevFee>0&&prevFee===(a?.total||0)&&(
+                        <div className="text-xs text-green-500">✓ current</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-center text-xs">
+                      {!st&&<span className="text-slate-300">—</span>}
+                      {st==="ok"&&<span className="font-semibold text-green-600">✓ Applied</span>}
+                      {st==="error"&&<span className="font-semibold text-red-500">✗ Error</span>}
+                    </td>
+                  </tr>
+                );
+              })}</tbody>
+              <tfoot>
+                <tr className="border-t-2 border-slate-200 bg-slate-50">
+                  <td className="px-4 py-2.5 font-bold text-slate-700" colSpan={2}>District Total</td>
+                  {CB_COST_CATEGORIES.map(cat=>(
+                    <td key={cat} className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-slate-600">
+                      ${Math.round(parseFloat(catTotals[cat])||0).toLocaleString()}
+                    </td>
+                  ))}
+                  <td className="px-4 py-2.5 text-right font-mono font-bold text-slate-800">
+                    ${Math.round(grandTotal).toLocaleString()}
+                  </td>
+                  <td/>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <div className="p-5 border-t border-slate-100 flex items-center justify-between flex-wrap gap-3">
+            <div className="text-xs text-slate-400 max-w-lg">
+              Clicking Apply will write the <strong className="text-slate-600">Clubhouse Allocation Fee ({which==="budgeted"?"Budgeted":"Actual"})</strong> field on all {siteCount} program records above. If you later add or remove a site, come back and click Apply again — the amounts recalculate automatically.
+            </div>
+            <button onClick={applyAll} disabled={applying}
+              className="px-6 py-2.5 text-sm font-bold rounded-xl text-white disabled:opacity-40 transition whitespace-nowrap"
+              style={{background:"#16a34a"}}>
+              {applying?`Applying to ${siteCount} programs…`:`✓ Apply to All ${siteCount} Programs`}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!liveAlloc&&grandTotal===0&&siteCount>0&&(
+        <div className="bg-white rounded-xl border border-slate-100 p-8 text-center text-slate-400">
+          <div className="text-3xl mb-2">💰</div>
+          <div className="font-semibold text-slate-500 mb-1">Enter cost totals above to see the allocation</div>
+          <div className="text-sm">The preview and Apply button will appear once you enter at least one cost category.</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 // ─── Reference Tab ────────────────────────────────────────────────────────────
 // ─── Program Guide Section ────────────────────────────────────────────────────
 const BUILTIN_GUIDE = [
@@ -4705,7 +4977,8 @@ function ProgramGuideSection({isManager,db}){
 
   async function loadCustom(){
     setLoading(true);
-    const {data}=await db.from("admin_program_guide").select("*").order("bucket").order("program");
+    const {data,error}=await db.from("admin_program_guide").select("*").order("bucket").order("program");
+    if(error) console.warn("Program guide load error:", error.message);
     setCustom(data||[]);
     setLoading(false);
   }
@@ -4717,7 +4990,8 @@ function ProgramGuideSection({isManager,db}){
     if(editRow){
       // editRow may be a custom DB row or a built-in being overridden
       if(editRow.id){
-        await db.from("admin_program_guide").update({program:form.program,type:form.type,bucket:form.bucket,cr:form.cr}).eq("id",editRow.id);
+        const {error:ue}=await db.from("admin_program_guide").update({program:form.program,type:form.type,bucket:form.bucket,cr:form.cr}).eq("id",editRow.id);
+        if(ue) throw ue;
       } else {
         // Built-in being edited — save as an override with builtin_key
         await db.from("admin_program_guide").insert({...form,builtin_key:editRow.builtin_key||editRow.program});
@@ -4733,10 +5007,11 @@ function ProgramGuideSection({isManager,db}){
   }
   async function deleteEntry(id,builtinKey){
     if(id){
-      await db.from("admin_program_guide").delete().eq("id",id);
+      const {error:de}=await db.from("admin_program_guide").delete().eq("id",id);
+      if(de) console.warn("Guide delete error:", de.message);
     } else if(builtinKey){
-      // Mark built-in as deleted by inserting a tombstone
-      await db.from("admin_program_guide").insert({program:builtinKey,type:"",bucket:"",cr:"",builtin_key:builtinKey,is_deleted:true});
+      const {error:ie}=await db.from("admin_program_guide").insert({program:builtinKey,type:"",bucket:"",cr:"",builtin_key:builtinKey,is_deleted:true});
+      if(ie) console.warn("Guide tombstone error:", ie.message);
     }
     loadCustom();
   }
@@ -4999,6 +5274,7 @@ function Reference({isManager,db,programs,staffName}) {
           {id:"guide",label:"Dashboard Guide"},
           {id:"training",label:"📋 Training Guide"},
           {id:"review",label:"📋 Program Review"},
+          ...(isManager?[{id:"clubhouse",label:"🏫 Clubhouse Allocation"}]:[]),
         ].map(s=>(
           <button key={s.id} onClick={()=>setSec(s.id)}
             className={`px-5 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition ${sec===s.id?"text-slate-800":"border-transparent text-slate-400 hover:text-slate-600"}`}
@@ -5506,6 +5782,9 @@ function Reference({isManager,db,programs,staffName}) {
 
       {sec==="review"&&(
         <ProgramReviewSection db={db} programs={programs} staffName={staffName} isManager={isManager}/>
+      )}
+      {sec==="clubhouse"&&isManager&&(
+        <ClubhouseAllocationTool db={db} programs={programs} staffName={staffName}/>
       )}
 
       {sec==="training"&&(
@@ -6070,8 +6349,16 @@ export default function App() {
 
   const fetchAll = useCallback(async()=>{
     setLoading(true);
-    const {data:p} = await supabase.from("programs").select("*").order("created_at",{ascending:false});
-    setPrograms(p||[]); setLoading(false);
+    const {data:p, error:fe} = await supabase.from("programs").select("*").order("created_at",{ascending:false});
+    if(fe) setError("Failed to load programs: "+fe.message);
+    // Normalize year format: convert any 4-digit years to YY-YY on load
+    const normalized=(p||[]).map(prog=>{
+      if(prog.year&&/^\d{4}$/.test(String(prog.year))){
+        return {...prog, year:toFY(prog.year)};
+      }
+      return prog;
+    });
+    setPrograms(normalized); setLoading(false);
   },[]);
 
   useEffect(()=>{ if(staffName) fetchAll(); else setLoading(false); },[staffName,fetchAll]);
@@ -6091,14 +6378,18 @@ export default function App() {
 
   const handleDeleteProgram = async id => {
     setSaving(true);
-    await supabase.from("programs").delete().eq("id",id);
-    await fetchAll(); setEditingProgram(null); setTab("dashboard"); setSaving(false);
+    const {error:de}=await supabase.from("programs").delete().eq("id",id);
+    if(de) setError("Failed to delete program: "+de.message);
+    else { await fetchAll(); setEditingProgram(null); setTab("dashboard"); }
+    setSaving(false);
   };
 
   const handleArchiveProgram = async (id, archive) => {
     setSaving(true);
-    await supabase.from("programs").update({is_archived: archive}).eq("id", id);
-    await fetchAll(); setEditingProgram(null); setTab("programs"); setSaving(false);
+    const {error:ae}=await supabase.from("programs").update({is_archived: archive}).eq("id", id);
+    if(ae) setError("Failed to archive program: "+ae.message);
+    else { await fetchAll(); setEditingProgram(null); setTab("programs"); }
+    setSaving(false);
   };
 
   const handleDuplicate = async (source,{season,year,carry}) => {
@@ -6235,6 +6526,408 @@ export default function App() {
           </>
         )}
       </main>
+    </div>
+  );
+}
+function ClubhouseAllocationTool({db,programs,staffName}){
+  const SITES = [
+    "Country Meadows","Ivy Hall","Kildeer","Kilmer","Longfellow",
+    "Meridian","Prairie","Pritchett","Tripp","Willow Grove",
+  ];
+
+  const [season,setSeason]   = useState("All Year");
+  const [year,setYear]       = useState("25-26");
+  const [which,setWhich]     = useState("budgeted");
+  const [mode,setMode]       = useState("enrollment"); // "enrollment"|"manual"
+  const [catTotals,setCatTotals] = useState(Object.fromEntries(CB_COST_CATEGORIES.map(c=>[c,""])));
+  // siteMap: site name → program id (user picks or auto-maps)
+  const [siteMap,setSiteMap] = useState(Object.fromEntries(SITES.map(s=>[s,""])));
+  // siteBasis: site name → enrollment count or manual %
+  const [siteBasis,setSiteBasis] = useState(Object.fromEntries(SITES.map(s=>[s,""])));
+  const [result,setResult]   = useState(null);
+  const [applying,setApplying] = useState(false);
+  const [applyStatus,setApplyStatus] = useState({});
+  const [lastApplied,setLastApplied] = useState(null);
+  const [err,setErr]         = useState("");
+
+  const px       = which==="budgeted" ? "ant_" : "act_";
+  const feeField = which==="budgeted" ? "ant_clubhouse_fee" : "act_clubhouse_fee";
+  const allocField = which==="budgeted" ? "clubhouse_alloc" : "clubhouse_alloc_act";
+
+  // Clubhouse programs for selected period
+  const clubhouseProgs = useMemo(()=>
+    programs.filter(p=>
+      !p.is_archived &&
+      p.area==="Clubhouse" &&
+      (season==="all"||p.season===season) &&
+      (year==="all"||toFY(p.year)===year)
+    ).sort((a,b)=>a.name.localeCompare(b.name))
+  ,[programs,season,year]);
+
+  // Auto-map: match site names to programs, pull enrollment from program record
+  function autoMap(){
+    const newMap={...siteMap};
+    const newBasis={...siteBasis};
+    SITES.forEach(site=>{
+      const match=clubhouseProgs.find(p=>
+        p.name.toLowerCase().includes(site.toLowerCase())
+      );
+      if(match){
+        newMap[site]=match.id;
+        if(mode==="enrollment"){
+          const enr=match[px+"enrollment"]||match.act_enrollment||match.ant_enrollment||"";
+          newBasis[site]=enr?String(enr):"";
+        }
+      }
+    });
+    setSiteMap(newMap);
+    setSiteBasis(newBasis);
+    setResult(null);
+    setApplyStatus({});
+  }
+
+  const grandTotal  = Object.values(catTotals).reduce((a,v)=>a+(parseFloat(v)||0),0);
+  const totalBasis  = Object.values(siteBasis).reduce((a,v)=>a+(parseFloat(v)||0),0);
+  const mappedCount = SITES.filter(s=>siteMap[s]).length;
+  const pctValid    = mode==="manual" && Math.abs(totalBasis-100)<0.5;
+  const enrValid    = mode==="enrollment" && totalBasis>0;
+  const canCalc     = grandTotal>0 && (pctValid||enrValid) && mappedCount>0;
+
+  function calculate(){
+    setErr("");
+    // Build per-site weight
+    const weights={};
+    SITES.forEach(s=>{
+      weights[s] = mode==="enrollment"
+        ? (totalBasis>0?(parseFloat(siteBasis[s])||0)/totalBasis:0)
+        : (parseFloat(siteBasis[s])||0)/100;
+    });
+
+    // Allocate each category
+    const alloc={};
+    SITES.forEach(s=>{
+      alloc[s]={};
+      CB_COST_CATEGORIES.forEach(cat=>{
+        alloc[s][cat]=Math.round((parseFloat(catTotals[cat])||0)*weights[s]);
+      });
+      alloc[s].total=CB_COST_CATEGORIES.reduce((sum,cat)=>sum+(alloc[s][cat]||0),0);
+    });
+
+    // Fix rounding: make sure mapped sites sum to grandTotal exactly
+    const mappedSites=SITES.filter(s=>siteMap[s]);
+    if(mappedSites.length>0){
+      const distributed=mappedSites.reduce((sum,s)=>sum+alloc[s].total,0);
+      const diff=Math.round(grandTotal)-distributed;
+      if(diff!==0){
+        // Apply rounding remainder to the site with the largest share
+        const biggest=mappedSites.reduce((a,b)=>weights[a]>=weights[b]?a:b);
+        alloc[biggest].total+=diff;
+        const bigCat=CB_COST_CATEGORIES.reduce((a,b)=>
+          (parseFloat(catTotals[b])||0)>=(parseFloat(catTotals[a])||0)?b:a,
+          CB_COST_CATEGORIES[0]);
+        alloc[biggest][bigCat]+=diff;
+      }
+    }
+    setResult({weights,alloc,grandTotal});
+    setApplyStatus({});
+  }
+
+  async function applyAll(){
+    if(!result) return;
+    setApplying(true);
+    setErr("");
+    const status={};
+    const now=new Date().toISOString();
+
+    for(const site of SITES){
+      const progId=siteMap[site];
+      if(!progId){status[site]="skipped";continue;}
+      const fee=result.alloc[site].total;
+      const snapshot={
+        catTotals,siteBasis,mode,which,season,year,
+        weight:(result.weights[site]*100).toFixed(1)+"%",
+        appliedAt:now,appliedBy:staffName,siteTotal:fee,
+      };
+      try{
+        const {error:e}=await db.from("programs")
+          .update({[feeField]:fee,[allocField]:snapshot})
+          .eq("id",progId);
+        status[site]=e?"error":"ok";
+        if(e) setErr(prev=>prev+(prev?"
+":"")+site+": "+e.message);
+      } catch(ex){
+        status[site]="error";
+      }
+    }
+    setApplyStatus(status);
+    setLastApplied(now);
+    setApplying(false);
+  }
+
+  const appliedCount=Object.values(applyStatus).filter(v=>v==="ok").length;
+  const errorCount=Object.values(applyStatus).filter(v=>v==="error").length;
+
+  return(
+    <div className="p-5 space-y-6">
+
+      {/* Header */}
+      <div className="rounded-xl p-5 text-white" style={{background:"linear-gradient(135deg,#1e3a5f,#0f2d4a)"}}>
+        <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{color:"#29ABE2"}}>Clubhouse</div>
+        <div className="text-xl font-black mb-1">Cost Allocation Tool</div>
+        <p className="text-sm opacity-80">Enter district-wide cost totals, then weight each site by enrollment (or a custom %). The tool calculates each site's share and applies the allocated fee directly to each program record.</p>
+      </div>
+
+      {err&&(
+        <div className="px-4 py-3 rounded-xl text-sm text-red-700 bg-red-50 border border-red-200">
+          <div className="font-bold mb-1">⚠ Some sites failed to save</div>
+          <div className="text-xs whitespace-pre-wrap">{err}</div>
+        </div>
+      )}
+
+      {/* Step 1 — Period + Type */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
+          <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Step 1 — Select Period & Type</div>
+        </div>
+        <div className="p-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Season</label>
+            <select value={season} onChange={e=>{setSeason(e.target.value);setResult(null);setApplyStatus({});}}
+              className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
+              <option value="all">All Seasons</option>
+              {SEASONS.map(s=><option key={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Fiscal Year</label>
+            <select value={year} onChange={e=>{setYear(e.target.value);setResult(null);setApplyStatus({});}}
+              className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
+              <option value="all">All Years</option>
+              {YEARS.map(y=><option key={y} value={y}>{`FY ${y}`}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Apply To</label>
+            <select value={which} onChange={e=>{setWhich(e.target.value);setApplyStatus({});}}
+              className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
+              <option value="budgeted">Budgeted Costs</option>
+              <option value="actuals">Actual Costs</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Weight By</label>
+            <select value={mode} onChange={e=>{setMode(e.target.value);setSiteBasis(Object.fromEntries(SITES.map(s=>[s,""])));setResult(null);}}
+              className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
+              <option value="enrollment">Enrollment</option>
+              <option value="manual">Manual %</option>
+            </select>
+          </div>
+        </div>
+        <div className="px-5 pb-5 flex items-center gap-3 flex-wrap">
+          <button onClick={autoMap} disabled={clubhouseProgs.length===0}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 disabled:opacity-40 transition">
+            ↺ Auto-map & pull enrollment from program records
+          </button>
+          {lastApplied&&<span className="text-xs text-slate-400">Last applied {new Date(lastApplied).toLocaleString()}</span>}
+          {clubhouseProgs.length===0&&(
+            <span className="text-xs text-amber-600 font-medium">⚠ No Clubhouse programs found for this period</span>
+          )}
+        </div>
+      </div>
+
+      {/* Step 2 — Cost Totals */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
+          <div className="text-xs font-bold uppercase tracking-widest text-slate-500">
+            Step 2 — District-Wide {which==="budgeted"?"Budgeted":"Actual"} Cost Totals
+          </div>
+          <div className="text-xs text-slate-400 mt-0.5">Enter the combined total for all sites — the tool splits by enrollment weight</div>
+        </div>
+        <div className="p-5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {CB_COST_CATEGORIES.map(cat=>(
+              <div key={cat}>
+                <label className="block text-xs text-slate-500 mb-1">{cat}</label>
+                <input type="number" min={0} value={catTotals[cat]}
+                  onChange={e=>setCatTotals(t=>({...t,[cat]:e.target.value}))}
+                  placeholder="0" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                  style={{MozAppearance:"textfield"}}/>
+              </div>
+            ))}
+          </div>
+          {grandTotal>0&&(
+            <div className="mt-3 text-sm font-semibold text-slate-600">
+              District Total: <span className="text-slate-800 font-bold">${Math.round(grandTotal).toLocaleString()}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Step 3 — Site Mapping + Weights */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-widest text-slate-500">
+              Step 3 — Map Sites & Enter {mode==="enrollment"?"Enrollment":"Weight %"}
+            </div>
+            <div className="text-xs text-slate-400 mt-0.5">
+              {mode==="enrollment"
+                ? "Sites with more enrollment absorb more cost. Use the auto-map button above to pull enrollment from existing program records."
+                : "Enter the percentage share for each site. Must total 100%."}
+            </div>
+          </div>
+          <span className="text-xs text-slate-400 shrink-0">{mappedCount}/{SITES.length} mapped</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="bg-slate-50 text-xs text-slate-400 uppercase tracking-wider">
+              <th className="px-4 py-2 text-left font-semibold">Site</th>
+              <th className="px-4 py-2 text-left font-semibold">Program Record</th>
+              <th className="px-4 py-2 text-center font-semibold">{mode==="enrollment"?"Enrollment":"Weight %"}</th>
+              <th className="px-4 py-2 text-center font-semibold">Share</th>
+              <th className="px-4 py-2 text-right font-semibold">Current Fee</th>
+            </tr></thead>
+            <tbody>{SITES.map((site,i)=>{
+              const prog=programs.find(p=>p.id===siteMap[site]);
+              const currentFee=prog?prog[feeField]:null;
+              const basisVal=parseFloat(siteBasis[site])||0;
+              const share=mode==="enrollment"
+                ?(totalBasis>0?basisVal/totalBasis:0)
+                :basisVal/100;
+              return(
+                <tr key={site} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
+                  <td className="px-4 py-2.5 font-semibold text-slate-700 whitespace-nowrap">{site}</td>
+                  <td className="px-4 py-2.5">
+                    <select value={siteMap[site]} onChange={e=>{setSiteMap(m=>({...m,[site]:e.target.value}));setResult(null);}}
+                      className="w-full text-sm rounded border border-slate-200 px-2 py-1 bg-white">
+                      <option value="">— not mapped —</option>
+                      {clubhouseProgs.map(p=>(
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-4 py-2.5 text-center">
+                    <input type="number" min={0} max={mode==="manual"?100:undefined}
+                      value={siteBasis[site]}
+                      onChange={e=>{setSiteBasis(b=>({...b,[site]:e.target.value}));setResult(null);}}
+                      placeholder={mode==="manual"?"0":""} 
+                      className="w-20 rounded border border-slate-200 px-2 py-1 text-sm text-center focus:outline-none focus:ring-1"
+                      style={{MozAppearance:"textfield"}}/>
+                  </td>
+                  <td className="px-4 py-2.5 text-center text-xs font-mono text-slate-500">
+                    {totalBasis>0||(mode==="manual"&&Math.abs(totalBasis-100)<0.5)
+                      ?<span className="font-semibold text-slate-600">{(share*100).toFixed(1)}%</span>
+                      :<span className="text-slate-300">—</span>}
+                  </td>
+                  <td className="px-4 py-2.5 text-right text-xs font-mono text-slate-400">
+                    {currentFee!=null&&currentFee>0
+                      ?<span className="text-slate-600">${Math.round(currentFee).toLocaleString()}</span>
+                      :<span>—</span>}
+                  </td>
+                </tr>
+              );
+            })}</tbody>
+          </table>
+        </div>
+        {mode==="manual"&&(
+          <div className="px-4 py-2 border-t border-slate-100 text-xs font-semibold" style={{color:Math.abs(totalBasis-100)<0.5?"#16a34a":"#dc2626"}}>
+            Total: {totalBasis.toFixed(1)}% {Math.abs(totalBasis-100)<0.5?"✓ Adds to 100%":"— must equal 100%"}
+          </div>
+        )}
+        {mode==="enrollment"&&totalBasis>0&&(
+          <div className="px-4 py-2 border-t border-slate-100 text-xs text-slate-400">
+            Total enrollment across mapped sites: {Math.round(totalBasis)}
+          </div>
+        )}
+      </div>
+
+      {/* Calculate */}
+      <button onClick={calculate} disabled={!canCalc}
+        className="w-full py-3 text-sm font-bold rounded-xl text-white disabled:opacity-40 transition"
+        style={{background:"#1e3a5f"}}>
+        {!canCalc&&grandTotal===0?"Enter cost totals to continue":
+         !canCalc&&mappedCount===0?"Map at least one site to continue":
+         !canCalc&&mode==="manual"?"Percentages must total 100%":
+         "Calculate Weighted Allocations →"}
+      </button>
+
+      {/* Step 4 — Results + Apply */}
+      {result&&(
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between flex-wrap gap-2">
+            <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Step 4 — Review & Apply</div>
+            {appliedCount>0&&(
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{background:"#dcfce7",color:"#166534"}}>
+                ✓ {appliedCount} site{appliedCount!==1?"s":""} updated{errorCount>0?` · ${errorCount} error${errorCount!==1?"s":""}`:""}
+              </span>
+            )}
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="bg-slate-50 text-xs text-slate-400 uppercase tracking-wider">
+                <th className="px-4 py-2 text-left font-semibold">Site</th>
+                <th className="px-4 py-2 text-center font-semibold">Weight</th>
+                {CB_COST_CATEGORIES.map(cat=>(
+                  <th key={cat} className="px-3 py-2 text-right font-semibold whitespace-nowrap">{cat}</th>
+                ))}
+                <th className="px-4 py-2 text-right font-semibold">Alloc. Fee</th>
+                <th className="px-4 py-2 text-center font-semibold">Status</th>
+              </tr></thead>
+              <tbody>{SITES.map((site,i)=>{
+                const mapped=!!siteMap[site];
+                const st=applyStatus[site];
+                const weight=result.weights[site]||0;
+                return(
+                  <tr key={site} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"} ${!mapped?"opacity-35":""}`}>
+                    <td className="px-4 py-2.5 font-semibold text-slate-700 whitespace-nowrap">{site}</td>
+                    <td className="px-4 py-2.5 text-center text-xs font-mono font-semibold text-slate-600">{(weight*100).toFixed(1)}%</td>
+                    {CB_COST_CATEGORIES.map(cat=>(
+                      <td key={cat} className="px-3 py-2.5 text-right font-mono text-xs text-slate-500">
+                        ${(result.alloc[site][cat]||0).toLocaleString()}
+                      </td>
+                    ))}
+                    <td className="px-4 py-2.5 text-right font-mono font-bold text-slate-700">
+                      ${(result.alloc[site].total||0).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-2.5 text-center text-xs">
+                      {!mapped&&<span className="text-slate-300">Not mapped</span>}
+                      {mapped&&!st&&<span className="text-slate-300">—</span>}
+                      {st==="ok"&&<span className="font-semibold text-green-600">✓ Applied</span>}
+                      {st==="error"&&<span className="font-semibold text-red-500">✗ Error</span>}
+                      {st==="skipped"&&<span className="text-slate-300">Skipped</span>}
+                    </td>
+                  </tr>
+                );
+              })}</tbody>
+              <tfoot>
+                <tr className="border-t-2 border-slate-200 bg-slate-50">
+                  <td className="px-4 py-2.5 font-bold text-slate-700" colSpan={2}>District Total</td>
+                  {CB_COST_CATEGORIES.map(cat=>(
+                    <td key={cat} className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-slate-600">
+                      ${Math.round(parseFloat(catTotals[cat])||0).toLocaleString()}
+                    </td>
+                  ))}
+                  <td className="px-4 py-2.5 text-right font-mono font-bold text-slate-800">
+                    ${Math.round(result.grandTotal).toLocaleString()}
+                  </td>
+                  <td/>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <div className="p-5 border-t border-slate-100 space-y-3">
+            <div className="text-xs text-slate-400">
+              Writes the <strong className="text-slate-600">Clubhouse Allocation Fee ({which==="budgeted"?"Budgeted":"Actual"})</strong> field on each mapped program record.
+              {SITES.filter(s=>!siteMap[s]).length>0&&` ${SITES.filter(s=>!siteMap[s]).length} unmapped site${SITES.filter(s=>!siteMap[s]).length!==1?"s":""} will be skipped.`}
+            </div>
+            <button onClick={applyAll} disabled={applying||mappedCount===0}
+              className="px-6 py-2.5 text-sm font-bold rounded-xl text-white disabled:opacity-40 transition"
+              style={{background:"#16a34a"}}>
+              {applying?"Applying…":`✓ Apply to ${mappedCount} Site Program${mappedCount!==1?"s":""}`}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
