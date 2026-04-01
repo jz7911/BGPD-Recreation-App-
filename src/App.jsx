@@ -6382,8 +6382,7 @@ function ClubhouseAllocationTool({db,programs,staffName}){
           .update({[feeField]:fee,[allocField]:snapshot})
           .eq("id",progId);
         status[site]=e?"error":"ok";
-        if(e) setErr(prev=>prev+(prev?"
-":"")+site+": "+e.message);
+        if(e) setErr(prev=>prev+(prev?"\n":"")+site+": "+e.message);
       } catch(ex){
         status[site]="error";
       }
