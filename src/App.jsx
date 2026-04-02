@@ -851,7 +851,26 @@ function CostPanel({px,p,set,isManager=false}) {
                   onChange={set(px+"custom_type_label")}
                   placeholder="e.g. Multi-Site Supervisor, Hybrid Program…"
                   hint="Describe this program type for your own reference."/>
-                <Inp label="Custom Workload %" type="number" value={p[px+"custom_workload"]} onChange={set(px+"custom_workload")} min={0} max={100} hint="% of the $97,700 FT annual salary attributed to this program. Not your overall job — just this program's share."/>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Custom Workload %</label>
+                  <input
+                    type="number" min={0} max={100}
+                    className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:border-blue-400 bg-white transition"
+                    style={{MozAppearance:"textfield"}}
+                    value={p[px+"custom_workload_display"]!==undefined ? p[px+"custom_workload_display"] : (p[px+"custom_workload"]||"")}
+                    placeholder="e.g. 5"
+                    onChange={e=>{
+                      const raw=e.target.value;
+                      set(px+"custom_workload_display")(raw);
+                      if(raw!==""){const n=parseFloat(raw);if(!isNaN(n))set(px+"custom_workload")(n);}
+                      else set(px+"custom_workload")(0);
+                    }}
+                    onBlur={e=>{
+                      set(px+"custom_workload_display")(undefined);
+                    }}
+                  />
+                  <span className="text-xs text-slate-400">% of the $97,700 FT annual salary attributed to this program. Not your overall job — just this program's share.</span>
+                </div>
               </div>
             : isManager
               ? (()=>{
