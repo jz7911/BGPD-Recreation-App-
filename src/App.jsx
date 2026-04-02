@@ -854,16 +854,34 @@ function CostPanel({px,p,set,isManager=false}) {
                 <Inp label="Custom Workload %" type="number" value={p[px+"custom_workload"]} onChange={set(px+"custom_workload")} min={0} max={100} hint="% of the $97,700 FT annual salary attributed to this program. Not your overall job — just this program's share."/>
               </div>
             : isManager
-              ? <Inp label="Workload % (editable)" type="number"
-                    value={p[px+"custom_workload"]??((PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.pct||0)*100).toFixed(1)}
-                    onChange={e=>{
-                      const val=e.target.value;
-                      const typePct=((PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.pct||0)*100);
-                      // Empty = reset to program type default
-                      set(px+"custom_workload")(val===""?typePct:parseFloat(val)??typePct);
-                    }}
-                    min={0} max={100}
-                    hint={`% of the $97,700 FT salary for this program only. Clear to reset to program type default (${((PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.pct||0)*100).toFixed(1)}%)`}/>
+              ? (()=>{
+                const typePct=((PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.pct||0)*100);
+                return(
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Workload % (editable)</label>
+                    <input
+                      type="number" min={0} max={100}
+                      className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:border-blue-400 bg-white transition"
+                      style={{MozAppearance:"textfield"}}
+                      value={p[px+"custom_workload_display"]!==undefined ? p[px+"custom_workload_display"] : (p[px+"custom_workload"]??typePct)}
+                      onChange={e=>{
+                        const raw=e.target.value;
+                        // Store raw string so user can type/delete freely
+                        set(px+"custom_workload_display")(raw);
+                        // Only commit a real number to the actual field
+                        if(raw===""){ set(px+"custom_workload")(typePct); }
+                        else{ const n=parseFloat(raw); if(!isNaN(n)) set(px+"custom_workload")(n); }
+                      }}
+                      onBlur={e=>{
+                        // On blur clear the display override so it shows the clean value
+                        set(px+"custom_workload_display")(undefined);
+                        if(e.target.value===""){ set(px+"custom_workload")(typePct); }
+                      }}
+                    />
+                    <span className="text-xs text-slate-400">{`% of the $97,700 FT salary for this program only. Clear to reset to default (${typePct.toFixed(1)}%)`}</span>
+                  </div>
+                );
+              })()
               : <div className="flex flex-col gap-1 justify-center">
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Estimated Workload %</label>
                   <div className="text-lg font-bold text-slate-700">{((PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.pct||0)*100).toFixed(1)}%</div>
