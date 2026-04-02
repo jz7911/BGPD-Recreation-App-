@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "./supabase.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const AREAS = ["Adult General","Adult Sports","Aquatics","Camps","Clubhouse","Dance","Fitness","Golf Dome","Museum","Performing Arts","Seniors","Special Events","Youth General","Youth Sports","Other"];
+const AREAS = ["Adult General","Adult Sports","Aquatics","Camps","Clubhouse","Dance","Fitness","Golf Dome","Museum","Performing Arts","Rentals","Seniors","Special Events","Youth General","Youth Sports","Other"];
 const SEASONS = ["Spring","Summer","Fall","Winter","All Year"];
 /* inject no-spinner CSS */
 if(typeof document!=="undefined"){const s=document.createElement("style");s.textContent="input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield}";document.head.appendChild(s);}
@@ -44,7 +44,7 @@ const SERVICE_CATEGORIES = [
   "Private/Semi-Private Activities","Specialized Activities","Rentals","Retail & Consumables",
 ];
 const PROGRAM_TYPES = [
-  {label:"Small Contractual Program", pct:0.005, hint:"Rentals, drop-ins, open access, contractual classes run entirely by an outside instructor. Staff role is scheduling and contract only."},
+  {label:"Small Contractual Program", pct:0.005, hint:"Drop-ins, open access, and contractual classes run entirely by an outside instructor. Staff role is scheduling and contract only."},
   {label:"Large Contractual Program",  pct:0.01,  hint:"Multi-session contractual series (Karate, Chess, Fencing, Tennis). Staff monitors enrollment, communicates with contractor, handles complaints."},
   {label:"Drop-In Program",            pct:0.015, hint:"Open gym, open arts studio, drop-in museum visits. No registration pipeline. Staff manages scheduling and facility coordination only."},
   {label:"Small Event",                pct:0.025, hint:"Single-day community events under ~200 participants (Kite Fly, Canine Costume, Green Fair, Trick or Treat Trail). Moderate day-of coordination."},
@@ -94,11 +94,11 @@ const DB_FIELDS = [
   "ant_capacity","ant_enrollment","ant_revenue",
   "ant_personnel","ant_commodities","ant_contractuals",
   "ant_other1","ant_other2","ant_facility_hours",
-  "ant_program_type","ant_custom_workload",
+  "ant_program_type","ant_custom_workload","ant_custom_type_label",
   "act_capacity","act_enrollment","act_revenue",
   "act_personnel","act_commodities","act_contractuals",
   "act_other1","act_other2","act_facility_hours",
-  "act_program_type","act_custom_workload",
+  "act_program_type","act_custom_workload","act_custom_type_label",
   "decision_log",
   "is_archived",
   "fee",
@@ -178,11 +178,11 @@ function newProgram(staffName) {
     ant_capacity:0, ant_enrollment:0, ant_revenue:0,
     ant_personnel:0, ant_commodities:0, ant_contractuals:0,
     ant_other1:0, ant_other2:0, ant_facility_hours:0,
-    ant_program_type:last.program_type||"", ant_custom_workload:0,
+    ant_program_type:last.program_type||"", ant_custom_workload:0, ant_custom_type_label:"",
     act_capacity:0, act_enrollment:0, act_revenue:0,
     act_personnel:0, act_commodities:0, act_contractuals:0,
     act_other1:0, act_other2:0, act_facility_hours:0,
-    act_program_type:"", act_custom_workload:0,
+    act_program_type:"", act_custom_workload:0, act_custom_type_label:"",
     other1_label:"Other Direct Costs", other2_label:"Other Direct Costs 2",
     decision_log: [],
     is_archived: false,
@@ -845,9 +845,25 @@ function CostPanel({px,p,set,isManager=false}) {
             })()}
           </div>
           {(!p[px+"program_type"]||p[px+"program_type"]==="Custom")
-            ? <Inp label="Custom Workload %" type="number" value={p[px+"custom_workload"]} onChange={set(px+"custom_workload")} min={0} max={100} hint="% of the $97,700 FT annual salary attributed to this program. Not your overall job — just this program's share."/>
+            ? <div className="space-y-2">
+                <Inp label="Custom Type Name (optional)" type="text"
+                  value={p[px+"custom_type_label"]||""}
+                  onChange={set(px+"custom_type_label")}
+                  placeholder="e.g. Multi-Site Supervisor, Hybrid Program…"
+                  hint="Describe this program type for your own reference."/>
+                <Inp label="Custom Workload %" type="number" value={p[px+"custom_workload"]} onChange={set(px+"custom_workload")} min={0} max={100} hint="% of the $97,700 FT annual salary attributed to this program. Not your overall job — just this program's share."/>
+              </div>
             : isManager
-              ? <Inp label="Workload % (editable)" type="number" value={p[px+"custom_workload"]||((PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.pct||0)*100).toFixed(1)} onChange={set(px+"custom_workload")} min={0} max={100} hint={`% of the $97,700 FT salary for this program only — not overall job. Default for ${p[px+"program_type"]}: ${((PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.pct||0)*100).toFixed(1)}%`}/>
+              ? <Inp label="Workload % (editable)" type="number"
+                    value={p[px+"custom_workload"]??((PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.pct||0)*100).toFixed(1)}
+                    onChange={e=>{
+                      const val=e.target.value;
+                      const typePct=((PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.pct||0)*100);
+                      // Empty = reset to program type default
+                      set(px+"custom_workload")(val===""?typePct:parseFloat(val)??typePct);
+                    }}
+                    min={0} max={100}
+                    hint={`% of the $97,700 FT salary for this program only. Clear to reset to program type default (${((PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.pct||0)*100).toFixed(1)}%)`}/>
               : <div className="flex flex-col gap-1 justify-center">
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Estimated Workload %</label>
                   <div className="text-lg font-bold text-slate-700">{((PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.pct||0)*100).toFixed(1)}%</div>
@@ -1487,6 +1503,15 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   const actEnr   = vis.reduce((a,p)=>a+(p.act_enrollment||0),0);
   const antCost  = kpis.reduce((a,p)=>a+p.antTotal,0);
   const actCost  = kpis.reduce((a,p)=>a+p.totalCost,0);
+  // FT Staff allocation totals across all programs
+  const antFtStaff = kpis.reduce((a,p)=>a+(calcCR(p,"ant_").ftStaff||0),0);
+  const actFtStaff = kpis.reduce((a,p)=>a+(calcCR(p,"act_").ftStaff||0),0);
+  // Unique FT staff count from program records (distinct staff_name values)
+  const ftStaffCount = new Set(vis.map(p=>p.staff_name).filter(Boolean)).size;
+  const ftStaffBudget = ftStaffCount * FT_ANNUAL_SALARY;
+  const ftStaffCap60  = ftStaffBudget * 0.60; // 60% allocation target
+  const antFtPct  = ftStaffBudget > 0 ? antFtStaff / ftStaffBudget : 0;
+  const actFtPct  = ftStaffBudget > 0 ? actFtStaff / ftStaffBudget : 0;
   const healthy  = kpis.filter(p=>p.status==="Healthy").length;
   const monitor  = kpis.filter(p=>p.status==="Monitor").length;
   const redesign = kpis.filter(p=>p.status==="Needs Redesign").length;
@@ -1717,6 +1742,54 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
           <PBar label="Total Revenue"      actual={actRev}  budget={antRev}  ff={v=>dollar(v)}/>
           <PBar label="Total Enrollment"   actual={actEnr}  budget={antEnr}  ff={v=>v.toString()}/>
           <PBar label="Total Program Cost" actual={actCost} budget={antCost} ff={v=>dollar(v)} inv/>
+
+          {/* FT Staff Allocation vs Capacity */}
+          <div className="pt-3 border-t border-slate-100">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <div className="text-xs font-bold text-slate-600 uppercase tracking-wide">FT Staff Allocation vs. Capacity</div>
+                <div className="text-xs text-slate-400 mt-0.5">{ftStaffCount} FT staff × ${FT_ANNUAL_SALARY.toLocaleString()} = ${ftStaffBudget.toLocaleString()} total · 60% target = ${Math.round(ftStaffCap60).toLocaleString()}</div>
+              </div>
+            </div>
+            {/* Budgeted */}
+            <div className="mb-2">
+              <div className="flex justify-between text-xs mb-1">
+                <span className="text-slate-500 font-medium">Budgeted FT Staff Cost</span>
+                <span className="font-mono font-semibold" style={{color: antFtPct > 0.6 ? "#dc2626" : antFtPct > 0.5 ? "#d97706" : "#16a34a"}}>
+                  {dollar(Math.round(antFtStaff))} — {(antFtPct*100).toFixed(1)}% of payroll
+                </span>
+              </div>
+              <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                <div className="h-full rounded-full transition-all" style={{
+                  width: Math.min(antFtPct/0.6*100, 100)+"%",
+                  background: antFtPct > 0.6 ? "#dc2626" : antFtPct > 0.5 ? "#d97706" : "#29ABE2"
+                }}/>
+              </div>
+            </div>
+            {/* Actuals */}
+            <div className="mb-2">
+              <div className="flex justify-between text-xs mb-1">
+                <span className="text-slate-500 font-medium">Actual FT Staff Cost</span>
+                <span className="font-mono font-semibold" style={{color: actFtPct > 0.6 ? "#dc2626" : actFtPct > 0.5 ? "#d97706" : "#16a34a"}}>
+                  {dollar(Math.round(actFtStaff))} — {(actFtPct*100).toFixed(1)}% of payroll
+                </span>
+              </div>
+              <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                <div className="h-full rounded-full transition-all" style={{
+                  width: Math.min(actFtPct/0.6*100, 100)+"%",
+                  background: actFtPct > 0.6 ? "#dc2626" : actFtPct > 0.5 ? "#d97706" : "#16a34a"
+                }}/>
+              </div>
+            </div>
+            {/* 60% target line label */}
+            <div className="flex items-center gap-1.5 mt-1">
+              <div className="w-3 h-0.5 bg-slate-400"/>
+              <span className="text-xs text-slate-400">60% target = {dollar(Math.round(ftStaffCap60))}</span>
+              {antFtPct > 0.6 && <span className="text-xs font-semibold text-red-500 ml-2">⚠ Budgeted over 60%</span>}
+              {actFtPct > 0.6 && <span className="text-xs font-semibold text-red-500 ml-2">⚠ Actuals over 60%</span>}
+              {antFtPct <= 0.6 && actFtPct <= 0.6 && antFtStaff > 0 && <span className="text-xs font-semibold text-green-600 ml-2">✓ Under 60%</span>}
+            </div>
+          </div>
         </div>}
       </div>
 
