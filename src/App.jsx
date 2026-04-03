@@ -1470,13 +1470,24 @@ function NeedsAttentionQueue({programs,onEdit}){
           <span className="text-xs font-bold uppercase tracking-widest text-white">
             Needs Attention — {programs.length} Program{programs.length!==1?"s":""}
           </span>
+          {programs.filter(p=>p.status==="Needs Redesign").length>0&&(
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-900 text-red-200">
+              {programs.filter(p=>p.status==="Needs Redesign").length} Needs Redesign
+            </span>
+          )}
+          {programs.filter(p=>p.status==="Monitor").length>0&&(
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-800 text-amber-200">
+              {programs.filter(p=>p.status==="Monitor").length} Monitor
+            </span>
+          )}
         </div>
         <span className="text-white font-bold shrink-0" style={{fontSize:"10px",display:"inline-block",transform:open?"rotate(180deg)":"rotate(0deg)",transition:"transform .2s"}}>▼</span>
       </button>
       {open&&(
-        <div className="divide-y divide-red-100 bg-red-50">
+        <div className="divide-y divide-slate-200">
           {programs.map(p=>(
-            <div key={p.id} className="px-4 py-2.5 flex items-center justify-between gap-4 hover:bg-red-100/40">
+            <div key={p.id} className="px-4 py-2.5 flex items-center justify-between gap-4"
+              style={{background: p.status==="Needs Redesign"?"#fff5f5":"#fffbeb"}}>
               <div className="flex-1 min-w-0">
                 <button onClick={()=>onEdit(p)} className="text-sm font-semibold text-slate-700 hover:text-blue-600 hover:underline text-left truncate block">{p.name}</button>
                 <div className="text-xs text-slate-400">{p.area} — {p.season} FY {toFY(p.year)} — {p.staff_name}</div>
@@ -1565,11 +1576,14 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
     : 0;
   const healthColor = healthScore>=75?"#22c55e":healthScore>=50?"#eab308":"#ef4444";
 
-  // ── Needs attention queue ──
+  // ── Needs attention queue — Needs Redesign and Monitor only, no cap ──
   const needsAttention = kpis
-    .filter(p=>p.status==="Needs Redesign"||p.trend==="Declining"||p.fillRate<0.5)
-    .sort((a,b)=>a.fillRate-b.fillRate)
-    .slice(0,8);
+    .filter(p=>p.status==="Needs Redesign"||p.status==="Monitor")
+    .sort((a,b)=>{
+      // Needs Redesign first, then Monitor; within each group sort by fill rate ascending
+      if(a.status!==b.status) return a.status==="Needs Redesign"?-1:1;
+      return a.fillRate-b.fillRate;
+    });
 
   // ── Waitlist demand signal ──
   const totalWaitlist  = vis.reduce((a,p)=>a+(p.waitlist||0),0);
@@ -1773,6 +1787,60 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
       </div>
 
       {/* ── Program Snapshot bars ── */}
+      {/* ── FT Staff Allocation — always visible ── */}
+      {ftStaffBudget > 0 && (
+        <div className="bg-white rounded-lg shadow-sm p-5">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <div>
+              <div className="text-sm font-bold text-slate-700">FT Staff Allocation vs. 60% Target</div>
+              <div className="text-xs text-slate-400 mt-0.5">
+                {ftStaffCount} FT staff × ${FT_ANNUAL_SALARY.toLocaleString()} = ${ftStaffBudget.toLocaleString()} total payroll &nbsp;·&nbsp; 60% target = ${Math.round(ftStaffCap60).toLocaleString()}
+              </div>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {antFtPct > 0.6 && <span className="text-xs font-semibold px-2 py-1 rounded-full bg-red-50 text-red-600">⚠ Budgeted over 60%</span>}
+              {actFtPct > 0.6 && <span className="text-xs font-semibold px-2 py-1 rounded-full bg-red-50 text-red-600">⚠ Actuals over 60%</span>}
+              {antFtPct <= 0.6 && actFtPct <= 0.6 && antFtStaff > 0 && <span className="text-xs font-semibold px-2 py-1 rounded-full bg-green-50 text-green-700">✓ Under 60%</span>}
+            </div>
+          </div>
+          <div className="space-y-3">
+            {/* Budgeted bar */}
+            <div>
+              <div className="flex justify-between text-xs mb-1">
+                <span className="text-slate-500 font-medium">Budgeted FT Staff Cost</span>
+                <span className="font-mono font-semibold" style={{color: antFtPct > 0.6 ? "#dc2626" : antFtPct > 0.5 ? "#d97706" : "#16a34a"}}>
+                  {dollar(Math.round(antFtStaff))} &nbsp;—&nbsp; {(antFtPct*100).toFixed(1)}% of payroll
+                </span>
+              </div>
+              <div className="relative h-3 rounded-full bg-slate-100 overflow-hidden">
+                <div className="h-full rounded-full transition-all" style={{
+                  width: Math.min(antFtPct/0.6*100, 100)+"%",
+                  background: antFtPct > 0.6 ? "#dc2626" : antFtPct > 0.5 ? "#d97706" : "#29ABE2"
+                }}/>
+                {/* 60% target tick */}
+                <div className="absolute top-0 bottom-0 w-px bg-slate-400" style={{left:"100%"}}/>
+              </div>
+            </div>
+            {/* Actuals bar */}
+            <div>
+              <div className="flex justify-between text-xs mb-1">
+                <span className="text-slate-500 font-medium">Actual FT Staff Cost</span>
+                <span className="font-mono font-semibold" style={{color: actFtPct > 0.6 ? "#dc2626" : actFtPct > 0.5 ? "#d97706" : "#16a34a"}}>
+                  {dollar(Math.round(actFtStaff))} &nbsp;—&nbsp; {(actFtPct*100).toFixed(1)}% of payroll
+                </span>
+              </div>
+              <div className="relative h-3 rounded-full bg-slate-100 overflow-hidden">
+                <div className="h-full rounded-full transition-all" style={{
+                  width: Math.min(actFtPct/0.6*100, 100)+"%",
+                  background: actFtPct > 0.6 ? "#dc2626" : actFtPct > 0.5 ? "#d97706" : "#16a34a"
+                }}/>
+              </div>
+            </div>
+            <div className="text-xs text-slate-400">Bar fills to 100% at the 60% target. Spills red if over.</div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
         <SectionHeader id="snapshot" title="Program Snapshot: Budgeted vs Actual" sub="Portfolio totals — revenue, enrollment, and cost vs. plan" collapsed={collapsed} onToggle={toggleSection}/>
         {!collapsed["snapshot"]&&<div className="p-5 space-y-5">
@@ -1780,53 +1848,6 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
           <PBar label="Total Enrollment"   actual={actEnr}  budget={antEnr}  ff={v=>v.toString()}/>
           <PBar label="Total Program Cost" actual={actCost} budget={antCost} ff={v=>dollar(v)} inv/>
 
-          {/* FT Staff Allocation vs Capacity */}
-          <div className="pt-3 border-t border-slate-100">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <div className="text-xs font-bold text-slate-600 uppercase tracking-wide">FT Staff Allocation vs. Capacity</div>
-                <div className="text-xs text-slate-400 mt-0.5">{ftStaffCount} FT staff × ${FT_ANNUAL_SALARY.toLocaleString()} = ${ftStaffBudget.toLocaleString()} total · 60% target = ${Math.round(ftStaffCap60).toLocaleString()}</div>
-              </div>
-            </div>
-            {/* Budgeted */}
-            <div className="mb-2">
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-slate-500 font-medium">Budgeted FT Staff Cost</span>
-                <span className="font-mono font-semibold" style={{color: antFtPct > 0.6 ? "#dc2626" : antFtPct > 0.5 ? "#d97706" : "#16a34a"}}>
-                  {dollar(Math.round(antFtStaff))} — {(antFtPct*100).toFixed(1)}% of payroll
-                </span>
-              </div>
-              <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-                <div className="h-full rounded-full transition-all" style={{
-                  width: Math.min(antFtPct/0.6*100, 100)+"%",
-                  background: antFtPct > 0.6 ? "#dc2626" : antFtPct > 0.5 ? "#d97706" : "#29ABE2"
-                }}/>
-              </div>
-            </div>
-            {/* Actuals */}
-            <div className="mb-2">
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-slate-500 font-medium">Actual FT Staff Cost</span>
-                <span className="font-mono font-semibold" style={{color: actFtPct > 0.6 ? "#dc2626" : actFtPct > 0.5 ? "#d97706" : "#16a34a"}}>
-                  {dollar(Math.round(actFtStaff))} — {(actFtPct*100).toFixed(1)}% of payroll
-                </span>
-              </div>
-              <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-                <div className="h-full rounded-full transition-all" style={{
-                  width: Math.min(actFtPct/0.6*100, 100)+"%",
-                  background: actFtPct > 0.6 ? "#dc2626" : actFtPct > 0.5 ? "#d97706" : "#16a34a"
-                }}/>
-              </div>
-            </div>
-            {/* 60% target line label */}
-            <div className="flex items-center gap-1.5 mt-1">
-              <div className="w-3 h-0.5 bg-slate-400"/>
-              <span className="text-xs text-slate-400">60% target = {dollar(Math.round(ftStaffCap60))}</span>
-              {antFtPct > 0.6 && <span className="text-xs font-semibold text-red-500 ml-2">⚠ Budgeted over 60%</span>}
-              {actFtPct > 0.6 && <span className="text-xs font-semibold text-red-500 ml-2">⚠ Actuals over 60%</span>}
-              {antFtPct <= 0.6 && actFtPct <= 0.6 && antFtStaff > 0 && <span className="text-xs font-semibold text-green-600 ml-2">✓ Under 60%</span>}
-            </div>
-          </div>
         </div>}
       </div>
 
