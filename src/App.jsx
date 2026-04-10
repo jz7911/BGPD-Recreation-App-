@@ -238,7 +238,7 @@ function printSeasonReport(programs, filters) {
   const secH = `font-weight:700;font-size:13px;color:#00A9CE;border-bottom:2px solid #00A9CE;padding-bottom:4px;margin-bottom:10px;margin-top:20px;`;
 
   const kpiCards = [
-    {label:"Programs",      value:kpis.length,     color:"#3D2B14"},
+    {label:"Programs",      value:kpis.length,     color:"#3D2010"},
     {label:"Avg Fill Rate", value:pct(avgFill),    color:avgFill>=0.7?"#84BD00":"#E35205"},
     {label:"Avg Recovery",  value:pct(avgCR),      color:avgCR>=1?"#84BD00":"#E35205"},
     {label:"Total Net P/L", value:dollar(totalPL), color:totalPL>=0?"#84BD00":"#E35205"},
@@ -705,7 +705,7 @@ function KCard({label,value,sub,accent,onClick,target}) {
         <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{label}</div>
         {target && <div className="text-xs text-slate-400 font-medium shrink-0">↗ {target}</div>}
       </div>
-      <div className="text-2xl font-bold" style={{color:"#3D2B14"}}>{value}</div>
+      <div className="text-2xl font-bold" style={{color:"#3D2010"}}>{value}</div>
       {sub && <div className="text-xs text-slate-500 mt-0.5">{sub}</div>}
     </div>
   );
@@ -735,11 +735,11 @@ function PBar({label,actual,budget,ff,inv}) {
 
 function Inp({label,type="text",value,onChange,options,min,max,hint,placeholder,required}) {
   const cls = "w-full px-3 py-2 text-sm focus:outline-none transition bg-white";
-  const style = {border:"1px solid rgba(92,70,43,0.25)",borderRadius:"2px"};
+  const style = {border:"1px solid rgba(92,70,43,0.15)",borderRadius:"2px"};
   const focusStyle = "focus:border-blue-400";
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#4A3020"}}>
+      <label className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#6B5040"}}>
         {label}{required&&<span style={{color:"#E35205"}} className="ml-0.5">*</span>}
       </label>
       {options
@@ -751,7 +751,7 @@ function Inp({label,type="text",value,onChange,options,min,max,hint,placeholder,
             inputMode={type==="number"?"decimal":undefined}
             onChange={e=>onChange(type==="number"?parseFloat(e.target.value)||0:e.target.value)}/>
       }
-      {hint&&<span className="text-xs" style={{color:"#4A3020",fontWeight:"300"}}>{hint}</span>}
+      {hint&&<span className="text-xs" style={{color:"#6B5040",fontWeight:"300"}}>{hint}</span>}
     </div>
   );
 }
@@ -953,21 +953,21 @@ function StaffSetup({onConfirm}) {
   const [name,setName] = useState("");
   return (
     <div className="min-h-screen flex items-center justify-center p-6"
-      style={{background:"#DDD9D1",fontFamily:"'Nunito Sans',Arial,sans-serif"}}>
+      style={{background:"#F4F1EC",fontFamily:"'Nunito Sans',Arial,sans-serif"}}>
       <div className="w-full max-w-sm">
         {/* Brand header */}
         <div className="text-center pb-8">
           <div className="flex justify-center mb-5">
             <BGPDLogo size={56}/>
           </div>
-          <div className="font-bold tracking-widest uppercase" style={{fontSize:"11px",color:"#3D2B14",letterSpacing:"0.16em"}}>Buffalo Grove Park District</div>
+          <div className="font-bold tracking-widest uppercase" style={{fontSize:"11px",color:"#3D2010",letterSpacing:"0.16em"}}>Buffalo Grove Park District</div>
           <div className="mt-1 text-xs font-bold tracking-widest uppercase" style={{color:"#00A9CE",letterSpacing:"0.14em"}}>Recreation Program Management</div>
         </div>
         {/* Login card */}
-        <div style={{background:"#ffffff",border:"1px solid rgba(92,70,43,0.28)",borderRadius:"4px",padding:"2.5rem 2rem"}}>
+        <div style={{background:"#ffffff",border:"1px solid rgba(92,70,43,0.15)",borderRadius:"4px",padding:"2.5rem 2rem"}}>
           <div className="text-center mb-6">
-            <div className="font-bold mb-1" style={{color:"#3D2B14",fontSize:"13px",letterSpacing:"0.08em",textTransform:"uppercase"}}>Sign In</div>
-            <div className="text-xs" style={{color:"#4A3020",fontWeight:"300"}}>Enter your first and last name to continue</div>
+            <div className="font-bold mb-1" style={{color:"#3D2010",fontSize:"13px",letterSpacing:"0.08em",textTransform:"uppercase"}}>Sign In</div>
+            <div className="text-xs" style={{color:"#6B5040",fontWeight:"300"}}>Enter your first and last name to continue</div>
           </div>
           <div className="space-y-4">
             <Inp label="First & Last Name" value={name} onChange={setName} placeholder="e.g. Jane Smith" required/>
@@ -975,9 +975,9 @@ function StaffSetup({onConfirm}) {
               className="w-full py-2.5 text-xs font-bold transition disabled:opacity-40"
               style={{backgroundColor:"#00A9CE",color:"#ffffff",borderRadius:"2px",letterSpacing:"0.10em",textTransform:"uppercase",border:"none"}}>Get Started →</button>
           </div>
-          <p className="text-xs text-center mt-4" style={{color:"#4A3020",fontWeight:"300"}}>Your name is saved on this device only.</p>
+          <p className="text-xs text-center mt-4" style={{color:"#6B5040",fontWeight:"300"}}>Your name is saved on this device only.</p>
         </div>
-        <p className="text-center text-xs mt-6" style={{color:"#4A3020"}}>© Buffalo Grove Park District</p>
+        <p className="text-center text-xs mt-6" style={{color:"#6B5040"}}>© Buffalo Grove Park District</p>
       </div>
     </div>
   );
@@ -1040,7 +1040,7 @@ function DupModal({program,onConfirm,onCancel}) {
           <button onClick={onCancel} className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-gray-200">Cancel</button>
           <button disabled={carry===null} onClick={()=>onConfirm({season,year,carry})}
             className="px-5 py-2 text-sm font-semibold text-white rounded-lg disabled:opacity-40 transition"
-            style={{backgroundColor:"#00A9CE"}}>Duplicate Program</button>
+            style={{backgroundColor:"#5C462B"}}>Duplicate Program</button>
         </div>
       </div>
     </div>
@@ -1280,7 +1280,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
         <PBar label="Total Enrollment"   actual={actEnr}  budget={antEnr}  ff={v=>v.toString()}/>
         <PBar label="Total Program Cost" actual={actCost} budget={antCost} ff={v=>dollar(v)} inv/>
       </div>
-      <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.28)"}}>
+      <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 flex-wrap gap-2">
           <h2 className="font-bold text-slate-800 text-sm">Program Detail</h2>
           <div className="flex gap-1">
@@ -1443,13 +1443,13 @@ function SectionHeader({id,title,sub,badge,collapsed,onToggle}) {
   return(
     <button onClick={()=>onToggle(id)}
       className="w-full px-4 py-3 flex items-center justify-between text-left transition"
-      style={{background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.25)",borderLeft:"3px solid #00A9CE"}}>
+      style={{background:"#E8E0D5",borderBottom:"1px solid rgba(92,70,43,0.20)",borderLeft:"3px solid #00A9CE"}}>
       <div>
         <div className="flex items-center gap-2">
-          <h3 className="font-bold text-xs uppercase" style={{letterSpacing:"0.12em",color:"#3D2B14"}}>{title}</h3>
+          <h3 className="font-bold text-xs uppercase" style={{letterSpacing:"0.12em",color:"#3D2010"}}>{title}</h3>
           {badge&&<span className="text-xs font-semibold px-2 py-0.5" style={{background:"rgba(0,169,206,0.1)",color:"#00A9CE",borderRadius:"20px"}}>{badge}</span>}
         </div>
-        {sub&&<p className="text-xs mt-0.5" style={{color:"#4A3020"}}>{sub}</p>}
+        {sub&&<p className="text-xs mt-0.5" style={{color:"#6B5040"}}>{sub}</p>}
       </div>
       <span className="text-xs font-bold ml-4 shrink-0" style={{color:"#00A9CE",transform:open?"rotate(180deg)":"rotate(0deg)",display:"inline-block",transition:"transform .2s"}}>▼</span>
     </button>
@@ -1791,7 +1791,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
         <div className="bg-white rounded-lg shadow-sm p-5">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div>
-              <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.12em",color:"#3D2B14"}}>FT Staff Allocation vs. 60% Target</div>
+              <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.12em",color:"#3D2010"}}>FT Staff Allocation vs. 60% Target</div>
               <div className="text-xs text-slate-500 mt-0.5">
                 {ftStaffCount} FT staff × ${FT_ANNUAL_SALARY.toLocaleString()} = ${ftStaffBudget.toLocaleString()} total payroll &nbsp;·&nbsp; 60% target = ${Math.round(ftStaffCap60).toLocaleString()}
               </div>
@@ -1840,7 +1840,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
         </div>
       )}
 
-      <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.28)"}}>
+      <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
         <SectionHeader id="snapshot" title="Program Snapshot: Budgeted vs Actual" sub="Portfolio totals — revenue, enrollment, and cost vs. plan" collapsed={collapsed} onToggle={toggleSection}/>
         {!collapsed["snapshot"]&&<div className="p-5 space-y-5">
           <PBar label="Total Revenue"      actual={actRev}  budget={antRev}  ff={v=>dollar(v)}/>
@@ -1852,7 +1852,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
 
       {/* ── Programs by Area ── */}
       {areaRollup.length>0&&(
-        <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.28)"}}>
+        <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
           <SectionHeader id="areabreakdown" title="Programs by Area" sub="Inventory distribution, avg fill rate, and net P/L by area" collapsed={collapsed} onToggle={toggleSection}/>
           {!collapsed["areabreakdown"]&&<div className="p-4 space-y-2.5">
             {[...areaRollup].sort((a,b)=>b.count-a.count).map(r=>{
@@ -1884,7 +1884,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
 
       {/* ── Top/Bottom Performers ── */}
       {kpis.length>=3&&(
-        <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.28)"}}>
+        <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
           <SectionHeader id="topbottom" title="Top & Bottom Performers" sub="Fill rate and cost recovery leaders and laggards" collapsed={collapsed} onToggle={toggleSection}/>
           {!collapsed["topbottom"]&&<div className="p-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {[
@@ -1893,7 +1893,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
             {title:"Top 3 — Cost Recovery",        data:top3CR,   metric:p=>pct(p.costRecovery),good:true},
             {title:"Bottom 3 — Cost Recovery",     data:bot3CR,   metric:p=>pct(p.costRecovery),good:false},
           ].map(({title,data,metric,good})=>(
-            <div key={title} className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.28)"}}>
+            <div key={title} className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
               <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white" style={{backgroundColor:good?"#4A6B00":"#E35205"}}>{title}</div>
               {data.map((p,i)=>(
                 <div key={p.id} className={`px-4 py-2.5 flex items-center justify-between ${i>0?"border-t border-slate-50":""}`}>
@@ -1912,8 +1912,8 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
 
       {/* ── High Demand Programs (Waitlist) ── */}
       {highDemand.length>0&&(
-        <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.28)"}}>
-          <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white" style={{backgroundColor:"#00A9CE",color:"#3D2B14"}}>
+        <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
+          <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white" style={{backgroundColor:"#00A9CE",color:"#3D2010"}}>
             High Demand — Programs with Waitlists
           </div>
           {highDemand.map((p,i)=>(
@@ -1933,7 +1933,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
 
       {/* ── Revenue per Participant by Area ── */}
       {rppByArea.filter(r=>r.enr>0).length>1&&(
-        <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.28)"}}>
+        <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
           <SectionHeader id="rpp" title="Revenue per Participant by Area" sub={`Overall avg: ${totalActEnr>0?dollar(revPerPart):"—"}`} collapsed={collapsed} onToggle={toggleSection}/>
           {!collapsed["rpp"]&&<div>
           <div className="overflow-x-auto">
@@ -1960,7 +1960,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
 
       {/* ── NPS Summary ── */}
       {withNPS.length>0&&(
-        <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.28)"}}>
+        <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
           <SectionHeader id="nps" title="NPS Summary" sub={`${withNPS.length} of ${kpis.length} programs have NPS data · Portfolio avg NPS: ${avgNPS??'—'}`} badge={avgNPS!=null?(avgNPS>=50?"Strong":avgNPS>=0?"Acceptable":"Needs Review"):null} collapsed={collapsed} onToggle={toggleSection}/>
           {!collapsed["nps"]&&<><div className="px-4 py-3 border-b border-slate-100 flex items-center justify-end">
             <div className="text-right">
@@ -2024,7 +2024,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
 
       {/* ── Capacity Utilization by Area ── */}
       {areaRollup.length>1&&(
-        <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.28)"}}>
+        <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
           <SectionHeader id="capacity" title="Capacity Utilization by Area" sub="Avg fill rate per area — green ≥70%, yellow 60–69%, red <60%" collapsed={collapsed} onToggle={toggleSection}/>
           {!collapsed["capacity"]&&<div className="p-4 space-y-3">
             {[...areaRollup].sort((a,b)=>b.avgFill-a.avgFill).map(r=>{
@@ -2055,7 +2055,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
 
       {/* ── Classification Mix ── */}
       {classMix.length>0&&(
-        <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.28)"}}>
+        <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
           <SectionHeader id="classmix" title="Program Mix by Classification" sub="Balance of community service vs. revenue-generating programs" collapsed={collapsed} onToggle={toggleSection}/>
           {!collapsed["classmix"]&&<div className="p-4">
             <div className="flex h-4 rounded-full overflow-hidden mb-4 gap-0.5">
@@ -2083,7 +2083,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
 
       {/* ── Staff Workload Allocation ── */}
       {workloadByStaff.length>0&&(
-        <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.28)"}}>
+        <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
           <SectionHeader id="workload" title="Staff Workload Allocation"
             sub="Total FT time across all programs — 100% = one full-time salary"
             badge={workloadByStaff.some(s=>s.totalWL>60)?"⚠ Over-allocation flagged":null} collapsed={collapsed} onToggle={toggleSection}/>
@@ -2129,7 +2129,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
       )}
 
       {/* ── Program Detail ── */}
-      <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.28)"}}>
+      <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 flex-wrap gap-2">
           <div>
             <h2 className="font-bold text-slate-800 text-sm">Program Detail</h2>
@@ -2384,7 +2384,7 @@ function MultiSeasonView({programs,onEdit}) {
         </div>
       )}
       {groups.map(g=>(
-        <div key={g.name+g.area} className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.28)"}}>
+        <div key={g.name+g.area} className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
           <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
             <div>
               <div className="font-bold text-slate-800">{g.name}</div>
@@ -2639,7 +2639,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
             <div className="font-bold text-sm mb-3">Once your program has run, come back and fill in the Actuals tab — enrollment, revenue, and any direct costs. This unlocks your cost recovery analysis, fee gap, and suggested pricing on the Summary tab.</div>
             <button onClick={()=>setSec("actuals")}
               className="inline-flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-lg text-white transition"
-              style={{backgroundColor:"#00A9CE",color:"#3D2B14"}}>
+              style={{backgroundColor:"#00A9CE",color:"#3D2010"}}>
               Go to Actuals tab →
             </button>
           </div>
@@ -2658,12 +2658,12 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
         </div>
       )}
 
-      <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.28)"}}>
+      <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
         <div className="flex border-b border-slate-100 overflow-x-auto scrollbar-none">
           {tabs.map(s=>(
             <button key={s.id} onClick={()=>setSec(s.id)}
               className={`px-3 py-3 text-xs sm:text-sm font-semibold whitespace-nowrap border-b-2 transition ${sec===s.id?"font-semibold":"border-transparent text-slate-500 hover:text-slate-500"}`}
-              style={sec===s.id?{borderColor:"#00A9CE",color:"#00A9CE"}:{color:"#4A3020"}}>{s.label}</button>
+              style={sec===s.id?{borderColor:"#00A9CE",color:"#00A9CE"}:{color:"#6B5040"}}>{s.label}</button>
           ))}
         </div>
         {!isNew&&p.name&&(
@@ -2769,7 +2769,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                                 {(()=>{
                                   const total=(parseInt(p.nps_promoters)||0)+(parseInt(p.nps_passives)||0)+(parseInt(p.nps_detractors)||0);
                                   const calc=total>0?Math.round(((parseInt(p.nps_promoters)||0)-(parseInt(p.nps_detractors)||0))/total*100):null;
-                                  return calc!=null?(<span>Calculated NPS from breakdown: <strong className="font-medium" style={{color:"#3D2B14"}}>{calc}</strong> · {total} total responses</span>):null;
+                                  return calc!=null?(<span>Calculated NPS from breakdown: <strong className="font-medium" style={{color:"#3D2010"}}>{calc}</strong> · {total} total responses</span>):null;
                                 })()}
                               </div>
                             ):null}
@@ -2809,7 +2809,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                         {(p.nps_promoters>0||p.nps_passives>0||p.nps_detractors>0)&&(()=>{
                           const total=(parseInt(p.nps_promoters)||0)+(parseInt(p.nps_passives)||0)+(parseInt(p.nps_detractors)||0);
                           const calc=total>0?Math.round(((parseInt(p.nps_promoters)||0)-(parseInt(p.nps_detractors)||0))/total*100):null;
-                          return calc!=null?(<div className="text-xs text-slate-500 p-3 rounded-lg bg-slate-50 border border-slate-100">Calculated NPS from breakdown: <strong className="font-medium" style={{color:"#3D2B14"}}>{calc}</strong> · {total} total responses</div>):null;
+                          return calc!=null?(<div className="text-xs text-slate-500 p-3 rounded-lg bg-slate-50 border border-slate-100">Calculated NPS from breakdown: <strong className="font-medium" style={{color:"#3D2010"}}>{calc}</strong> · {total} total responses</div>):null;
                         })()}
                         <p className="text-xs text-slate-500">Enter the NPS score from your survey results. The score ranges from −100 to +100 — positive is good, 50+ is excellent.</p>
                       </div>
@@ -3370,8 +3370,8 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
     const p4=f.prime_time_use!=="Underutilized"&&f.ratio_appropriate;
     const p5=!f.is_pilot||(f.met_enrollment&&f.met_financial);
     return[
-      {n:1,label:"Fiscal Sustainability",met:p1,required:true,color:"#3D2B14"},
-      {n:2,label:"Data & Accountability",met:p2,required:true,color:"#3D2B14"},
+      {n:1,label:"Fiscal Sustainability",met:p1,required:true,color:"#3D2010"},
+      {n:2,label:"Data & Accountability",met:p2,required:true,color:"#3D2010"},
       {n:3,label:"Community Impact",met:p3,required:false,color:"#00A9CE"},
       {n:4,label:"Space Optimization",met:p4,required:false,color:"#990066"},
       {n:5,label:"Innovation",met:p5,required:false,color:"#D4850A"},
@@ -3667,7 +3667,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               ↓ Export CSV
             </button>
           )}
-          <button onClick={()=>startNew("quick")} className="px-4 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#00A9CE",color:"#3D2B14"}}>
+          <button onClick={()=>startNew("quick")} className="px-4 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#00A9CE",color:"#3D2010"}}>
             ⚡ Quick Review
           </button>
           <button onClick={()=>startNew("full")} className="px-4 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#00A9CE"}}>
@@ -3766,7 +3766,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   if(view==="detail"&&detailRow){
     const r=detailRow;
     const pMet=(r.pillars_met||"").split(",").filter(Boolean);
-    const pillarMeta={1:{label:"Fiscal Sustainability",color:"#3D2B14",req:true},2:{label:"Data & Accountability",color:"#3D2B14",req:true},3:{label:"Community Impact",color:"#00A9CE",req:false},4:{label:"Space Optimization",color:"#990066",req:false},5:{label:"Innovation",color:"#D4850A",req:false}};
+    const pillarMeta={1:{label:"Fiscal Sustainability",color:"#3D2010",req:true},2:{label:"Data & Accountability",color:"#3D2010",req:true},3:{label:"Community Impact",color:"#00A9CE",req:false},4:{label:"Space Optimization",color:"#990066",req:false},5:{label:"Innovation",color:"#D4850A",req:false}};
     const history=reviewHistory(r.program_name).filter(h=>h.id!==r.id);
     const Row=({k,v})=>v!=null&&v!==""&&v!==false?(<div className="flex justify-between py-1 border-b border-slate-50"><span className="text-slate-500 text-xs">{k}</span><span className="font-semibold text-slate-800 text-xs text-right max-w-48">{String(v)}</span></div>):null;
     const Note=({label,val,color="#64748b"})=>val?(<div className="mt-2 p-2.5 rounded-lg bg-slate-50 text-xs text-slate-500"><span className="font-bold" style={{color}}>{label}: </span>{val}</div>):null;
@@ -4875,7 +4875,7 @@ function Reference({isManager,db,programs,staffName}) {
     {cat:"Retail & Consumables",              target:"130-150% Cost Recovery", bg:"#a7f3d0",text:"#007A99"},
   ];
   const tiers = [
-    {label:"Tier 1 - Always Tracked",color:"#3D2B14",items:[
+    {label:"Tier 1 - Always Tracked",color:"#3D2010",items:[
       {m:"Fill Rate",           d:"Percent of available spots filled",       w:"Quarterly"},
       {m:"Cost Recovery",       d:"Revenue divided by total program cost",   w:"Quarterly"},
       {m:"Net Profit / (Loss)", d:"Revenue minus total program cost",        w:"Quarterly"},
@@ -4909,7 +4909,7 @@ function Reference({isManager,db,programs,staffName}) {
     ]},
   ];
   return (
-    <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.28)"}}>
+    <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
       <div className="flex border-b border-slate-100 overflow-x-auto">
         {[
           {id:"standards",label:"District Standards"},
@@ -4922,7 +4922,7 @@ function Reference({isManager,db,programs,staffName}) {
         ].map(s=>(
           <button key={s.id} onClick={()=>setSec(s.id)}
             className={`px-5 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition ${sec===s.id?"font-semibold":"border-transparent text-slate-500 hover:text-slate-500"}`}
-            style={sec===s.id?{borderColor:"#00A9CE",color:"#00A9CE"}:{color:"#4A3020"}}>{s.label}</button>
+            style={sec===s.id?{borderColor:"#00A9CE",color:"#00A9CE"}:{color:"#6B5040"}}>{s.label}</button>
         ))}
       </div>
       {sec==="standards"&&(
@@ -4964,7 +4964,7 @@ function Reference({isManager,db,programs,staffName}) {
             </div>
           </div>
           <div className="rounded-lg border border-slate-200 overflow-hidden">
-            <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-wider" style={{backgroundColor:"#00A9CE",color:"#3D2B14"}}>Service Category Cost Recovery / Subsidy Targets</div>
+            <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-wider" style={{backgroundColor:"#00A9CE",color:"#3D2010"}}>Service Category Cost Recovery / Subsidy Targets</div>
             <table className="w-full text-sm">
               <thead><tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
                 <th className="px-4 py-2 text-left font-semibold">Service Category</th>
@@ -4993,7 +4993,7 @@ function Reference({isManager,db,programs,staffName}) {
             <p className="text-sm text-slate-500 mb-4">Every program's total cost is built from four layers. Understanding these helps you know where cost is actually coming from.</p>
             <div className="space-y-3">
               {[
-                {step:"1",label:"Direct Costs",color:"#3D2B14",desc:"Personnel + Commodities + Contractuals + two custom cost lines (labeled per program). These are costs you enter directly on the program form."},
+                {step:"1",label:"Direct Costs",color:"#3D2010",desc:"Personnel + Commodities + Contractuals + two custom cost lines (labeled per program). These are costs you enter directly on the program form."},
                 {step:"2",label:"Admin Overhead (10%)",color:"#64748b",desc:"10% of direct costs is added automatically to account for district-level administrative support. You don't enter this — it's always applied."},
                 {step:"3",label:"Allocated FT Staff Cost",color:"#ffffff",desc:"$97,700 × the program's workload %. This represents the portion of a full-time staff salary attributed to managing this program. If no Program Type is selected, this is $0 — which understates the real cost."},
                 {step:"4",label:"Allocated Facility Cost",color:"#84BD00",desc:"$3/hr × the number of facility hours entered. This covers the shared cost of using district space."},
@@ -5142,7 +5142,7 @@ function Reference({isManager,db,programs,staffName}) {
             <p className="text-sm text-slate-500 mb-3">Breaks down the inventory by how programs are classified and shows the financial profile of each group.</p>
             <div className="space-y-2">
               {[
-                {label:"Community Driven",color:"#3D2B14", desc:"Programs offered primarily for public benefit regardless of revenue. These are expected to run at a subsidy. Monitor total subsidy cost relative to district mission priorities."},
+                {label:"Community Driven",color:"#3D2010", desc:"Programs offered primarily for public benefit regardless of revenue. These are expected to run at a subsidy. Monitor total subsidy cost relative to district mission priorities."},
                 {label:"Revenue Driven",  color:"#84BD00", desc:"Programs expected to generate surplus revenue that can offset community-driven program subsidies. If these are not hitting 100%+ cost recovery, investigate pricing or attendance."},
                 {label:"Both",            color:"#ffffff", desc:"Programs with mixed objectives. Review individually — the target depends on the specific program context."},
               ].map(r=>(
@@ -5207,10 +5207,10 @@ function Reference({isManager,db,programs,staffName}) {
 
               <div className="space-y-3">
                 {[
-                  {n:"1",label:"Fiscal Sustainability",required:true,color:"#3D2B14",icon:"💰",
+                  {n:"1",label:"Fiscal Sustainability",required:true,color:"#3D2010",icon:"💰",
                     what:"Programs should cover their costs when possible, be priced appropriately, and use staff and resources efficiently.",
                     simple:"Avoid unintentional losses. Some programs may be intentionally subsidized because they serve the community — that's okay when it's a deliberate choice."},
-                  {n:"2",label:"Data Driven Decisions",required:true,color:"#3D2B14",icon:"📊",
+                  {n:"2",label:"Data Driven Decisions",required:true,color:"#3D2010",icon:"📊",
                     what:"Decisions are guided by measurable data: fill rate, enrollment trend, waitlist volume, participant satisfaction, and retention rate.",
                     simple:"Most programs should reach at least 60% enrollment. Programs that struggle multiple seasons should be redesigned or reconsidered."},
                   {n:"3",label:"Community Impact",required:false,color:"#00A9CE",icon:"🤝",
@@ -5229,7 +5229,7 @@ function Reference({isManager,db,programs,staffName}) {
                       <div className="flex-1">
                         <div className="font-bold text-white text-sm">{p.label}</div>
                       </div>
-                      {p.required&&<span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{background:"#00A9CE",color:"#3D2B14"}}>REQUIRED</span>}
+                      {p.required&&<span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{background:"#00A9CE",color:"#3D2010"}}>REQUIRED</span>}
                       <span className="text-xl">{p.icon}</span>
                     </div>
                     <div className="p-4 space-y-2">
@@ -5285,7 +5285,7 @@ function Reference({isManager,db,programs,staffName}) {
               <GuideSection title="The Five Pillars — Full Detail" accent="#00A9CE">
                 <div className="space-y-4">
                   {[
-                    {n:"1",label:"Fiscal Sustainability",required:true,color:"#3D2B14",
+                    {n:"1",label:"Fiscal Sustainability",required:true,color:"#3D2010",
                       expectations:[
                         "Programs must align with assigned cost recovery bands (see District Standards tab)",
                         "Program surplus or loss must be understood and tracked — not just reported",
@@ -5293,7 +5293,7 @@ function Reference({isManager,db,programs,staffName}) {
                         "Pricing and staffing should reflect actual demand",
                       ],
                       note:"Community-driven programs may operate below market recovery levels — but subsidy must be intentional and documented. Unintentional loss should always be corrected."},
-                    {n:"2",label:"Data Driven Decisions",required:true,color:"#3D2B14",
+                    {n:"2",label:"Data Driven Decisions",required:true,color:"#3D2010",
                       expectations:[
                         "Minimum 60% fill rate to run most programs — below this triggers a review conversation",
                         "Programs with two consecutive weak seasons require a documented redesign plan",
@@ -5330,7 +5330,7 @@ function Reference({isManager,db,programs,staffName}) {
                       <div className="px-4 py-3 flex items-center gap-3" style={{background:p.color}}>
                         <div className="w-7 h-7 rounded-full bg-white flex items-center justify-center text-xs font-black shrink-0" style={{color:p.color}}>{p.n}</div>
                         <span className="font-bold text-white">{p.label}</span>
-                        {p.required&&<span className="ml-auto text-xs font-bold px-2 py-0.5 rounded-full" style={{background:"#00A9CE",color:"#3D2B14"}}>REQUIRED</span>}
+                        {p.required&&<span className="ml-auto text-xs font-bold px-2 py-0.5 rounded-full" style={{background:"#00A9CE",color:"#3D2010"}}>REQUIRED</span>}
                       </div>
                       <div className="p-4">
                         <div className="space-y-1.5 mb-3">
@@ -5381,7 +5381,7 @@ function Reference({isManager,db,programs,staffName}) {
                     {item:"Service offering balance",detail:"Is the portfolio mix still aligned with the district's mission and financial targets?"},
                   ].map((r,i)=>(
                     <div key={i} className="flex gap-3 p-3 rounded-lg border border-slate-100">
-                      <span className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0 mt-0.5" style={{background:"#00A9CE",color:"#3D2B14"}}>{i+1}</span>
+                      <span className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0 mt-0.5" style={{background:"#00A9CE",color:"#3D2010"}}>{i+1}</span>
                       <div>
                         <div className="text-sm font-bold text-slate-800">{r.item}</div>
                         <div className="text-xs text-slate-500">{r.detail}</div>
@@ -5477,7 +5477,7 @@ function Reference({isManager,db,programs,staffName}) {
               <GuideSection title="What Each Tab Does" accent="#00A9CE">
                 <div className="space-y-3">
                   {[
-                    {icon:"📊",label:"Dashboard",color:"#3D2B14",desc:"Your home screen. Shows all your programs as a list with performance numbers. This is where you'll spend most of your time — checking fill rates, updating status, and spotting anything that needs attention."},
+                    {icon:"📊",label:"Dashboard",color:"#3D2010",desc:"Your home screen. Shows all your programs as a list with performance numbers. This is where you'll spend most of your time — checking fill rates, updating status, and spotting anything that needs attention."},
                     {icon:"📁",label:"Programs",color:"#00A9CE",desc:"Where you add new programs and edit existing ones. Think of this as your filing cabinet — every program you run gets an entry here with its enrollment, costs, and revenue."},
                     {icon:"📅",label:"Multi-Season",color:"#990066",desc:"A side-by-side view of the same program across multiple seasons. Useful when your manager asks how Fall Dance has trended over the past few years."},
                     {icon:"📚",label:"Guide & Resources",color:"#ffffff",desc:"District standards, formulas, and this training guide. If you ever wonder what a number means or how it's calculated, this is where to look."},
@@ -5501,7 +5501,7 @@ function Reference({isManager,db,programs,staffName}) {
                   {/* Section 1 - Basic Info */}
                   <div className="rounded-lg border border-slate-100 overflow-hidden">
                     <div className="px-4 py-2.5 flex items-center gap-2" style={{background:"#00A9CE"}}>
-                      <span className="w-6 h-6 rounded-full bg-white flex items-center justify-center text-xs font-black shrink-0" style={{color:"#3D2B14"}}>1</span>
+                      <span className="w-6 h-6 rounded-full bg-white flex items-center justify-center text-xs font-black shrink-0" style={{color:"#3D2010"}}>1</span>
                       <span className="text-sm font-bold text-white">Basic Info</span>
                     </div>
                     <div className="p-4 space-y-3">
@@ -5738,7 +5738,7 @@ function Reference({isManager,db,programs,staffName}) {
                 <p className="text-sm text-slate-500 mb-4">The dashboard is only useful if the data is current. Here's what to do and when.</p>
                 <div className="space-y-2">
                   {[
-                    {when:"Before registration opens",icon:"📋",color:"#3D2B14",what:"Create the program entry. Fill in: Program Name, Area, Season/Year, Staff Name, Classification, Program Type, Capacity, Budgeted Enrollment, Budgeted Revenue, and all known direct costs. This gives your manager a planning view."},
+                    {when:"Before registration opens",icon:"📋",color:"#3D2010",what:"Create the program entry. Fill in: Program Name, Area, Season/Year, Staff Name, Classification, Program Type, Capacity, Budgeted Enrollment, Budgeted Revenue, and all known direct costs. This gives your manager a planning view."},
                     {when:"When registration closes",icon:"✅",color:"#00A9CE",what:"Update Actual Enrollment with the final count. Add any Waitlist numbers. Revenue doesn't need to be final yet if collection isn't complete."},
                     {when:"When the program ends",icon:"💰",color:"#ffffff",what:"Update Actual Revenue with what was collected. Confirm costs are accurate. Set the Trend field (Growing/Stable/Declining). Add any Notes that explain unusual results — a canceled week, a weather cancellation, an unusually large group."},
                     {when:"If you collected participant feedback",icon:"⭐",color:"#990066",what:"Add your NPS score. Optional but valuable for long-term program tracking."},
@@ -5853,7 +5853,7 @@ function Reference({isManager,db,programs,staffName}) {
               <GuideSection title="Reading Each Dashboard Section" accent="#00A9CE">
                 <div className="space-y-3">
                   {[
-                    {title:"KPI Cards (top row)",color:"#3D2B14",points:["Avg Fill Rate and Avg Cost Recovery are portfolio-wide averages across all visible programs — they respond to your filters","Total Net P/(L) is combined surplus/deficit at program-cost level, not fund-level","Health distribution: Healthy, Monitor, Needs Redesign counts with a dot showing 'Below 50% Recovery' as a separate flag"]},
+                    {title:"KPI Cards (top row)",color:"#3D2010",points:["Avg Fill Rate and Avg Cost Recovery are portfolio-wide averages across all visible programs — they respond to your filters","Total Net P/(L) is combined surplus/deficit at program-cost level, not fund-level","Health distribution: Healthy, Monitor, Needs Redesign counts with a dot showing 'Below 50% Recovery' as a separate flag"]},
                     {title:"Program Snapshot: Budgeted vs. Actual",color:"#00A9CE",points:["Dark bar = actual, lighter bar = budget. The goal: actual revenue and enrollment at or above budget; actual cost at or below","Large gaps are conversation starters — check if actuals have been updated by staff before drawing conclusions","If a program shows $0 actual revenue but it ran, the staff member hasn't updated it yet"]},
                     {title:"Needs Attention Queue",color:"#E35205",points:["Auto-populated with programs meeting one of three conditions: Needs Redesign status, Declining trend, or fill rate below 50%","Sorted by lowest fill rate — worst performers first. Capped at 8 programs","Each program here needs a decision: redesign format, remarket, adjust price, reduce capacity, or sunset"]},
                     {title:"Top & Bottom Performers",color:"#4A6B00",points:["Top 3 and Bottom 3 by fill rate and cost recovery — tells you what's working and what isn't","Click any program name to open it for editing","Bottom performers may be misclassified or missing data — check Program Type and actuals before drawing conclusions"]},
@@ -6079,7 +6079,7 @@ export default function App() {
   if(!staffName) return <StaffSetup onConfirm={handleConfirmName}/>;
 
   return (
-    <div className="min-h-screen" style={{background:"#DDD9D1",fontFamily:"'Nunito Sans',Arial,sans-serif"}}>
+    <div className="min-h-screen" style={{background:"#F4F1EC",fontFamily:"'Nunito Sans',Arial,sans-serif"}}>
       {dupProgram&&(
         <DupModal program={dupProgram} onConfirm={opts=>handleDuplicate(dupProgram,opts)} onCancel={()=>setDupProgram(null)}/>
       )}
@@ -6093,7 +6093,7 @@ export default function App() {
             <BGPDLogo size={32}/>
             <div>
               <div className="font-bold text-sm leading-tight" style={{color:"#ffffff",letterSpacing:"0.08em",textTransform:"uppercase"}}>Buffalo Grove Park District</div>
-              <div className="text-xs font-semibold tracking-widest uppercase" style={{color:"rgba(255,255,255,0.75)"}}>
+              <div className="text-xs font-semibold tracking-widest uppercase" style={{color:"rgba(255,255,255,0.70)"}}>
                 {staffName}{isManager?(effectiveManager?" · Manager View":" · Staff View"):""}
               </div>
             </div>
@@ -6104,13 +6104,13 @@ export default function App() {
                 className="text-xs font-bold px-3 py-1.5 transition"
                 style={effectiveManager
                   ? {background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.4)",color:"#ffffff",borderRadius:"2px"}
-                  : {background:"#3D2B14",border:"1px solid #5C462B",color:"#ffffff",borderRadius:"2px"}}>
+                  : {background:"#00A9CE",border:"1px solid #00A9CE",color:"#ffffff",borderRadius:"2px"}}>
                 {effectiveManager?"⇄ Staff View":"⇄ Manager View"}
               </button>
             )}
             <button onClick={()=>{setAddingProgram(true);setEditingProgram(null);setTab("programs");}}
               className="text-xs font-bold px-3 py-1.5 transition"
-              style={{background:"#3D2B14",color:"#ffffff",borderRadius:"2px",border:"1px solid #5C462B"}}>+ Add Program</button>
+              style={{background:"#00A9CE",color:"#ffffff",borderRadius:"2px",border:"1px solid rgba(255,255,255,0.25)"}}>+ Add Program</button>
             <button onClick={()=>{localStorage.removeItem("bgpd_staff_name");setStaffName("");}}
               className="text-xs px-2 py-1.5 transition"
               style={{color:"rgba(255,255,255,0.65)",background:"none",border:"none"}}>Switch</button>
@@ -6118,7 +6118,7 @@ export default function App() {
         </div>
       </header>
 
-      <nav style={{backgroundColor:"#1A3A4A",borderBottom:"1px solid rgba(0,0,0,0.2)"}}>
+      <nav style={{backgroundColor:"#4A3520",borderBottom:"1px solid rgba(0,0,0,0.25)"}}>
         <div className="max-w-5xl mx-auto flex gap-0 px-4 overflow-x-auto">
           {tabs.map(t=>(
             <button key={t.id} onClick={()=>{setTab(t.id);setEditingProgram(null);setAddingProgram(false);}}
@@ -6142,7 +6142,7 @@ export default function App() {
           </div>
         )}
         {loading ? (
-          <div className="text-center py-20" style={{color:"#4A3020",fontFamily:"'Nunito Sans',Arial,sans-serif"}}>Loading programs...</div>
+          <div className="text-center py-20" style={{color:"#6B5040",fontFamily:"'Nunito Sans',Arial,sans-serif"}}>Loading programs...</div>
         ) : (
           <>
             {tab==="dashboard"&&!showingForm&&(
