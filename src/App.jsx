@@ -200,7 +200,7 @@ const dollar  = v => (v||0)<0 ? `($${Math.abs(Math.round(v||0)).toLocaleString()
 const vDollar = v => v>0 ? `+$${Math.round(v).toLocaleString()}` : v<0 ? `($${Math.abs(Math.round(v)).toLocaleString()})` : "$0";
 const vNum    = v => v>0 ? `+${v}` : `${v}`;
 const vPct    = v => v>0 ? `+${(v*100).toFixed(1)}%` : `${(v*100).toFixed(1)}%`;
-const vc      = (v, inv) => !v||v===0 ? "text-slate-500" : (inv?v<0:v>0) ? "text-green-600 font-semibold" : "text-red-500 font-semibold";
+const vc      = (v, inv) => !v||v===0 ? "text-slate-700" : (inv?v<0:v>0) ? "text-green-600 font-semibold" : "text-red-500 font-semibold";
 
 function sColor(s) {
   if (s==="Healthy") return {bg:"#EEF5E0",text:"#4A6B00",dot:"#84BD00"};
@@ -535,11 +535,11 @@ function NPSUploader({programId,programName,currentNPS,currentTotal,onSave,onCle
       {currentNPS>0&&(
         <div className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 bg-slate-50">
           <div className="flex-1">
-            <div className="text-xs text-slate-500 uppercase tracking-wide font-semibold">Current NPS Score</div>
+            <div className="text-xs text-slate-700 uppercase tracking-wide font-semibold">Current NPS Score</div>
             <div className="text-2xl font-black" style={{color:currentNPS>=50?"#84BD00":currentNPS>=0?"#F6AB00":"#E35205"}}>{currentNPS}</div>
-            {currentTotal>0&&<div className="text-xs text-slate-500">Based on {currentTotal} responses</div>}
+            {currentTotal>0&&<div className="text-xs text-slate-700">Based on {currentTotal} responses</div>}
           </div>
-          <div className="text-xs text-slate-500 leading-relaxed flex-1">
+          <div className="text-xs text-slate-700 leading-relaxed flex-1">
             NPS ranges from −100 to +100.<br/>≥50 = Excellent · ≥0 = Good · &lt;0 = Needs work
           </div>
           <div className="shrink-0">
@@ -550,11 +550,11 @@ function NPSUploader({programId,programName,currentNPS,currentTotal,onSave,onCle
               </button>
             ):(
               <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500">Sure?</span>
+                <span className="text-xs text-slate-700">Sure?</span>
                 <button onClick={()=>{onClear();setConfirmClear(false);}}
                   className="text-xs font-bold text-white px-2.5 py-1 rounded-lg" style={{background:"#E35205"}}>Yes, clear</button>
                 <button onClick={()=>setConfirmClear(false)}
-                  className="text-xs text-slate-500 hover:text-slate-800">Cancel</button>
+                  className="text-xs text-slate-700 hover:text-slate-800">Cancel</button>
               </div>
             )}
           </div>
@@ -573,7 +573,7 @@ function NPSUploader({programId,programName,currentNPS,currentTotal,onSave,onCle
           onChange={e=>handleFile(e.target.files[0])}/>
         <div className="text-2xl mb-2">📊</div>
         <div className="text-sm font-semibold text-slate-800">Drop your survey file here or click to browse</div>
-        <div className="text-xs text-slate-500 mt-1">Supports <strong>.csv</strong>, <strong>.xlsx</strong>, and <strong>.xls</strong> — the app finds the rating column automatically</div>
+        <div className="text-xs text-slate-700 mt-1">Supports <strong>.csv</strong>, <strong>.xlsx</strong>, and <strong>.xls</strong> — the app finds the rating column automatically</div>
       </div>
 
       {error&&<div className="text-sm text-red-600 font-medium">{error}</div>}
@@ -583,7 +583,7 @@ function NPSUploader({programId,programName,currentNPS,currentTotal,onSave,onCle
         <div className="space-y-3">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex-1 min-w-48">
-              <label className="block text-xs font-semibold text-slate-500 mb-1">Which column has the 1–10 ratings?</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Which column has the 1–10 ratings?</label>
               <select value={ratingCol} onChange={e=>setRatingCol(e.target.value)}
                 className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
                 <option value="">Select column…</option>
@@ -596,7 +596,7 @@ function NPSUploader({programId,programName,currentNPS,currentTotal,onSave,onCle
               Calculate NPS
             </button>
           </div>
-          <div className="text-xs text-slate-500">{preview.data.length} response{preview.data.length!==1?"s":""} loaded · {headers.length} columns detected</div>
+          <div className="text-xs text-slate-700">{preview.data.length} response{preview.data.length!==1?"s":""} loaded · {headers.length} columns detected</div>
         </div>
       )}
 
@@ -605,17 +605,17 @@ function NPSUploader({programId,programName,currentNPS,currentTotal,onSave,onCle
         <div className="rounded border overflow-hidden" style={{borderColor:"#e2e8f0"}}>
           <div className="px-4 py-3 flex items-center justify-between" style={{background:"#f8fafc"}}>
             <div>
-              <div className="text-xs text-slate-500 uppercase tracking-wide font-semibold mb-0.5">Calculated NPS</div>
+              <div className="text-xs text-slate-700 uppercase tracking-wide font-semibold mb-0.5">Calculated NPS</div>
               <div className="text-3xl font-black" style={{color:npsColor}}>{result.nps}</div>
             </div>
-            <div className="text-right text-xs text-slate-500 space-y-0.5">
+            <div className="text-right text-xs text-slate-700 space-y-0.5">
               <div><span className="font-bold text-green-600">{result.promoters}</span> Promoters (9–10)</div>
               <div><span className="font-bold text-amber-500">{result.passives}</span> Passives (7–8)</div>
               <div><span className="font-bold text-red-500">{result.detractors}</span> Detractors (0–6)</div>
-              <div className="text-slate-500">{result.total} total{result.invalid>0?` · ${result.invalid} skipped`:""}</div>
+              <div className="text-slate-700">{result.total} total{result.invalid>0?` · ${result.invalid} skipped`:""}</div>
             </div>
           </div>
-          <div className="px-4 py-2 text-xs text-slate-500 border-t border-slate-100">
+          <div className="px-4 py-2 text-xs text-slate-700 border-t border-slate-100">
             Formula: ((Promoters − Detractors) ÷ Total) × 100
           </div>
           <div className="px-4 py-3 border-t border-slate-100 flex justify-end">
@@ -702,11 +702,11 @@ function KCard({label,value,sub,accent,onClick,target}) {
     <div onClick={onClick} style={{borderTop:`3px solid ${accent||"#00A9CE"}`}}
       className={`bg-white rounded-lg p-4 shadow-sm ${onClick?"cursor-pointer hover:shadow-md transition":""}`}>
       <div className="flex items-start justify-between gap-1 mb-1">
-        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{label}</div>
+        <div className="text-xs font-semibold text-slate-700 uppercase tracking-wider">{label}</div>
         {target && <div className="text-xs text-slate-400 font-medium shrink-0">↗ {target}</div>}
       </div>
       <div className="text-2xl font-bold" style={{color:"#5C462B"}}>{value}</div>
-      {sub && <div className="text-xs text-slate-500 mt-0.5">{sub}</div>}
+      {sub && <div className="text-xs text-slate-700 mt-0.5">{sub}</div>}
     </div>
   );
 }
@@ -719,15 +719,15 @@ function PBar({label,actual,budget,ff,inv}) {
   return (
     <div className="space-y-1">
       <div className="flex justify-between items-center">
-        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{label}</span>
+        <span className="text-xs font-semibold text-slate-700 uppercase tracking-wide">{label}</span>
         <span className={`text-xs font-bold ${good?"text-green-600":"text-red-500"}`}>{v>=0?"+":""}{ff?ff(v):v}</span>
       </div>
       <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
         <div className="h-full rounded-full" style={{width:`${Math.min(p,100)}%`,backgroundColor:bc}}/>
       </div>
-      <div className="flex justify-between text-xs text-slate-500">
-        <span>Budget: <span className="font-semibold text-slate-500">{ff?ff(budget):budget}</span></span>
-        <span>Actual: <span className="font-semibold text-slate-500">{ff?ff(actual):actual}</span></span>
+      <div className="flex justify-between text-xs text-slate-700">
+        <span>Budget: <span className="font-semibold text-slate-700">{ff?ff(budget):budget}</span></span>
+        <span>Actual: <span className="font-semibold text-slate-700">{ff?ff(actual):actual}</span></span>
       </div>
     </div>
   );
@@ -739,7 +739,7 @@ function Inp({label,type="text",value,onChange,options,min,max,hint,placeholder,
   const focusStyle = "focus:border-blue-400";
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#A09080"}}>
+      <label className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#6B5744"}}>
         {label}{required&&<span style={{color:"#E35205"}} className="ml-0.5">*</span>}
       </label>
       {options
@@ -751,7 +751,7 @@ function Inp({label,type="text",value,onChange,options,min,max,hint,placeholder,
             inputMode={type==="number"?"decimal":undefined}
             onChange={e=>onChange(type==="number"?parseFloat(e.target.value)||0:e.target.value)}/>
       }
-      {hint&&<span className="text-xs" style={{color:"#A09080",fontWeight:"300"}}>{hint}</span>}
+      {hint&&<span className="text-xs" style={{color:"#6B5744",fontWeight:"300"}}>{hint}</span>}
     </div>
   );
 }
@@ -762,9 +762,9 @@ function ConfirmModal({message,onConfirm,onCancel,confirmLabel="Delete",confirmC
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:"rgba(15,23,42,0.5)"}} role="dialog" aria-modal="true">
       <div className="bg-white rounded shadow-2xl w-full max-w-sm p-6 space-y-4">
         <div className="text-base font-bold font-semibold">Are you sure?</div>
-        <div className="text-sm text-slate-500">{message}</div>
+        <div className="text-sm text-slate-700">{message}</div>
         <div className="flex justify-end gap-3 pt-2">
-          <button onClick={onCancel} className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-gray-200">Cancel</button>
+          <button onClick={onCancel} className="px-4 py-2 text-sm text-slate-700 border border-slate-200 rounded-lg hover:bg-gray-200">Cancel</button>
           <button onClick={onConfirm} className="px-4 py-2 text-sm font-semibold text-white rounded-lg" style={{backgroundColor:confirmColor}}>{confirmLabel}</button>
         </div>
       </div>
@@ -776,7 +776,7 @@ function ConfirmModal({message,onConfirm,onCancel,confirmLabel="Delete",confirmC
 function CostPanel({px,p,set,isManager=false}) {
   const isAnt = px==="ant_";
   const c   = calcCR(p, px);
-  const lc  = isAnt ? "text-blue-500"  : "text-slate-500";
+  const lc  = isAnt ? "text-blue-500"  : "text-slate-700";
   const vc2 = isAnt ? "text-blue-700"  : "text-slate-800";
   const rBg = isAnt ? "#E6F6FB" : "#f8fafc";
   const rBd = isAnt ? "#B5E0EE" : "#e2e8f0";
@@ -788,7 +788,7 @@ function CostPanel({px,p,set,isManager=false}) {
         <Inp label="Revenue ($)" type="number" value={p[px+"revenue"]}    onChange={set(px+"revenue")}    min={0}/>
       </div>
       <div>
-        <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Direct Costs</div>
+        <div className="text-xs font-bold text-slate-700 uppercase tracking-widest mb-3">Direct Costs</div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Inp label="Personnel ($)"            type="number" value={p[px+"personnel"]}      onChange={set(px+"personnel")}      min={0}/>
           <Inp label="Commodities ($)"          type="number" value={p[px+"commodities"]}    onChange={set(px+"commodities")}    min={0}/>
@@ -796,26 +796,26 @@ function CostPanel({px,p,set,isManager=false}) {
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-1">
               <input
-                className="text-xs font-semibold text-slate-500 uppercase tracking-wide bg-transparent border-b border-dashed border-gray-200 focus:border-blue-400 focus:outline-none w-full"
+                className="text-xs font-semibold text-slate-700 uppercase tracking-wide bg-transparent border-b border-dashed border-gray-200 focus:border-blue-400 focus:outline-none w-full"
                 value={p.other1_label||"Other Direct Costs"}
                 onChange={e=>set("other1_label")(e.target.value)}
                 placeholder="Other Direct Costs"
                 title="Click to rename this cost line"
               />
-              <span className="text-xs text-slate-500 shrink-0">($)</span>
+              <span className="text-xs text-slate-700 shrink-0">($)</span>
             </div>
             <input type="number" min={0} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-300" value={p[px+"other1"]||""} onChange={e=>set(px+"other1")(parseFloat(e.target.value)||0)} placeholder="0"/>
           </div>
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-1">
               <input
-                className="text-xs font-semibold text-slate-500 uppercase tracking-wide bg-transparent border-b border-dashed border-gray-200 focus:border-blue-400 focus:outline-none w-full"
+                className="text-xs font-semibold text-slate-700 uppercase tracking-wide bg-transparent border-b border-dashed border-gray-200 focus:border-blue-400 focus:outline-none w-full"
                 value={p.other2_label||"Other Direct Costs 2"}
                 onChange={e=>set("other2_label")(e.target.value)}
                 placeholder="Other Direct Costs 2"
                 title="Click to rename this cost line"
               />
-              <span className="text-xs text-slate-500 shrink-0">($)</span>
+              <span className="text-xs text-slate-700 shrink-0">($)</span>
             </div>
             <input type="number" min={0} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-300" value={p[px+"other2"]||""} onChange={e=>set(px+"other2")(parseFloat(e.target.value)||0)} placeholder="0"/>
           </div>
@@ -832,7 +832,7 @@ function CostPanel({px,p,set,isManager=false}) {
         </div>
       </div>
       <div>
-        <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Staff Workload</div>
+        <div className="text-xs font-bold text-slate-700 uppercase tracking-widest mb-3">Staff Workload</div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <Inp label="Program Type" value={p[px+"program_type"]||"Custom"} onChange={v=>{
@@ -842,7 +842,7 @@ function CostPanel({px,p,set,isManager=false}) {
             }} options={["Custom",...PROGRAM_TYPES.map(t=>t.label)]}/>
             {p[px+"program_type"]&&p[px+"program_type"]!=="Custom"&&(()=>{
               const hint=PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.hint;
-              return hint?<div className="text-xs text-slate-500 mt-1 leading-snug">{hint}</div>:null;
+              return hint?<div className="text-xs text-slate-700 mt-1 leading-snug">{hint}</div>:null;
             })()}
           </div>
           {(!p[px+"program_type"]||p[px+"program_type"]==="Custom")
@@ -853,7 +853,7 @@ function CostPanel({px,p,set,isManager=false}) {
                   placeholder="e.g. Multi-Site Supervisor, Hybrid Program…"
                   hint="Describe this program type for your own reference."/>
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Custom Workload %</label>
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Custom Workload %</label>
                   <input
                     type="number" min={0} max={100}
                     className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:border-blue-400 bg-white transition"
@@ -870,7 +870,7 @@ function CostPanel({px,p,set,isManager=false}) {
                       set(px+"custom_workload_display")(undefined);
                     }}
                   />
-                  <span className="text-xs text-slate-500">% of the $97,700 FT annual salary attributed to this program. Not your overall job — just this program's share.</span>
+                  <span className="text-xs text-slate-700">% of the $97,700 FT annual salary attributed to this program. Not your overall job — just this program's share.</span>
                 </div>
               </div>
             : isManager
@@ -878,7 +878,7 @@ function CostPanel({px,p,set,isManager=false}) {
                 const typePct=((PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.pct||0)*100);
                 return(
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Workload % (editable)</label>
+                    <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Workload % (editable)</label>
                     <input
                       type="number" min={0} max={100}
                       className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:border-blue-400 bg-white transition"
@@ -898,14 +898,14 @@ function CostPanel({px,p,set,isManager=false}) {
                         if(e.target.value===""){ set(px+"custom_workload")(typePct); }
                       }}
                     />
-                    <span className="text-xs text-slate-500">{`% of the $97,700 FT salary for this program only. Clear to reset to default (${typePct.toFixed(1)}%)`}</span>
+                    <span className="text-xs text-slate-700">{`% of the $97,700 FT salary for this program only. Clear to reset to default (${typePct.toFixed(1)}%)`}</span>
                   </div>
                 );
               })()
               : <div className="flex flex-col gap-1 justify-center">
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Estimated Workload %</label>
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Estimated Workload %</label>
                   <div className="text-lg font-bold text-slate-800">{((PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.pct||0)*100).toFixed(1)}%</div>
-                  <div className="text-xs text-slate-500">Based on program type</div>
+                  <div className="text-xs text-slate-700">Based on program type</div>
                 </div>
           }
         </div>
@@ -967,7 +967,7 @@ function StaffSetup({onConfirm}) {
         <div style={{background:"#ffffff",border:"1px solid rgba(92,70,43,0.15)",borderRadius:"4px",padding:"2.5rem 2rem"}}>
           <div className="text-center mb-6">
             <div className="font-bold mb-1" style={{color:"#5C462B",fontSize:"13px",letterSpacing:"0.08em",textTransform:"uppercase"}}>Sign In</div>
-            <div className="text-xs" style={{color:"#A09080",fontWeight:"300"}}>Enter your first and last name to continue</div>
+            <div className="text-xs" style={{color:"#6B5744",fontWeight:"300"}}>Enter your first and last name to continue</div>
           </div>
           <div className="space-y-4">
             <Inp label="First & Last Name" value={name} onChange={setName} placeholder="e.g. Jane Smith" required/>
@@ -975,9 +975,9 @@ function StaffSetup({onConfirm}) {
               className="w-full py-2.5 text-xs font-bold transition disabled:opacity-40"
               style={{backgroundColor:"#00A9CE",color:"#ffffff",borderRadius:"2px",letterSpacing:"0.10em",textTransform:"uppercase",border:"none"}}>Get Started →</button>
           </div>
-          <p className="text-xs text-center mt-4" style={{color:"#A09080",fontWeight:"300"}}>Your name is saved on this device only.</p>
+          <p className="text-xs text-center mt-4" style={{color:"#6B5744",fontWeight:"300"}}>Your name is saved on this device only.</p>
         </div>
-        <p className="text-center text-xs mt-6" style={{color:"#A09080"}}>© Buffalo Grove Park District</p>
+        <p className="text-center text-xs mt-6" style={{color:"#6B5744"}}>© Buffalo Grove Park District</p>
       </div>
     </div>
   );
@@ -996,20 +996,20 @@ function DupModal({program,onConfirm,onCancel}) {
       <div className="bg-white rounded shadow-2xl w-full max-w-md">
         <div className="px-6 py-5 border-b border-slate-100">
           <div className="text-base font-bold font-semibold">Duplicate Program</div>
-          <div className="text-sm text-slate-500 mt-0.5">Creating a copy of <span className="font-semibold text-slate-500">{program.name}</span></div>
+          <div className="text-sm text-slate-700 mt-0.5">Creating a copy of <span className="font-semibold text-slate-700">{program.name}</span></div>
         </div>
         <div className="px-6 py-5 space-y-5">
           <div>
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">New Season</div>
+            <div className="text-xs font-bold text-slate-700 uppercase tracking-widest mb-3">New Season</div>
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Season</label>
+                <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Season</label>
                 <select className={sel} value={season} onChange={e=>setSeason(e.target.value)}>
                   {SEASONS.map(s=><option key={s}>{s}</option>)}
                 </select>
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Year</label>
+                <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Year</label>
                 <select className={sel} value={year} onChange={e=>setYear(e.target.value)}>
                   {YEARS.map(y=><option key={y}>{y}</option>)}
                 </select>
@@ -1017,7 +1017,7 @@ function DupModal({program,onConfirm,onCancel}) {
             </div>
           </div>
           <div>
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Budgeted Numbers</div>
+            <div className="text-xs font-bold text-slate-700 uppercase tracking-widest mb-3">Budgeted Numbers</div>
             <div className="space-y-2">
               {[[true,"Carry over from previous season","Pre-fill with the same budget — good for recurring programs"],
                 [false,"Start fresh","Clear budgeted numbers so you enter new estimates"]].map(([val,title,desc])=>(
@@ -1028,16 +1028,16 @@ function DupModal({program,onConfirm,onCancel}) {
                   </div>
                   <div>
                     <div className="text-sm font-semibold text-slate-800">{title}</div>
-                    <div className="text-xs text-slate-500 mt-0.5">{desc}</div>
+                    <div className="text-xs text-slate-700 mt-0.5">{desc}</div>
                   </div>
                 </div>
               ))}
             </div>
-            <p className="text-xs text-slate-500 mt-3">Actuals always start empty on a duplicate.</p>
+            <p className="text-xs text-slate-700 mt-3">Actuals always start empty on a duplicate.</p>
           </div>
         </div>
         <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
-          <button onClick={onCancel} className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-gray-200">Cancel</button>
+          <button onClick={onCancel} className="px-4 py-2 text-sm text-slate-700 border border-slate-200 rounded-lg hover:bg-gray-200">Cancel</button>
           <button disabled={carry===null} onClick={()=>onConfirm({season,year,carry})}
             className="px-5 py-2 text-sm font-semibold text-white rounded-lg disabled:opacity-40 transition"
             style={{backgroundColor:"#5C462B"}}>Duplicate Program</button>
@@ -1066,23 +1066,23 @@ function BulkDupModal({programs,onConfirm,onCancel}) {
       <div className="bg-white rounded shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
         <div className="px-6 py-5 border-b border-slate-100">
           <div className="text-base font-bold font-semibold">Bulk Season Rollover</div>
-          <div className="text-sm text-slate-500 mt-0.5">Select programs to copy to a new season</div>
+          <div className="text-sm text-slate-700 mt-0.5">Select programs to copy to a new season</div>
         </div>
         <div className="px-6 py-4 border-b border-slate-100 flex flex-wrap gap-4 items-end">
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">New Season</label>
+            <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">New Season</label>
             <select className={sel} value={season} onChange={e=>setSeason(e.target.value)}>
               {SEASONS.map(s=><option key={s}>{s}</option>)}
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Year</label>
+            <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Year</label>
             <select className={sel} value={year} onChange={e=>setYear(e.target.value)}>
               {YEARS.map(y=><option key={y}>{y}</option>)}
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Budget</label>
+            <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Budget</label>
             <select className={sel} value={carry?"carry":"fresh"} onChange={e=>setCarry(e.target.value==="carry")}>
               <option value="carry">Carry over</option>
               <option value="fresh">Start fresh</option>
@@ -1092,7 +1092,7 @@ function BulkDupModal({programs,onConfirm,onCancel}) {
         <div className="overflow-y-auto flex-1">
           <div className="px-6 py-3 bg-slate-50 border-b border-slate-100 flex items-center gap-3">
             <input type="checkbox" checked={allOn} onChange={toggleAll} className="rounded"/>
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Select All ({programs.length})</span>
+            <span className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Select All ({programs.length})</span>
           </div>
           {programs.map(p=>(
             <div key={p.id} onClick={()=>toggle(p.id)}
@@ -1100,15 +1100,15 @@ function BulkDupModal({programs,onConfirm,onCancel}) {
               <input type="checkbox" checked={!!selected[p.id]} onChange={()=>toggle(p.id)} className="rounded" onClick={e=>e.stopPropagation()}/>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold text-slate-800 truncate">{p.name}</div>
-                <div className="text-xs text-slate-500">{p.area} — {p.season} FY {toFY(p.year)} — {p.staff_name}</div>
+                <div className="text-xs text-slate-700">{p.area} — {p.season} FY {toFY(p.year)} — {p.staff_name}</div>
               </div>
             </div>
           ))}
         </div>
         <div className="px-6 py-4 border-t border-slate-100 flex justify-between items-center">
-          <span className="text-sm text-slate-500">{count} selected</span>
+          <span className="text-sm text-slate-700">{count} selected</span>
           <div className="flex gap-3">
-            <button onClick={onCancel} className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-gray-200">Cancel</button>
+            <button onClick={onCancel} className="px-4 py-2 text-sm text-slate-700 border border-slate-200 rounded-lg hover:bg-gray-200">Cancel</button>
             <button disabled={count===0} onClick={()=>onConfirm({ids:Object.keys(selected).filter(id=>selected[id]),season,year,carry})}
               className="px-5 py-2 text-sm font-semibold text-white rounded-lg disabled:opacity-40 transition"
               style={{backgroundColor:"#00A9CE"}}>Copy {count>0?count:""} Program{count!==1?"s":""}</button>
@@ -1192,7 +1192,7 @@ function MultiFilter({filters, onChange, counts}) {
       ))}
       {anyActive && (
         <button onClick={clearAll}
-          className="text-xs text-slate-500 hover:text-slate-500 font-medium px-1">
+          className="text-xs text-slate-700 hover:text-slate-700 font-medium px-1">
           Clear all
         </button>
       )}
@@ -1244,7 +1244,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
         <MultiFilter filters={filters} onChange={onFilterChange}
           counts={{staff:allStaff,area:allAreas,season:allSeasons,year:allYears}}/>
         <div className="flex gap-2 justify-end">
-          <button onClick={()=>exportCSV(vis)} className="text-xs font-semibold px-3 py-2 rounded border border-slate-200 text-slate-500 hover:bg-gray-200 transition whitespace-nowrap">↓ Export CSV</button>
+          <button onClick={()=>exportCSV(vis)} className="text-xs font-semibold px-3 py-2 rounded border border-slate-200 text-slate-700 hover:bg-gray-200 transition whitespace-nowrap">↓ Export CSV</button>
           <button onClick={()=>setShowReport(true)} className="text-xs font-semibold px-3 py-2 rounded transition whitespace-nowrap text-white" style={{backgroundColor:"#00A9CE"}}>⬜ Season Report</button>
         </div>
       </div>
@@ -1252,10 +1252,10 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:"rgba(15,23,42,0.7)"}}>
           <div className="bg-white rounded shadow-2xl w-full max-w-sm p-6 text-center space-y-4">
             <div className="text-base font-bold font-semibold">Season Performance Report</div>
-            <div className="text-sm text-slate-500">This will open your browser's print dialog. Choose "Save as PDF" to export.</div>
-            <div className="text-xs text-slate-500">{vis.length} programs with current filters applied</div>
+            <div className="text-sm text-slate-700">This will open your browser's print dialog. Choose "Save as PDF" to export.</div>
+            <div className="text-xs text-slate-700">{vis.length} programs with current filters applied</div>
             <div className="flex gap-3 justify-center pt-2">
-              <button onClick={()=>setShowReport(false)} className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-gray-200">Cancel</button>
+              <button onClick={()=>setShowReport(false)} className="px-4 py-2 text-sm text-slate-700 border border-slate-200 rounded-lg hover:bg-gray-200">Cancel</button>
               <button onClick={()=>{ setShowReport(false); printSeasonReport(vis, `${[...filters.staff].join(", ")||"All Staff"} · ${[...filters.area].join(", ")||"All Areas"} · ${[...filters.season].join(", ")||"All Seasons"} · ${[...filters.year].map(y=>`FY ${y}`).join(", ")||"All Years"}`); }}
                 className="px-5 py-2 text-sm font-semibold text-white rounded-lg" style={{backgroundColor:"#00A9CE"}}>Save as PDF</button>
             </div>
@@ -1286,17 +1286,17 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
           <div className="flex gap-1">
             {[["summary","Summary"],["variances","Variances"],["progress","Progress"]].map(([v,l])=>(
               <button key={v} onClick={()=>setDv(v)}
-                className={`text-xs px-3 py-1.5 rounded font-medium transition ${dv===v?"text-white":"bg-gray-200 text-slate-500 hover:bg-slate-200"}`}
+                className={`text-xs px-3 py-1.5 rounded font-medium transition ${dv===v?"text-white":"bg-gray-200 text-slate-700 hover:bg-slate-200"}`}
                 style={dv===v?{backgroundColor:"#00A9CE"}:{}}>{l}</button>
             ))}
           </div>
         </div>
         {vis.length===0 ? (
-          <div className="p-8 text-center text-slate-500 text-sm">No programs yet. <button onClick={onAddProgram} className=" font-semibold underline">Add a program.</button></div>
+          <div className="p-8 text-center text-slate-700 text-sm">No programs yet. <button onClick={onAddProgram} className=" font-semibold underline">Add a program.</button></div>
         ) : dv==="summary" ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead><tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+              <thead><tr className="bg-slate-50 text-xs text-slate-700 uppercase tracking-wider">
                 {["Program","Staff","Area","Season","Fill Rate","Cost Recovery","Net P/(L)","Total Cost","Waitlist","Trend","NPS","Status",""].map(h=>(
                   <th key={h} className="px-3 py-2 text-left font-semibold">{h}</th>
                 ))}
@@ -1317,15 +1317,15 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
                       return <span className="ml-2 text-xs font-semibold px-1.5 py-0.5 rounded" style={{background:"#FEF4DC",color:"#8A5E00"}}>+{dollar(Math.ceil(gap))}/person needed</span>;
                     })()}
                   </td>
-                  <td className="px-3 py-2.5 text-slate-500 text-xs">{p.staff_name}</td>
-                  <td className="px-3 py-2.5 text-slate-500">{p.area}</td>
-                  <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{p.season} FY {toFY(p.year)}</td>
+                  <td className="px-3 py-2.5 text-slate-700 text-xs">{p.staff_name}</td>
+                  <td className="px-3 py-2.5 text-slate-700">{p.area}</td>
+                  <td className="px-3 py-2.5 text-slate-700 whitespace-nowrap">{p.season} FY {toFY(p.year)}</td>
                   <td className="px-3 py-2.5 font-mono">{pct(p.fillRate)}</td>
                   <td className="px-3 py-2.5 font-mono">{pct(p.costRecovery)}</td>
                   <td className={`px-3 py-2.5 font-mono font-semibold ${p.profitLoss>=0?"text-green-700":"text-red-600"}`}>{dollar(p.profitLoss)}</td>
-                  <td className="px-3 py-2.5 font-mono text-slate-500">{dollar(p.totalCost)}</td>
-                  <td className="px-3 py-2.5 text-slate-500">{p.waitlist||0}</td>
-                  <td className="px-3 py-2.5 text-slate-500">{p.trend}</td>
+                  <td className="px-3 py-2.5 font-mono text-slate-700">{dollar(p.totalCost)}</td>
+                  <td className="px-3 py-2.5 text-slate-700">{p.waitlist||0}</td>
+                  <td className="px-3 py-2.5 text-slate-700">{p.trend}</td>
                   <td className="px-3 py-2.5 font-mono text-xs">
                     {p.nps>0?<span className="font-bold" style={{color:p.nps>=50?"#84BD00":p.nps>=0?"#F6AB00":"#E35205"}}>{p.nps}</span>:<span className="text-slate-400">—</span>}
                   </td>
@@ -1333,7 +1333,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
                     <Badge status={p.status}/>
                     
                   </td>
-                  <td className="px-3 py-2.5"><button onClick={()=>onEdit(p)} className="text-xs text-slate-500 hover:text-slate-800 font-medium">Edit</button></td>
+                  <td className="px-3 py-2.5"><button onClick={()=>onEdit(p)} className="text-xs text-slate-700 hover:text-slate-800 font-medium">Edit</button></td>
                 </tr>
               ))}</tbody>
             </table>
@@ -1342,7 +1342,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+                <tr className="bg-slate-50 text-xs text-slate-700 uppercase tracking-wider">
                   <th className="px-3 py-2 text-left font-semibold">Program</th>
                   <th className="px-3 py-2 text-center font-semibold" colSpan={3}>Enrollment</th>
                   <th className="px-3 py-2 text-center font-semibold border-l border-slate-200" colSpan={3}>Revenue</th>
@@ -1379,19 +1379,19 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
                       return <span className="ml-2 text-xs font-semibold px-1.5 py-0.5 rounded" style={{background:"#FAE8D8",color:"#E35205"}}>+{dollar(Math.ceil(gap))}/person needed</span>;
                     })()}
                   </td>
-                  <td className="px-2 py-2.5 text-center text-slate-500 font-mono text-xs">{p.ant_enrollment}</td>
+                  <td className="px-2 py-2.5 text-center text-slate-700 font-mono text-xs">{p.ant_enrollment}</td>
                   <td className="px-2 py-2.5 text-center font-mono text-xs">{p.act_enrollment}</td>
                   <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varEnr)}`}>{vNum(p.varEnr)}</td>
-                  <td className="px-2 py-2.5 text-center text-slate-500 font-mono text-xs border-l border-slate-100">{dollar(p.antRevenue)}</td>
+                  <td className="px-2 py-2.5 text-center text-slate-700 font-mono text-xs border-l border-slate-100">{dollar(p.antRevenue)}</td>
                   <td className="px-2 py-2.5 text-center font-mono text-xs">{dollar(p.revenue)}</td>
                   <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varRev)}`}>{vDollar(p.varRev)}</td>
-                  <td className="px-2 py-2.5 text-center text-slate-500 font-mono text-xs border-l border-slate-100">{dollar(p.antTotal)}</td>
+                  <td className="px-2 py-2.5 text-center text-slate-700 font-mono text-xs border-l border-slate-100">{dollar(p.antTotal)}</td>
                   <td className="px-2 py-2.5 text-center font-mono text-xs">{dollar(p.totalCost)}</td>
                   <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varCost,true)}`}>{vDollar(p.varCost)}</td>
-                  <td className="px-2 py-2.5 text-center text-slate-500 font-mono text-xs border-l border-slate-100">{pct(p.antCR)}</td>
+                  <td className="px-2 py-2.5 text-center text-slate-700 font-mono text-xs border-l border-slate-100">{pct(p.antCR)}</td>
                   <td className="px-2 py-2.5 text-center font-mono text-xs">{pct(p.costRecovery)}</td>
                   <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varCR)}`}>{vPct(p.varCR)}</td>
-                  <td className="px-2 py-2.5 text-center text-slate-500 font-mono text-xs border-l border-slate-100">{dollar(p.antProfit)}</td>
+                  <td className="px-2 py-2.5 text-center text-slate-700 font-mono text-xs border-l border-slate-100">{dollar(p.antProfit)}</td>
                   <td className="px-2 py-2.5 text-center font-mono text-xs">{dollar(p.profitLoss)}</td>
                   <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varProfit)}`}>{vDollar(p.varProfit)}</td>
                 </tr>
@@ -1404,7 +1404,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
               <div className="flex items-center justify-between">
                 <div>
                   <button onClick={()=>onEdit(p)} className="font-semibold text-slate-800 hover:text-blue-600 hover:underline text-left">{p.name}</button>
-                  <div className="text-xs text-slate-500">{p.area} - {p.season} FY {toFY(p.year)}</div>
+                  <div className="text-xs text-slate-700">{p.area} - {p.season} FY {toFY(p.year)}</div>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <Badge status={p.status}/>
@@ -1427,9 +1427,9 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
       <div className="bg-white rounded-lg shadow-sm p-4">
         <h3 className="font-bold text-slate-800 text-sm mb-3">Status Guide</h3>
         <div className="space-y-2 text-sm">
-          <div className="flex items-center gap-3"><Badge status="Healthy"/><span className="text-slate-500">70%+ fill rate and 100%+ cost recovery</span></div>
-          <div className="flex items-center gap-3"><Badge status="Monitor"/><span className="text-slate-500">60-69.9% fill rate or approaching targets</span></div>
-          <div className="flex items-center gap-3"><Badge status="Needs Redesign"/><span className="text-slate-500">Below 60% fill rate or below 50% cost recovery</span></div>
+          <div className="flex items-center gap-3"><Badge status="Healthy"/><span className="text-slate-700">70%+ fill rate and 100%+ cost recovery</span></div>
+          <div className="flex items-center gap-3"><Badge status="Monitor"/><span className="text-slate-700">60-69.9% fill rate or approaching targets</span></div>
+          <div className="flex items-center gap-3"><Badge status="Needs Redesign"/><span className="text-slate-700">Below 60% fill rate or below 50% cost recovery</span></div>
         </div>
       </div>
     </div>
@@ -1449,7 +1449,7 @@ function SectionHeader({id,title,sub,badge,collapsed,onToggle}) {
           <h3 className="font-bold text-xs uppercase" style={{letterSpacing:"0.12em",color:"#5C462B"}}>{title}</h3>
           {badge&&<span className="text-xs font-semibold px-2 py-0.5" style={{background:"rgba(0,169,206,0.10)",color:"#00A9CE",borderRadius:"20px"}}>{badge}</span>}
         </div>
-        {sub&&<p className="text-xs mt-0.5" style={{color:"#A09080"}}>{sub}</p>}
+        {sub&&<p className="text-xs mt-0.5" style={{color:"#6B5744"}}>{sub}</p>}
       </div>
       <span className="text-xs font-bold ml-4 shrink-0" style={{color:"#00A9CE",transform:open?"rotate(180deg)":"rotate(0deg)",display:"inline-block",transition:"transform .2s"}}>▼</span>
     </button>
@@ -1489,12 +1489,12 @@ function NeedsAttentionQueue({programs,onEdit}){
               style={{background: p.status==="Needs Redesign"?"#FDF0E6":"#FFFBF0"}}>
               <div className="flex-1 min-w-0">
                 <button onClick={()=>onEdit(p)} className="text-sm font-semibold text-slate-800 hover:text-blue-600 hover:underline text-left truncate block">{p.name}</button>
-                <div className="text-xs text-slate-500">{p.area} — {p.season} FY {toFY(p.year)} — {p.staff_name}</div>
+                <div className="text-xs text-slate-700">{p.area} — {p.season} FY {toFY(p.year)} — {p.staff_name}</div>
               </div>
               <div className="hidden sm:flex gap-4 text-xs font-mono shrink-0">
-                <span className="text-slate-500">Fill: <span className={p.fillRate<0.6?"text-red-600 font-bold":""}>{pct(p.fillRate)}</span></span>
-                <span className="text-slate-500">Recovery: <span className={p.costRecovery<0.5?"text-red-600 font-bold":""}>{pct(p.costRecovery)}</span></span>
-                <span className={p.trend==="Declining"?" font-semibold":"text-slate-500"}>{p.trend}</span>
+                <span className="text-slate-700">Fill: <span className={p.fillRate<0.6?"text-red-600 font-bold":""}>{pct(p.fillRate)}</span></span>
+                <span className="text-slate-700">Recovery: <span className={p.costRecovery<0.5?"text-red-600 font-bold":""}>{pct(p.costRecovery)}</span></span>
+                <span className={p.trend==="Declining"?" font-semibold":"text-slate-700"}>{p.trend}</span>
               </div>
               <Badge status={p.status}/>
             </div>
@@ -1715,7 +1715,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
         <MultiFilter filters={filters} onChange={onFilterChange}
           counts={{staff:allStaff,area:allAreas,season:allSeasons,year:allYears}}/>
         <div className="flex gap-2 justify-end">
-          <button onClick={()=>exportCSV(vis)} className="text-xs font-semibold px-3 py-2 rounded border border-slate-200 text-slate-500 hover:bg-gray-200 transition whitespace-nowrap">↓ Export CSV</button>
+          <button onClick={()=>exportCSV(vis)} className="text-xs font-semibold px-3 py-2 rounded border border-slate-200 text-slate-700 hover:bg-gray-200 transition whitespace-nowrap">↓ Export CSV</button>
           <button onClick={()=>setShowReport(true)} className="text-xs font-semibold px-3 py-2 rounded transition whitespace-nowrap text-white" style={{backgroundColor:"#00A9CE"}}>⬜ Season Report</button>
         </div>
       </div>
@@ -1723,10 +1723,10 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:"rgba(15,23,42,0.7)"}}>
           <div className="bg-white rounded shadow-2xl w-full max-w-sm p-6 text-center space-y-4">
             <div className="text-base font-bold font-semibold">Season Performance Report</div>
-            <div className="text-sm text-slate-500">This will open your browser's print dialog. Choose "Save as PDF" to export.</div>
-            <div className="text-xs text-slate-500">Filters applied: {[...filters.staff].join(", ")||"All Staff"} · {[...filters.area].join(", ")||"All Areas"} · {[...filters.season].join(", ")||"All Seasons"} · {[...filters.year].map(y=>`FY ${y}`).join(", ")||"All Years"} · {vis.length} programs</div>
+            <div className="text-sm text-slate-700">This will open your browser's print dialog. Choose "Save as PDF" to export.</div>
+            <div className="text-xs text-slate-700">Filters applied: {[...filters.staff].join(", ")||"All Staff"} · {[...filters.area].join(", ")||"All Areas"} · {[...filters.season].join(", ")||"All Seasons"} · {[...filters.year].map(y=>`FY ${y}`).join(", ")||"All Years"} · {vis.length} programs</div>
             <div className="flex gap-3 justify-center pt-2">
-              <button onClick={()=>setShowReport(false)} className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-gray-200">Cancel</button>
+              <button onClick={()=>setShowReport(false)} className="px-4 py-2 text-sm text-slate-700 border border-slate-200 rounded-lg hover:bg-gray-200">Cancel</button>
               <button onClick={()=>{ setShowReport(false); printSeasonReport(vis, `${[...filters.staff].join(", ")||"All Staff"} · ${[...filters.area].join(", ")||"All Areas"} · ${[...filters.season].join(", ")||"All Seasons"} · ${[...filters.year].map(y=>`FY ${y}`).join(", ")||"All Years"}`); }}
                 className="px-5 py-2 text-sm font-semibold text-white rounded-lg" style={{backgroundColor:"#00A9CE"}}>Save as PDF</button>
             </div>
@@ -1749,10 +1749,10 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <div style={{borderTop:`3px solid ${healthColor}`}} className="bg-white rounded-lg p-4 shadow-sm">
           <div className="flex items-start justify-between gap-1 mb-1">
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Health Score</div>
+            <div className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Health Score</div>
           </div>
-          <div className="text-2xl font-bold" style={{color:healthColor}}>{healthScore}<span className="text-sm font-normal text-slate-500">/100</span></div>
-          <div className="text-xs text-slate-500 mt-1">Cost recovery (40%) · Fill rate (35%) · Net P/L (15%) · Program mix (10%)</div>
+          <div className="text-2xl font-bold" style={{color:healthColor}}>{healthScore}<span className="text-sm font-normal text-slate-700">/100</span></div>
+          <div className="text-xs text-slate-700 mt-1">Cost recovery (40%) · Fill rate (35%) · Net P/L (15%) · Program mix (10%)</div>
         </div>
         <KCard label="Avg Fill Rate"     value={pct(avgFill)}    accent="#00A9CE" target="≥70%"/>
         <KCard label="Avg Cost Recovery" value={pct(avgCR)}      accent="#00A9CE" target="≥100%"/>
@@ -1792,7 +1792,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div>
               <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.12em",color:"#5C462B"}}>FT Staff Allocation vs. 60% Target</div>
-              <div className="text-xs text-slate-500 mt-0.5">
+              <div className="text-xs text-slate-700 mt-0.5">
                 {ftStaffCount} FT staff × ${FT_ANNUAL_SALARY.toLocaleString()} = ${ftStaffBudget.toLocaleString()} total payroll &nbsp;·&nbsp; 60% target = ${Math.round(ftStaffCap60).toLocaleString()}
               </div>
             </div>
@@ -1806,7 +1806,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
             {/* Budgeted bar */}
             <div>
               <div className="flex justify-between text-xs mb-1">
-                <span className="text-slate-500 font-medium">Budgeted FT Staff Cost</span>
+                <span className="text-slate-700 font-medium">Budgeted FT Staff Cost</span>
                 <span className="font-mono font-semibold" style={{color: antFtPct > 0.6 ? "#E35205" : antFtPct > 0.5 ? "#F6AB00" : "#84BD00"}}>
                   {dollar(Math.round(antFtStaff))} &nbsp;—&nbsp; {(antFtPct*100).toFixed(1)}% of payroll
                 </span>
@@ -1823,7 +1823,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
             {/* Actuals bar */}
             <div>
               <div className="flex justify-between text-xs mb-1">
-                <span className="text-slate-500 font-medium">Actual FT Staff Cost</span>
+                <span className="text-slate-700 font-medium">Actual FT Staff Cost</span>
                 <span className="font-mono font-semibold" style={{color: actFtPct > 0.6 ? "#E35205" : actFtPct > 0.5 ? "#F6AB00" : "#84BD00"}}>
                   {dollar(Math.round(actFtStaff))} &nbsp;—&nbsp; {(actFtPct*100).toFixed(1)}% of payroll
                 </span>
@@ -1835,7 +1835,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                 }}/>
               </div>
             </div>
-            <div className="text-xs text-slate-500">Bar fills to 100% at the 60% target. Spills red if over.</div>
+            <div className="text-xs text-slate-700">Bar fills to 100% at the 60% target. Spills red if over.</div>
           </div>
         </div>
       )}
@@ -1865,7 +1865,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                   <div className="flex items-center justify-between mb-1 gap-3">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-sm font-semibold text-slate-800 truncate">{r.area}</span>
-                      <span className="text-xs text-slate-500 shrink-0">{r.count} program{r.count!==1?"s":""}</span>
+                      <span className="text-xs text-slate-700 shrink-0">{r.count} program{r.count!==1?"s":""}</span>
                       {healthyN>0&&<span className="text-xs font-semibold text-green-600 shrink-0">{healthyN} healthy</span>}
                       {redesignN>0&&<span className="text-xs font-semibold text-red-500 shrink-0">{redesignN} needs redesign</span>}
                     </div>
@@ -1877,7 +1877,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                 </div>
               );
             })}
-            <p className="text-xs text-slate-500 pt-1">Bar width = share of total programs · Bar color = avg fill rate (green ≥70%, yellow 60–69%, red &lt;60%)</p>
+            <p className="text-xs text-slate-700 pt-1">Bar width = share of total programs · Bar color = avg fill rate (green ≥70%, yellow 60–69%, red &lt;60%)</p>
           </div>}
         </div>
       )}
@@ -1899,7 +1899,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                 <div key={p.id} className={`px-4 py-2.5 flex items-center justify-between ${i>0?"border-t border-slate-50":""}`}>
                   <div>
                     <button onClick={()=>onEdit(p)} className="text-sm font-semibold text-slate-800 hover:text-blue-600 hover:underline text-left">{p.name}</button>
-                    <div className="text-xs text-slate-500">{p.area} — {p.season} FY {toFY(p.year)}</div>
+                    <div className="text-xs text-slate-700">{p.area} — {p.season} FY {toFY(p.year)}</div>
                   </div>
                   <div className={`text-sm font-bold ${good?"text-green-700":"text-red-600"}`}>{metric(p)}</div>
                 </div>
@@ -1920,9 +1920,9 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
             <div key={p.id} className={`px-4 py-2.5 flex items-center justify-between gap-4 ${i>0?"border-t border-slate-50":""} hover:bg-gray-200`}>
               <div className="flex-1 min-w-0">
                 <button onClick={()=>onEdit(p)} className="text-sm font-semibold text-slate-800 hover:text-blue-600 hover:underline text-left">{p.name}</button>
-                <div className="text-xs text-slate-500">{p.area} — {p.season} FY {toFY(p.year)} — {p.staff_name}</div>
+                <div className="text-xs text-slate-700">{p.area} — {p.season} FY {toFY(p.year)} — {p.staff_name}</div>
               </div>
-              <div className="flex gap-4 text-xs font-mono text-slate-500 shrink-0">
+              <div className="flex gap-4 text-xs font-mono text-slate-700 shrink-0">
                 <span>Fill: {pct(p.fillRate)}</span>
                 <span className="font-bold ">{p.waitlist} on waitlist</span>
               </div>
@@ -1938,7 +1938,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
           {!collapsed["rpp"]&&<div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead><tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+              <thead><tr className="bg-slate-50 text-xs text-slate-700 uppercase tracking-wider">
                 <th className="px-4 py-2 text-left font-semibold">Area</th>
                 <th className="px-4 py-2 text-left font-semibold">Participants</th>
                 <th className="px-4 py-2 text-left font-semibold">Revenue</th>
@@ -1947,7 +1947,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
               <tbody>{rppByArea.filter(r=>r.enr>0).map((r,i)=>(
                 <tr key={r.area} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
                   <td className="px-4 py-2.5 font-semibold text-slate-800">{r.area}</td>
-                  <td className="px-4 py-2.5 text-slate-500">{r.enr}</td>
+                  <td className="px-4 py-2.5 text-slate-700">{r.enr}</td>
                   <td className="px-4 py-2.5 font-mono text-xs">{dollar(r.rev)}</td>
                   <td className="px-4 py-2.5 font-mono text-xs font-bold">{dollar(r.rpp)}</td>
                 </tr>
@@ -1964,14 +1964,14 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
           <SectionHeader id="nps" title="NPS Summary" sub={`${withNPS.length} of ${kpis.length} programs have NPS data · Portfolio avg NPS: ${avgNPS??'—'}`} badge={avgNPS!=null?(avgNPS>=50?"Strong":avgNPS>=0?"Acceptable":"Needs Review"):null} collapsed={collapsed} onToggle={toggleSection}/>
           {!collapsed["nps"]&&<><div className="px-4 py-3 border-b border-slate-100 flex items-center justify-end">
             <div className="text-right">
-              <div className="text-xs text-slate-500">Portfolio Avg NPS</div>
+              <div className="text-xs text-slate-700">Portfolio Avg NPS</div>
               <div className={`text-2xl font-black ${avgNPS>=50?"text-green-600":avgNPS>=0?"text-amber-500":"text-red-500"}`}>{avgNPS??"—"}</div>
             </div>
           </div>
           {npsByArea.length>1&&(
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead><tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+                <thead><tr className="bg-slate-50 text-xs text-slate-700 uppercase tracking-wider">
                   <th className="px-4 py-2 text-left font-semibold">Area</th>
                   <th className="px-4 py-2 text-left font-semibold">Programs w/ NPS</th>
                   <th className="px-4 py-2 text-left font-semibold">Avg NPS</th>
@@ -1980,9 +1980,9 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                 <tbody>{npsByArea.map((r,i)=>(
                   <tr key={r.area} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
                     <td className="px-4 py-2.5 font-semibold text-slate-800">{r.area}</td>
-                    <td className="px-4 py-2.5 text-slate-500">{r.count}</td>
+                    <td className="px-4 py-2.5 text-slate-700">{r.count}</td>
                     <td className={`px-4 py-2.5 font-bold text-lg ${r.avg>=70?"text-green-600":r.avg>=50?"text-amber-500":"text-red-500"}`}>{r.avg}</td>
-                    <td className="px-4 py-2.5 text-xs text-slate-500">{r.avg>=70?"Strong":r.avg>=50?"Acceptable":"Needs Review"}</td>
+                    <td className="px-4 py-2.5 text-xs text-slate-700">{r.avg>=70?"Strong":r.avg>=50?"Acceptable":"Needs Review"}</td>
                   </tr>
                 ))}</tbody>
               </table>
@@ -1991,7 +1991,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
           {withNPS.length>0&&(
             <div className="overflow-x-auto border-t border-slate-100">
               <table className="w-full text-xs">
-                <thead><tr className="bg-slate-50 text-slate-500 uppercase tracking-wider">
+                <thead><tr className="bg-slate-50 text-slate-700 uppercase tracking-wider">
                   <th className="px-4 py-2 text-left font-semibold">Program</th>
                   <th className="px-4 py-2 text-center font-semibold text-green-600">Promoters</th>
                   <th className="px-4 py-2 text-center font-semibold text-amber-500">Passives</th>
@@ -2005,12 +2005,12 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                     <tr key={p.id} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
                       <td className="px-4 py-2.5">
                         <button onClick={()=>onEdit(p)} className="font-semibold text-slate-800 hover:text-blue-600 hover:underline text-left">{p.name}</button>
-                        <div className="text-slate-500">{p.area} · {p.season}</div>
+                        <div className="text-slate-700">{p.area} · {p.season}</div>
                       </td>
                       <td className="px-4 py-2.5 text-center font-bold text-green-600">{p.nps_promoters||"—"}</td>
                       <td className="px-4 py-2.5 text-center font-bold text-amber-500">{p.nps_passives||"—"}</td>
                       <td className="px-4 py-2.5 text-center font-bold text-red-500">{p.nps_detractors||"—"}</td>
-                      <td className="px-4 py-2.5 text-center text-slate-500">{p.nps_total||"—"}</td>
+                      <td className="px-4 py-2.5 text-center text-slate-700">{p.nps_total||"—"}</td>
                       <td className="px-4 py-2.5 text-center font-black" style={{color:npsColor}}>{p.nps}</td>
                     </tr>
                   );
@@ -2034,12 +2034,12 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold text-slate-800">{r.area}</span>
-                      <span className="text-xs text-slate-500">{r.count} program{r.count!==1?"s":""}</span>
+                      <span className="text-xs text-slate-700">{r.count} program{r.count!==1?"s":""}</span>
                       {r.waitlist>0&&<span className="text-xs font-semibold ">{r.waitlist} waitlisted</span>}
                     </div>
                     <div className="flex items-center gap-3 text-xs font-mono">
                       <span className="font-bold" style={{color:fillColor}}>{pct(r.avgFill)} fill</span>
-                      <span className="text-slate-500">{pct(r.avgCR)} CR</span>
+                      <span className="text-slate-700">{pct(r.avgCR)} CR</span>
                       <span className={r.profit>=0?"text-green-700 font-semibold":"text-red-600 font-semibold"}>{dollar(r.profit)}</span>
                     </div>
                   </div>
@@ -2070,8 +2070,8 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                   <div className="w-2.5 h-2.5 rounded-full mt-1 shrink-0" style={{backgroundColor:classMixColors[c.label]||"#94a3b8"}}/>
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-bold text-slate-800">{c.label}</div>
-                    <div className="text-xs text-slate-500">{c.count} program{c.count!==1?"s":""} · {Math.round((c.count/kpis.length)*100)}% of inventory</div>
-                    <div className="text-xs font-mono text-slate-500 mt-0.5">{dollar(c.revenue)} revenue · <span className={c.profit>=0?"text-green-600":"text-red-500"}>{dollar(c.profit)} net</span></div>
+                    <div className="text-xs text-slate-700">{c.count} program{c.count!==1?"s":""} · {Math.round((c.count/kpis.length)*100)}% of inventory</div>
+                    <div className="text-xs font-mono text-slate-700 mt-0.5">{dollar(c.revenue)} revenue · <span className={c.profit>=0?"text-green-600":"text-red-500"}>{dollar(c.profit)} net</span></div>
                   </div>
                 </div>
               ))}
@@ -2100,7 +2100,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                   <div className="flex items-center justify-between mb-1 gap-3">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-sm font-semibold text-slate-800 truncate">{s.name}</span>
-                      <span className="text-xs text-slate-500">{s.count} program{s.count!==1?"s":""}</span>
+                      <span className="text-xs text-slate-700">{s.count} program{s.count!==1?"s":""}</span>
                       {over&&<span className="text-xs font-bold px-1.5 py-0.5 rounded shrink-0" style={{background:"#FAE8D8",color:"#E35205"}}>Over-allocated</span>}
                       {warn&&<span className="text-xs font-bold px-1.5 py-0.5 rounded shrink-0" style={{background:"#FEF4DC",color:"#F6AB00"}}>Review needed</span>}
                     </div>
@@ -2112,7 +2112,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                     <div className="h-full rounded-full transition-all" style={{width:`${barW}%`,background:color}}/>
                   </div>
                   {(over||warn)&&flagged.length>0&&(
-                    <div className="mt-1.5 text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-0.5">
+                    <div className="mt-1.5 text-xs text-slate-700 flex flex-wrap gap-x-3 gap-y-0.5">
                       {flagged.map((pr,i)=>(
                         <span key={i}>{pr.name} <span className="font-mono font-semibold" style={{color}}>{pr.wlPct.toFixed(1)}%</span></span>
                       ))}
@@ -2122,7 +2122,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
               );
             })}
           </div>}
-          <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 text-xs text-slate-500">
+          <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 text-xs text-slate-700">
             Bar midpoint = 60% (recommended program allocation ceiling). Amber = 60–75%, Red = over 75%. The remaining ~40% covers meetings, marketing, planning, and strategic work.
           </div>
         </div>
@@ -2133,22 +2133,22 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 flex-wrap gap-2">
           <div>
             <h2 className="font-bold text-slate-800 text-sm">Program Detail</h2>
-            {dv==="summary"&&<p className="text-xs text-slate-500 mt-0.5">Year-over-year in <span className="font-semibold text-slate-500">vs Prior</span> column · Full trend history in <span className="font-semibold ">Multi-Season</span> tab</p>}
+            {dv==="summary"&&<p className="text-xs text-slate-700 mt-0.5">Year-over-year in <span className="font-semibold text-slate-700">vs Prior</span> column · Full trend history in <span className="font-semibold ">Multi-Season</span> tab</p>}
           </div>
           <div className="flex gap-1">
             {[["summary","Summary"],["variances","Variances"],["progress","Progress"]].map(([v,l])=>(
               <button key={v} onClick={()=>setDv(v)}
-                className={`text-xs px-3 py-1.5 rounded font-medium transition ${dv===v?"text-white":"bg-gray-200 text-slate-500 hover:bg-slate-200"}`}
+                className={`text-xs px-3 py-1.5 rounded font-medium transition ${dv===v?"text-white":"bg-gray-200 text-slate-700 hover:bg-slate-200"}`}
                 style={dv===v?{backgroundColor:"#00A9CE"}:{}}>{l}</button>
             ))}
           </div>
         </div>
         {vis.length===0 ? (
-          <div className="p-8 text-center text-slate-500 text-sm">No programs found. <button onClick={onAddProgram} className=" font-semibold underline">Add a program.</button></div>
+          <div className="p-8 text-center text-slate-700 text-sm">No programs found. <button onClick={onAddProgram} className=" font-semibold underline">Add a program.</button></div>
         ) : dv==="summary" ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead><tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+              <thead><tr className="bg-slate-50 text-xs text-slate-700 uppercase tracking-wider">
                 {[["name","Program"],["staff_name","Staff"],["area","Area"],["season","Season"],["fillRate","Fill Rate"],["costRecovery","Cost Recovery"],["profitLoss","Net P/(L)"],["totalCost","Total Cost"],["waitlist","Waitlist"],["trend","Trend"],["nps","NPS"],["status","Status"],[null,"vs Prior"],[null,""]].map(([col,h])=>(
                   <th key={h} className={col?`px-3 py-2 text-left font-semibold cursor-pointer hover:text-slate-800 select-none ${sort.col===col?"text-slate-800":""}`:"px-3 py-2 text-left font-semibold"}
                     onClick={col?()=>toggleSort(col):undefined}>
@@ -2163,7 +2163,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                   <td className="px-3 py-2.5 font-semibold text-slate-800">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <button onClick={()=>onEdit(p)} className="hover:text-blue-600 hover:underline text-left">{p.name}</button>
-                      {p.notes&&<span title={p.notes} className="text-slate-400 hover:text-slate-500 cursor-help text-xs">●</span>}
+                      {p.notes&&<span title={p.notes} className="text-slate-400 hover:text-slate-700 cursor-help text-xs">●</span>}
                       {(()=>{
                         const svt=getSvcTarget(p.service_category,p.costRecovery);
                         if(!svt||!p.hasActuals||p.costRecovery>=svt.min) return null;
@@ -2181,15 +2181,15 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                       })()}
                     </div>
                   </td>
-                  <td className="px-3 py-2.5 text-slate-500 text-xs">{p.staff_name}</td>
-                  <td className="px-3 py-2.5 text-slate-500">{p.area}</td>
-                  <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{p.season} FY {toFY(p.year)}</td>
+                  <td className="px-3 py-2.5 text-slate-700 text-xs">{p.staff_name}</td>
+                  <td className="px-3 py-2.5 text-slate-700">{p.area}</td>
+                  <td className="px-3 py-2.5 text-slate-700 whitespace-nowrap">{p.season} FY {toFY(p.year)}</td>
                   <td className="px-3 py-2.5 font-mono">{pct(p.fillRate)}</td>
                   <td className="px-3 py-2.5 font-mono">{pct(p.costRecovery)}</td>
                   <td className={`px-3 py-2.5 font-mono font-semibold ${p.profitLoss>=0?"text-green-700":"text-red-600"}`}>{dollar(p.profitLoss)}</td>
-                  <td className="px-3 py-2.5 font-mono text-slate-500">{dollar(p.totalCost)}</td>
-                  <td className="px-3 py-2.5 text-slate-500">{p.waitlist||0}</td>
-                  <td className="px-3 py-2.5 text-slate-500">{p.trend}</td>
+                  <td className="px-3 py-2.5 font-mono text-slate-700">{dollar(p.totalCost)}</td>
+                  <td className="px-3 py-2.5 text-slate-700">{p.waitlist||0}</td>
+                  <td className="px-3 py-2.5 text-slate-700">{p.trend}</td>
                   <td className="px-3 py-2.5 font-mono text-xs">
                     {p.nps>0?<span className="font-bold" style={{color:p.nps>=50?"#84BD00":p.nps>=0?"#F6AB00":"#E35205"}}>{p.nps}</span>:<span className="text-slate-400">—</span>}
                   </td>
@@ -2212,7 +2212,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                       <span className="text-xs text-slate-400">—</span>
                     )}
                   </td>
-                  <td className="px-3 py-2.5"><button onClick={()=>onEdit(p)} className="text-xs text-slate-500 hover:text-slate-800 font-medium">Edit</button></td>
+                  <td className="px-3 py-2.5"><button onClick={()=>onEdit(p)} className="text-xs text-slate-700 hover:text-slate-800 font-medium">Edit</button></td>
                 </tr>
                 );
               })}</tbody>
@@ -2222,7 +2222,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+                <tr className="bg-slate-50 text-xs text-slate-700 uppercase tracking-wider">
                   <th className="px-3 py-2 text-left font-semibold">Program</th>
                   <th className="px-3 py-2 text-center font-semibold" colSpan={3}>Enrollment</th>
                   <th className="px-3 py-2 text-center font-semibold border-l border-slate-200" colSpan={3}>Revenue</th>
@@ -2259,19 +2259,19 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                       return <span className="ml-2 text-xs font-semibold px-1.5 py-0.5 rounded" style={{background:"#FAE8D8",color:"#E35205"}}>+{dollar(Math.ceil(gap))}/person needed</span>;
                     })()}
                   </td>
-                  <td className="px-2 py-2.5 text-center text-slate-500 font-mono text-xs">{p.ant_enrollment}</td>
+                  <td className="px-2 py-2.5 text-center text-slate-700 font-mono text-xs">{p.ant_enrollment}</td>
                   <td className="px-2 py-2.5 text-center font-mono text-xs">{p.act_enrollment}</td>
                   <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varEnr)}`}>{vNum(p.varEnr)}</td>
-                  <td className="px-2 py-2.5 text-center text-slate-500 font-mono text-xs border-l border-slate-100">{dollar(p.antRevenue)}</td>
+                  <td className="px-2 py-2.5 text-center text-slate-700 font-mono text-xs border-l border-slate-100">{dollar(p.antRevenue)}</td>
                   <td className="px-2 py-2.5 text-center font-mono text-xs">{dollar(p.revenue)}</td>
                   <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varRev)}`}>{vDollar(p.varRev)}</td>
-                  <td className="px-2 py-2.5 text-center text-slate-500 font-mono text-xs border-l border-slate-100">{dollar(p.antTotal)}</td>
+                  <td className="px-2 py-2.5 text-center text-slate-700 font-mono text-xs border-l border-slate-100">{dollar(p.antTotal)}</td>
                   <td className="px-2 py-2.5 text-center font-mono text-xs">{dollar(p.totalCost)}</td>
                   <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varCost,true)}`}>{vDollar(p.varCost)}</td>
-                  <td className="px-2 py-2.5 text-center text-slate-500 font-mono text-xs border-l border-slate-100">{pct(p.antCR)}</td>
+                  <td className="px-2 py-2.5 text-center text-slate-700 font-mono text-xs border-l border-slate-100">{pct(p.antCR)}</td>
                   <td className="px-2 py-2.5 text-center font-mono text-xs">{pct(p.costRecovery)}</td>
                   <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varCR)}`}>{vPct(p.varCR)}</td>
-                  <td className="px-2 py-2.5 text-center text-slate-500 font-mono text-xs border-l border-slate-100">{dollar(p.antProfit)}</td>
+                  <td className="px-2 py-2.5 text-center text-slate-700 font-mono text-xs border-l border-slate-100">{dollar(p.antProfit)}</td>
                   <td className="px-2 py-2.5 text-center font-mono text-xs">{dollar(p.profitLoss)}</td>
                   <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varProfit)}`}>{vDollar(p.varProfit)}</td>
                 </tr>
@@ -2284,7 +2284,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
               <div className="flex items-center justify-between">
                 <div>
                   <button onClick={()=>onEdit(p)} className="font-semibold text-slate-800 hover:text-blue-600 hover:underline text-left">{p.name}</button>
-                  <div className="text-xs text-slate-500">{p.area} - {p.season} FY {toFY(p.year)}{p.staff_name?" - "+p.staff_name:""}</div>
+                  <div className="text-xs text-slate-700">{p.area} - {p.season} FY {toFY(p.year)}{p.staff_name?" - "+p.staff_name:""}</div>
                 </div>
                 <Badge status={p.status}/>
               </div>
@@ -2306,9 +2306,9 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
       <div className="bg-white rounded-lg shadow-sm p-4">
         <h3 className="font-bold text-slate-800 text-sm mb-3">Status Guide</h3>
         <div className="space-y-2 text-sm">
-          <div className="flex items-center gap-3"><Badge status="Healthy"/><span className="text-slate-500">70%+ fill rate and 100%+ cost recovery</span></div>
-          <div className="flex items-center gap-3"><Badge status="Monitor"/><span className="text-slate-500">60-69.9% fill rate or approaching targets</span></div>
-          <div className="flex items-center gap-3"><Badge status="Needs Redesign"/><span className="text-slate-500">Below 60% fill rate or below 50% cost recovery</span></div>
+          <div className="flex items-center gap-3"><Badge status="Healthy"/><span className="text-slate-700">70%+ fill rate and 100%+ cost recovery</span></div>
+          <div className="flex items-center gap-3"><Badge status="Monitor"/><span className="text-slate-700">60-69.9% fill rate or approaching targets</span></div>
+          <div className="flex items-center gap-3"><Badge status="Needs Redesign"/><span className="text-slate-700">Below 60% fill rate or below 50% cost recovery</span></div>
         </div>
       </div>
     </div>
@@ -2356,14 +2356,14 @@ function MultiSeasonView({programs,onEdit}) {
         <div className="rounded border border-slate-200 p-5 text-center space-y-2 bg-slate-50">
           <div className="text-2xl">📅</div>
           <div className="font-bold text-slate-800 text-sm">Multi-Season View</div>
-          <div className="text-sm text-slate-500 max-w-sm mx-auto">This view groups programs that run across multiple seasons, showing trends over time. It becomes most valuable once you have two or more seasons of data entered. Keep entering programs and come back here next season.</div>
+          <div className="text-sm text-slate-700 max-w-sm mx-auto">This view groups programs that run across multiple seasons, showing trends over time. It becomes most valuable once you have two or more seasons of data entered. Keep entering programs and come back here next season.</div>
         </div>
       )}
       <div className="bg-white rounded-lg shadow-sm px-4 py-3 space-y-3">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="font-bold text-slate-800 text-sm">Multi-Season View</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Programs offered in more than one season — matched by name and staff member. Sorted most seasons first.</p>
+            <p className="text-xs text-slate-700 mt-0.5">Programs offered in more than one season — matched by name and staff member. Sorted most seasons first.</p>
           </div>
           <button onClick={()=>setShowSingle(s=>!s)}
             className="text-xs px-3 py-1.5 rounded-lg border transition whitespace-nowrap shrink-0"
@@ -2375,7 +2375,7 @@ function MultiSeasonView({programs,onEdit}) {
           placeholder="Search by program name or staff..." value={search} onChange={e=>setSearch(e.target.value)}/>
       </div>
       {groups.length===0&&(
-        <div className="bg-white rounded-lg shadow-sm p-8 text-center text-slate-500 text-sm">
+        <div className="bg-white rounded-lg shadow-sm p-8 text-center text-slate-700 text-sm">
           {search
             ? "No matching programs."
             : showSingle
@@ -2388,13 +2388,13 @@ function MultiSeasonView({programs,onEdit}) {
           <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
             <div>
               <div className="font-bold text-slate-800">{g.name}</div>
-              <div className="text-xs text-slate-500">{g.area}{g.staff?" — "+g.staff:""}</div>
+              <div className="text-xs text-slate-700">{g.area}{g.staff?" — "+g.staff:""}</div>
             </div>
-            <span className="text-xs text-slate-500">{g.seasons.length} seasons</span>
+            <span className="text-xs text-slate-700">{g.seasons.length} seasons</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead><tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+              <thead><tr className="bg-slate-50 text-xs text-slate-700 uppercase tracking-wider">
                 <th className="px-4 py-2 text-left font-semibold">Season</th>
                 <th className="px-4 py-2 text-left font-semibold">Fill Rate</th>
                 <th className="px-4 py-2 text-left font-semibold">Cost Recovery</th>
@@ -2417,8 +2417,8 @@ function MultiSeasonView({programs,onEdit}) {
                   <td className={`px-4 py-2.5 font-mono text-xs font-semibold ${s.profitLoss>=0?"text-green-700":"text-red-600"}`}>{dollar(s.profitLoss)}</td>
                   <td className="px-4 py-2.5 font-mono text-xs">{s.act_enrollment||0}</td>
                   <td className="px-4 py-2.5"><Badge status={s.status}/></td>
-                  <td className="px-4 py-2.5 text-slate-500 text-xs">{s.trend}</td>
-                  <td className="px-4 py-2.5"><button onClick={()=>onEdit(s)} className="text-xs text-slate-500 hover:text-slate-800">Edit</button></td>
+                  <td className="px-4 py-2.5 text-slate-700 text-xs">{s.trend}</td>
+                  <td className="px-4 py-2.5"><button onClick={()=>onEdit(s)} className="text-xs text-slate-700 hover:text-slate-800">Edit</button></td>
                 </tr>
               ))}</tbody>
             </table>
@@ -2467,16 +2467,16 @@ function SubProgramTracker({programs,onChange}){
             <span className="text-sm font-bold text-slate-800">📋 Individual Classes / Sessions</span>
             {list.length>0&&<span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{background:"#F5E6EF",color:"#3730a3"}}>{list.length} session{list.length!==1?"s":""}</span>}
           </div>
-          <div className="text-xs text-slate-500 mt-0.5">Optional — track separate days/times within this program (e.g. Mon 5pm, Wed 6pm)</div>
+          <div className="text-xs text-slate-700 mt-0.5">Optional — track separate days/times within this program (e.g. Mon 5pm, Wed 6pm)</div>
         </div>
-        <span className="text-slate-500 text-xs font-bold ml-4 shrink-0" style={{transform:open?"rotate(180deg)":"rotate(0deg)",display:"inline-block",transition:"transform .2s"}}>▼</span>
+        <span className="text-slate-700 text-xs font-bold ml-4 shrink-0" style={{transform:open?"rotate(180deg)":"rotate(0deg)",display:"inline-block",transition:"transform .2s"}}>▼</span>
       </button>
       {open&&(
         <div className="p-4 space-y-3">
           {list.length>0&&(
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
-                <thead><tr className="bg-slate-50 text-slate-500 uppercase tracking-wider">
+                <thead><tr className="bg-slate-50 text-slate-700 uppercase tracking-wider">
                   <th className="px-2 py-1.5 text-left font-semibold">Class / Session</th>
                   <th className="px-2 py-1.5 text-left font-semibold">Day</th>
                   <th className="px-2 py-1.5 text-left font-semibold">Time</th>
@@ -2505,7 +2505,7 @@ function SubProgramTracker({programs,onChange}){
           )}
           {list.length>0&&(
             <div className="flex items-center gap-4 px-3 py-2 rounded-lg bg-slate-50 border border-slate-100 text-xs">
-              <span className="text-slate-500">Total: <span className="font-bold text-slate-800">{totalEnr}/{totalCap}</span> enrolled</span>
+              <span className="text-slate-700">Total: <span className="font-bold text-slate-800">{totalEnr}/{totalCap}</span> enrolled</span>
               <span className="font-bold" style={{color:overallFill>=70?"#84BD00":overallFill>=60?"#F6AB00":"#E35205"}}>{totalCap>0?Math.round(overallFill)+"%":"—"} overall fill</span>
               {totalCap>0&&overallFill<70&&<span className=" font-semibold">⚠ Some classes may be underperforming</span>}
             </div>
@@ -2513,7 +2513,7 @@ function SubProgramTracker({programs,onChange}){
           <button onClick={addRow} className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-50 transition">
             + Add Session
           </button>
-          <p className="text-xs text-slate-500">Sessions are saved with this program. The main Enrollment field above should still reflect the total across all sessions.</p>
+          <p className="text-xs text-slate-700">Sessions are saved with this program. The main Enrollment field above should still reflect the total across all sessions.</p>
         </div>
       )}
     </div>
@@ -2614,14 +2614,14 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
             <h2 className="font-bold text-slate-800">{isNew?"Add Program":"Edit Program"}</h2>
             {dirty&&<span className="text-xs bg-amber-100  px-2 py-0.5 rounded-full font-medium">Unsaved</span>}
           </div>
-          {lastUpdated&&<div className="text-xs text-slate-500 mt-0.5">Last updated {new Date(lastUpdated).toLocaleDateString()}</div>}
+          {lastUpdated&&<div className="text-xs text-slate-700 mt-0.5">Last updated {new Date(lastUpdated).toLocaleDateString()}</div>}
         </div>
-        <button onClick={handleBack} className="text-sm text-slate-500 hover:text-slate-500">Back</button>
+        <button onClick={handleBack} className="text-sm text-slate-700 hover:text-slate-700">Back</button>
       </div>
 
       {p.is_archived&&(
         <div className="bg-gray-200 border border-gray-200 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
-          <span className="text-sm text-slate-500 font-medium">📦 This program is archived and hidden from dashboards and reports.</span>
+          <span className="text-sm text-slate-700 font-medium">📦 This program is archived and hidden from dashboards and reports.</span>
           {canEdit&&<button onClick={()=>setConfirmArchive(true)} className="text-sm font-semibold text-green-700 hover:underline">Restore</button>}
         </div>
       )}
@@ -2662,16 +2662,16 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
         <div className="flex border-b border-slate-100 overflow-x-auto scrollbar-none">
           {tabs.map(s=>(
             <button key={s.id} onClick={()=>setSec(s.id)}
-              className={`px-3 py-3 text-xs sm:text-sm font-semibold whitespace-nowrap border-b-2 transition ${sec===s.id?"font-semibold":"border-transparent text-slate-500 hover:text-slate-500"}`}
-              style={sec===s.id?{borderColor:"#00A9CE",color:"#00A9CE"}:{color:"#A09080"}}>{s.label}</button>
+              className={`px-3 py-3 text-xs sm:text-sm font-semibold whitespace-nowrap border-b-2 transition ${sec===s.id?"font-semibold":"border-transparent text-slate-700 hover:text-slate-700"}`}
+              style={sec===s.id?{borderColor:"#00A9CE",color:"#00A9CE"}:{color:"#6B5744"}}>{s.label}</button>
           ))}
         </div>
         {!isNew&&p.name&&(
           <div className="px-5 py-2 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-500 truncate">{p.name}</span>
+            <span className="text-xs font-semibold text-slate-700 truncate">{p.name}</span>
             {p.area&&<span className="text-xs text-slate-400">·</span>}
-            {p.area&&<span className="text-xs text-slate-500">{p.area}</span>}
-            {p.season&&p.year&&<><span className="text-xs text-slate-400">·</span><span className="text-xs text-slate-500">{p.season} FY {toFY(p.year)}</span></>}
+            {p.area&&<span className="text-xs text-slate-700">{p.area}</span>}
+            {p.season&&p.year&&<><span className="text-xs text-slate-400">·</span><span className="text-xs text-slate-700">{p.season} FY {toFY(p.year)}</span></>}
           </div>
         )}
         <div className="p-5">
@@ -2694,12 +2694,12 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                 <div>
                   <Inp label="Service Category"  value={p.service_category||""} onChange={setField("service_category")} options={["",...SERVICE_CATEGORIES]}/>
                   {p.service_category&&SVC_TARGET_MAP[p.service_category]&&(
-                    <div className="mt-1 text-xs text-slate-500">Target: <span className="font-semibold text-slate-500">{SVC_TARGET_MAP[p.service_category].label}</span></div>
+                    <div className="mt-1 text-xs text-slate-700">Target: <span className="font-semibold text-slate-700">{SVC_TARGET_MAP[p.service_category].label}</span></div>
                   )}
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Notes</label>
+                <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Notes</label>
                 <textarea className="mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 resize-none" rows={3}
                   placeholder="Strategy notes, drivers, multi-year context..."
                   value={p.notes||""} onChange={e=>{setP(prev=>({...prev,notes:e.target.value}));setDirty(true);}}/>
@@ -2732,16 +2732,16 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
           {sec==="actuals"&&(
             <div>
               <div className="mb-5 p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Actuals</div>
-                <div className="text-xs text-slate-500 mt-0.5">Update these as the program runs or after it concludes.</div>
+                <div className="text-xs font-bold text-slate-700 uppercase tracking-widest">Actuals</div>
+                <div className="text-xs text-slate-700 mt-0.5">Update these as the program runs or after it concludes.</div>
               </div>
               <CostPanel px="act_" p={p} set={k=>v=>{setField(k)(v);}} isManager={isManager}/>
               <div className="mt-6 pt-5 border-t border-slate-100">
-                <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Post-Program Observations</div>
+                <div className="text-xs font-bold text-slate-700 uppercase tracking-widest mb-3">Post-Program Observations</div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <Inp label="Participation Trend" value={p.trend||"New"} onChange={setField("trend")} options={TRENDS}/>
                   <div className="sm:col-span-3 mt-2">
-                    <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">NPS — Net Promoter Score</div>
+                    <div className="text-xs font-bold text-slate-700 uppercase tracking-widest mb-3">NPS — Net Promoter Score</div>
                     {isManager?(
                       <div className="space-y-4">
                         {/* Toggle */}
@@ -2765,7 +2765,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                               <Inp label="Detractors (0–6)" type="number" value={p.nps_detractors||""} onChange={setField("nps_detractors")} min={0} hint="Optional"/>
                             </div>
                             {p.nps_promoters>0||p.nps_passives>0||p.nps_detractors>0?(
-                              <div className="text-xs text-slate-500 p-3 rounded-lg bg-slate-50 border border-slate-100">
+                              <div className="text-xs text-slate-700 p-3 rounded-lg bg-slate-50 border border-slate-100">
                                 {(()=>{
                                   const total=(parseInt(p.nps_promoters)||0)+(parseInt(p.nps_passives)||0)+(parseInt(p.nps_detractors)||0);
                                   const calc=total>0?Math.round(((parseInt(p.nps_promoters)||0)-(parseInt(p.nps_detractors)||0))/total*100):null;
@@ -2809,9 +2809,9 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                         {(p.nps_promoters>0||p.nps_passives>0||p.nps_detractors>0)&&(()=>{
                           const total=(parseInt(p.nps_promoters)||0)+(parseInt(p.nps_passives)||0)+(parseInt(p.nps_detractors)||0);
                           const calc=total>0?Math.round(((parseInt(p.nps_promoters)||0)-(parseInt(p.nps_detractors)||0))/total*100):null;
-                          return calc!=null?(<div className="text-xs text-slate-500 p-3 rounded-lg bg-slate-50 border border-slate-100">Calculated NPS from breakdown: <strong className="font-medium" style={{color:"#5C462B"}}>{calc}</strong> · {total} total responses</div>):null;
+                          return calc!=null?(<div className="text-xs text-slate-700 p-3 rounded-lg bg-slate-50 border border-slate-100">Calculated NPS from breakdown: <strong className="font-medium" style={{color:"#5C462B"}}>{calc}</strong> · {total} total responses</div>):null;
                         })()}
-                        <p className="text-xs text-slate-500">Enter the NPS score from your survey results. The score ranges from −100 to +100 — positive is good, 50+ is excellent.</p>
+                        <p className="text-xs text-slate-700">Enter the NPS score from your survey results. The score ranges from −100 to +100 — positive is good, 50+ is excellent.</p>
                       </div>
                     )}
                   </div>
@@ -2827,10 +2827,10 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
           {sec==="summary"&&(
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                <div><div className="text-xs text-slate-500">Actual Fill Rate</div><div className="text-xl font-bold text-slate-800">{pct(k.fillRate)}</div></div>
-                <div><div className="text-xs text-slate-500">Actual Cost Recovery</div><div className="text-xl font-bold text-slate-800">{pct(k.costRecovery)}</div></div>
-                <div><div className="text-xs text-slate-500">Net Profit/(Loss)</div><div className={`text-xl font-bold ${k.profitLoss>=0?"text-green-700":"text-red-600"}`}>{dollar(k.profitLoss)}</div></div>
-                <div><div className="text-xs text-slate-500">Status</div><div className="mt-1"><Badge status={k.status}/></div></div>
+                <div><div className="text-xs text-slate-700">Actual Fill Rate</div><div className="text-xl font-bold text-slate-800">{pct(k.fillRate)}</div></div>
+                <div><div className="text-xs text-slate-700">Actual Cost Recovery</div><div className="text-xl font-bold text-slate-800">{pct(k.costRecovery)}</div></div>
+                <div><div className="text-xs text-slate-700">Net Profit/(Loss)</div><div className={`text-xl font-bold ${k.profitLoss>=0?"text-green-700":"text-red-600"}`}>{dollar(k.profitLoss)}</div></div>
+                <div><div className="text-xs text-slate-700">Status</div><div className="mt-1"><Badge status={k.status}/></div></div>
               </div>
               {/* Read-only CR status for all users on Summary tab */}
               {svcTarget&&(hasActuals||p.fee>0)&&(()=>{
@@ -2843,12 +2843,12 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                       <span className="ml-2 text-xs opacity-75" style={{color:onTarget?"#4A6B00":"#8A5E00"}}>Actual: {pct(k.costRecovery)}</span>
                       {!onTarget&&<span className="ml-2 text-xs font-medium" style={{color:"#8A5E00"}}>— {isManager?"See Pricing tab for fee analysis":"Below target"}</span>}
                     </div>
-                    {p.fee>0&&<div className="text-right"><div className="text-xs text-slate-500">Current fee</div><div className="font-bold text-slate-800">{dollar(p.fee)}/person</div></div>}
+                    {p.fee>0&&<div className="text-right"><div className="text-xs text-slate-700">Current fee</div><div className="font-bold text-slate-800">{dollar(p.fee)}/person</div></div>}
                   </div>
                 );
               })()}
               <div className="border-t border-slate-100 pt-4 space-y-4">
-                <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Variance vs Budget</div>
+                <div className="text-xs font-bold text-slate-700 uppercase tracking-widest mb-1">Variance vs Budget</div>
                 <PBar label="Enrollment"        actual={p.act_enrollment||0} budget={p.ant_enrollment||0} ff={v=>v.toString()}/>
                 <PBar label="Revenue"           actual={k.revenue}           budget={k.antRevenue}        ff={v=>dollar(v)}/>
                 <PBar label="Total Cost"        actual={k.totalCost}         budget={k.antTotal}          ff={v=>dollar(v)} inv/>
@@ -2859,7 +2859,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                 {[["Enrollment",vNum(k.varEnr),vc(k.varEnr)],["Revenue",vDollar(k.varRev),vc(k.varRev)],
                   ["Total Cost",vDollar(k.varCost),vc(k.varCost,true)],["Fill Rate",vPct(k.varFill),vc(k.varFill)],
                   ["Cost Recovery",vPct(k.varCR),vc(k.varCR)],["Net Profit/(Loss)",vDollar(k.varProfit),vc(k.varProfit)]].map(([l,v,c])=>(
-                  <div key={l}><div className="text-xs text-slate-500">{l}</div><div className={`text-base font-bold ${c}`}>{v}</div></div>
+                  <div key={l}><div className="text-xs text-slate-700">{l}</div><div className={`text-base font-bold ${c}`}>{v}</div></div>
                 ))}
               </div>
             </div>
@@ -2888,18 +2888,18 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
               <div className="space-y-5">
                 <div>
                   <h3 className="font-bold text-slate-800 text-sm mb-1">Pricing Analysis</h3>
-                  <p className="text-xs text-slate-500">Set the current fee, review the cost recovery gap, and document intentional pricing decisions.</p>
+                  <p className="text-xs text-slate-700">Set the current fee, review the cost recovery gap, and document intentional pricing decisions.</p>
                 </div>
 
                 {/* Current fee */}
                 <div className="p-4 bg-slate-50 rounded border border-slate-100">
-                  <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Current In-District Fee</div>
+                  <div className="text-xs font-bold text-slate-700 uppercase tracking-widest mb-2">Current In-District Fee</div>
                   <div className="flex items-center gap-3">
-                    <span className="text-slate-500">$</span>
+                    <span className="text-slate-700">$</span>
                     <input type="number" value={p.fee||""} onChange={e=>setField("fee")(parseFloat(e.target.value)||0)}
                       className="w-32 rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:border-blue-400"
                       placeholder="0" min={0} style={{MozAppearance:"textfield"}}/>
-                    <span className="text-xs text-slate-500">per participant</span>
+                    <span className="text-xs text-slate-700">per participant</span>
                   </div>
                 </div>
 
@@ -2947,7 +2947,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                     <div className="px-4 py-3 flex items-center justify-between border-b border-slate-100" style={{background:"#f0f4ff"}}>
                       <div>
                         <div className="text-xs font-bold text-slate-800 uppercase tracking-widest">Pricing Decision</div>
-                        <div className="text-xs text-slate-500 mt-0.5">Enter a target fee, an intentional subsidy amount, or both</div>
+                        <div className="text-xs text-slate-700 mt-0.5">Enter a target fee, an intentional subsidy amount, or both</div>
                       </div>
                       <span className="text-xs font-bold px-2 py-1 rounded" style={{background:"#F5E6EF",color:"#3730a3"}}>Manager only</span>
                     </div>
@@ -2956,14 +2956,14 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                       {/* Two editable fields side by side */}
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="p-4 rounded border border-slate-200 bg-slate-50 space-y-2">
-                          <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Target fee</div>
-                          <div className="text-xs text-slate-500">What we'll realistically charge</div>
+                          <div className="text-xs font-bold text-slate-700 uppercase tracking-wide">Target fee</div>
+                          <div className="text-xs text-slate-700">What we'll realistically charge</div>
                           <div className="flex items-center gap-2">
-                            <span className="text-slate-500">$</span>
+                            <span className="text-slate-700">$</span>
                             <input type="number" value={p.pricing_target_fee||""} onChange={e=>setField("pricing_target_fee")(parseFloat(e.target.value)||0)}
                               className="w-28 rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:border-blue-400 bg-white"
                               placeholder={sugFee?Math.ceil(sugFee):"0"} min={0} style={{MozAppearance:"textfield"}}/>
-                            <span className="text-xs text-slate-500">/person</span>
+                            <span className="text-xs text-slate-700">/person</span>
                           </div>
                           {targetFeeEntered>0&&currentFee!=null&&(
                             <div className="text-xs font-semibold" style={{color:targetFeeEntered>currentFee?"#84BD00":"#E35205"}}>
@@ -2973,21 +2973,21 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                             </div>
                           )}
                           {targetFeeEntered>0&&enrollment>0&&(
-                            <div className="text-xs text-slate-500">Closes {dollar(Math.min(gapClosedByFee,gap))} of the gap</div>
+                            <div className="text-xs text-slate-700">Closes {dollar(Math.min(gapClosedByFee,gap))} of the gap</div>
                           )}
                         </div>
 
                         <div className="p-4 rounded border border-slate-200 bg-slate-50 space-y-2">
-                          <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Intentional subsidy</div>
-                          <div className="text-xs text-slate-500">District investment beyond the fee</div>
+                          <div className="text-xs font-bold text-slate-700 uppercase tracking-wide">Intentional subsidy</div>
+                          <div className="text-xs text-slate-700">District investment beyond the fee</div>
                           <div className="flex items-center gap-2">
-                            <span className="text-slate-500">$</span>
+                            <span className="text-slate-700">$</span>
                             <input type="number" value={p.pricing_subsidy_amount||""} onChange={e=>setField("pricing_subsidy_amount")(parseFloat(e.target.value)||0)}
                               className="w-28 rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:border-blue-400 bg-white"
                               placeholder="0" min={0} style={{MozAppearance:"textfield"}}/>
                           </div>
                           {subsidyEntered>0&&(
-                            <div className="text-xs text-slate-500">Closes {dollar(Math.min(gapClosedBySubsidy,gap))} of the gap</div>
+                            <div className="text-xs text-slate-700">Closes {dollar(Math.min(gapClosedBySubsidy,gap))} of the gap</div>
                           )}
                         </div>
                       </div>
@@ -2997,13 +2997,13 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                         <div className="rounded-lg border border-slate-200 p-3 space-y-2 bg-white">
                           {gapClosedByFee>0&&(
                             <div className="flex justify-between text-sm">
-                              <span className="text-slate-500">Closed by fee increase</span>
+                              <span className="text-slate-700">Closed by fee increase</span>
                               <span className="font-semibold text-green-700">{dollar(Math.ceil(gapClosedByFee))}</span>
                             </div>
                           )}
                           {gapClosedBySubsidy>0&&(
                             <div className="flex justify-between text-sm">
-                              <span className="text-slate-500">Intentional subsidy</span>
+                              <span className="text-slate-700">Intentional subsidy</span>
                               <span className="font-semibold" style={{color:"#3730a3"}}>{dollar(Math.ceil(gapClosedBySubsidy))}</span>
                             </div>
                           )}
@@ -3018,7 +3018,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
 
                       {/* Justification */}
                       <div>
-                        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Justification</div>
+                        <div className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-2">Justification</div>
                         <div className="flex gap-2 flex-wrap mb-3">
                           {["Community access / equity","New program — building enrollment","Board-directed mission program","Contractual obligation","Other"].map(r=>(
                             <button key={r} onClick={()=>setField("pricing_rationale")(p.pricing_rationale===r?"":r)}
@@ -3044,7 +3044,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
           })()}
           {sec==="log"&&(
             <div className="space-y-4">
-              <div className="text-xs text-slate-500 mb-2">Record decisions, fee changes, pivots, or anything worth remembering. Each entry is timestamped automatically.</div>
+              <div className="text-xs text-slate-700 mb-2">Record decisions, fee changes, pivots, or anything worth remembering. Each entry is timestamped automatically.</div>
               {canEdit&&(
                 <div className="flex gap-2">
                   <input className="flex-1 rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
@@ -3065,7 +3065,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                       <div className="shrink-0 w-1.5 rounded-full bg-amber-400 mt-1" style={{minHeight:"1rem"}}/>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm text-slate-800">{entry.text}</div>
-                        <div className="text-xs text-slate-500 mt-1">{entry.author} · {new Date(entry.date).toLocaleDateString()} {new Date(entry.date).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</div>
+                        <div className="text-xs text-slate-700 mt-1">{entry.author} · {new Date(entry.date).toLocaleDateString()} {new Date(entry.date).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</div>
                       </div>
                     </div>
                   ))}
@@ -3097,13 +3097,13 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
           <div className="flex gap-2">
             {!isNew&&<button onClick={()=>setConfirm(true)} className="px-4 py-2 text-sm text-red-500 hover:text-red-700 font-medium">Delete</button>}
             {!isNew&&<button onClick={()=>setConfirmArchive(true)}
-              className={`px-4 py-2 text-sm font-medium rounded border transition ${p.is_archived?"border-green-300 text-green-700 hover:bg-green-50":"border-slate-200 text-slate-500 hover:bg-gray-200"}`}>
+              className={`px-4 py-2 text-sm font-medium rounded border transition ${p.is_archived?"border-green-300 text-green-700 hover:bg-green-50":"border-slate-200 text-slate-700 hover:bg-gray-200"}`}>
               {p.is_archived?"Restore":"Archive"}
             </button>}
-            {!isNew&&<button onClick={()=>onDuplicate(p)} className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded hover:bg-gray-200 font-medium">Duplicate</button>}
+            {!isNew&&<button onClick={()=>onDuplicate(p)} className="px-4 py-2 text-sm text-slate-700 border border-slate-200 rounded hover:bg-gray-200 font-medium">Duplicate</button>}
           </div>
           <div className="flex gap-3">
-            <button onClick={handleBack} className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded">Cancel</button>
+            <button onClick={handleBack} className="px-4 py-2 text-sm text-slate-700 border border-slate-200 rounded">Cancel</button>
             <button onClick={handleSave} disabled={!p.name||saving}
               title="Save (Ctrl+S)"
               className="px-5 py-2 text-sm font-semibold text-white rounded disabled:opacity-40"
@@ -3143,12 +3143,12 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
         <div className="flex gap-2">
           {isManager&&(
             <button onClick={onBulkDup}
-              className="text-xs font-semibold px-3 py-2 rounded border border-slate-200 text-slate-500 hover:bg-gray-200 transition">
+              className="text-xs font-semibold px-3 py-2 rounded border border-slate-200 text-slate-700 hover:bg-gray-200 transition">
               Bulk Season Rollover
             </button>
           )}
           <button onClick={()=>setShowArchived(s=>!s)}
-            className={`text-xs font-semibold px-3 py-2 rounded border transition ${showArchived?"text-white border-transparent":"border-slate-200 text-slate-500 hover:bg-gray-200"}`}
+            className={`text-xs font-semibold px-3 py-2 rounded border transition ${showArchived?"text-white border-transparent":"border-slate-200 text-slate-700 hover:bg-gray-200"}`}
             style={showArchived?{backgroundColor:"#64748b"}:{}}>
             📦 {showArchived?"← Active Programs":`Archived (${archivedCount})`}
           </button>
@@ -3162,7 +3162,7 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
           placeholder="Search programs by name..." value={search} onChange={e=>setSearch(e.target.value)}/>
       </div>
       {vis.length===0 ? (
-        <div className="bg-white rounded-lg shadow-sm p-12 text-center text-slate-500 text-sm">No programs found.</div>
+        <div className="bg-white rounded-lg shadow-sm p-12 text-center text-slate-700 text-sm">No programs found.</div>
       ) : (
         <div className="space-y-2">{vis.map(p=>{
           const k = calcKPIs(p);
@@ -3176,19 +3176,19 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
                   {!k.hasActuals&&<span className="text-xs bg-amber-100  px-1.5 py-0.5 rounded font-medium whitespace-nowrap">No actuals</span>}
                   {p.notes&&<span className="text-slate-400 text-xs" title={p.notes}>●</span>}
                 </div>
-                <div className="text-xs text-slate-500">{p.area} - {p.season} FY {toFY(p.year)} - {p.staff_name}
+                <div className="text-xs text-slate-700">{p.area} - {p.season} FY {toFY(p.year)} - {p.staff_name}
                   {lastUpdated&&<span className="ml-2 text-slate-400">· Updated {new Date(lastUpdated).toLocaleDateString()}</span>}
                 </div>
               </div>
               <div className="hidden sm:flex gap-6 text-sm">
-                <div className="text-center"><div className="text-xs text-slate-500">Fill</div><div className="font-mono font-semibold">{pct(k.fillRate)}</div></div>
-                <div className="text-center"><div className="text-xs text-slate-500">Recovery</div><div className="font-mono font-semibold">{pct(k.costRecovery)}</div></div>
-                <div className="text-center"><div className="text-xs text-slate-500">Net P/(L)</div><div className={`font-mono font-semibold ${k.profitLoss>=0?"text-green-700":"text-red-600"}`}>{dollar(k.profitLoss)}</div></div>
+                <div className="text-center"><div className="text-xs text-slate-700">Fill</div><div className="font-mono font-semibold">{pct(k.fillRate)}</div></div>
+                <div className="text-center"><div className="text-xs text-slate-700">Recovery</div><div className="font-mono font-semibold">{pct(k.costRecovery)}</div></div>
+                <div className="text-center"><div className="text-xs text-slate-700">Net P/(L)</div><div className={`font-mono font-semibold ${k.profitLoss>=0?"text-green-700":"text-red-600"}`}>{dollar(k.profitLoss)}</div></div>
               </div>
               <div className="flex items-center gap-2">
                 {p.is_archived&&<span className="text-xs font-semibold px-1.5 py-0.5 rounded" style={{background:"#f1f5f9",color:"#64748b"}}>Archived</span>}
                 <button onClick={e=>{e.stopPropagation();onDupSingle(p);}}
-                  className="text-xs text-slate-500 hover:text-slate-800 font-medium px-2 py-1 rounded hover:bg-gray-200 transition">Copy</button>
+                  className="text-xs text-slate-700 hover:text-slate-800 font-medium px-2 py-1 rounded hover:bg-gray-200 transition">Copy</button>
                 <Badge status={k.status}/>
               </div>
             </div>
@@ -3546,7 +3546,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   // ── Helper sub-components ──────────────────────────────────────────────────
   const inp=(label,key,type="text",opts=null,req=false,hint="")=>(
     <div>
-      <label className="block text-xs font-semibold text-slate-500 mb-1">{label}{req&&<span className="text-red-400 ml-0.5">*</span>}</label>
+      <label className="block text-xs font-semibold text-slate-700 mb-1">{label}{req&&<span className="text-red-400 ml-0.5">*</span>}</label>
       {opts?(
         <select value={form[key]||""} onChange={e=>s(key,e.target.value)} className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
           {opts.map(o=><option key={o}>{o}</option>)}
@@ -3557,20 +3557,20 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
           className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2"
           style={type==="number"?{MozAppearance:"textfield"}:{}}/>
       )}
-      {hint&&<div className="text-xs text-slate-500 mt-0.5">{hint}</div>}
+      {hint&&<div className="text-xs text-slate-700 mt-0.5">{hint}</div>}
     </div>
   );
 
   const chk=(label,key,detail="")=>(
     <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg border border-slate-100 hover:bg-gray-200">
       <input type="checkbox" checked={!!form[key]} onChange={e=>s(key,e.target.checked)} className="mt-0.5 shrink-0"/>
-      <div><div className="text-sm font-medium text-slate-800">{label}</div>{detail&&<div className="text-xs text-slate-500 mt-0.5">{detail}</div>}</div>
+      <div><div className="text-sm font-medium text-slate-800">{label}</div>{detail&&<div className="text-xs text-slate-700 mt-0.5">{detail}</div>}</div>
     </label>
   );
 
   const ta=(label,key,rows=2,placeholder="")=>(
     <div>
-      <label className="block text-xs font-semibold text-slate-500 mb-1">{label}</label>
+      <label className="block text-xs font-semibold text-slate-700 mb-1">{label}</label>
       <textarea value={form[key]||""} onChange={e=>s(key,e.target.value)} rows={rows} placeholder={placeholder}
         className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 resize-none"/>
     </div>
@@ -3596,7 +3596,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   const divider=(label)=>(
     <div className="flex items-center gap-2 my-1">
       <div className="h-px flex-1 bg-gray-200"/>
-      <span className="text-xs text-slate-500 font-semibold uppercase tracking-widest">{label}</span>
+      <span className="text-xs text-slate-700 font-semibold uppercase tracking-widest">{label}</span>
       <div className="h-px flex-1 bg-gray-200"/>
     </div>
   );
@@ -3621,7 +3621,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
           <span className="text-lg shrink-0">📋</span>
           <div>
             <div className="font-bold text-slate-800 text-sm mb-1">Why BGPD does Program Reviews</div>
-            <p className="text-xs text-slate-500 leading-relaxed">Program reviews are how BGPD makes intentional, documented decisions about its programming portfolio — a direct commitment from the 2025–2028 Strategic Plan's focus on fiscal sustainability and data-driven management. Every review creates a permanent record of why a program was continued, adjusted, expanded, or sunset, grounded in the 110% cost recovery framework. This protects the district from reactive decision-making, gives the board confidence that programming choices are strategic, and helps BGPD move its overall program margin toward long-term financial health. Complete a review for every program at the end of each season it runs.</p>
+            <p className="text-xs text-slate-700 leading-relaxed">Program reviews are how BGPD makes intentional, documented decisions about its programming portfolio — a direct commitment from the 2025–2028 Strategic Plan's focus on fiscal sustainability and data-driven management. Every review creates a permanent record of why a program was continued, adjusted, expanded, or sunset, grounded in the 110% cost recovery framework. This protects the district from reactive decision-making, gives the board confidence that programming choices are strategic, and helps BGPD move its overall program margin toward long-term financial health. Complete a review for every program at the end of each season it runs.</p>
           </div>
         </div>
       )}
@@ -3643,7 +3643,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="font-bold font-semibold" style={{fontSize:"18px"}}>Program Review Checklist</h2>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <p className="text-sm text-slate-700 mt-0.5">
             {isManager
               ? "All program reviews — visible to managers"
               : `Your program reviews — complete one after each season`}
@@ -3663,7 +3663,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               a.href=URL.createObjectURL(blob);
               a.download=`BGPD_Program_Reviews_${new Date().toISOString().slice(0,10)}.csv`;
               a.click();
-            }} className="px-4 py-2 text-sm font-semibold rounded-lg border border-slate-200 text-slate-500 hover:bg-gray-200 transition">
+            }} className="px-4 py-2 text-sm font-semibold rounded-lg border border-slate-200 text-slate-700 hover:bg-gray-200 transition">
               ↓ Export CSV
             </button>
           )}
@@ -3689,7 +3689,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
           <div key={c.label} className="bg-white rounded border border-slate-100 shadow-sm p-3 text-center cursor-pointer hover:border-slate-200 transition"
             onClick={()=>setDecFilter(decFilter===c.label||(c.label==="Total"&&decFilter==="all")?"all":c.label==="Total"?"all":c.label)}>
             <div className="text-2xl font-black" style={{color:c.accent}}>{c.value}</div>
-            <div className="text-xs text-slate-500 mt-0.5">{c.label}</div>
+            <div className="text-xs text-slate-700 mt-0.5">{c.label}</div>
           </div>
         ))}
       </div>
@@ -3707,15 +3707,15 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
           {DECISIONS.map(d=><option key={d}>{d}</option>)}
         </select>
         {(search||fyFilter!=="all"||decFilter!=="all")&&(
-          <button onClick={()=>{setSearch("");setFyFilter("all");setDecFilter("all");}} className="text-xs text-slate-500 hover:text-slate-500">Clear</button>
+          <button onClick={()=>{setSearch("");setFyFilter("all");setDecFilter("all");}} className="text-xs text-slate-700 hover:text-slate-700">Clear</button>
         )}
-        <span className="text-xs text-slate-500 ml-auto">{filtered.length} review{filtered.length!==1?"s":""}</span>
+        <span className="text-xs text-slate-700 ml-auto">{filtered.length} review{filtered.length!==1?"s":""}</span>
       </div>
 
       {filtered.length===0?(
-        <div className="bg-white rounded border border-slate-100 p-12 text-center text-slate-500">
+        <div className="bg-white rounded border border-slate-100 p-12 text-center text-slate-700">
           <div className="text-4xl mb-3">📋</div>
-          <div className="font-semibold text-slate-500 mb-1">No reviews yet</div>
+          <div className="font-semibold text-slate-700 mb-1">No reviews yet</div>
           <div className="text-sm">{isManager ? 'Click "+ New Review" to log the first review.' : 'Click "+ New Review" to review one of your programs.'}</div>
         </div>
       ):(
@@ -3728,29 +3728,29 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               <div key={r.id} className={`${i>0?"border-t border-slate-50":""} px-4 py-4 flex items-start gap-4 hover:bg-gray-200 transition ${savedId===r.id?"bg-green-50 border-l-4 border-green-400":""}`}>
                 <div className="shrink-0 mt-0.5 w-24 text-center">
                   <span className="inline-block px-2 py-1 rounded text-xs font-bold text-white w-full" style={{background:dc}}>{r.decision||"—"}</span>
-                  <div className="text-xs text-slate-500 mt-1">{r.season} {r.fy?.slice(2,4)}</div>
+                  <div className="text-xs text-slate-700 mt-1">{r.season} {r.fy?.slice(2,4)}</div>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-bold font-semibold">{r.program_name}</div>
-                  <div className="text-xs text-slate-500 mt-0.5">{r.supervisor}{r.area?` · ${r.area}`:""} · {r.season&&r.fy?`${r.season} FY ${r.fy} · `:""}{r.review_date}
+                  <div className="text-xs text-slate-700 mt-0.5">{r.supervisor}{r.area?` · ${r.area}`:""} · {r.season&&r.fy?`${r.season} FY ${r.fy} · `:""}{r.review_date}
                     {r.updated_at&&<span className="ml-2 text-slate-400">· saved {new Date(r.updated_at).toLocaleDateString()}</span>}
                   </div>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs">
-                    <span className="text-slate-500">Fill: <span className="font-bold">{r.fill_rate||0}%</span>
+                    <span className="text-slate-700">Fill: <span className="font-bold">{r.fill_rate||0}%</span>
                       {frDelta!==null&&<span style={{color:frDelta>=0?"#84BD00":"#E35205",marginLeft:"3px"}}>{frDelta>=0?"▲":"▼"}{Math.abs(frDelta).toFixed(0)}pp</span>}
                     </span>
-                    <span className="text-slate-500">CR: <span className="font-bold">{r.cost_recovery||0}%</span></span>
+                    <span className="text-slate-700">CR: <span className="font-bold">{r.cost_recovery||0}%</span></span>
                     {r.seasons_below_threshold>0&&<span className="font-semibold" style={{color:r.seasons_below_threshold>=2?"#E35205":"#F6AB00"}}>{r.seasons_below_threshold} season{r.seasons_below_threshold>1?"s":""} below threshold</span>}
                     <span style={{color:pMet>=3?"#84BD00":"#E35205"}} className="font-semibold">{pMet}/5 pillars</span>
-                    {r.next_review&&<span className="text-slate-500">→ {r.next_review}</span>}
+                    {r.next_review&&<span className="text-slate-700">→ {r.next_review}</span>}
                   </div>
                   {r.action_items&&(
-                    <div className="mt-1.5 text-xs text-slate-500 italic truncate">Action: {r.action_items}</div>
+                    <div className="mt-1.5 text-xs text-slate-700 italic truncate">Action: {r.action_items}</div>
                   )}
                 </div>
                 <div className="flex gap-2 shrink-0">
-                  <button onClick={()=>{setDetailRow(r);setView("detail");}} className="p-2 rounded-lg bg-gray-200 hover:bg-slate-200 text-xs text-slate-500">👁</button>
-                  <button onClick={()=>startEdit(r)} className="p-2 rounded-lg bg-gray-200 hover:bg-slate-200 text-xs text-slate-500">✏</button>
+                  <button onClick={()=>{setDetailRow(r);setView("detail");}} className="p-2 rounded-lg bg-gray-200 hover:bg-slate-200 text-xs text-slate-700">👁</button>
+                  <button onClick={()=>startEdit(r)} className="p-2 rounded-lg bg-gray-200 hover:bg-slate-200 text-xs text-slate-700">✏</button>
                   <button onClick={()=>setConfirm(r.id)} className="p-2 rounded-lg bg-red-50 hover:bg-red-100 text-xs text-red-400">✕</button>
                 </div>
               </div>
@@ -3768,8 +3768,8 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
     const pMet=(r.pillars_met||"").split(",").filter(Boolean);
     const pillarMeta={1:{label:"Fiscal Sustainability",color:"#5C462B",req:true},2:{label:"Data & Accountability",color:"#5C462B",req:true},3:{label:"Community Impact",color:"#00A9CE",req:false},4:{label:"Space Optimization",color:"#990066",req:false},5:{label:"Innovation",color:"#D4850A",req:false}};
     const history=reviewHistory(r.program_name).filter(h=>h.id!==r.id);
-    const Row=({k,v})=>v!=null&&v!==""&&v!==false?(<div className="flex justify-between py-1 border-b border-slate-50"><span className="text-slate-500 text-xs">{k}</span><span className="font-semibold text-slate-800 text-xs text-right max-w-48">{String(v)}</span></div>):null;
-    const Note=({label,val,color="#64748b"})=>val?(<div className="mt-2 p-2.5 rounded-lg bg-slate-50 text-xs text-slate-500"><span className="font-bold" style={{color}}>{label}: </span>{val}</div>):null;
+    const Row=({k,v})=>v!=null&&v!==""&&v!==false?(<div className="flex justify-between py-1 border-b border-slate-50"><span className="text-slate-700 text-xs">{k}</span><span className="font-semibold text-slate-800 text-xs text-right max-w-48">{String(v)}</span></div>):null;
+    const Note=({label,val,color="#64748b"})=>val?(<div className="mt-2 p-2.5 rounded-lg bg-slate-50 text-xs text-slate-700"><span className="font-bold" style={{color}}>{label}: </span>{val}</div>):null;
     const SCP=({s,c})=>(s||c)?(
       <div className="grid grid-cols-2 gap-2 mt-2">
         {s&&<div className="p-2.5 rounded-lg bg-green-50 text-xs"><span className="font-bold text-green-700">Strengths: </span>{s}</div>}
@@ -3779,7 +3779,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
 
     return(
       <div>
-        <button onClick={()=>setView("list")} className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 mb-5">← All reviews</button>
+        <button onClick={()=>setView("list")} className="flex items-center gap-2 text-sm text-slate-700 hover:text-slate-800 mb-5">← All reviews</button>
         <div className="bg-white rounded border border-slate-100 shadow-sm overflow-hidden">
           {/* Header */}
           <div className="px-6 py-5" style={{background:"#00A9CE"}}>
@@ -3814,10 +3814,10 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                 {label:"Seasons Below Threshold",cur:r.seasons_below_threshold||0,prior:null,alert:r.seasons_below_threshold>=2},
               ].map(m=>(
                 <div key={m.label} className="rounded-lg bg-slate-50 border border-slate-100 p-3">
-                  <div className="text-xs text-slate-500 mb-1">{m.label}</div>
+                  <div className="text-xs text-slate-700 mb-1">{m.label}</div>
                   <div className="text-lg font-black" style={{color:m.alert?"#E35205":"#00A9CE"}}>{m.cur}</div>
                   {m.prior!=null&&m.prior!=""&&(
-                    <div className="text-xs text-slate-500">
+                    <div className="text-xs text-slate-700">
                       Prior: {m.prior}{m.suffix}
                       <span style={{color:(m.cur-m.prior)>=0?"#84BD00":"#E35205",marginLeft:"4px"}}>
                         {(m.cur-m.prior)>=0?"▲":"▼"}{Math.abs(m.cur-m.prior).toFixed(0)}pp
@@ -3831,7 +3831,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
               {/* Financial */}
               <div>
-                <div className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">💰 Financial</div>
+                <div className="text-xs font-bold uppercase tracking-widest text-slate-700 mb-2">💰 Financial</div>
                 <Row k="Revenue" v={r.revenue?`$${Number(r.revenue).toLocaleString()}`:null}/>
                 <Row k="Direct Costs" v={r.direct_costs?`$${Number(r.direct_costs).toLocaleString()}`:null}/>
                 <Row k="Cost Recovery" v={r.cost_recovery?`${r.cost_recovery}%`:null}/>
@@ -3844,7 +3844,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               </div>
               {/* Data */}
               <div>
-                <div className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">📊 Data</div>
+                <div className="text-xs font-bold uppercase tracking-widest text-slate-700 mb-2">📊 Data</div>
                 <Row k="Fill Rate" v={r.fill_rate?`${r.fill_rate}%`:null}/>
                 <Row k="Prior Fill Rate" v={r.prior_fill_rate?`${r.prior_fill_rate}%`:null}/>
                 <Row k="NPS" v={r.nps}/>
@@ -3856,7 +3856,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               </div>
               {/* Community */}
               <div>
-                <div className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">🤝 Community</div>
+                <div className="text-xs font-bold uppercase tracking-widest text-slate-700 mb-2">🤝 Community</div>
                 <Row k="Enrollment / Capacity" v={r.enrollment?`${r.enrollment} / ${r.capacity}`:"—"}/>
                 <Row k="Waitlist" v={r.waitlist||0}/>
                 <Row k="Participant Trend" v={r.retention_trend}/>
@@ -3869,7 +3869,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               </div>
               {/* Space + Innovation */}
               <div>
-                <div className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">🏢 Space & Innovation</div>
+                <div className="text-xs font-bold uppercase tracking-widest text-slate-700 mb-2">🏢 Space & Innovation</div>
                 <Row k="Prime Time Use" v={r.prime_time_use}/>
                 <Row k="Time/Location Improvable?" v={r.time_improvable?"Yes":"No"}/>
                 <Row k="Staff Ratio Appropriate?" v={r.ratio_appropriate?"Yes":"No"}/>
@@ -3895,22 +3895,22 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                 <span className="font-bold text-white">Decision: {r.decision}</span>
                 {r.next_review&&<span className="text-xs text-white opacity-80">Next review: {r.next_review}</span>}
               </div>
-              {r.decision_reason&&<div className="px-4 py-3 text-sm text-slate-500 border-b border-slate-50"><span className="font-semibold text-slate-800">Reason: </span>{r.decision_reason}</div>}
-              {r.action_items&&<div className="px-4 py-3 text-sm text-slate-500"><span className="font-semibold text-slate-800">Action Items: </span>{r.action_items}</div>}
+              {r.decision_reason&&<div className="px-4 py-3 text-sm text-slate-700 border-b border-slate-50"><span className="font-semibold text-slate-800">Reason: </span>{r.decision_reason}</div>}
+              {r.action_items&&<div className="px-4 py-3 text-sm text-slate-700"><span className="font-semibold text-slate-800">Action Items: </span>{r.action_items}</div>}
             </div>
 
             {/* History */}
             {history.length>0&&(
               <div>
-                <div className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Review History — {r.program_name}</div>
+                <div className="text-xs font-bold uppercase tracking-widest text-slate-700 mb-3">Review History — {r.program_name}</div>
                 <div className="space-y-2">
                   {history.slice(0,5).map((h,i)=>(
                     <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100 text-xs">
                       <span className="px-2 py-0.5 rounded font-bold text-white" style={{background:dcColor[h.decision]||"#64748b"}}>{h.decision}</span>
-                      <span className="text-slate-500">{h.season} {h.fy}</span>
-                      <span className="text-slate-500">Fill: <span className="font-bold">{h.fill_rate||0}%</span></span>
-                      <span className="text-slate-500">CR: <span className="font-bold">{h.cost_recovery||0}%</span></span>
-                      <span className="text-slate-500 ml-auto">{h.review_date}</span>
+                      <span className="text-slate-700">{h.season} {h.fy}</span>
+                      <span className="text-slate-700">Fill: <span className="font-bold">{h.fill_rate||0}%</span></span>
+                      <span className="text-slate-700">CR: <span className="font-bold">{h.cost_recovery||0}%</span></span>
+                      <span className="text-slate-700 ml-auto">{h.review_date}</span>
                     </div>
                   ))}
                 </div>
@@ -3920,7 +3920,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
 
           <div className="px-6 pb-6 flex gap-3 border-t border-slate-100 pt-4">
             <button onClick={()=>startEdit(r)} className="px-4 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#00A9CE"}}>✏ Edit</button>
-            <button onClick={()=>setView("list")} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-500">Close</button>
+            <button onClick={()=>setView("list")} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-700">Close</button>
           </div>
         </div>
       </div>
@@ -3933,11 +3933,11 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
 
   return(
     <div>
-      <button onClick={()=>{setView("list");setActiveStep(0);setMatchedProgram(null);}} className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 mb-5">← All reviews</button>
+      <button onClick={()=>{setView("list");setActiveStep(0);setMatchedProgram(null);}} className="flex items-center gap-2 text-sm text-slate-700 hover:text-slate-800 mb-5">← All reviews</button>
       <div className="mb-5 flex items-start justify-between flex-wrap gap-3">
         <div>
           <h2 className="font-bold font-semibold text-lg">{editRow?"Edit Review":reviewMode==="quick"?"⚡ Quick Review":"New Program Review"}</h2>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <p className="text-sm text-slate-700 mt-0.5">
             {reviewMode==="quick"
               ? "Essential fields only — saves automatically as you go"
               : "Complete all sections, then submit"}
@@ -3973,7 +3973,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
       {/* Live pillar bar — full mode only */}
       {reviewMode==="full"&&<div className="bg-white rounded border border-slate-100 shadow-sm p-4 mb-5">
         <div className="flex items-center justify-between mb-2">
-          <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Pillar Score</div>
+          <div className="text-xs font-bold text-slate-700 uppercase tracking-widest">Pillar Score</div>
           <div className={`text-sm font-bold ${overallPass?"text-green-600":"text-red-500"}`}>
             {metCount}/5 — {overallPass?"✓ Passes":"✗ Needs 3+ pillars incl. both required"}
           </div>
@@ -3997,7 +3997,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
           {/* Program Info */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">Program Name <span className="text-red-400">*</span></label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Program Name <span className="text-red-400">*</span></label>
               <input value={form.program_name} onChange={e=>handleProgramName(e.target.value)}
                 list="program-list-q" className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2"/>
               <datalist id="program-list-q">
@@ -4005,51 +4005,51 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               </datalist>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">Supervisor</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Supervisor</label>
               <input value={form.supervisor} onChange={e=>s("supervisor",e.target.value)} className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2"/>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">Season</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Season</label>
               <select value={form.season} onChange={e=>s("season",e.target.value)} className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
                 {["","Spring","Summer","Fall","Winter","Annual","Year-Round"].map(o=><option key={o}>{o}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">Fiscal Year</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Fiscal Year</label>
               <select value={form.fy} onChange={e=>s("fy",e.target.value)} className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
                 {ADMIN_FYS.map(f=><option key={f}>{f}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">Fill Rate (%)</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Fill Rate (%)</label>
               <input type="number" value={form.fill_rate} onChange={e=>s("fill_rate",e.target.value)} className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2" style={{MozAppearance:"textfield"}} placeholder="e.g. 72"/>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">Cost Recovery (%)</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Cost Recovery (%)</label>
               <input type="number" value={form.cost_recovery} onChange={e=>s("cost_recovery",e.target.value)} className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2" style={{MozAppearance:"textfield"}} placeholder="e.g. 105"/>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">Trend</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Trend</label>
               <select value={form.trend} onChange={e=>s("trend",e.target.value)} className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
                 {["Growing","Stable","Declining","New"].map(o=><option key={o}>{o}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">Decision</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Decision</label>
               <select value={form.decision} onChange={e=>s("decision",e.target.value)} className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
                 {DECISIONS.map(d=><option key={d}>{d}</option>)}
               </select>
             </div>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Notes / Action Items</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Notes / Action Items</label>
             <textarea value={form.action_items} onChange={e=>s("action_items",e.target.value)} rows={3}
               placeholder="Key observations, next steps…"
               className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 resize-none"/>
           </div>
-          {autoSaving&&<div className="text-xs text-slate-500 italic">Saving…</div>}
+          {autoSaving&&<div className="text-xs text-slate-700 italic">Saving…</div>}
           <div className="flex justify-between pt-2 border-t border-slate-100">
-            <button onClick={()=>{setView("list");setActiveStep(0);setMatchedProgram(null);}} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-500">← Back</button>
+            <button onClick={()=>{setView("list");setActiveStep(0);setMatchedProgram(null);}} className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-700">← Back</button>
             <button onClick={async()=>{await autoSave();setFyFilter("all");setDecFilter("all");setSearch("");await load();setView("list");setActiveStep(0);setMatchedProgram(null);}}
               className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#00A9CE"}}>
               Save & Close
@@ -4067,7 +4067,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
 
             {/* Program name with auto-match */}
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">Program Name <span className="text-red-400">*</span></label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Program Name <span className="text-red-400">*</span></label>
               <input value={form.program_name} onChange={e=>handleProgramName(e.target.value)}
                 list="program-list" className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2"/>
               <datalist id="program-list">
@@ -4106,11 +4106,11 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
             {/* Prior season snapshot if available */}
             {prior&&(
               <div className="rounded-lg bg-slate-50 border border-slate-100 p-4">
-                <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Prior Season Data — {prior.fy}</div>
+                <div className="text-xs font-bold text-slate-700 uppercase tracking-widest mb-2">Prior Season Data — {prior.fy}</div>
                 <div className="flex gap-6 text-sm">
-                  <div><span className="text-slate-500">Fill Rate: </span><span className="font-bold text-slate-800">{prior.fill_rate}%</span></div>
-                  <div><span className="text-slate-500">Cost Recovery: </span><span className="font-bold text-slate-800">{prior.cost_recovery}%</span></div>
-                  {prior.enrollment&&<div><span className="text-slate-500">Enrollment: </span><span className="font-bold text-slate-800">{prior.enrollment}</span></div>}
+                  <div><span className="text-slate-700">Fill Rate: </span><span className="font-bold text-slate-800">{prior.fill_rate}%</span></div>
+                  <div><span className="text-slate-700">Cost Recovery: </span><span className="font-bold text-slate-800">{prior.cost_recovery}%</span></div>
+                  {prior.enrollment&&<div><span className="text-slate-700">Enrollment: </span><span className="font-bold text-slate-800">{prior.enrollment}</span></div>}
                 </div>
               </div>
             )}
@@ -4118,14 +4118,14 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
             {/* Review history */}
             {hist.length>0&&(
               <div className="rounded-lg border border-slate-100 overflow-hidden">
-                <div className="px-4 py-2 bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-widest">Past Reviews — {form.program_name||"this program"}</div>
+                <div className="px-4 py-2 bg-slate-50 text-xs font-bold text-slate-700 uppercase tracking-widest">Past Reviews — {form.program_name||"this program"}</div>
                 {hist.slice(0,3).map((h,i)=>(
                   <div key={i} className="px-4 py-2.5 border-t border-slate-50 flex items-center gap-3 text-xs">
                     <span className="px-2 py-0.5 rounded font-bold text-white" style={{background:dcColor[h.decision]||"#64748b"}}>{h.decision}</span>
-                    <span className="text-slate-500">{h.season} {h.fy}</span>
+                    <span className="text-slate-700">{h.season} {h.fy}</span>
                     <span>Fill: <b>{h.fill_rate||0}%</b></span>
                     <span>CR: <b>{h.cost_recovery||0}%</b></span>
-                    {h.action_items&&<span className="text-slate-500 truncate ml-2">→ {h.action_items}</span>}
+                    {h.action_items&&<span className="text-slate-700 truncate ml-2">→ {h.action_items}</span>}
                   </div>
                 ))}
               </div>
@@ -4145,13 +4145,13 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
             </div>
             {form.revenue&&form.direct_costs&&(
               <div className="rounded-lg bg-slate-50 border border-slate-100 px-4 py-3 flex items-center gap-6 text-sm">
-                <div><span className="text-slate-500">Net: </span>
+                <div><span className="text-slate-700">Net: </span>
                   <span className={`font-bold ${parseFloat(form.revenue)-parseFloat(form.direct_costs)>=0?"text-green-600":"text-red-600"}`}>
                     ${(parseFloat(form.revenue||0)-parseFloat(form.direct_costs||0)).toLocaleString()}
                   </span>
                 </div>
                 {form.prior_cr&&form.cost_recovery&&(
-                  <div><span className="text-slate-500">CR Change: </span>{delta(form.cost_recovery,form.prior_cr)}</div>
+                  <div><span className="text-slate-700">CR Change: </span>{delta(form.cost_recovery,form.prior_cr)}</div>
                 )}
               </div>
             )}
@@ -4182,7 +4182,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
 
             {form.fill_rate&&form.prior_fill_rate&&(
               <div className="rounded-lg bg-slate-50 border border-slate-100 px-4 py-3 text-sm flex items-center gap-6">
-                <div><span className="text-slate-500">Fill Change: </span>{delta(form.fill_rate,form.prior_fill_rate)}</div>
+                <div><span className="text-slate-700">Fill Change: </span>{delta(form.fill_rate,form.prior_fill_rate)}</div>
                 {parseFloat(form.fill_rate)<60&&<span className="font-bold text-red-600">⚠ Below 60% threshold</span>}
               </div>
             )}
@@ -4224,7 +4224,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
             </div>
             {form.enrollment&&form.capacity&&(
               <div className="rounded-lg bg-slate-50 border border-slate-100 px-4 py-3 text-sm">
-                <span className="text-slate-500">Fill: </span>
+                <span className="text-slate-700">Fill: </span>
                 <span className="font-bold text-slate-800">{Math.round((parseFloat(form.enrollment)/parseFloat(form.capacity))*100)}%</span>
                 {parseFloat(form.waitlist)>0&&<span className="ml-4  font-semibold">{form.waitlist} on waitlist — expansion opportunity?</span>}
               </div>
@@ -4291,12 +4291,12 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
 
             {/* Pillar summary */}
             <div className="rounded-lg border border-slate-100 overflow-hidden">
-              <div className="px-4 py-2 bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-widest">Pillar Summary</div>
+              <div className="px-4 py-2 bg-slate-50 text-xs font-bold text-slate-700 uppercase tracking-widest">Pillar Summary</div>
               {pillars.map(p=>(
                 <div key={p.n} className="flex items-center gap-3 px-4 py-2.5 border-t border-slate-50">
                   <span className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
                     style={{background:p.met?p.color:"#e2e8f0",color:p.met?"white":"#94a3b8"}}>{p.met?"✓":"○"}</span>
-                  <span className="text-sm text-slate-500 flex-1">{p.label}</span>
+                  <span className="text-sm text-slate-700 flex-1">{p.label}</span>
                   {p.required&&<span className="text-xs text-red-500 font-semibold shrink-0">Required</span>}
                 </div>
               ))}
@@ -4309,7 +4309,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
 
             {/* Decision buttons */}
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-2">Decision</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-2">Decision</label>
               <div className="grid grid-cols-3 gap-2">
                 {DECISIONS.map(d=>(
                   <button key={d} onClick={()=>s("decision",d)}
@@ -4330,9 +4330,9 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
         {/* Nav buttons */}
         <div className="flex items-center justify-between pt-4 border-t border-slate-100">
           <button onClick={()=>setActiveStep(a=>Math.max(0,a-1))} disabled={activeStep===0}
-            className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-500 disabled:opacity-30">← Back</button>
+            className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-700 disabled:opacity-30">← Back</button>
           <div className="flex items-center gap-2">
-            {autoSaving&&<span className="text-xs text-slate-500 italic">Saving…</span>}
+            {autoSaving&&<span className="text-xs text-slate-700 italic">Saving…</span>}
             {activeStep<STEPS.length-1?(
               <button onClick={async()=>{await autoSave();setActiveStep(a=>a+1);}}
                 className="px-5 py-2 text-sm font-bold rounded-lg text-white" style={{background:"#00A9CE"}}>Next →</button>
@@ -4686,14 +4686,14 @@ function ProgramGuideSection({isManager,db}){
     <div className="p-5 space-y-5">
       <div>
         <h2 className="font-bold font-semibold text-base mb-1">Program Types & Guide</h2>
-        <p className="text-sm text-slate-500">Every BGPD program mapped to its Program Type and 110% cost recovery target. Use this when entering a new program to pick the right type.</p>
+        <p className="text-sm text-slate-700">Every BGPD program mapped to its Program Type and 110% cost recovery target. Use this when entering a new program to pick the right type.</p>
       </div>
 
       {/* Program Type workload table */}
       <div className="rounded border border-slate-200 overflow-hidden">
         <div className="px-4 py-2.5 bg-slate-800 text-slate-100 text-xs font-bold uppercase tracking-widest">Program Type Workload Reference</div>
         <table className="w-full text-xs">
-          <thead><tr className="bg-slate-50 text-slate-500 uppercase tracking-wider text-left">
+          <thead><tr className="bg-slate-50 text-slate-700 uppercase tracking-wider text-left">
             <th className="px-4 py-2 font-semibold">Program Type</th>
             <th className="px-4 py-2 font-semibold">Default %</th>
             <th className="px-4 py-2 font-semibold">When to use</th>
@@ -4701,8 +4701,8 @@ function ProgramGuideSection({isManager,db}){
           <tbody>{PROGRAM_TYPES.map((t,i)=>(
             <tr key={t.label} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
               <td className="px-4 py-2.5 font-semibold text-slate-800">{t.label}</td>
-              <td className="px-4 py-2.5 font-mono text-slate-500">{(t.pct*100).toFixed(1)}%</td>
-              <td className="px-4 py-2.5 text-slate-500 leading-snug">{t.hint}</td>
+              <td className="px-4 py-2.5 font-mono text-slate-700">{(t.pct*100).toFixed(1)}%</td>
+              <td className="px-4 py-2.5 text-slate-700 leading-snug">{t.hint}</td>
             </tr>
           ))}</tbody>
         </table>
@@ -4716,8 +4716,8 @@ function ProgramGuideSection({isManager,db}){
         <input value={search} onChange={e=>setSearch(e.target.value)}
           placeholder="Search program name, type, or bucket…"
           className="flex-1 min-w-48 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:border-blue-400"/>
-        {search&&<button onClick={()=>setSearch("")} className="text-xs text-slate-500 hover:text-slate-500">Clear</button>}
-        <span className="text-xs text-slate-500">{filtered?`${filtered.length} match${filtered.length!==1?"es":""}`:`${allEntries.length} programs${custom.length>0?` (${custom.length} custom)`:""}`}</span>
+        {search&&<button onClick={()=>setSearch("")} className="text-xs text-slate-700 hover:text-slate-700">Clear</button>}
+        <span className="text-xs text-slate-700">{filtered?`${filtered.length} match${filtered.length!==1?"es":""}`:`${allEntries.length} programs${custom.length>0?` (${custom.length} custom)`:""}`}</span>
         {isManager&&(
           <button onClick={()=>{setShowAdd(true);setEditRow(null);setForm({program:"",type:"Small Contractual Program",bucket:"Open Access",cr:"100% Subsidy"});}}
             className="text-xs font-bold px-3 py-2 rounded-lg text-white shrink-0" style={{background:"#00A9CE"}}>
@@ -4732,18 +4732,18 @@ function ProgramGuideSection({isManager,db}){
           <div className="font-semibold text-slate-800 text-sm">{editRow?"Edit Entry":"Add Program to Guide"}</div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">Program Name *</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Program Name *</label>
               <input value={form.program} onChange={e=>setForm(f=>({...f,program:e.target.value}))}
                 className={selCls} placeholder="e.g. New Pilates Class"/>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">Program Type</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Program Type</label>
               <select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))} className={selCls}>
                 {PROGRAM_TYPES.map(t=><option key={t.label}>{t.label}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">Service Category</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Service Category</label>
               <select value={form.bucket} onChange={e=>{
                 const b=e.target.value;
                 const autoCR=BUCKET_CR[b]||"";
@@ -4753,7 +4753,7 @@ function ProgramGuideSection({isManager,db}){
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">CR Target <span className="font-normal text-slate-500">(auto-fills from category)</span></label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">CR Target <span className="font-normal text-slate-700">(auto-fills from category)</span></label>
               <input value={form.cr} onChange={e=>setForm(f=>({...f,cr:e.target.value}))}
                 className={selCls} placeholder="e.g. 110-130%+"/>
             </div>
@@ -4763,7 +4763,7 @@ function ProgramGuideSection({isManager,db}){
               className="px-4 py-2 text-sm font-bold rounded-lg text-white disabled:opacity-40"
               style={{background:"#00A9CE"}}>{saving?"Saving…":editRow?"Update":"Save"}</button>
             <button onClick={()=>{setShowAdd(false);setEditRow(null);}}
-              className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-500">Cancel</button>
+              className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-700">Cancel</button>
           </div>
         </div>
       )}
@@ -4772,7 +4772,7 @@ function ProgramGuideSection({isManager,db}){
       {filtered&&(
         <div className="rounded border border-slate-200 overflow-hidden">
           <table className="w-full text-sm">
-            <thead><tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+            <thead><tr className="bg-slate-50 text-xs text-slate-700 uppercase tracking-wider">
               <th className="px-4 py-2 text-left font-semibold">Program</th>
               <th className="px-4 py-2 text-left font-semibold">Program Type</th>
               <th className="px-4 py-2 text-left font-semibold">Service Category</th>
@@ -4785,16 +4785,16 @@ function ProgramGuideSection({isManager,db}){
                   {g.program}
                   {g.custom&&<span className="ml-1.5 text-xs font-semibold text-blue-500">custom</span>}{g.overridden&&<span className="ml-1.5 text-xs font-semibold text-amber-500">edited</span>}
                 </td>
-                <td className="px-4 py-2.5 text-slate-500 text-xs">{g.type}</td>
+                <td className="px-4 py-2.5 text-slate-700 text-xs">{g.type}</td>
                 <td className="px-4 py-2.5">
                   <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full"
                     style={{background:BUCKET_COLORS[g.bucket]||"#f1f5f9",color:BUCKET_TEXT[g.bucket]||"#334155"}}>
                     {g.bucket}
                   </span>
                 </td>
-                <td className="px-4 py-2.5 text-slate-500 text-xs font-mono">{g.cr}</td>
+                <td className="px-4 py-2.5 text-slate-700 text-xs font-mono">{g.cr}</td>
                 {isManager&&<td className="px-4 py-2.5 text-right whitespace-nowrap">
-                  <button onClick={()=>startEdit(g)} className="text-xs text-slate-500 hover:text-slate-800 mr-2">Edit</button>
+                  <button onClick={()=>startEdit(g)} className="text-xs text-slate-700 hover:text-slate-800 mr-2">Edit</button>
                   <button onClick={()=>deleteEntry(g.id,!g.id?g.program:null)} className="text-xs text-red-300 hover:text-red-600">Delete</button>
                 </td>}
               </tr>
@@ -4825,7 +4825,7 @@ function ProgramGuideSection({isManager,db}){
             </button>
             {isOpen&&(
               <table className="w-full text-sm">
-                <thead><tr className="bg-white text-xs text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                <thead><tr className="bg-white text-xs text-slate-700 uppercase tracking-wider border-b border-slate-100">
                   <th className="px-4 py-2 text-left font-semibold">Program</th>
                   <th className="px-4 py-2 text-left font-semibold">Program Type to Use</th>
                   {isManager&&<th className="px-4 py-2"/>}
@@ -4836,9 +4836,9 @@ function ProgramGuideSection({isManager,db}){
                       {g.program}
                       {g.custom&&<span className="ml-1.5 text-xs font-semibold text-blue-500">custom</span>}{g.overridden&&<span className="ml-1.5 text-xs font-semibold text-amber-500">edited</span>}
                     </td>
-                    <td className="px-4 py-2.5 text-slate-500 text-xs">{g.type}</td>
+                    <td className="px-4 py-2.5 text-slate-700 text-xs">{g.type}</td>
                     {isManager&&<td className="px-4 py-2.5 text-right whitespace-nowrap">
-                      <button onClick={()=>startEdit(g)} className="text-xs text-slate-500 hover:text-slate-800 mr-2">Edit</button>
+                      <button onClick={()=>startEdit(g)} className="text-xs text-slate-700 hover:text-slate-800 mr-2">Edit</button>
                       <button onClick={()=>deleteEntry(g.id,!g.id?g.program:null)} className="text-xs text-red-300 hover:text-red-600">Delete</button>
                     </td>}
                   </tr>
@@ -4921,52 +4921,52 @@ function Reference({isManager,db,programs,staffName}) {
           ...(isManager?[{id:"clubhouse",label:"🏫 Clubhouse Allocation"}]:[]),
         ].map(s=>(
           <button key={s.id} onClick={()=>setSec(s.id)}
-            className={`px-5 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition ${sec===s.id?"font-semibold":"border-transparent text-slate-500 hover:text-slate-500"}`}
-            style={sec===s.id?{borderColor:"#00A9CE",color:"#00A9CE"}:{color:"#A09080"}}>{s.label}</button>
+            className={`px-5 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition ${sec===s.id?"font-semibold":"border-transparent text-slate-700 hover:text-slate-700"}`}
+            style={sec===s.id?{borderColor:"#00A9CE",color:"#00A9CE"}:{color:"#6B5744"}}>{s.label}</button>
         ))}
       </div>
       {sec==="standards"&&(
         <div className="p-5 space-y-8">
-          <p className="text-sm text-slate-500">District standard assumption numbers to use consistently across all program cost worksheets.</p>
+          <p className="text-sm text-slate-700">District standard assumption numbers to use consistently across all program cost worksheets.</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="rounded-lg border border-slate-200 p-4 space-y-1" style={{borderTop:"3px solid #00A9CE"}}>
-              <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Facility Overhead</div>
-              <div className="text-3xl font-black font-semibold">$3<span className="text-lg font-semibold text-slate-500">/hr</span></div>
-              <div className="text-xs text-slate-500">Applied to all facility hours used</div>
+              <div className="text-xs font-bold text-slate-700 uppercase tracking-widest">Facility Overhead</div>
+              <div className="text-3xl font-black font-semibold">$3<span className="text-lg font-semibold text-slate-700">/hr</span></div>
+              <div className="text-xs text-slate-700">Applied to all facility hours used</div>
             </div>
             <div className="rounded-lg border border-slate-200 p-4 space-y-1" style={{borderTop:"3px solid #00A9CE"}}>
-              <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Annual FT Compensation</div>
+              <div className="text-xs font-bold text-slate-700 uppercase tracking-widest">Annual FT Compensation</div>
               <div className="text-3xl font-black font-semibold">$97,700</div>
-              <div className="text-xs text-slate-500">Salary + benefits for workload allocation</div>
+              <div className="text-xs text-slate-700">Salary + benefits for workload allocation</div>
             </div>
             <div className="rounded-lg border border-slate-200 p-4 space-y-1" style={{borderTop:"3px solid #64748b"}}>
-              <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Admin Overhead Rate</div>
+              <div className="text-xs font-bold text-slate-700 uppercase tracking-widest">Admin Overhead Rate</div>
               <div className="text-3xl font-black font-semibold">10%</div>
-              <div className="text-xs text-slate-500">Applied to total direct costs</div>
+              <div className="text-xs text-slate-700">Applied to total direct costs</div>
             </div>
           </div>
           <div className="rounded-lg border border-slate-200 overflow-hidden">
             <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white" style={{backgroundColor:"#00A9CE"}}>Staff Workload Allocation</div>
             <table className="w-full text-sm">
-              <thead><tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+              <thead><tr className="bg-slate-50 text-xs text-slate-700 uppercase tracking-wider">
                 <th className="px-4 py-2 text-left font-semibold">Activity</th>
                 <th className="px-4 py-2 text-left font-semibold">% of Time</th>
               </tr></thead>
               <tbody>{workload.map((r,i)=>(
                 <tr key={r.activity} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
                   <td className="px-4 py-3 font-semibold text-slate-800">{r.activity}</td>
-                  <td className="px-4 py-3"><span className="inline-block bg-gray-200 text-slate-500 font-mono font-semibold text-xs px-2.5 py-1 rounded">{r.pct}</span></td>
+                  <td className="px-4 py-3"><span className="inline-block bg-gray-200 text-slate-700 font-mono font-semibold text-xs px-2.5 py-1 rounded">{r.pct}</span></td>
                 </tr>
               ))}</tbody>
             </table>
-            <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 text-xs text-slate-500">
+            <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 text-xs text-slate-700">
               The remaining time (program delivery itself) is accounted for in the per-program workload % you assign in cost worksheets.
             </div>
           </div>
           <div className="rounded-lg border border-slate-200 overflow-hidden">
             <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-wider" style={{backgroundColor:"#00A9CE",color:"#5C462B"}}>Service Category Cost Recovery / Subsidy Targets</div>
             <table className="w-full text-sm">
-              <thead><tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+              <thead><tr className="bg-slate-50 text-xs text-slate-700 uppercase tracking-wider">
                 <th className="px-4 py-2 text-left font-semibold">Service Category</th>
                 <th className="px-4 py-2 text-left font-semibold">Target</th>
               </tr></thead>
@@ -4985,12 +4985,12 @@ function Reference({isManager,db,programs,staffName}) {
       {sec==="guide"&&(
         <div className="p-5 space-y-8">
           <div>
-            <p className="text-sm text-slate-500">{isManager ? "This guide explains exactly how every number on the manager dashboard is calculated. Use it to understand what the data is telling you and where to focus attention." : "This guide explains how program performance is measured and what each metric means for your programs."}</p>
+            <p className="text-sm text-slate-700">{isManager ? "This guide explains exactly how every number on the manager dashboard is calculated. Use it to understand what the data is telling you and where to focus attention." : "This guide explains how program performance is measured and what each metric means for your programs."}</p>
           </div>
 
           {/* ── Program Cost ── */}
           <GuideSection title="How Program Cost Is Calculated" accent="#00A9CE">
-            <p className="text-sm text-slate-500 mb-4">Every program's total cost is built from four layers. Understanding these helps you know where cost is actually coming from.</p>
+            <p className="text-sm text-slate-700 mb-4">Every program's total cost is built from four layers. Understanding these helps you know where cost is actually coming from.</p>
             <div className="space-y-3">
               {[
                 {step:"1",label:"Direct Costs",color:"#5C462B",desc:"Personnel + Commodities + Contractuals + two custom cost lines (labeled per program). These are costs you enter directly on the program form."},
@@ -5002,7 +5002,7 @@ function Reference({isManager,db,programs,staffName}) {
                   <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0 mt-0.5" style={{backgroundColor:r.color}}>{r.step}</div>
                   <div>
                     <div className="text-sm font-bold text-slate-800">{r.label}</div>
-                    <div className="text-xs text-slate-500 mt-0.5">{r.desc}</div>
+                    <div className="text-xs text-slate-700 mt-0.5">{r.desc}</div>
                   </div>
                 </div>
               ))}
@@ -5018,21 +5018,21 @@ function Reference({isManager,db,programs,staffName}) {
               <div className="p-4 rounded-lg border border-slate-200 space-y-2">
                 <div className="text-sm font-bold text-slate-800">Fill Rate</div>
                 <div className="p-2 rounded bg-slate-800 text-slate-100 font-mono text-xs">Actual Enrollment ÷ Actual Capacity</div>
-                <p className="text-xs text-slate-500">How full the program was relative to available spots. A 70%+ fill rate is the district target for Healthy status. Below 60% triggers Needs Redesign.</p>
-                <div className="text-xs text-slate-500 italic">Example: 18 enrolled ÷ 25 spots = 72% fill rate → Healthy</div>
+                <p className="text-xs text-slate-700">How full the program was relative to available spots. A 70%+ fill rate is the district target for Healthy status. Below 60% triggers Needs Redesign.</p>
+                <div className="text-xs text-slate-700 italic">Example: 18 enrolled ÷ 25 spots = 72% fill rate → Healthy</div>
               </div>
               <div className="p-4 rounded-lg border border-slate-200 space-y-2">
                 <div className="text-sm font-bold text-slate-800">Cost Recovery</div>
                 <div className="p-2 rounded bg-slate-800 text-slate-100 font-mono text-xs">Actual Revenue ÷ Total Program Cost</div>
-                <p className="text-xs text-slate-500">What percentage of the program's total cost was covered by participant fees. 100% means break-even. Below 100% means the district subsidized the rest.</p>
-                <div className="text-xs text-slate-500 italic">Example: $1,200 revenue ÷ $1,500 total cost = 80% recovery → district covered $300</div>
+                <p className="text-xs text-slate-700">What percentage of the program's total cost was covered by participant fees. 100% means break-even. Below 100% means the district subsidized the rest.</p>
+                <div className="text-xs text-slate-700 italic">Example: $1,200 revenue ÷ $1,500 total cost = 80% recovery → district covered $300</div>
               </div>
             </div>
           </GuideSection>
 
           {/* ── Program Status ── */}
           <GuideSection title="Program Status Logic" accent="#00A9CE">
-            <p className="text-sm text-slate-500 mb-3">Status is determined by fill rate and cost recovery together. It uses actual numbers when available, budgeted numbers when not.</p>
+            <p className="text-sm text-slate-700 mb-3">Status is determined by fill rate and cost recovery together. It uses actual numbers when available, budgeted numbers when not.</p>
             <div className="space-y-2">
               {[
                 {status:"Healthy",   color:"#84BD00", rule:"Fill rate ≥ 70% AND cost recovery ≥ 100%",        detail:"Program is well-attended and covering its costs. No action needed."},
@@ -5042,8 +5042,8 @@ function Reference({isManager,db,programs,staffName}) {
                 <div key={r.status} className="flex gap-3 p-3 rounded-lg border border-slate-100">
                   <div className="px-2 py-0.5 rounded text-xs font-bold text-white h-fit mt-0.5 shrink-0 whitespace-nowrap" style={{backgroundColor:r.color}}>{r.status}</div>
                   <div>
-                    <div className="text-xs font-bold text-slate-500">{r.rule}</div>
-                    <div className="text-xs text-slate-500 mt-0.5">{r.detail}</div>
+                    <div className="text-xs font-bold text-slate-700">{r.rule}</div>
+                    <div className="text-xs text-slate-700 mt-0.5">{r.detail}</div>
                   </div>
                 </div>
               ))}
@@ -5052,7 +5052,7 @@ function Reference({isManager,db,programs,staffName}) {
 
           {/* ── Health Score — manager only ── */}
           {isManager&&<GuideSection title="Health Score (0–100)" accent="#00A9CE">
-            <p className="text-sm text-slate-500 mb-3">A single composite number summarizing overall program inventory performance. Weighted across four dimensions:</p>
+            <p className="text-sm text-slate-700 mb-3">A single composite number summarizing overall program inventory performance. Weighted across four dimensions:</p>
             <div className="space-y-2 mb-4">
               {[
                 {weight:"35%", label:"Average Fill Rate",      desc:"Across all visible programs. Are people showing up? The most direct demand signal."},
@@ -5064,7 +5064,7 @@ function Reference({isManager,db,programs,staffName}) {
                   <div className="text-sm font-black text-slate-800 w-10 shrink-0">{r.weight}</div>
                   <div>
                     <div className="text-sm font-bold text-slate-800">{r.label}</div>
-                    <div className="text-xs text-slate-500">{r.desc}</div>
+                    <div className="text-xs text-slate-700">{r.desc}</div>
                   </div>
                 </div>
               ))}
@@ -5073,29 +5073,29 @@ function Reference({isManager,db,programs,staffName}) {
               Score = (min(avgCR, 2)/2 × 40) + (avgFill × 35) + (plSignal × 15) + (healthyPct × 10)
             </div>
             <div className="grid grid-cols-3 gap-2 text-xs text-center">
-              <div className="p-2 rounded-lg bg-green-50 border border-green-200"><span className="font-bold text-green-700">75–100</span><div className="text-slate-500 mt-0.5">Strong</div></div>
-              <div className="p-2 rounded-lg bg-yellow-50 border border-yellow-200"><span className="font-bold text-yellow-700">50–74</span><div className="text-slate-500 mt-0.5">Developing</div></div>
-              <div className="p-2 rounded-lg bg-red-50 border border-red-200"><span className="font-bold text-red-600">0–49</span><div className="text-slate-500 mt-0.5">Needs Attention</div></div>
+              <div className="p-2 rounded-lg bg-green-50 border border-green-200"><span className="font-bold text-green-700">75–100</span><div className="text-slate-700 mt-0.5">Strong</div></div>
+              <div className="p-2 rounded-lg bg-yellow-50 border border-yellow-200"><span className="font-bold text-yellow-700">50–74</span><div className="text-slate-700 mt-0.5">Developing</div></div>
+              <div className="p-2 rounded-lg bg-red-50 border border-red-200"><span className="font-bold text-red-600">0–49</span><div className="text-slate-700 mt-0.5">Needs Attention</div></div>
             </div>
           </GuideSection>}
 
           {isManager&&<GuideSection title="Subsidy Burden ($)" accent="#E35205">
-            <p className="text-sm text-slate-500 mb-3">The total dollar amount the district is subsidizing — i.e., the sum of all program deficits. Only programs that lost money contribute. Profitable programs do not offset losses here.</p>
+            <p className="text-sm text-slate-700 mb-3">The total dollar amount the district is subsidizing — i.e., the sum of all program deficits. Only programs that lost money contribute. Profitable programs do not offset losses here.</p>
             <div className="p-3 rounded-lg bg-slate-800 text-slate-100 font-mono text-xs mb-3">
               Subsidy Burden = Σ max(0, Total Cost − Revenue) for each program
             </div>
-            <p className="text-sm text-slate-500 mb-2">This is intentional — it tells you the gross tax dollar commitment, not a net number. It answers the question: <span className="font-semibold italic">"How much are we spending beyond what participants pay?"</span></p>
+            <p className="text-sm text-slate-700 mb-2">This is intentional — it tells you the gross tax dollar commitment, not a net number. It answers the question: <span className="font-semibold italic">"How much are we spending beyond what participants pay?"</span></p>
             <div className="p-3 rounded-lg  border border-amber-200 text-xs text-amber-800">
               <span className="font-bold">NRPA benchmark:</span> The national average cost recovery for public parks & recreation is approximately 24.6%, meaning most agencies subsidize about 75 cents of every dollar of program cost. Your subsidy burden relative to total cost gives you your effective subsidy rate to compare against this benchmark.
             </div>
           </GuideSection>}
 
           {isManager&&<GuideSection title="Staff Workload Distribution" accent="#00A9CE">
-            <p className="text-sm text-slate-500 mb-3">Shows how much of each staff member's estimated FT capacity is allocated to programs in the current view. It is based entirely on the <span className="font-semibold">Program Type</span> selected on each program's budget form.</p>
+            <p className="text-sm text-slate-700 mb-3">Shows how much of each staff member's estimated FT capacity is allocated to programs in the current view. It is based entirely on the <span className="font-semibold">Program Type</span> selected on each program's budget form.</p>
             <div className="rounded-lg border border-slate-200 overflow-hidden mb-4">
               <div className="px-4 py-2 bg-slate-800 text-slate-100 text-xs font-bold uppercase tracking-widest">Program Type Workload %</div>
               <table className="w-full text-xs">
-                <thead><tr className="bg-slate-50 text-slate-500 uppercase tracking-wider">
+                <thead><tr className="bg-slate-50 text-slate-700 uppercase tracking-wider">
                   <th className="px-4 py-2 text-left font-semibold">Program Type</th>
                   <th className="px-4 py-2 text-left font-semibold">Default %</th>
                   <th className="px-4 py-2 text-left font-semibold">FT $ Cost</th>
@@ -5104,14 +5104,14 @@ function Reference({isManager,db,programs,staffName}) {
                 <tbody>{PROGRAM_TYPES.map((t,i)=>(
                   <tr key={t.label} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
                     <td className="px-4 py-2 font-semibold text-slate-800">{t.label}</td>
-                    <td className="px-4 py-2 text-slate-500 font-mono">{(t.pct*100).toFixed(1)}%</td>
-                    <td className="px-4 py-2 text-slate-500 font-mono">${(97700*t.pct).toLocaleString(undefined,{maximumFractionDigits:0})}</td>
-                    <td className="px-4 py-2 text-slate-500 leading-snug">{t.hint||""}</td>
+                    <td className="px-4 py-2 text-slate-700 font-mono">{(t.pct*100).toFixed(1)}%</td>
+                    <td className="px-4 py-2 text-slate-700 font-mono">${(97700*t.pct).toLocaleString(undefined,{maximumFractionDigits:0})}</td>
+                    <td className="px-4 py-2 text-slate-700 leading-snug">{t.hint||""}</td>
                   </tr>
                 ))}</tbody>
               </table>
             </div>
-            <div className="space-y-2 text-sm text-slate-500">
+            <div className="space-y-2 text-sm text-slate-700">
               <p>A staff member running 5 Small Programs (3% each) and 1 Large Event (5%) would show <span className="font-mono font-bold">20% allocated</span> — well within the 60% ceiling. The remaining 40% covers non-program time: planning, meetings, marketing, and strategic work.</p>
               <p className="font-semibold text-slate-800 mt-2">Multi-Site Supervisors (Clubhouse)</p>
               <p>A rec supervisor overseeing 11 clubhouse sites should select <span className="font-semibold">Production / Major Program</span> and use the <span className="font-semibold">Custom Workload %</span> field to set their actual portfolio allocation (e.g. 50% total). Do not use the default 10% per site — that would stack to 110% and overstate the cost. The individual site entries used for revenue and cost tracking can be left at a low type or 0% custom workload.</p>
@@ -5122,24 +5122,24 @@ function Reference({isManager,db,programs,staffName}) {
           </GuideSection>}
 
           {isManager&&<GuideSection title="Revenue per Participant" accent="#00A9CE">
-            <p className="text-sm text-slate-500 mb-3">The average revenue generated per enrolled participant. Useful for comparing pricing efficiency across areas.</p>
+            <p className="text-sm text-slate-700 mb-3">The average revenue generated per enrolled participant. Useful for comparing pricing efficiency across areas.</p>
             <div className="p-3 rounded-lg bg-slate-800 text-slate-100 font-mono text-xs mb-3">
               Rev / Participant = Total Actual Revenue ÷ Total Actual Enrollment
             </div>
-            <p className="text-sm text-slate-500">Areas significantly below the portfolio average may be underpriced for their service category. Areas well above average may be priced appropriately for higher-tier services (private lessons, specialized camps) — context matters. Use the Service Category Cost Recovery targets on the District Standards tab to validate.</p>
+            <p className="text-sm text-slate-700">Areas significantly below the portfolio average may be underpriced for their service category. Areas well above average may be priced appropriately for higher-tier services (private lessons, specialized camps) — context matters. Use the Service Category Cost Recovery targets on the District Standards tab to validate.</p>
           </GuideSection>}
 
           <GuideSection title="Waitlist Demand (%)" accent="#00A9CE">
-            <p className="text-sm text-slate-500 mb-3">Shows unmet demand as a percentage of total budgeted capacity.</p>
+            <p className="text-sm text-slate-700 mb-3">Shows unmet demand as a percentage of total budgeted capacity.</p>
             <div className="p-3 rounded-lg bg-slate-800 text-slate-100 font-mono text-xs mb-3">
               Waitlist Demand % = Total Waitlist ÷ Total Budgeted Capacity
             </div>
-            <p className="text-sm text-slate-500">A waitlist demand of 10%+ across a program area suggests the district could expand capacity, add sections, or increase pricing. Individual programs with high waitlists relative to their size are prime candidates for additional sessions.</p>
+            <p className="text-sm text-slate-700">A waitlist demand of 10%+ across a program area suggests the district could expand capacity, add sections, or increase pricing. Individual programs with high waitlists relative to their size are prime candidates for additional sessions.</p>
           </GuideSection>
 
           {/* ── Classification Mix — manager only ── */}
           {isManager&&<GuideSection title="Program Mix by Classification" accent="#00A9CE">
-            <p className="text-sm text-slate-500 mb-3">Breaks down the inventory by how programs are classified and shows the financial profile of each group.</p>
+            <p className="text-sm text-slate-700 mb-3">Breaks down the inventory by how programs are classified and shows the financial profile of each group.</p>
             <div className="space-y-2">
               {[
                 {label:"Community Driven",color:"#5C462B", desc:"Programs offered primarily for public benefit regardless of revenue. These are expected to run at a subsidy. Monitor total subsidy cost relative to district mission priorities."},
@@ -5150,7 +5150,7 @@ function Reference({isManager,db,programs,staffName}) {
                   <div className="w-3 h-3 rounded-full mt-1 shrink-0" style={{backgroundColor:r.color}}/>
                   <div>
                     <div className="text-sm font-bold text-slate-800">{r.label}</div>
-                    <div className="text-xs text-slate-500 mt-0.5">{r.desc}</div>
+                    <div className="text-xs text-slate-700 mt-0.5">{r.desc}</div>
                   </div>
                 </div>
               ))}
@@ -5158,18 +5158,18 @@ function Reference({isManager,db,programs,staffName}) {
           </GuideSection>}
 
           <GuideSection title="NPS (Net Promoter Score)" accent="#00A9CE">
-            <p className="text-sm text-slate-500 mb-3">NPS measures how likely participants are to recommend the program. Scores range from 0 to 100. It is entered manually on the program form — it is not calculated automatically.</p>
+            <p className="text-sm text-slate-700 mb-3">NPS measures how likely participants are to recommend the program. Scores range from 0 to 100. It is entered manually on the program form — it is not calculated automatically.</p>
             <div className="grid grid-cols-3 gap-2 text-xs text-center mb-3">
-              <div className="p-2 rounded-lg bg-green-50 border border-green-200"><span className="font-bold text-green-700">70–100</span><div className="text-slate-500 mt-0.5">Strong — promoters far outnumber detractors</div></div>
-              <div className="p-2 rounded-lg bg-yellow-50 border border-yellow-200"><span className="font-bold text-yellow-700">50–69</span><div className="text-slate-500 mt-0.5">Acceptable — room to improve</div></div>
-              <div className="p-2 rounded-lg bg-red-50 border border-red-200"><span className="font-bold text-red-600">0–49</span><div className="text-slate-500 mt-0.5">Needs Review — participant dissatisfaction likely</div></div>
+              <div className="p-2 rounded-lg bg-green-50 border border-green-200"><span className="font-bold text-green-700">70–100</span><div className="text-slate-700 mt-0.5">Strong — promoters far outnumber detractors</div></div>
+              <div className="p-2 rounded-lg bg-yellow-50 border border-yellow-200"><span className="font-bold text-yellow-700">50–69</span><div className="text-slate-700 mt-0.5">Acceptable — room to improve</div></div>
+              <div className="p-2 rounded-lg bg-red-50 border border-red-200"><span className="font-bold text-red-600">0–49</span><div className="text-slate-700 mt-0.5">Needs Review — participant dissatisfaction likely</div></div>
             </div>
-            <p className="text-sm text-slate-500">Programs with low NPS but healthy fill rates are worth investigating — participants may be returning out of convenience rather than satisfaction, and a competitor or format change could quickly erode enrollment.</p>
+            <p className="text-sm text-slate-700">Programs with low NPS but healthy fill rates are worth investigating — participants may be returning out of convenience rather than satisfaction, and a competitor or format change could quickly erode enrollment.</p>
           </GuideSection>
 
           {/* ── Needs Attention — manager only ── */}
           {isManager&&<GuideSection title="Needs Attention Queue" accent="#E35205">
-            <p className="text-sm text-slate-500 mb-3">An automatically generated action list of programs that meet at least one of the following conditions, sorted by fill rate ascending (worst first):</p>
+            <p className="text-sm text-slate-700 mb-3">An automatically generated action list of programs that meet at least one of the following conditions, sorted by fill rate ascending (worst first):</p>
             <div className="space-y-1.5">
               {[
                 {flag:"Status = Needs Redesign", detail:"Fill rate below 60% or cost recovery below 50%"},
@@ -5178,11 +5178,11 @@ function Reference({isManager,db,programs,staffName}) {
               ].map(r=>(
                 <div key={r.flag} className="flex gap-2 text-sm">
                   <span className="text-red-500 shrink-0">▸</span>
-                  <span><span className="font-semibold text-slate-800">{r.flag}</span> — <span className="text-slate-500">{r.detail}</span></span>
+                  <span><span className="font-semibold text-slate-800">{r.flag}</span> — <span className="text-slate-700">{r.detail}</span></span>
                 </div>
               ))}
             </div>
-            <p className="text-sm text-slate-500 mt-3">Use this queue as your weekly check-in list. Programs that appear here need a decision: redesign, remarket, adjust pricing, or sunset. The queue is capped at 8 programs — if more qualify, the 8 with the lowest fill rates are shown.</p>
+            <p className="text-sm text-slate-700 mt-3">Use this queue as your weekly check-in list. Programs that appear here need a decision: redesign, remarket, adjust pricing, or sunset. The queue is capped at 8 programs — if more qualify, the 8 with the lowest fill rates are shown.</p>
           </GuideSection>}
 
         </div>
@@ -5201,7 +5201,7 @@ function Reference({isManager,db,programs,staffName}) {
               {/* Required badge */}
               <div className="flex items-center gap-2">
                 <div className="h-px flex-1 bg-slate-200"/>
-                <span className="text-xs font-bold uppercase tracking-widest text-slate-500">Five Pillars</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-slate-700">Five Pillars</span>
                 <div className="h-px flex-1 bg-slate-200"/>
               </div>
 
@@ -5234,7 +5234,7 @@ function Reference({isManager,db,programs,staffName}) {
                     </div>
                     <div className="p-4 space-y-2">
                       <p className="text-sm text-slate-800 font-medium">{p.what}</p>
-                      <p className="text-xs text-slate-500 italic">{p.simple}</p>
+                      <p className="text-xs text-slate-700 italic">{p.simple}</p>
                     </div>
                   </div>
                 ))}
@@ -5245,13 +5245,13 @@ function Reference({isManager,db,programs,staffName}) {
                 <div className="font-bold text-slate-800 text-sm mb-3">What we're aiming for</div>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {["Intentional","Well attended","Financially responsible","Valuable to the community"].map(v=>(
-                    <div key={v} className="flex items-center gap-2 text-sm text-slate-500">
+                    <div key={v} className="flex items-center gap-2 text-sm text-slate-700">
                       <span className="w-2 h-2 rounded-full shrink-0" style={{background:"#00A9CE"}}/>
                       {v}
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-slate-500 mt-3">The goal is not to eliminate programs. The goal is to ensure every program is intentional and aligned with the District's long-term health.</p>
+                <p className="text-xs text-slate-700 mt-3">The goal is not to eliminate programs. The goal is to ensure every program is intentional and aligned with the District's long-term health.</p>
               </div>
             </>
           ) : (
@@ -5265,7 +5265,7 @@ function Reference({isManager,db,programs,staffName}) {
 
               {/* Purpose */}
               <GuideSection title="Purpose & Financial Goals" accent="#00A9CE">
-                <p className="text-sm text-slate-500 mb-4">This framework ensures programming decisions are intentional, data-informed, and aligned with the District's long-term financial health. The broader goal is to move overall program margin from 6–7% today toward <span className="font-bold text-slate-800">10–12% over several years</span> — generating meaningful capital capacity internally.</p>
+                <p className="text-sm text-slate-700 mb-4">This framework ensures programming decisions are intentional, data-informed, and aligned with the District's long-term financial health. The broader goal is to move overall program margin from 6–7% today toward <span className="font-bold text-slate-800">10–12% over several years</span> — generating meaningful capital capacity internally.</p>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   {[
                     {label:"Improve financial sustainability",icon:"📈"},
@@ -5275,7 +5275,7 @@ function Reference({isManager,db,programs,staffName}) {
                   ].map(g=>(
                     <div key={g.label} className="rounded-lg bg-slate-50 border border-slate-100 p-3 text-center">
                       <div className="text-2xl mb-1">{g.icon}</div>
-                      <div className="text-xs text-slate-500 font-medium">{g.label}</div>
+                      <div className="text-xs text-slate-700 font-medium">{g.label}</div>
                     </div>
                   ))}
                 </div>
@@ -5335,13 +5335,13 @@ function Reference({isManager,db,programs,staffName}) {
                       <div className="p-4">
                         <div className="space-y-1.5 mb-3">
                           {p.expectations.map((e,i)=>(
-                            <div key={i} className="flex gap-2 text-xs text-slate-500">
+                            <div key={i} className="flex gap-2 text-xs text-slate-700">
                               <span className="shrink-0 mt-0.5 font-bold" style={{color:p.color}}>›</span>
                               {e}
                             </div>
                           ))}
                         </div>
-                        <div className="rounded-lg px-3 py-2 text-xs text-slate-500 italic border-l-2" style={{borderColor:p.color,background:"#f8fafc"}}>{p.note}</div>
+                        <div className="rounded-lg px-3 py-2 text-xs text-slate-700 italic border-l-2" style={{borderColor:p.color,background:"#f8fafc"}}>{p.note}</div>
                       </div>
                     </div>
                   ))}
@@ -5350,7 +5350,7 @@ function Reference({isManager,db,programs,staffName}) {
 
               {/* Service Offering Management */}
               <GuideSection title="Managing Programs as a Service Offering" accent="#00A9CE">
-                <p className="text-sm text-slate-500 mb-4">The Recreation Department manages programs as a <span className="font-bold text-slate-800">service offering portfolio</span> — not isolated decisions. Annual targets for the portfolio:</p>
+                <p className="text-sm text-slate-700 mb-4">The Recreation Department manages programs as a <span className="font-bold text-slate-800">service offering portfolio</span> — not isolated decisions. Annual targets for the portfolio:</p>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-4">
                   {[
                     {label:"Improve overall program margin",icon:"📈"},
@@ -5360,7 +5360,7 @@ function Reference({isManager,db,programs,staffName}) {
                   ].map(g=>(
                     <div key={g.label} className="rounded-lg bg-slate-50 border border-slate-100 p-3">
                       <div className="text-xl mb-1">{g.icon}</div>
-                      <div className="text-xs text-slate-500">{g.label}</div>
+                      <div className="text-xs text-slate-700">{g.label}</div>
                     </div>
                   ))}
                 </div>
@@ -5371,7 +5371,7 @@ function Reference({isManager,db,programs,staffName}) {
 
               {/* Quarterly Review */}
               <GuideSection title="Quarterly Review Process" accent="#00A9CE">
-                <p className="text-sm text-slate-500 mb-3">Rec Admin conducts quarterly program reviews focusing on five areas. Use the Program Review tab to log reviews for individual programs.</p>
+                <p className="text-sm text-slate-700 mb-3">Rec Admin conducts quarterly program reviews focusing on five areas. Use the Program Review tab to log reviews for individual programs.</p>
                 <div className="space-y-2">
                   {[
                     {item:"Margin movement",detail:"Which programs improved or declined? Are the right programs growing?"},
@@ -5384,7 +5384,7 @@ function Reference({isManager,db,programs,staffName}) {
                       <span className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0 mt-0.5" style={{background:"#00A9CE",color:"#5C462B"}}>{i+1}</span>
                       <div>
                         <div className="text-sm font-bold text-slate-800">{r.item}</div>
-                        <div className="text-xs text-slate-500">{r.detail}</div>
+                        <div className="text-xs text-slate-700">{r.detail}</div>
                       </div>
                     </div>
                   ))}
@@ -5395,7 +5395,7 @@ function Reference({isManager,db,programs,staffName}) {
               <GuideSection title="Action Thresholds — Quick Reference" accent="#E35205">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead><tr className="bg-slate-50 text-xs text-slate-500 uppercase">
+                    <thead><tr className="bg-slate-50 text-xs text-slate-700 uppercase">
                       <th className="px-4 py-2 text-left font-semibold">Condition</th>
                       <th className="px-4 py-2 text-left font-semibold">Trigger</th>
                       <th className="px-4 py-2 text-left font-semibold">Required Action</th>
@@ -5411,8 +5411,8 @@ function Reference({isManager,db,programs,staffName}) {
                       ].map((r,i)=>(
                         <tr key={i} className="border-t border-slate-50" style={{background:r.color}}>
                           <td className="px-4 py-2.5 font-semibold text-slate-800 text-xs">{r.cond}</td>
-                          <td className="px-4 py-2.5 text-xs text-slate-500">{r.trigger}</td>
-                          <td className="px-4 py-2.5 text-xs text-slate-500 font-medium">{r.action}</td>
+                          <td className="px-4 py-2.5 text-xs text-slate-700">{r.trigger}</td>
+                          <td className="px-4 py-2.5 text-xs text-slate-700 font-medium">{r.action}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -5452,7 +5452,7 @@ function Reference({isManager,db,programs,staffName}) {
 
               {/* ── GETTING STARTED ── */}
               <GuideSection title="Step 1 — Getting Started" accent="#00A9CE">
-                <p className="text-sm text-slate-500 mb-4">The app runs in your browser — nothing to download or install. Your manager will share a link. Open it on any computer or phone.</p>
+                <p className="text-sm text-slate-700 mb-4">The app runs in your browser — nothing to download or install. Your manager will share a link. Open it on any computer or phone.</p>
                 <div className="rounded-lg border border-slate-200 overflow-hidden mb-4">
                   <div className="px-4 py-2 bg-slate-800 text-white text-xs font-bold uppercase tracking-widest">First Time Setup</div>
                   <div className="p-4 space-y-3">
@@ -5463,7 +5463,7 @@ function Reference({isManager,db,programs,staffName}) {
                     ].map(s=>(
                       <div key={s.n} className="flex gap-3 items-start">
                         <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0" style={{background:"#00A9CE"}}>{s.n}</div>
-                        <div className="text-sm text-slate-500 pt-0.5">{s.text}</div>
+                        <div className="text-sm text-slate-700 pt-0.5">{s.text}</div>
                       </div>
                     ))}
                   </div>
@@ -5486,7 +5486,7 @@ function Reference({isManager,db,programs,staffName}) {
                       <div className="text-2xl shrink-0">{t.icon}</div>
                       <div>
                         <div className="text-sm font-bold mb-0.5" style={{color:t.color}}>{t.label}</div>
-                        <div className="text-xs text-slate-500">{t.desc}</div>
+                        <div className="text-xs text-slate-700">{t.desc}</div>
                       </div>
                     </div>
                   ))}
@@ -5495,7 +5495,7 @@ function Reference({isManager,db,programs,staffName}) {
 
               {/* ── ADDING A PROGRAM ── */}
               <GuideSection title="Step 2 — How to Add a Program" accent="#00A9CE">
-                <p className="text-sm text-slate-500 mb-4">Every program you run — classes, camps, events, leagues — should have its own entry. Click <span className="font-bold font-semibold">+ Add Program</span> on the Dashboard or Programs tab to get started.</p>
+                <p className="text-sm text-slate-700 mb-4">Every program you run — classes, camps, events, leagues — should have its own entry. Click <span className="font-bold font-semibold">+ Add Program</span> on the Dashboard or Programs tab to get started.</p>
 
                 <div className="space-y-3">
                   {/* Section 1 - Basic Info */}
@@ -5514,7 +5514,7 @@ function Reference({isManager,db,programs,staffName}) {
                       ].map(r=>(
                         <div key={r.field} className="text-sm">
                           <div className="font-semibold text-slate-800 mb-0.5">{r.field}</div>
-                          <div className="text-xs text-slate-500">{r.tip}</div>
+                          <div className="text-xs text-slate-700">{r.tip}</div>
                         </div>
                       ))}
                     </div>
@@ -5538,7 +5538,7 @@ function Reference({isManager,db,programs,staffName}) {
                       ].map(r=>(
                         <div key={r.field} className="text-sm">
                           <div className="font-semibold text-slate-800 mb-0.5">{r.field}</div>
-                          <div className="text-xs text-slate-500">{r.tip}</div>
+                          <div className="text-xs text-slate-700">{r.tip}</div>
                         </div>
                       ))}
                     </div>
@@ -5557,7 +5557,7 @@ function Reference({isManager,db,programs,staffName}) {
                       ].map(r=>(
                         <div key={r.field} className="text-sm">
                           <div className="font-semibold text-slate-800 mb-0.5">{r.field}</div>
-                          <div className="text-xs text-slate-500">{r.tip}</div>
+                          <div className="text-xs text-slate-700">{r.tip}</div>
                         </div>
                       ))}
                     </div>
@@ -5570,7 +5570,7 @@ function Reference({isManager,db,programs,staffName}) {
                       <span className="text-sm font-bold text-white">Costs — What Goes Where</span>
                     </div>
                     <div className="p-4 space-y-3">
-                      <p className="text-xs text-slate-500 mb-2">You enter direct costs. The app automatically adds overhead (10%) and facility cost ($3/hr). You don't need to calculate those yourself.</p>
+                      <p className="text-xs text-slate-700 mb-2">You enter direct costs. The app automatically adds overhead (10%) and facility cost ($3/hr). You don't need to calculate those yourself.</p>
                       {[
                         {field:"Personnel",tip:"Wages paid to part-time instructors, lifeguards, counselors, or any hourly staff. Do not include your own salary here — that's handled by Program Type."},
                         {field:"Commodities",tip:"Supplies, materials, equipment, uniforms, printing — anything physical you buy for the program."},
@@ -5581,7 +5581,7 @@ function Reference({isManager,db,programs,staffName}) {
                       ].map(r=>(
                         <div key={r.field} className="text-sm">
                           <div className="font-semibold text-slate-800 mb-0.5">{r.field}</div>
-                          <div className="text-xs text-slate-500">{r.tip}</div>
+                          <div className="text-xs text-slate-700">{r.tip}</div>
                         </div>
                       ))}
                     </div>
@@ -5591,8 +5591,8 @@ function Reference({isManager,db,programs,staffName}) {
 
               {/* ── UNDERSTANDING METRICS ── */}
               <GuideSection title="Step 3 — Understanding Your Numbers" accent="#00A9CE">
-                <p className="text-sm text-slate-500 mb-1">Once your program is saved, the app calculates several performance numbers automatically. Here's exactly what each one means and why it matters.</p>
-                <p className="text-xs text-slate-500 mb-4">You'll see these on your Dashboard and in the Programs list.</p>
+                <p className="text-sm text-slate-700 mb-1">Once your program is saved, the app calculates several performance numbers automatically. Here's exactly what each one means and why it matters.</p>
+                <p className="text-xs text-slate-700 mb-4">You'll see these on your Dashboard and in the Programs list.</p>
 
                 {/* Fill Rate */}
                 <div className="rounded border border-slate-200 overflow-hidden mb-4">
@@ -5600,7 +5600,7 @@ function Reference({isManager,db,programs,staffName}) {
                     <div className="text-sm font-bold font-semibold">Fill Rate</div>
                     <div className="font-mono text-xs bg-slate-800 text-slate-100 rounded px-2 py-1 mt-1 inline-block">Actual Enrollment ÷ Capacity</div>
                   </div>
-                  <div className="p-4 space-y-2 text-xs text-slate-500">
+                  <div className="p-4 space-y-2 text-xs text-slate-700">
                     <p>Fill rate tells you how full your program was compared to how many spots were available. If you had 25 spots and 18 people registered, your fill rate is 72%.</p>
                     <p className="font-semibold text-slate-800">What the targets mean:</p>
                     <div className="space-y-1">
@@ -5620,7 +5620,7 @@ function Reference({isManager,db,programs,staffName}) {
                     <div className="text-sm font-bold font-semibold">Cost Recovery</div>
                     <div className="font-mono text-xs bg-slate-800 text-slate-100 rounded px-2 py-1 mt-1 inline-block">Actual Revenue ÷ Total Program Cost</div>
                   </div>
-                  <div className="p-4 space-y-2 text-xs text-slate-500">
+                  <div className="p-4 space-y-2 text-xs text-slate-700">
                     <p>Cost recovery tells you what percentage of the program's cost was covered by what participants paid. 100% means break-even — fees covered every dollar of cost. Below 100% means the district subsidized the rest.</p>
                     <p><span className="font-semibold text-slate-800">Example:</span> Your program cost $1,500 to run and brought in $1,200 in fees. Cost recovery = 80%. The district covered the remaining $300.</p>
                     <p className="font-semibold text-slate-800">Important context:</p>
@@ -5637,7 +5637,7 @@ function Reference({isManager,db,programs,staffName}) {
                     <div className="text-sm font-bold font-semibold">Net Profit / (Loss)</div>
                     <div className="font-mono text-xs bg-slate-800 text-slate-100 rounded px-2 py-1 mt-1 inline-block">Actual Revenue − Total Program Cost</div>
                   </div>
-                  <div className="p-4 space-y-2 text-xs text-slate-500">
+                  <div className="p-4 space-y-2 text-xs text-slate-700">
                     <p>The dollar amount left over (or the dollar amount the district covered). A positive number means the program generated more in fees than it cost to run. A negative number means the district made up the difference.</p>
                     <p><span className="font-semibold text-slate-800">Example:</span> Revenue $1,200, total cost $1,500 → Net ($300). The district subsidized this program by $300.</p>
                     <p>Use this to understand financial impact, not to judge whether a program should continue. A ($2,000) loss on a community skating event serving 400 residents is a very different story than a ($2,000) loss on a small fitness class with 3 participants.</p>
@@ -5649,7 +5649,7 @@ function Reference({isManager,db,programs,staffName}) {
                   <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
                     <div className="text-sm font-bold font-semibold">Total Program Cost — How It's Built</div>
                   </div>
-                  <div className="p-4 space-y-2 text-xs text-slate-500">
+                  <div className="p-4 space-y-2 text-xs text-slate-700">
                     <p>The total cost shown in the app is <span className="font-semibold">not just what you entered</span>. Four layers are stacked together:</p>
                     <div className="space-y-2 mt-2">
                       {[
@@ -5660,7 +5660,7 @@ function Reference({isManager,db,programs,staffName}) {
                       ].map(r=>(
                         <div key={r.n} className="flex gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100">
                           <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0" style={{background:"#00A9CE"}}>{r.n}</div>
-                          <div><span className="font-semibold text-slate-800">{r.label} — </span><span className="text-slate-500">{r.text}</span></div>
+                          <div><span className="font-semibold text-slate-800">{r.label} — </span><span className="text-slate-700">{r.text}</span></div>
                         </div>
                       ))}
                     </div>
@@ -5675,7 +5675,7 @@ function Reference({isManager,db,programs,staffName}) {
                   <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
                     <div className="text-sm font-bold font-semibold">Program Status — the Badge</div>
                   </div>
-                  <div className="p-4 space-y-2 text-xs text-slate-500">
+                  <div className="p-4 space-y-2 text-xs text-slate-700">
                     <p>The colored badge next to each program is calculated automatically from fill rate and cost recovery combined. You cannot manually set it.</p>
                     <div className="space-y-2 mt-2">
                       {[
@@ -5685,7 +5685,7 @@ function Reference({isManager,db,programs,staffName}) {
                       ].map(r=>(
                         <div key={r.s} className="flex gap-3 p-3 rounded-lg border border-slate-100">
                           <span className="px-2 py-0.5 rounded text-xs font-bold text-white h-fit mt-0.5 shrink-0" style={{backgroundColor:r.color}}>{r.s}</span>
-                          <div><div className="font-semibold text-slate-500 mb-0.5">{r.rule}</div><div className="text-slate-500">{r.detail}</div></div>
+                          <div><div className="font-semibold text-slate-700 mb-0.5">{r.rule}</div><div className="text-slate-700">{r.detail}</div></div>
                         </div>
                       ))}
                     </div>
@@ -5700,7 +5700,7 @@ function Reference({isManager,db,programs,staffName}) {
                   <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
                     <div className="text-sm font-bold font-semibold">Trend</div>
                   </div>
-                  <div className="p-4 space-y-2 text-xs text-slate-500">
+                  <div className="p-4 space-y-2 text-xs text-slate-700">
                     <p>Trend shows whether enrollment is growing, stable, or declining compared to the same season last year. You set this manually on the program form — it's not calculated automatically.</p>
                     <div className="space-y-1.5">
                       {[
@@ -5709,10 +5709,10 @@ function Reference({isManager,db,programs,staffName}) {
                         {t:"Declining",c:"#E35205",d:"Enrollment is down vs. last year — flags for manager attention"},
                         {t:"New",c:"#990066",d:"First time offering — no prior year to compare"},
                       ].map(r=>(
-                        <div key={r.t} className="flex gap-2 items-center"><span className="font-bold text-xs w-16 shrink-0" style={{color:r.c}}>{r.t}</span><span className="text-slate-500">{r.d}</span></div>
+                        <div key={r.t} className="flex gap-2 items-center"><span className="font-bold text-xs w-16 shrink-0" style={{color:r.c}}>{r.t}</span><span className="text-slate-700">{r.d}</span></div>
                       ))}
                     </div>
-                    <p className="text-slate-500 mt-2">If you're unsure, use Stable. Your manager may update this during review.</p>
+                    <p className="text-slate-700 mt-2">If you're unsure, use Stable. Your manager may update this during review.</p>
                   </div>
                 </div>
 
@@ -5721,21 +5721,21 @@ function Reference({isManager,db,programs,staffName}) {
                   <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
                     <div className="text-sm font-bold font-semibold">NPS — Net Promoter Score</div>
                   </div>
-                  <div className="p-4 space-y-2 text-xs text-slate-500">
+                  <div className="p-4 space-y-2 text-xs text-slate-700">
                     <p>NPS is a standard customer satisfaction measure ranging from 0 to 100. It comes from a survey question: <span className="italic">"How likely are you to recommend this program to a friend?"</span> You enter it manually if you collected it.</p>
                     <div className="grid grid-cols-3 gap-2 text-center mt-2">
-                      <div className="p-2 rounded-lg bg-green-50 border border-green-100"><div className="font-bold text-green-700">70–100</div><div className="text-slate-500 mt-0.5">Strong — participants are enthusiastic</div></div>
-                      <div className="p-2 rounded-lg bg-yellow-50 border border-yellow-100"><div className="font-bold text-yellow-700">50–69</div><div className="text-slate-500 mt-0.5">Acceptable — room to improve</div></div>
-                      <div className="p-2 rounded-lg bg-red-50 border border-red-100"><div className="font-bold text-red-600">0–49</div><div className="text-slate-500 mt-0.5">Needs review — some dissatisfaction</div></div>
+                      <div className="p-2 rounded-lg bg-green-50 border border-green-100"><div className="font-bold text-green-700">70–100</div><div className="text-slate-700 mt-0.5">Strong — participants are enthusiastic</div></div>
+                      <div className="p-2 rounded-lg bg-yellow-50 border border-yellow-100"><div className="font-bold text-yellow-700">50–69</div><div className="text-slate-700 mt-0.5">Acceptable — room to improve</div></div>
+                      <div className="p-2 rounded-lg bg-red-50 border border-red-100"><div className="font-bold text-red-600">0–49</div><div className="text-slate-700 mt-0.5">Needs review — some dissatisfaction</div></div>
                     </div>
-                    <p className="text-slate-500 mt-2">NPS is optional. If you didn't collect it, leave the field blank. It won't affect fill rate or cost recovery calculations.</p>
+                    <p className="text-slate-700 mt-2">NPS is optional. If you didn't collect it, leave the field blank. It won't affect fill rate or cost recovery calculations.</p>
                   </div>
                 </div>
               </GuideSection>
 
               {/* ── WHEN TO UPDATE ── */}
               <GuideSection title="Step 4 — When to Update Your Data" accent="#00A9CE">
-                <p className="text-sm text-slate-500 mb-4">The dashboard is only useful if the data is current. Here's what to do and when.</p>
+                <p className="text-sm text-slate-700 mb-4">The dashboard is only useful if the data is current. Here's what to do and when.</p>
                 <div className="space-y-2">
                   {[
                     {when:"Before registration opens",icon:"📋",color:"#5C462B",what:"Create the program entry. Fill in: Program Name, Area, Season/Year, Staff Name, Classification, Program Type, Capacity, Budgeted Enrollment, Budgeted Revenue, and all known direct costs. This gives your manager a planning view."},
@@ -5748,7 +5748,7 @@ function Reference({isManager,db,programs,staffName}) {
                       <div className="text-xl shrink-0">{r.icon}</div>
                       <div>
                         <div className="text-xs font-bold uppercase tracking-wide mb-1" style={{color:r.color}}>{r.when}</div>
-                        <div className="text-sm text-slate-500">{r.what}</div>
+                        <div className="text-sm text-slate-700">{r.what}</div>
                       </div>
                     </div>
                   ))}
@@ -5760,13 +5760,13 @@ function Reference({isManager,db,programs,staffName}) {
                 <div className="space-y-3">
                   <div className="p-4 rounded-lg bg-slate-50 border border-slate-100">
                     <div className="text-sm font-bold text-slate-800 mb-1">↓ Export CSV</div>
-                    <div className="text-xs text-slate-500 mb-2">Downloads a spreadsheet of all visible programs with all metrics calculated. Opens in Excel or Google Sheets.</div>
-                    <div className="text-xs text-slate-500">Tip: filter to your name first, then export — so you only get your own programs.</div>
+                    <div className="text-xs text-slate-700 mb-2">Downloads a spreadsheet of all visible programs with all metrics calculated. Opens in Excel or Google Sheets.</div>
+                    <div className="text-xs text-slate-700">Tip: filter to your name first, then export — so you only get your own programs.</div>
                   </div>
                   <div className="p-4 rounded-lg bg-slate-50 border border-slate-100">
                     <div className="text-sm font-bold text-slate-800 mb-1">⬜ Season Report (PDF)</div>
-                    <div className="text-xs text-slate-500 mb-2">Generates a printable summary of your filtered programs. Opens your browser's print dialog — choose "Save as PDF."</div>
-                    <div className="text-xs text-slate-500">Tip: set your filters first (your name, a specific season) before clicking — the report shows exactly what's on screen.</div>
+                    <div className="text-xs text-slate-700 mb-2">Generates a printable summary of your filtered programs. Opens your browser's print dialog — choose "Save as PDF."</div>
+                    <div className="text-xs text-slate-700">Tip: set your filters first (your name, a specific season) before clicking — the report shows exactly what's on screen.</div>
                   </div>
                 </div>
               </GuideSection>
@@ -5786,7 +5786,7 @@ function Reference({isManager,db,programs,staffName}) {
                   ].map((r,i)=>(
                     <div key={i} className="rounded-lg border border-slate-200 overflow-hidden">
                       <div className="px-4 py-3 bg-slate-50 text-sm font-semibold text-slate-800 border-b border-slate-100">{r.q}</div>
-                      <div className="px-4 py-3 text-sm text-slate-500">{r.a}</div>
+                      <div className="px-4 py-3 text-sm text-slate-700">{r.a}</div>
                     </div>
                   ))}
                 </div>
@@ -5810,7 +5810,7 @@ function Reference({isManager,db,programs,staffName}) {
 
               {/* ── MANAGER vs STAFF VIEW ── */}
               <GuideSection title="What You See That Staff Don't" accent="#00A9CE">
-                <p className="text-sm text-slate-500 mb-4">When you toggle to Manager View, the dashboard expands significantly. Here's what's added:</p>
+                <p className="text-sm text-slate-700 mb-4">When you toggle to Manager View, the dashboard expands significantly. Here's what's added:</p>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {[
                     {icon:"👁",label:"Full portfolio view",desc:"See every staff member's programs, not just your own. Filter by staff name, area, season, or year in any combination."},
@@ -5823,7 +5823,7 @@ function Reference({isManager,db,programs,staffName}) {
                       <div className="text-xl shrink-0">{c.icon}</div>
                       <div>
                         <div className="text-sm font-bold text-slate-800">{c.label}</div>
-                        <div className="text-xs text-slate-500 mt-0.5">{c.desc}</div>
+                        <div className="text-xs text-slate-700 mt-0.5">{c.desc}</div>
                       </div>
                     </div>
                   ))}
@@ -5832,7 +5832,7 @@ function Reference({isManager,db,programs,staffName}) {
 
               {/* ── FILTERS ── */}
               <GuideSection title="Using Filters Strategically" accent="#00A9CE">
-                <p className="text-sm text-slate-500 mb-3">Every metric, chart, and table updates in real time when you change a filter. Filters are your primary analysis tool.</p>
+                <p className="text-sm text-slate-700 mb-3">Every metric, chart, and table updates in real time when you change a filter. Filters are your primary analysis tool.</p>
                 <div className="space-y-2">
                   {[
                     {use:"Staff review prep",how:"Filter to one staff member. Every metric — fill rate, cost recovery, status counts, Needs Attention — reflects only their programs. Export CSV for a one-pager to bring to the meeting."},
@@ -5843,7 +5843,7 @@ function Reference({isManager,db,programs,staffName}) {
                   ].map((r,i)=>(
                     <div key={i} className="flex gap-3 p-3 rounded-lg border border-slate-100">
                       <div className="shrink-0 mt-0.5"><span className="inline-block bg-slate-800 text-white text-xs font-bold px-2 py-0.5 rounded">{r.use}</span></div>
-                      <div className="text-sm text-slate-500">{r.how}</div>
+                      <div className="text-sm text-slate-700">{r.how}</div>
                     </div>
                   ))}
                 </div>
@@ -5865,7 +5865,7 @@ function Reference({isManager,db,programs,staffName}) {
                       <div className="px-4 py-2.5 text-sm font-bold text-white" style={{backgroundColor:s.color}}>{s.title}</div>
                       <ul className="p-3 space-y-1.5">
                         {s.points.map(pt=>(
-                          <li key={pt} className="flex gap-2 text-xs text-slate-500"><span className="shrink-0 mt-0.5" style={{color:s.color}}>›</span>{pt}</li>
+                          <li key={pt} className="flex gap-2 text-xs text-slate-700"><span className="shrink-0 mt-0.5" style={{color:s.color}}>›</span>{pt}</li>
                         ))}
                       </ul>
                     </div>
@@ -5875,9 +5875,9 @@ function Reference({isManager,db,programs,staffName}) {
 
               {/* ── HEALTH SCORE ── */}
               <GuideSection title="The Health Score — What It Measures" accent="#00A9CE">
-                <p className="text-sm text-slate-500 mb-3">A composite 0–100 score combining four key signals. Useful for quick portfolio scanning and board-level communication.</p>
+                <p className="text-sm text-slate-700 mb-3">A composite 0–100 score combining four key signals. Useful for quick portfolio scanning and board-level communication.</p>
                 <table className="w-full text-sm mb-4">
-                  <thead><tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+                  <thead><tr className="bg-slate-50 text-xs text-slate-700 uppercase tracking-wider">
                     <th className="px-4 py-2 text-left font-semibold">Component</th>
                     <th className="px-4 py-2 text-left font-semibold">Weight</th>
                     <th className="px-4 py-2 text-left font-semibold">What it captures</th>
@@ -5892,7 +5892,7 @@ function Reference({isManager,db,programs,staffName}) {
                       <tr key={r.c} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
                         <td className="px-4 py-2.5 font-semibold text-slate-800">{r.c}</td>
                         <td className="px-4 py-2.5"><span className="font-mono font-bold text-sm" style={{color:"#ffffff"}}>{r.w}</span></td>
-                        <td className="px-4 py-2.5 text-xs text-slate-500">{r.d}</td>
+                        <td className="px-4 py-2.5 text-xs text-slate-700">{r.d}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -5901,7 +5901,7 @@ function Reference({isManager,db,programs,staffName}) {
                   {[{r:"75–100",l:"Strong",c:"#4A6B00",bg:"#EEF5E0"},{r:"50–74",l:"Developing",c:"#854d0e",bg:"#fef9c3"},{r:"0–49",l:"Needs Attention",c:"#E35205",bg:"#FDF0E6"}].map(b=>(
                     <div key={b.l} className="p-2 rounded-lg border" style={{backgroundColor:b.bg}}>
                       <div className="font-bold" style={{color:b.c}}>{b.r}</div>
-                      <div className="text-slate-500 mt-0.5">{b.l}</div>
+                      <div className="text-slate-700 mt-0.5">{b.l}</div>
                     </div>
                   ))}
                 </div>
@@ -5912,7 +5912,7 @@ function Reference({isManager,db,programs,staffName}) {
 
               {/* ── COACHING STAFF ── */}
               <GuideSection title="Coaching Staff on Data Quality" accent="#990066">
-                <p className="text-sm text-slate-500 mb-3">The most common data entry issues and how to address them:</p>
+                <p className="text-sm text-slate-700 mb-3">The most common data entry issues and how to address them:</p>
                 <div className="space-y-3">
                   {[
                     {issue:"Missing Program Type",impact:"Staff cost allocates as $0 — total program cost is understated, cost recovery looks artificially high",fix:"Ask staff to open the program and select Program Type from the dropdown in the Budgeted section. Cost recalculates immediately."},
@@ -5924,8 +5924,8 @@ function Reference({isManager,db,programs,staffName}) {
                     <div key={i} className="rounded-lg border border-slate-100 overflow-hidden">
                       <div className="px-4 py-2.5 bg-red-50 border-b border-red-100 text-xs font-bold text-red-700">⚠ {r.issue}</div>
                       <div className="p-3 grid grid-cols-1 gap-1 sm:grid-cols-2">
-                        <div className="text-xs text-slate-500"><span className="font-semibold text-slate-500">Impact: </span>{r.impact}</div>
-                        <div className="text-xs text-slate-500"><span className="font-semibold text-slate-500">Fix: </span>{r.fix}</div>
+                        <div className="text-xs text-slate-700"><span className="font-semibold text-slate-700">Impact: </span>{r.impact}</div>
+                        <div className="text-xs text-slate-700"><span className="font-semibold text-slate-700">Fix: </span>{r.fix}</div>
                       </div>
                     </div>
                   ))}
@@ -5945,7 +5945,7 @@ function Reference({isManager,db,programs,staffName}) {
                   ].map((r,i)=>(
                     <div key={i} className="rounded-lg border border-slate-200 overflow-hidden">
                       <div className="px-4 py-3 bg-slate-50 text-sm font-semibold text-slate-800 border-b border-slate-100">{r.q}</div>
-                      <div className="px-4 py-3 text-sm text-slate-500">{r.a}</div>
+                      <div className="px-4 py-3 text-sm text-slate-700">{r.a}</div>
                     </div>
                   ))}
                 </div>
@@ -6113,7 +6113,7 @@ export default function App() {
               style={{background:"#00A9CE",color:"#ffffff",borderRadius:"2px",border:"1px solid #00A9CE"}}>+ Add Program</button>
             <button onClick={()=>{localStorage.removeItem("bgpd_staff_name");setStaffName("");}}
               className="text-xs px-2 py-1.5 transition"
-              style={{color:"#A09080",background:"none",border:"none"}}>Switch</button>
+              style={{color:"#6B5744",background:"none",border:"none"}}>Switch</button>
           </div>
         </div>
       </header>
@@ -6142,7 +6142,7 @@ export default function App() {
           </div>
         )}
         {loading ? (
-          <div className="text-center py-20" style={{color:"#A09080",fontFamily:"'Nunito Sans',Arial,sans-serif"}}>Loading programs...</div>
+          <div className="text-center py-20" style={{color:"#6B5744",fontFamily:"'Nunito Sans',Arial,sans-serif"}}>Loading programs...</div>
         ) : (
           <>
             {tab==="dashboard"&&!showingForm&&(
@@ -6338,11 +6338,11 @@ function ClubhouseAllocationTool({db,programs,staffName}){
       {/* Step 1 — Period + Type */}
       <div className="bg-white rounded border border-slate-100 shadow-sm overflow-hidden">
         <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
-          <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Step 1 — Select Period & Type</div>
+          <div className="text-xs font-bold uppercase tracking-widest text-slate-700">Step 1 — Select Period & Type</div>
         </div>
         <div className="p-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Season</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Season</label>
             <select value={season} onChange={e=>{setSeason(e.target.value);setResult(null);setApplyStatus({});}}
               className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
               <option value="all">All Seasons</option>
@@ -6350,7 +6350,7 @@ function ClubhouseAllocationTool({db,programs,staffName}){
             </select>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Fiscal Year</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Fiscal Year</label>
             <select value={year} onChange={e=>{setYear(e.target.value);setResult(null);setApplyStatus({});}}
               className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
               <option value="all">All Years</option>
@@ -6358,7 +6358,7 @@ function ClubhouseAllocationTool({db,programs,staffName}){
             </select>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Apply To</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Apply To</label>
             <select value={which} onChange={e=>{setWhich(e.target.value);setApplyStatus({});}}
               className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
               <option value="budgeted">Budgeted Costs</option>
@@ -6366,7 +6366,7 @@ function ClubhouseAllocationTool({db,programs,staffName}){
             </select>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Weight By</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Weight By</label>
             <select value={mode} onChange={e=>{setMode(e.target.value);setSiteBasis(Object.fromEntries(SITES.map(s=>[s,""])));setResult(null);}}
               className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
               <option value="enrollment">Enrollment</option>
@@ -6379,7 +6379,7 @@ function ClubhouseAllocationTool({db,programs,staffName}){
             className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 disabled:opacity-40 transition">
             ↺ Auto-map & pull enrollment from program records
           </button>
-          {lastApplied&&<span className="text-xs text-slate-500">Last applied {new Date(lastApplied).toLocaleString()}</span>}
+          {lastApplied&&<span className="text-xs text-slate-700">Last applied {new Date(lastApplied).toLocaleString()}</span>}
           {clubhouseProgs.length===0&&(
             <span className="text-xs  font-medium">⚠ No Clubhouse programs found for this period</span>
           )}
@@ -6389,16 +6389,16 @@ function ClubhouseAllocationTool({db,programs,staffName}){
       {/* Step 2 — Cost Totals */}
       <div className="bg-white rounded border border-slate-100 shadow-sm overflow-hidden">
         <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
-          <div className="text-xs font-bold uppercase tracking-widest text-slate-500">
+          <div className="text-xs font-bold uppercase tracking-widest text-slate-700">
             Step 2 — District-Wide {which==="budgeted"?"Budgeted":"Actual"} Cost Totals
           </div>
-          <div className="text-xs text-slate-500 mt-0.5">Enter the combined total for all sites — the tool splits by enrollment weight</div>
+          <div className="text-xs text-slate-700 mt-0.5">Enter the combined total for all sites — the tool splits by enrollment weight</div>
         </div>
         <div className="p-5">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {CB_COST_CATEGORIES.map(cat=>(
               <div key={cat}>
-                <label className="block text-xs text-slate-500 mb-1">{cat}</label>
+                <label className="block text-xs text-slate-700 mb-1">{cat}</label>
                 <input type="number" min={0} value={catTotals[cat]}
                   onChange={e=>setCatTotals(t=>({...t,[cat]:e.target.value}))}
                   placeholder="0" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2"
@@ -6407,7 +6407,7 @@ function ClubhouseAllocationTool({db,programs,staffName}){
             ))}
           </div>
           {grandTotal>0&&(
-            <div className="mt-3 text-sm font-semibold text-slate-500">
+            <div className="mt-3 text-sm font-semibold text-slate-700">
               District Total: <span className="font-semibold font-bold">${Math.round(grandTotal).toLocaleString()}</span>
             </div>
           )}
@@ -6418,20 +6418,20 @@ function ClubhouseAllocationTool({db,programs,staffName}){
       <div className="bg-white rounded border border-slate-100 shadow-sm overflow-hidden">
         <div className="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
           <div>
-            <div className="text-xs font-bold uppercase tracking-widest text-slate-500">
+            <div className="text-xs font-bold uppercase tracking-widest text-slate-700">
               Step 3 — Map Sites & Enter {mode==="enrollment"?"Enrollment":"Weight %"}
             </div>
-            <div className="text-xs text-slate-500 mt-0.5">
+            <div className="text-xs text-slate-700 mt-0.5">
               {mode==="enrollment"
                 ? "Sites with more enrollment absorb more cost. Use the auto-map button above to pull enrollment from existing program records."
                 : "Enter the percentage share for each site. Must total 100%."}
             </div>
           </div>
-          <span className="text-xs text-slate-500 shrink-0">{mappedCount}/{SITES.length} mapped</span>
+          <span className="text-xs text-slate-700 shrink-0">{mappedCount}/{SITES.length} mapped</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+            <thead><tr className="bg-slate-50 text-xs text-slate-700 uppercase tracking-wider">
               <th className="px-4 py-2 text-left font-semibold">Site</th>
               <th className="px-4 py-2 text-left font-semibold">Program Record</th>
               <th className="px-4 py-2 text-center font-semibold">{mode==="enrollment"?"Enrollment":"Weight %"}</th>
@@ -6465,14 +6465,14 @@ function ClubhouseAllocationTool({db,programs,staffName}){
                       className="w-20 rounded border border-slate-200 px-2 py-1 text-sm text-center focus:outline-none focus:ring-1"
                       style={{MozAppearance:"textfield"}}/>
                   </td>
-                  <td className="px-4 py-2.5 text-center text-xs font-mono text-slate-500">
+                  <td className="px-4 py-2.5 text-center text-xs font-mono text-slate-700">
                     {totalBasis>0||(mode==="manual"&&Math.abs(totalBasis-100)<0.5)
-                      ?<span className="font-semibold text-slate-500">{(share*100).toFixed(1)}%</span>
+                      ?<span className="font-semibold text-slate-700">{(share*100).toFixed(1)}%</span>
                       :<span className="text-slate-400">—</span>}
                   </td>
-                  <td className="px-4 py-2.5 text-right text-xs font-mono text-slate-500">
+                  <td className="px-4 py-2.5 text-right text-xs font-mono text-slate-700">
                     {currentFee!=null&&currentFee>0
-                      ?<span className="text-slate-500">${Math.round(currentFee).toLocaleString()}</span>
+                      ?<span className="text-slate-700">${Math.round(currentFee).toLocaleString()}</span>
                       :<span>—</span>}
                   </td>
                 </tr>
@@ -6486,7 +6486,7 @@ function ClubhouseAllocationTool({db,programs,staffName}){
           </div>
         )}
         {mode==="enrollment"&&totalBasis>0&&(
-          <div className="px-4 py-2 border-t border-slate-100 text-xs text-slate-500">
+          <div className="px-4 py-2 border-t border-slate-100 text-xs text-slate-700">
             Total enrollment across mapped sites: {Math.round(totalBasis)}
           </div>
         )}
@@ -6506,7 +6506,7 @@ function ClubhouseAllocationTool({db,programs,staffName}){
       {result&&(
         <div className="bg-white rounded border border-slate-100 shadow-sm overflow-hidden">
           <div className="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between flex-wrap gap-2">
-            <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Step 4 — Review & Apply</div>
+            <div className="text-xs font-bold uppercase tracking-widest text-slate-700">Step 4 — Review & Apply</div>
             {appliedCount>0&&(
               <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{background:"#EEF5E0",color:"#4A6B00"}}>
                 ✓ {appliedCount} site{appliedCount!==1?"s":""} updated{errorCount>0?` · ${errorCount} error${errorCount!==1?"s":""}`:""}
@@ -6515,7 +6515,7 @@ function ClubhouseAllocationTool({db,programs,staffName}){
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead><tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+              <thead><tr className="bg-slate-50 text-xs text-slate-700 uppercase tracking-wider">
                 <th className="px-4 py-2 text-left font-semibold">Site</th>
                 <th className="px-4 py-2 text-center font-semibold">Weight</th>
                 {CB_COST_CATEGORIES.map(cat=>(
@@ -6531,9 +6531,9 @@ function ClubhouseAllocationTool({db,programs,staffName}){
                 return(
                   <tr key={site} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"} ${!mapped?"opacity-35":""}`}>
                     <td className="px-4 py-2.5 font-semibold text-slate-800 whitespace-nowrap">{site}</td>
-                    <td className="px-4 py-2.5 text-center text-xs font-mono font-semibold text-slate-500">{(weight*100).toFixed(1)}%</td>
+                    <td className="px-4 py-2.5 text-center text-xs font-mono font-semibold text-slate-700">{(weight*100).toFixed(1)}%</td>
                     {CB_COST_CATEGORIES.map(cat=>(
-                      <td key={cat} className="px-3 py-2.5 text-right font-mono text-xs text-slate-500">
+                      <td key={cat} className="px-3 py-2.5 text-right font-mono text-xs text-slate-700">
                         ${(result.alloc[site][cat]||0).toLocaleString()}
                       </td>
                     ))}
@@ -6554,7 +6554,7 @@ function ClubhouseAllocationTool({db,programs,staffName}){
                 <tr className="border-t-2 border-slate-200 bg-slate-50">
                   <td className="px-4 py-2.5 font-bold text-slate-800" colSpan={2}>District Total</td>
                   {CB_COST_CATEGORIES.map(cat=>(
-                    <td key={cat} className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-slate-500">
+                    <td key={cat} className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-slate-700">
                       ${Math.round(parseFloat(catTotals[cat])||0).toLocaleString()}
                     </td>
                   ))}
@@ -6567,8 +6567,8 @@ function ClubhouseAllocationTool({db,programs,staffName}){
             </table>
           </div>
           <div className="p-5 border-t border-slate-100 space-y-3">
-            <div className="text-xs text-slate-500">
-              Writes the <strong className="text-slate-500">Clubhouse Allocation Fee ({which==="budgeted"?"Budgeted":"Actual"})</strong> field on each mapped program record.
+            <div className="text-xs text-slate-700">
+              Writes the <strong className="text-slate-700">Clubhouse Allocation Fee ({which==="budgeted"?"Budgeted":"Actual"})</strong> field on each mapped program record.
               {SITES.filter(s=>!siteMap[s]).length>0&&` ${SITES.filter(s=>!siteMap[s]).length} unmapped site${SITES.filter(s=>!siteMap[s]).length!==1?"s":""} will be skipped.`}
             </div>
             <button onClick={applyAll} disabled={applying||mappedCount===0}
