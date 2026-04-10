@@ -2632,7 +2632,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
       )}
       {!hasActuals&&!isNew&&(
         <div className="rounded border-2 px-5 py-5 flex items-start gap-4"
-          style={{background:""#F0F9FB",borderColor:"rgba(0,169,206,0.3)"}}>
+          style={{background:"#F0F9FB",borderColor:"rgba(0,169,206,0.3)"}}>
           <span className="text-2xl shrink-0">📋</span>
           <div className="flex-1">
             <div className="font-bold text-amber-800 text-base mb-1">No actuals entered yet</div>
