@@ -746,10 +746,16 @@ function Inp({label,type="text",value,onChange,options,min,max,hint,placeholder,
         ? <select className={cls} style={style} value={value||""} onChange={e=>onChange(e.target.value)}>
             {options.map(o=><option key={o} value={o}>{o}</option>)}
           </select>
-        : <input className={cls} style={style} type={type} value={value||""} min={min} max={max}
+        : <input className={cls} style={style} type={type}
+            value={type==="number"?(value===0||value==="0"?"0":value||""):value||""}
+            min={min} max={max}
             placeholder={placeholder||""}
             inputMode={type==="number"?"decimal":undefined}
-            onChange={e=>onChange(type==="number"?parseFloat(e.target.value)||0:e.target.value)}/>
+            onChange={e=>{
+              const v=e.target.value;
+              if(type==="number") onChange(v===""?0:parseFloat(v)||0);
+              else onChange(v);
+            }}/>
       }
       {hint&&<span className="text-xs" style={{color:"#6B5744",fontWeight:"300"}}>{hint}</span>}
     </div>
@@ -3240,7 +3246,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
     // Innovation
     is_pilot:false,is_adaptation:false,pilot_goal:"",met_enrollment:false,met_financial:false,adaptation_made:"",future_potential:"",innovation_notes:"",
     // Decision
-    decision:"Continue",decision_reason:"",action_items:"",next_review:"",pillars_met:"",
+    decision:"Continue",decision_reason:"",action_items:"",next_review:"",pillars_met:"",redesign_strategies:"",
   };
   const [form,setForm]=useState(emptyForm);
   const [activeStep,setActiveStep]=useState(0);
@@ -3440,6 +3446,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
       action_items:form.action_items||"",
       next_review:form.next_review||null,
       pillars_met:pillarsStr,
+      redesign_strategies:form.redesign_strategies||"",
     };
   }
 
@@ -3552,7 +3559,9 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
           {opts.map(o=><option key={o}>{o}</option>)}
         </select>
       ):(
-        <input type={type} value={form[key]||""} onChange={e=>s(key,e.target.value)}
+        <input type={type}
+          value={type==="number"?(form[key]===0||form[key]==="0"?"0":form[key]||""):form[key]||""}
+          onChange={e=>s(key,type==="number"?(e.target.value===""?0:parseFloat(e.target.value)||0):e.target.value)}
           inputMode={type==="number"?"decimal":undefined}
           className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2"
           style={type==="number"?{MozAppearance:"textfield"}:{}}/>
@@ -4321,6 +4330,40 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               </div>
             </div>
 
+            {/* Redesign suggestions — shown when decision = Redesign */}
+            {form.decision==="Redesign"&&(()=>{
+              const suggestions=getRedesignSuggestions(
+                form.program_type||matchedProgram?.ant_program_type||"",
+                form.fill_rate||0,
+                form.cost_recovery||0,
+                form.area||""
+              );
+              const selected=new Set((form.redesign_strategies||"").split(",").filter(Boolean));
+              return suggestions.length>0?(
+                <div className="rounded-lg border border-slate-200 overflow-hidden">
+                  <div className="px-4 py-2.5 border-b border-slate-100" style={{background:"#FDF0E6",borderLeft:"3px solid #E35205"}}>
+                    <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#E35205"}}>Redesign Ideas</div>
+                    <div className="text-xs text-slate-500 mt-0.5">Select any that apply — saved with this review. Full explanations in Guide & Resources → Redesign Strategies.</div>
+                  </div>
+                  <div className="divide-y divide-slate-50">
+                    {suggestions.map(sg=>(
+                      <label key={sg.id} className="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50">
+                        <input type="checkbox" className="mt-0.5 shrink-0" checked={selected.has(sg.id)}
+                          onChange={e=>{
+                            const next=new Set(selected);
+                            e.target.checked?next.add(sg.id):next.delete(sg.id);
+                            s("redesign_strategies",[...next].join(","));
+                          }}/>
+                        <div>
+                          <div className="text-sm font-semibold text-slate-700">{sg.label}</div>
+                          <div className="text-xs text-slate-500 mt-0.5 leading-relaxed">{sg.detail}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ):null;
+            })()}
             {ta("Reason for Decision","decision_reason",2,"Why this decision was made, what context drove it…")}
             {ta("Action Items","action_items",3,"Specific next steps, who is responsible, and any deadlines. One item per line recommended.")}
             {inp("Next Review Date","next_review","date")}
@@ -5183,6 +5226,43 @@ function Reference({isManager,db,programs,staffName}) {
               ))}
             </div>
             <p className="text-sm text-slate-700 mt-3">Use this queue as your weekly check-in list. Programs that appear here need a decision: redesign, remarket, adjust pricing, or sunset. The queue is capped at 8 programs — if more qualify, the 8 with the lowest fill rates are shown.</p>
+
+          {/* ── Capacity Calculator ── */}
+          <GuideSection title="🧮 Program Capacity Calculator" accent="#00A9CE">
+            <p className="text-sm text-slate-700 mb-4">Estimate the right capacity for your program based on industry standards from NRPA, ACSM, ACA, and IPRA. Enter your space or staffing details and get a research-backed starting point. These are estimates — always check fire code occupancy limits and any applicable licensing requirements.</p>
+            <CapacityCalculator/>
+          </GuideSection>
+
+          {/* ── Redesign Strategies ── */}
+          <GuideSection title="🔄 Redesign Strategies Reference" accent="#E35205">
+            <p className="text-sm text-slate-700 mb-4">When a program is flagged for redesign, these strategies are drawn from NRPA, IPRA, ACA, and CAPRA best practices. In the Program Review, you can quickly select which apply — this section gives you the full context behind each one.</p>
+            <div className="space-y-3">
+              {[
+                {id:"timing",    label:"Adjust day or time",           color:"#00A9CE", detail:"NRPA research consistently identifies scheduling as the #1 barrier to recreation participation. Even a single-period shift (e.g., Tuesday 6pm → Thursday 5:30pm) can meaningfully change your audience. Consider peak demand windows for your target demographic: working adults fill weeknight classes; parents of young children prefer Saturday mornings; seniors respond well to mid-morning weekday sessions."},
+                {id:"capacity",  label:"Right-size the capacity",       color:"#00A9CE", detail:"Oversized capacity is a silent killer of program health. A class with 20 spots and 9 enrollees shows 45% fill — the same 9 enrollees in a 14-spot class shows 64% and changes the program's status. NRPA programming guidelines recommend setting initial capacity at 75–80% of your realistic maximum, then adjusting upward based on demand signals."},
+                {id:"marketing", label:"Rewrite the description and remarket", color:"#00A9CE", detail:"IPRA best practices for program marketing emphasize outcome-focused descriptions over logistics. 'Build confidence and strength in a welcoming group environment' outperforms 'Mondays 6–7pm, 8 weeks.' Refresh the program name, lead with the benefit, and identify which platform your audience actually uses. Registration spikes of 20–40% are common after a description rewrite alone."},
+                {id:"trial",     label:"Offer a free or discounted trial", color:"#00A9CE", detail:"Reducing the commitment barrier for first-time participants is a proven tactic. NRPA's Programming Guide cites trial offerings as a top driver of new participant acquisition, particularly for programs where participants are unfamiliar with the format. One complimentary session, a reduced first-week fee, or a bring-a-friend discount all accomplish the same goal."},
+                {id:"audience",  label:"Re-examine the target audience", color:"#00A9CE", detail:"Programs marketed broadly often underperform programs targeted narrowly. Evaluate whether your current participants match your intended audience — if not, either adjust marketing to reach the intended group or adjust the program to serve who is actually showing up. Both are legitimate strategies; the mistake is doing neither."},
+                {id:"pricing",   label:"Review the fee structure",       color:"#F6AB00", detail:"NRPA cost recovery frameworks suggest fees for revenue-driven programs should cover 75–100% of total program cost. If fill rate is healthy but cost recovery is low, the fee is likely underpriced relative to true cost. A fee increase of $5–10 per participant often has minimal impact on enrollment but can move cost recovery significantly. Consider incremental increases (5–8% per season) rather than large jumps."},
+                {id:"costs",     label:"Reduce direct costs",             color:"#F6AB00", detail:"A 10% reduction in direct costs has the same cost recovery impact as a 10% fee increase without the enrollment risk. Review each cost line: Can instructor pay be adjusted? Are commodities being over-ordered? Can the program share supplies with another? Can facility hours be reduced by 30 minutes without impacting the program?"},
+                {id:"subsidize", label:"Formally reclassify as Community Driven", color:"#F6AB00", detail:"CAPRA standard 8.1 recognizes intentional subsidization as a legitimate organizational decision when community need is documented. The distinction is between accidental subsidy (cost recovery is low because nobody noticed) and intentional subsidy (cost recovery is low because we made a deliberate choice for equity or community benefit reasons). Reclassifying a program formally documents the intent and aligns expectations."},
+                {id:"bundle",    label:"Bundle or add a fee tier",        color:"#F6AB00", detail:"A premium tier — reserved spot guarantee, early enrollment access, materials included — allows revenue-generating price differentiation without raising the base fee. Common in NRPA peer agencies. Participants who value convenience will pay a 15–25% premium for certainty of enrollment; this is effectively free additional revenue from existing demand."},
+                {id:"format",    label:"Change the delivery format",      color:"#F6AB00", detail:"Contractual delivery models (outside instructor absorbs staffing cost), hybrid formats (in-person + online), and self-directed open studio formats all reduce per-session overhead. A 60-minute instructed class can often become a 90-minute drop-in studio with an instructor present for the first 30 minutes — same cost, more perceived value."},
+                {id:"pilot",     label:"Run a one-season pilot with reduced scope", color:"#E35205", detail:"Before sunsetting, a minimum viable version tests whether demand exists without full investment. Cut capacity in half, reduce sessions by 30%, reduce supply budget. If the pilot meets threshold targets, it proves a path forward. If not, the sunset decision is easier to make with clean data rather than on the basis of a full program that may have been over-scoped."},
+                {id:"partner",   label:"Partner with another agency or organization", color:"#E35205", detail:"IPRA's cooperative programming framework documents numerous models: shared instructors, co-marketed programs, facility-sharing agreements, and joint registrations. Co-programming with schools, nonprofits, or neighboring park districts can simultaneously reduce cost and expand audience — two common redesign needs addressed at once."},
+                {id:"sunset_review", label:"Set a sunset threshold and timeline", color:"#E35205", detail:"NRPA program lifecycle guidance recommends defining the specific conditions a program must meet to continue. Without a defined threshold, programs linger in 'Monitor' status indefinitely. A documented sunset condition ('If fill rate does not reach 60% and cost recovery does not reach 50% by Spring 2026, the program will be discontinued') protects both the program and the staff managing it from ambiguity."},
+                {id:"camp_curriculum", label:"Add a specialty curriculum track (camps)", color:"#84BD00", detail:"ACA and NRPA data consistently show specialty camps (STEM, arts, sports-specific, nature/outdoor) outperform general day camps in enrollment growth and cost recovery. Specialty tracks can be layered onto an existing general camp as an optional add-on, reducing the implementation barrier while testing market demand."},
+                {id:"league_format",   label:"Shift from competitive to recreational format (leagues)", color:"#84BD00", detail:"IPRA participation data shows recreational leagues attract 30–40% more first-time participants than competitive leagues at the community park district level. If a competitive league is struggling, a recreational division or a combined recreational/competitive structure can expand the participant base without eliminating the competitive option."},
+              ].map(s=>(
+                <div key={s.id} className="rounded border border-slate-200 overflow-hidden">
+                  <div className="px-4 py-2.5" style={{borderLeft:"3px solid "+s.color,background:"rgba(0,0,0,0.02)"}}>
+                    <div className="text-sm font-bold text-slate-700">{s.label}</div>
+                  </div>
+                  <div className="px-4 py-3 text-xs text-slate-600 leading-relaxed">{s.detail}</div>
+                </div>
+              ))}
+            </div>
+          </GuideSection>
           </GuideSection>}
 
         </div>
@@ -5975,6 +6055,380 @@ function GuideSection({title,accent,children}) {
 // ADMIN MODULE — Complete Rebuild with Real Data
 // ═══════════════════════════════════════════════════════════════════════════════
 
+
+
+// ─── Redesign suggestions helper ─────────────────────────────────────────────
+function getRedesignSuggestions(programType, fillRate, costRecovery, area) {
+  const lowFill = parseFloat(fillRate) < 60;
+  const lowCR   = parseFloat(costRecovery) < 50;
+  const type    = programType || "";
+  const suggestions = [];
+
+  // Fill rate issues → demand / marketing / format
+  if (lowFill) {
+    suggestions.push({id:"timing",    label:"Adjust day or time",    detail:"NRPA research shows timing is the #1 barrier to participation. Try an alternative day/time block — evening vs. morning, weekday vs. weekend."});
+    suggestions.push({id:"capacity",  label:"Right-size the capacity", detail:"Reduce capacity to match realistic demand. A 20-spot class running at 9 is a 45% fill — reducing to 14 spots makes it 64% and changes the status."});
+    suggestions.push({id:"marketing", label:"Rewrite the description and remarket", detail:"IPRA best practice: program descriptions that emphasize outcomes (what participants gain) outperform those that list logistics. Refresh the program name, description, and target platform."});
+    suggestions.push({id:"trial",     label:"Offer a free or discounted trial session", detail:"Low-barrier entry reduces the decision friction for new participants. One-time trial offers typically increase first-season enrollment by 15–30% (NRPA Programming Guide)."});
+    suggestions.push({id:"audience",  label:"Re-examine the target audience", detail:"Is the program reaching the right age group or skill level? A program marketed broadly often underperforms one targeted narrowly."});
+  }
+
+  // Cost recovery issues → pricing / cost reduction
+  if (lowCR && !lowFill) {
+    suggestions.push({id:"pricing",   label:"Review the fee structure",  detail:"If fill rate is healthy but cost recovery is low, the fee may be underpriced relative to true cost. NRPA cost recovery frameworks suggest fees should cover at minimum 50–75% of program cost for revenue-driven programs."});
+    suggestions.push({id:"costs",     label:"Reduce direct costs",       detail:"Review personnel, commodities, and contractual costs. Can the instructor rate be renegotiated? Can supply costs be reduced? A 10% reduction in direct costs can meaningfully shift cost recovery."});
+    suggestions.push({id:"subsidize", label:"Formally reclassify as Community Driven", detail:"If community benefit justifies a subsidy, reclassify intentionally. CAPRA standard 8.1 supports deliberate subsidization when community need is documented — the key is intent, not accident."});
+    suggestions.push({id:"bundle",    label:"Bundle or add a fee tier", detail:"Offer an enhanced tier with added value (reserved spots, materials included, early access) at a higher price point. Common in NRPA peer agencies to improve recovery without raising the base fee."});
+    suggestions.push({id:"format",    label:"Change the delivery format", detail:"Contractual or hybrid delivery models can reduce direct staff costs. An outside instructor absorbs more cost; a self-directed open studio format reduces per-session overhead."});
+  }
+
+  // Both low
+  if (lowFill && lowCR) {
+    suggestions.push({id:"pilot",     label:"Run a one-season pilot with reduced scope", detail:"Scale back to a minimum viable version — fewer sessions, smaller capacity, lower overhead — to test whether demand exists before full investment."});
+    suggestions.push({id:"partner",   label:"Partner with another agency or organization", detail:"Co-programming with schools, nonprofits, or neighboring park districts can reduce cost and expand the audience simultaneously. IPRA's cooperative programming framework supports this."});
+    suggestions.push({id:"sunset_review", label:"Set a sunset threshold and timeline", detail:"Define the specific conditions (fill rate, cost recovery targets) the program must meet next season to continue. NRPA program lifecycle guidance recommends a defined decision point rather than indefinite monitoring."});
+  }
+
+  // Program-type specific
+  if (type.includes("Camp")) {
+    suggestions.push({id:"camp_curriculum", label:"Add a specialty curriculum track", detail:"Specialty camps (STEM, arts, sports-specific) consistently outperform general day camps in enrollment and cost recovery. ACA and NRPA both report specialty curriculum as a top driver of camp enrollment growth."});
+    suggestions.push({id:"camp_age",        label:"Narrow the age range",             detail:"Camps with tighter age bands (2-year spans) show stronger retention and word-of-mouth. Broad age ranges (6–14) create programming challenges that reduce quality and repeat attendance."});
+  }
+  if (type.includes("League")) {
+    suggestions.push({id:"league_format", label:"Shift from competitive to recreational format", detail:"Recreational leagues consistently outperform competitive leagues in fill rate at the community park district level. IPRA data shows recreational formats attract 30–40% more first-time participants."});
+    suggestions.push({id:"league_length", label:"Shorten the season length",          detail:"Shorter seasons (6–8 weeks vs. 12) reduce commitment barriers and increase participation. Many NRPA peer agencies have shifted to shorter seasons with a drop-in final tournament."});
+  }
+  if (type.includes("Event")) {
+    suggestions.push({id:"event_anchor",  label:"Add an anchor activity or partnership", detail:"Events with a single high-interest anchor (a known performer, competition, themed activity) outperform general community events. Consider a partnership with a school, business, or local celebrity."});
+    suggestions.push({id:"event_free",    label:"Evaluate free vs. ticketed model",   detail:"Free events with sponsorship underwriting can generate more community goodwill and exposure than ticketed events with lower attendance. NRPA reports free events drive 2–3× attendance of comparable ticketed events."});
+  }
+  if (type.includes("Contractual")) {
+    suggestions.push({id:"contract_renegotiate", label:"Renegotiate contractor terms or switch contractors", detail:"Contractor performance (quality, communication, reliability) directly drives enrollment trends. If a program is declining, evaluate whether the contractor is contributing to the issue."});
+  }
+
+  // Deduplicate and cap at 7 most relevant
+  const seen = new Set();
+  const unique = [];
+  for (const s of suggestions) {
+    if (!seen.has(s.id)) { seen.add(s.id); unique.push(s); }
+    if (unique.length >= 7) break;
+  }
+  return unique;
+}
+
+
+// ─── Capacity Calculator Component ───────────────────────────────────────────
+function CapacityCalculator() {
+  const [progType, setProgType] = React.useState("");
+  const [sqft, setSqft]         = React.useState("");
+  const [courts, setCourts]     = React.useState("");
+  const [campers, setCampers]   = React.useState("");
+  const [result, setResult]     = React.useState(null);
+
+  const CALC_TYPES = [
+    {label:"Small Contractual / Contractual Class", key:"contractual"},
+    {label:"Drop-In Program",                        key:"dropin"},
+    {label:"Small Program (class-based)",            key:"class"},
+    {label:"Large Program (class-based)",            key:"class"},
+    {label:"Small Event",                            key:"event"},
+    {label:"Large Event",                            key:"event_large"},
+    {label:"League",                                 key:"league"},
+    {label:"Camp",                                   key:"camp"},
+    {label:"Fitness / Group Exercise",               key:"fitness"},
+    {label:"Production / Major Program",             key:"production"},
+  ];
+
+  const selected = CALC_TYPES.find(t=>t.label===progType);
+
+  function calculate() {
+    if (!selected) return;
+    const sf = parseFloat(sqft)||0;
+    const ct = parseInt(courts)||0;
+    const cp = parseInt(campers)||0;
+    let res = null;
+
+    switch(selected.key) {
+      case "fitness": {
+        // ACSM: 35–50 sq ft per participant for group exercise
+        // Formula: (sq ft - 100 for instructor/equipment) / 40
+        if (!sf) { setResult({error:"Enter room size in square feet."}); return; }
+        const conservative = Math.floor((sf-100)/50);
+        const standard     = Math.floor((sf-100)/40);
+        const maximum      = Math.floor((sf-100)/35);
+        res = {
+          label:"Group Exercise / Fitness Class",
+          conservative, standard, maximum,
+          note:"Based on ACSM standard of 35–50 sq ft per participant. 100 sq ft deducted for instructor and equipment space. Yoga/Pilates: use conservative figure. HIIT/Step: use conservative or lower.",
+          source:"American College of Sports Medicine (ACSM) Facility Guidelines; Health & Fitness Association standard"
+        };
+        break;
+      }
+      case "class": {
+        // Instructional class: 20–25 sq ft per person for seated/craft, 35–40 for movement
+        if (!sf) { setResult({error:"Enter room size in square feet."}); return; }
+        const seated   = Math.floor(sf/20);
+        const movement = Math.floor(sf/35);
+        res = {
+          label:"Instructional Class",
+          seated, movement,
+          note:"Seated/craft/art classes: ~20 sq ft per person. Movement-based classes (dance, martial arts, fitness): ~35 sq ft per person. Subtract ~10% for instructor space and walkways.",
+          source:"NRPA Recreation Programming standards; ACSM Facility Guidelines"
+        };
+        break;
+      }
+      case "dropin": {
+        if (!sf) { setResult({error:"Enter space size in square feet."}); return; }
+        const capacity = Math.floor(sf/15);
+        res = {
+          label:"Drop-In / Open Access",
+          single: capacity,
+          note:"Drop-in programs can use a denser standard (~15 sq ft/person) since participants self-regulate and are not all active simultaneously. For active open gym use 25 sq ft/person.",
+          source:"NRPA Open Access Programming Guidelines"
+        };
+        break;
+      }
+      case "league": {
+        // Court-based: NBA half court = 47×50, full = 94×50 (4700 sq ft)
+        // Soccer/baseball use field size
+        if (!ct && !sf) { setResult({error:"Enter number of courts or field size."}); return; }
+        const perCourt = ct ? ct * 10 : Math.floor(sf/470);
+        res = {
+          label:"League (court/field-based)",
+          single: perCourt,
+          note:`Standard basketball: 10 players per court (5v5). Volleyball: 12 per court (6v6). Soccer: 14–22 per field depending on format. ${ct ? `${ct} court(s) × 10 players = ${perCourt} participants.` : `${sf} sq ft ÷ 470 sq ft/court ≈ ${perCourt} participants.`}`,
+          source:"NRPA Sports League Programming; IPRA League Standards"
+        };
+        break;
+      }
+      case "camp": {
+        // ACA: 6:1 ratio for ages 6–8, 8:1 for 9–14, 10:1 for 15+
+        // Minimum indoor space: 35 sq ft per camper
+        if (!cp && !sf) { setResult({error:"Enter number of staff or indoor space."}); return; }
+        const byStaff_young = cp * 6;
+        const byStaff_mid   = cp * 8;
+        const byStaff_older = cp * 10;
+        const bySpace       = sf ? Math.floor(sf/35) : null;
+        res = {
+          label:"Day Camp",
+          byStaff_young, byStaff_mid, byStaff_older, bySpace,
+          note:"American Camp Association (ACA) ratio standards: ages 6–8 = 6:1, ages 9–14 = 8:1, ages 15+ = 10:1. Illinois DCFS licensing may require stricter ratios — always verify with your local licensing authority. Indoor space standard: 35 sq ft per camper minimum.",
+          source:"American Camp Association (ACA) Accreditation Standards; Illinois DCFS Child Care Licensing"
+        };
+        break;
+      }
+      case "event": {
+        if (!sf) { setResult({error:"Enter venue size in square feet."}); return; }
+        const standing  = Math.floor(sf/6);
+        const mingling  = Math.floor(sf/10);
+        const seated    = Math.floor(sf/15);
+        res = {
+          label:"Community Event",
+          standing, mingling, seated,
+          note:"Event capacity varies by format. Standing/festival: ~6 sq ft/person. Mingling/reception: ~10 sq ft/person. Seated with tables: ~15 sq ft/person. Always check fire code occupancy limits — they override all other calculations.",
+          source:"International Building Code / NFPA 101 Life Safety Code; NRPA Event Programming Guide"
+        };
+        break;
+      }
+      case "event_large": {
+        if (!sf) { setResult({error:"Enter outdoor or indoor venue size in square feet."}); return; }
+        const outdoor   = Math.floor(sf/10);
+        const indoor    = Math.floor(sf/6);
+        res = {
+          label:"Large Event",
+          outdoor, indoor,
+          note:"Large outdoor events: ~10 sq ft/person for comfortable circulation. Indoor large events: ~6 sq ft/person standing. For events with activities/booths, reduce by 30–40% for activity footprint. Always obtain venue fire code maximums.",
+          source:"NFPA 101; NRPA Event Operations Standards; IPRA Large Event Planning Guidelines"
+        };
+        break;
+      }
+      case "contractual": {
+        if (!sf) { setResult({error:"Enter room or space size in square feet."}); return; }
+        const capacity = Math.floor(sf/30);
+        res = {
+          label:"Contractual / Instructional Class",
+          single: capacity,
+          note:"For contractual classes (martial arts, dance, enrichment), use 25–35 sq ft per participant depending on activity. Martial arts and dance require more space for movement; seated enrichment classes less.",
+          source:"NRPA Programming Standards; ACSM Facility Guidelines"
+        };
+        break;
+      }
+      case "production": {
+        if (!sf) { setResult({error:"Enter rehearsal/performance space in square feet."}); return; }
+        const rehearsal   = Math.floor(sf/40);
+        const performance = Math.floor(sf/6);
+        res = {
+          label:"Production / Performing Arts",
+          rehearsal, performance,
+          note:"Rehearsal space: ~40 sq ft per performer. Performance/audience seating: ~6–8 sq ft per seat. Preschool classroom space: 35 sq ft per child (Illinois DCFS requirement).",
+          source:"Illinois DCFS Child Care Standards; NRPA Arts Programming Guidelines"
+        };
+        break;
+      }
+      default:
+        break;
+    }
+    setResult(res);
+  }
+
+  const needsSqft  = selected && ["fitness","class","dropin","league","event","event_large","contractual","production"].includes(selected.key) && !courts;
+  const needsCourts= selected && selected.key==="league";
+  const needsCamp  = selected && selected.key==="camp";
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wide">Program Type</label>
+        <select value={progType} onChange={e=>{setProgType(e.target.value);setResult(null);}}
+          className="w-full text-sm rounded border border-slate-200 px-3 py-2 bg-white">
+          <option value="">— Select a program type —</option>
+          {CALC_TYPES.map(t=><option key={t.label}>{t.label}</option>)}
+        </select>
+      </div>
+
+      {selected&&(
+        <div className="space-y-3">
+          {(needsSqft||needsCourts)&&(
+            <div className="grid grid-cols-2 gap-3">
+              {needsSqft&&(
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Room / Space Size (sq ft)</label>
+                  <input type="number" value={sqft} onChange={e=>setSqft(e.target.value)}
+                    placeholder="e.g. 1200"
+                    className="w-full text-sm rounded border border-slate-200 px-3 py-2"/>
+                </div>
+              )}
+              {needsCourts&&(
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Number of Courts / Fields</label>
+                  <input type="number" value={courts} onChange={e=>setCourts(e.target.value)}
+                    placeholder="e.g. 2"
+                    className="w-full text-sm rounded border border-slate-200 px-3 py-2"/>
+                </div>
+              )}
+            </div>
+          )}
+          {needsCamp&&(
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Number of Staff (for ratio)</label>
+                <input type="number" value={campers} onChange={e=>setCampers(e.target.value)}
+                  placeholder="e.g. 4"
+                  className="w-full text-sm rounded border border-slate-200 px-3 py-2"/>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Indoor Space (sq ft, optional)</label>
+                <input type="number" value={sqft} onChange={e=>setSqft(e.target.value)}
+                  placeholder="e.g. 2000"
+                  className="w-full text-sm rounded border border-slate-200 px-3 py-2"/>
+              </div>
+            </div>
+          )}
+          <button onClick={calculate}
+            className="px-4 py-2 text-sm font-bold rounded text-white"
+            style={{background:"#00A9CE"}}>
+            Calculate Capacity →
+          </button>
+        </div>
+      )}
+
+      {result&&(
+        <div className="rounded border overflow-hidden" style={{borderColor:"rgba(0,169,206,0.25)"}}>
+          {result.error?(
+            <div className="px-4 py-3 text-sm text-orange-700 bg-orange-50">{result.error}</div>
+          ):(
+            <>
+              <div className="px-4 py-2.5 text-xs font-bold uppercase" style={{background:"rgba(0,169,206,0.08)",color:"#00A9CE",letterSpacing:"0.10em",borderBottom:"1px solid rgba(0,169,206,0.15)"}}>
+                {result.label} — Estimated Capacity
+              </div>
+              <div className="px-4 py-4 space-y-3">
+                {/* Fitness */}
+                {result.conservative!=null&&(
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    {[["Conservative",result.conservative,"#F6AB00"],["Standard",result.standard,"#00A9CE"],["Maximum",result.maximum,"#84BD00"]].map(([label,val,color])=>(
+                      <div key={label} className="rounded p-3" style={{background:"rgba(0,0,0,0.03)",border:"1px solid rgba(0,0,0,0.06)"}}>
+                        <div className="text-2xl font-bold" style={{color}}>{val}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Class */}
+                {result.seated!=null&&(
+                  <div className="grid grid-cols-2 gap-3 text-center">
+                    {[["Seated / Craft",result.seated,"#00A9CE"],["Movement-based",result.movement,"#F6AB00"]].map(([label,val,color])=>(
+                      <div key={label} className="rounded p-3" style={{background:"rgba(0,0,0,0.03)",border:"1px solid rgba(0,0,0,0.06)"}}>
+                        <div className="text-2xl font-bold" style={{color}}>{val}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Camp */}
+                {result.byStaff_young!=null&&(
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      {[["Ages 6–8 (6:1)",result.byStaff_young,"#E35205"],["Ages 9–14 (8:1)",result.byStaff_mid,"#F6AB00"],["Ages 15+ (10:1)",result.byStaff_older,"#84BD00"]].map(([label,val,color])=>(
+                        <div key={label} className="rounded p-2.5" style={{background:"rgba(0,0,0,0.03)",border:"1px solid rgba(0,0,0,0.06)"}}>
+                          <div className="text-xl font-bold" style={{color}}>{val}</div>
+                          <div className="text-xs text-slate-500 mt-0.5 leading-tight">{label}</div>
+                        </div>
+                      ))}
+                    </div>
+                    {result.bySpace&&(
+                      <div className="text-sm text-center text-slate-600">Indoor space limit: <span className="font-bold" style={{color:"#00A9CE"}}>{result.bySpace} campers</span> (35 sq ft/person)</div>
+                    )}
+                  </div>
+                )}
+                {/* Event */}
+                {result.standing!=null&&(
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    {[["Standing / Festival",result.standing,"#84BD00"],["Mingling / Reception",result.mingling,"#00A9CE"],["Seated w/ Tables",result.seated,"#F6AB00"]].map(([label,val,color])=>(
+                      <div key={label} className="rounded p-2.5" style={{background:"rgba(0,0,0,0.03)",border:"1px solid rgba(0,0,0,0.06)"}}>
+                        <div className="text-xl font-bold" style={{color}}>{val}</div>
+                        <div className="text-xs text-slate-500 mt-0.5 leading-tight">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Single value */}
+                {result.single!=null&&(
+                  <div className="text-center">
+                    <div className="text-4xl font-bold" style={{color:"#00A9CE"}}>{result.single}</div>
+                    <div className="text-sm text-slate-500 mt-1">participants</div>
+                  </div>
+                )}
+                {/* Production */}
+                {result.rehearsal!=null&&(
+                  <div className="grid grid-cols-2 gap-3 text-center">
+                    {[["Rehearsal capacity",result.rehearsal,"#00A9CE"],["Audience seating",result.performance,"#84BD00"]].map(([label,val,color])=>(
+                      <div key={label} className="rounded p-3" style={{background:"rgba(0,0,0,0.03)",border:"1px solid rgba(0,0,0,0.06)"}}>
+                        <div className="text-2xl font-bold" style={{color}}>{val}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Large event outdoor/indoor */}
+                {result.outdoor!=null&&(
+                  <div className="grid grid-cols-2 gap-3 text-center">
+                    {[["Outdoor",result.outdoor,"#84BD00"],["Indoor",result.indoor,"#00A9CE"]].map(([label,val,color])=>(
+                      <div key={label} className="rounded p-3" style={{background:"rgba(0,0,0,0.03)",border:"1px solid rgba(0,0,0,0.06)"}}>
+                        <div className="text-2xl font-bold" style={{color}}>{val}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="text-xs text-slate-500 leading-relaxed pt-1 border-t border-slate-100">{result.note}</div>
+                <div className="text-xs text-slate-400 italic">Source: {result.source}</div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function App() {
   const [tab,setTab]                       = useState("dashboard");
