@@ -6307,11 +6307,11 @@ function getRedesignSuggestions(programType, fillRate, costRecovery, area) {
 
 // ─── Capacity Calculator Component ───────────────────────────────────────────
 function CapacityCalculator() {
-  const [progType, setProgType] = React.useState("");
-  const [sqft, setSqft]         = React.useState("");
-  const [courts, setCourts]     = React.useState("");
-  const [campers, setCampers]   = React.useState("");
-  const [result, setResult]     = React.useState(null);
+  const [progType, setProgType] = useState("");
+  const [sqft, setSqft]         = useState("");
+  const [courts, setCourts]     = useState("");
+  const [campers, setCampers]   = useState("");
+  const [result, setResult]     = useState(null);
 
   const CALC_TYPES = [
     {label:"Small Contractual / Contractual Class", key:"contractual"},
