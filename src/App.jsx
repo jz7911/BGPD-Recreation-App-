@@ -2541,7 +2541,7 @@ function SubProgramTracker({programs,onChange}){
   );
 }
 
-function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,onArchive,onDuplicate,onCancel,saving}) {
+function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndStay,onDelete,onArchive,onDuplicate,onCancel,saving}) {
   const [p,setP]             = useState(()=> initial ? {...cleanForDB(initial), decision_log: initial.decision_log||[], other1_label: initial.other1_label||"Other Direct Costs", other2_label: initial.other2_label||"Other Direct Costs 2"} : newProgram(staffName));
   const set                  = k => v => setP(prev=>({...prev,[k]:v}));
   const [sec,setSec]         = useState("info");
@@ -3131,7 +3131,13 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
                 const curIdx = tabIds.indexOf(sec);
                 const nextId = curIdx < tabIds.length-1 ? tabIds[curIdx+1] : null;
                 return nextId ? (
-                  <button onClick={()=>{if(!p.name||saving) return; handleSave(); setSec(nextId);}}
+                  <button onClick={async()=>{
+                      if(!p.name||saving) return;
+                      saveLastUsed(staffName,{area:p.area,season:p.season,year:p.year,classification:p.classification,service_category:p.service_category,program_type:p.ant_program_type});
+                      setDirty(false);
+                      if(onSaveAndStay) await onSaveAndStay(p);
+                      setSec(nextId);
+                    }}
                     disabled={!p.name||saving}
                     className="px-4 py-2 text-sm font-semibold border rounded disabled:opacity-40"
                     style={{color:"#00A9CE",borderColor:"#00A9CE",background:"#ffffff"}}>
@@ -6801,6 +6807,23 @@ export default function App() {
     setSaving(false);
   };
 
+  const handleSaveProgramAndStay = async p => {
+    // Saves to DB but does NOT navigate away — used by Save & Next
+    setSaving(true); setError(null);
+    try {
+      const data = cleanForDB(p);
+      if(data.id){ const{error:e}=await supabase.from("programs").update(data).eq("id",data.id); if(e) throw e; }
+      else {
+        const{data:inserted,error:e}=await supabase.from("programs").insert(data).select().single();
+        if(e) throw e;
+        // For new programs: update local state with the returned id so subsequent saves update not insert
+        if(inserted) setEditingProgram(inserted);
+      }
+      await fetchAll();
+    } catch(e){ setError("Failed to save: "+(e.message||"unknown error")); }
+    setSaving(false);
+  };
+
   const handleDeleteProgram = async id => {
     setSaving(true);
     const {error:de}=await supabase.from("programs").delete().eq("id",id);
@@ -6946,6 +6969,7 @@ export default function App() {
                 isManager={effectiveManager}
                 programs={programs}
                 onSave={handleSaveProgram}
+                onSaveAndStay={handleSaveProgramAndStay}
                 onDelete={handleDeleteProgram}
                 onArchive={handleArchiveProgram}
                 onDuplicate={p=>setDupProgram(p)}
