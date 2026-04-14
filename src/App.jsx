@@ -4331,19 +4331,20 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
             </div>
 
             {/* Redesign suggestions — shown when decision = Redesign */}
-            {form.decision==="Redesign"&&(()=>{
+            {["Redesign","Adjust","Pilot Again","Sunset Review"].includes(form.decision)&&(()=>{
               const suggestions=getRedesignSuggestions(
                 form.program_type||matchedProgram?.ant_program_type||"",
                 form.fill_rate||0,
                 form.cost_recovery||0,
-                form.area||""
+                form.area||"",
+                form.decision
               );
               const selected=new Set((form.redesign_strategies||"").split(",").filter(Boolean));
               return suggestions.length>0?(
                 <div className="rounded-lg border border-slate-200 overflow-hidden">
                   <div className="px-4 py-2.5 border-b border-slate-100" style={{background:"#FDF0E6",borderLeft:"3px solid #E35205"}}>
-                    <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#E35205"}}>Redesign Ideas</div>
-                    <div className="text-xs text-slate-500 mt-0.5">Select any that apply — saved with this review. Full explanations in Guide & Resources → Redesign Ideas tab.</div>
+                    <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#E35205"}}>{form.decision==="Adjust"?"Adjustment Ideas":form.decision==="Pilot Again"?"Next Pilot Ideas":form.decision==="Sunset Review"?"Before You Sunset":"Redesign Ideas"}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">Select any that apply — these save with the review. Full explanations in Guide & Resources → Redesign Ideas tab.</div>
                   </div>
                   <div className="divide-y divide-slate-50">
                     {suggestions.map(sg=>(
@@ -6246,64 +6247,79 @@ function GuideSection({title,accent,children}) {
 
 
 // ─── Redesign suggestions helper ─────────────────────────────────────────────
-function getRedesignSuggestions(programType, fillRate, costRecovery, area) {
+function getRedesignSuggestions(programType, fillRate, costRecovery, area, decision) {
   const lowFill = parseFloat(fillRate) < 60;
   const lowCR   = parseFloat(costRecovery) < 50;
   const type    = programType || "";
+  const dec     = decision || "Redesign";
   const suggestions = [];
 
-  // Fill rate issues → demand / marketing / format
-  if (lowFill) {
-    suggestions.push({id:"timing",    label:"Adjust day or time",    detail:"NRPA research shows timing is the #1 barrier to participation. Try an alternative day/time block — evening vs. morning, weekday vs. weekend."});
-    suggestions.push({id:"capacity",  label:"Right-size the capacity", detail:"Reduce capacity to match realistic demand. A 20-spot class running at 9 is a 45% fill — reducing to 14 spots makes it 64% and changes the status."});
-    suggestions.push({id:"marketing", label:"Rewrite the description and remarket", detail:"IPRA best practice: program descriptions that emphasize outcomes (what participants gain) outperform those that list logistics. Refresh the program name, description, and target platform."});
-    suggestions.push({id:"trial",     label:"Offer a free or discounted trial session", detail:"Low-barrier entry reduces the decision friction for new participants. One-time trial offers typically increase first-season enrollment by 15–30% (NRPA Programming Guide)."});
-    suggestions.push({id:"audience",  label:"Re-examine the target audience", detail:"Is the program reaching the right age group or skill level? A program marketed broadly often underperforms one targeted narrowly."});
+  // ── ADJUST: small tweaks — fee, timing, capacity, marketing ──────────────
+  if (dec === "Adjust") {
+    suggestions.push({id:"timing",    label:"Shift the day or time",          detail:"Scheduling is the #1 barrier to participation (NRPA). Even a one-period shift — Tuesday 6pm to Thursday 5:30pm — can open a different audience. Try before making structural changes."});
+    suggestions.push({id:"capacity",  label:"Right-size the capacity",         detail:"If fill rate is under 70%, try reducing capacity to match realistic demand. A 20-spot class at 12 enrolled = 60% fill. That same 12 in a 16-spot class = 75% — Healthy status, no other changes needed."});
+    suggestions.push({id:"pricing",   label:"Adjust the fee",                  detail:"If fill rate is healthy but cost recovery is low, the fee may be underpriced. A $5–10 increase per participant often has minimal enrollment impact but meaningfully shifts cost recovery (NRPA)."});
+    suggestions.push({id:"marketing", label:"Rewrite the program description", detail:"IPRA best practice: outcome-focused descriptions outperform logistics-focused ones. 'Build confidence in a welcoming group' outperforms 'Mondays 6–7pm, 8 weeks.' A rewrite alone has driven 20–40% registration spikes."});
+    suggestions.push({id:"costs",     label:"Trim direct costs",               detail:"Review each cost line for efficiency. Can the instructor rate be adjusted? Are supplies over-ordered? A 10% reduction in direct costs equals a 10% fee increase in cost recovery impact — with no enrollment risk."});
+    if (type.includes("Camp")) suggestions.push({id:"camp_age", label:"Narrow the age range", detail:"Tighter age bands (2-year spans) produce stronger programming quality, retention, and word-of-mouth. A camp spanning ages 6–14 serves 8 developmental stages poorly."});
+    if (type.includes("League")) suggestions.push({id:"league_length", label:"Shorten the season", detail:"Shorter seasons (6–8 weeks vs. 12) reduce commitment barriers and typically increase fill rate. Consider adding a one-day tournament at the end."});
   }
 
-  // Cost recovery issues → pricing / cost reduction
-  if (lowCR && !lowFill) {
-    suggestions.push({id:"pricing",   label:"Review the fee structure",  detail:"If fill rate is healthy but cost recovery is low, the fee may be underpriced relative to true cost. NRPA cost recovery frameworks suggest fees should cover at minimum 50–75% of program cost for revenue-driven programs."});
-    suggestions.push({id:"costs",     label:"Reduce direct costs",       detail:"Review personnel, commodities, and contractual costs. Can the instructor rate be renegotiated? Can supply costs be reduced? A 10% reduction in direct costs can meaningfully shift cost recovery."});
-    suggestions.push({id:"subsidize", label:"Formally reclassify as Community Driven", detail:"If community benefit justifies a subsidy, reclassify intentionally. CAPRA standard 8.1 supports deliberate subsidization when community need is documented — the key is intent, not accident."});
-    suggestions.push({id:"bundle",    label:"Bundle or add a fee tier", detail:"Offer an enhanced tier with added value (reserved spots, materials included, early access) at a higher price point. Common in NRPA peer agencies to improve recovery without raising the base fee."});
-    suggestions.push({id:"format",    label:"Change the delivery format", detail:"Contractual or hybrid delivery models can reduce direct staff costs. An outside instructor absorbs more cost; a self-directed open studio format reduces per-session overhead."});
+  // ── REDESIGN: structural changes needed ──────────────────────────────────
+  else if (dec === "Redesign") {
+    if (lowFill) {
+      suggestions.push({id:"timing",    label:"Adjust day or time",             detail:"NRPA research shows scheduling is the #1 barrier to participation. Try an alternative time block before making structural changes — it's the lowest-cost test available."});
+      suggestions.push({id:"capacity",  label:"Right-size the capacity",         detail:"Reduce capacity to match realistic demand. A 20-spot class at 9 enrollees = 45% fill. Those same 9 in a 14-spot class = 64%. Same program, different number, different status."});
+      suggestions.push({id:"marketing", label:"Rewrite the description and remarket", detail:"IPRA: outcome-focused descriptions outperform logistics. Refresh the program name, lead with the benefit, and identify which platform your audience actually uses."});
+      suggestions.push({id:"audience",  label:"Re-examine the target audience",  detail:"Programs marketed broadly often underperform those targeted narrowly. Are your current participants matching your intended audience? If not — adjust one or the other."});
+      suggestions.push({id:"trial",     label:"Offer a free or discounted trial", detail:"NRPA's Programming Guide cites trials as a top driver of new participant acquisition. One complimentary session or bring-a-friend discount reduces the decision barrier significantly."});
+    }
+    if (lowCR && !lowFill) {
+      suggestions.push({id:"pricing",   label:"Review the fee structure",        detail:"If fill rate is healthy but cost recovery is low, the fee is likely underpriced. NRPA frameworks suggest revenue programs should recover 75–100% of true cost."});
+      suggestions.push({id:"costs",     label:"Reduce direct costs",             detail:"Review instructor rates, supply orders, and facility hours. A 10% cost reduction equals a 10% fee increase in cost recovery — with no enrollment risk."});
+      suggestions.push({id:"subsidize", label:"Reclassify as Community Driven",  detail:"CAPRA 8.1: intentional subsidization is legitimate when community need is documented. The key is intent — not accident. Reclassify formally if this subsidy is deliberate."});
+      suggestions.push({id:"format",    label:"Change the delivery format",      detail:"Contractual delivery, hybrid, or open studio formats can reduce per-session overhead while maintaining or improving the participant experience."});
+      suggestions.push({id:"bundle",    label:"Add a premium fee tier",          detail:"A reserved-spot or materials-included tier lets you generate incremental revenue from existing demand without raising the base fee (NRPA peer agency practice)."});
+    }
+    if (lowFill && lowCR) {
+      suggestions.push({id:"pilot",     label:"Scale back to a pilot version",   detail:"Reduce to minimum viable scope — fewer sessions, smaller capacity, lower overhead. Test whether demand exists before committing to a full season."});
+      suggestions.push({id:"partner",   label:"Partner with another agency",     detail:"IPRA cooperative programming: co-marketing, shared instructors, or joint registration can simultaneously reduce cost and expand audience."});
+      suggestions.push({id:"feedback_loop", label:"Survey current and past participants", detail:"A 3-question exit survey provides more actionable redesign data than any benchmark. Ask: What did you like? What would you change? Would you register again?"});
+    }
+    if (type.includes("Camp")) suggestions.push({id:"camp_curriculum", label:"Add a specialty curriculum track", detail:"ACA and NRPA: specialty camps consistently outperform general day camps in enrollment growth and cost recovery."});
+    if (type.includes("League")) suggestions.push({id:"league_format", label:"Shift to recreational format", detail:"IPRA: recreational leagues attract 30–40% more first-time participants than competitive leagues at the community park district level."});
   }
 
-  // Both low
-  if (lowFill && lowCR) {
-    suggestions.push({id:"pilot",     label:"Run a one-season pilot with reduced scope", detail:"Scale back to a minimum viable version — fewer sessions, smaller capacity, lower overhead — to test whether demand exists before full investment."});
-    suggestions.push({id:"partner",   label:"Partner with another agency or organization", detail:"Co-programming with schools, nonprofits, or neighboring park districts can reduce cost and expand the audience simultaneously. IPRA's cooperative programming framework supports this."});
-    suggestions.push({id:"sunset_review", label:"Set a sunset threshold and timeline", detail:"Define the specific conditions (fill rate, cost recovery targets) the program must meet next season to continue. NRPA program lifecycle guidance recommends a defined decision point rather than indefinite monitoring."});
+  // ── PILOT AGAIN: what to adjust for the next pilot run ───────────────────
+  else if (dec === "Pilot Again") {
+    suggestions.push({id:"timing",     label:"Test a different day or time",     detail:"If the first pilot underperformed, timing may be the variable. Run the next pilot in a different time block before changing the program itself."});
+    suggestions.push({id:"capacity",   label:"Adjust pilot capacity",            detail:"Was the first pilot too large (hard to fill) or too small (turned people away)? Calibrate the next run based on actual demand signals from the first."});
+    suggestions.push({id:"marketing",  label:"Improve pre-launch marketing",     detail:"Pilot programs often underperform because awareness is low. Give the next run 4–6 weeks of active promotion before registration opens."});
+    suggestions.push({id:"feedback_loop", label:"Act on participant feedback",   detail:"Survey everyone who participated in the first pilot — and anyone who registered but didn't continue. Their specific feedback is more valuable than any benchmark."});
+    suggestions.push({id:"audience",   label:"Sharpen the target audience",      detail:"Narrow the intended audience for the next run based on who actually showed up to the first. Real demand data beats assumptions."});
+    if (type.includes("Camp")) suggestions.push({id:"camp_curriculum", label:"Add or refine a specialty track", detail:"If the first camp pilot was general-format, test a specialty theme in the next run. ACA data shows specialty camps outperform general camps consistently."});
+    suggestions.push({id:"costs",      label:"Reduce pilot overhead",            detail:"If cost recovery was low on the first pilot, strip the next run to essentials. Prove demand first — optimize cost structure once the program has a track record."});
   }
 
-  // Program-type specific
-  if (type.includes("Camp")) {
-    suggestions.push({id:"camp_curriculum", label:"Add a specialty curriculum track", detail:"Specialty camps (STEM, arts, sports-specific) consistently outperform general day camps in enrollment and cost recovery. ACA and NRPA both report specialty curriculum as a top driver of camp enrollment growth."});
-    suggestions.push({id:"camp_age",        label:"Narrow the age range",             detail:"Camps with tighter age bands (2-year spans) show stronger retention and word-of-mouth. Broad age ranges (6–14) create programming challenges that reduce quality and repeat attendance."});
-  }
-  if (type.includes("League")) {
-    suggestions.push({id:"league_format", label:"Shift from competitive to recreational format", detail:"Recreational leagues consistently outperform competitive leagues in fill rate at the community park district level. IPRA data shows recreational formats attract 30–40% more first-time participants."});
-    suggestions.push({id:"league_length", label:"Shorten the season length",          detail:"Shorter seasons (6–8 weeks vs. 12) reduce commitment barriers and increase participation. Many NRPA peer agencies have shifted to shorter seasons with a drop-in final tournament."});
-  }
-  if (type.includes("Event")) {
-    suggestions.push({id:"event_anchor",  label:"Add an anchor activity or partnership", detail:"Events with a single high-interest anchor (a known performer, competition, themed activity) outperform general community events. Consider a partnership with a school, business, or local celebrity."});
-    suggestions.push({id:"event_free",    label:"Evaluate free vs. ticketed model",   detail:"Free events with sponsorship underwriting can generate more community goodwill and exposure than ticketed events with lower attendance. NRPA reports free events drive 2–3× attendance of comparable ticketed events."});
-  }
-  if (type.includes("Contractual")) {
-    suggestions.push({id:"contract_renegotiate", label:"Renegotiate contractor terms or switch contractors", detail:"Contractor performance (quality, communication, reliability) directly drives enrollment trends. If a program is declining, evaluate whether the contractor is contributing to the issue."});
+  // ── SUNSET REVIEW: what to consider before making the call ───────────────
+  else if (dec === "Sunset Review") {
+    suggestions.push({id:"sunset_review", label:"Set a clear sunset threshold and timeline", detail:"NRPA lifecycle guidance: define the exact conditions the program must meet next season to continue. A documented threshold protects both the program and the staff managing it from ambiguity."});
+    suggestions.push({id:"feedback_loop", label:"Survey participants before closing", detail:"Before sunsetting, ask why. Exit surveys often reveal a fixable issue — wrong time, wrong price, wrong platform — that wasn't visible from the numbers alone."});
+    suggestions.push({id:"partner",    label:"Evaluate a partnership model",      detail:"If the program has community value but can't sustain itself financially, explore co-programming with a school, nonprofit, or neighboring park district before sunsetting."});
+    suggestions.push({id:"waitlist",   label:"Check for suppressed demand",       detail:"Has there ever been a waitlist? Have participants asked about it? Sometimes programs are sunset because of supply-side problems (price, time, location) not demand problems."});
+    suggestions.push({id:"subsidize",  label:"Evaluate intentional subsidization", detail:"CAPRA 8.1: if the program has documented community benefit, a formal subsidy decision may be more appropriate than a sunset. Reclassify with documented rationale."});
+    suggestions.push({id:"audience",   label:"Consider a narrower audience scope", detail:"Sometimes a broad program can survive as a smaller, targeted one. A struggling adult fitness class might thrive as a senior-specific or youth-specific format."});
   }
 
-  // Deduplicate and cap at 7 most relevant
+  // Deduplicate and cap at 6
   const seen = new Set();
   const unique = [];
   for (const s of suggestions) {
     if (!seen.has(s.id)) { seen.add(s.id); unique.push(s); }
-    if (unique.length >= 7) break;
+    if (unique.length >= 6) break;
   }
   return unique;
 }
-
 
 // ─── Capacity Calculator Component ───────────────────────────────────────────
 function CapacityCalculator() {
