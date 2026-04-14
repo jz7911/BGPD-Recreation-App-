@@ -58,7 +58,7 @@ const PROGRAM_TYPES = [
 const ADMIN_OVERHEAD_RATE  = 0.1;
 const FT_ANNUAL_SALARY     = 97700;
 const FACILITY_COST_PER_HR = 3;
-const MANAGER_NAMES        = ["admin","manager","joe zimmermann","erika strojinc","dan stanczak","brian o'malley","chris eckert","chuck burgess","diana clayson","amanda busch","laurie hoffman"];
+const MANAGER_NAMES        = ["admin","manager","joe zimmermann","erika strojinc","dan stanczak","brian o'malley","chris eckert","chuck burgess","diana clayson","amanda busch"];
 
 
 // Service category cost recovery targets
@@ -3181,12 +3181,10 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="font-bold text-slate-800">{showArchived ? "Archived Programs" : "Active Programs"} ({vis.length})</h2>
         <div className="flex gap-2">
-          {isManager&&(
-            <button onClick={onBulkDup}
+          <button onClick={onBulkDup}
               className="text-xs font-semibold px-3 py-2 rounded border border-slate-200 text-slate-700 hover:bg-gray-200 transition">
               Bulk Season Rollover
             </button>
-          )}
           <button onClick={()=>setShowArchived(s=>!s)}
             className={`text-xs font-semibold px-3 py-2 rounded border transition ${showArchived?"text-white border-transparent":"border-slate-200 text-slate-700 hover:bg-gray-200"}`}
             style={showArchived?{backgroundColor:"#64748b"}:{}}>
@@ -4999,6 +4997,7 @@ function Reference({isManager,db,programs,staffName}) {
           {id:"review",label:"📋 Program Review"},
           {id:"capacity",label:"🧮 Capacity Calculator"},
           {id:"redesign",label:"🔄 Redesign Ideas"},
+          {id:"allocation",label:"💰 Allocation Calculator"},
           ...(isManager?[{id:"clubhouse",label:"🏫 Clubhouse Allocation"}]:[]),
         ].map(s=>(
           <button key={s.id} onClick={()=>setSec(s.id)}
@@ -5063,6 +5062,7 @@ function Reference({isManager,db,programs,staffName}) {
                 {tab:"🧮 Capacity Calculator", sec:"capacity",  desc:"Enter your room size or staff count to get an NRPA/ACSM-backed capacity estimate for any program type."},
                 {tab:"🔄 Redesign Ideas",      sec:"redesign",  desc:"26 research-backed strategies when a program needs a change — with full context and NRPA/IPRA citations."},
                 {tab:"📋 Program Review",      sec:"review",    desc:"The formal review process for Continue, Redesign, or Sunset decisions. Required before any major program change."},
+                {tab:"💰 Allocation Calculator",sec:"allocation",desc:"Split a shared cost across multiple programs proportionally by enrollment, equal split, or custom weights."},
                 {tab:"District Standards",     sec:"standards", desc:"Workload percentages, cost recovery targets, service level targets, and district KPI definitions."},
                 {tab:"Program Types & Guide",  sec:"kpis",      desc:"What each program type means, its default workload %, and how the cost formula applies to it."},
               ].map(r=>(
@@ -5663,7 +5663,17 @@ function Reference({isManager,db,programs,staffName}) {
         </div>
       )}
 
-            {sec==="clubhouse"&&isManager&&(
+            {sec==="allocation"&&(
+        <div className="p-5 space-y-5">
+          <AllocationCalculator
+            programs={programs}
+            staffName={staffName}
+            isManager={isManager}
+            db={db}/>
+        </div>
+      )}
+
+      {sec==="clubhouse"&&isManager&&(
         <ClubhouseAllocationTool db={db} programs={programs} staffName={staffName}/>
       )}
 
@@ -6761,6 +6771,281 @@ function CapacityCalculator() {
   );
 }
 
+
+// ─── Program Allocation Calculator ───────────────────────────────────────────
+// Splits a shared cost across multiple programs proportionally
+function AllocationCalculator({programs, staffName, isManager, db}) {
+  const [season, setSeason]   = useState("all");
+  const [year,   setYear]     = useState("all");
+  const [which,  setWhich]    = useState("budgeted");
+  const [costLabel, setCostLabel] = useState("");
+  const [totalCost, setTotalCost] = useState("");
+  const [mode, setMode]       = useState("enrollment"); // enrollment | manual | equal
+  const [selected, setSelected] = useState({}); // id → true/false
+  const [weights, setWeights] = useState({});    // id → manual weight string
+  const [result, setResult]   = useState(null);
+  const [applying, setApplying] = useState(false);
+  const [applyStatus, setApplyStatus] = useState({});
+  const [err, setErr]         = useState("");
+
+  // Programs visible to this user
+  const myPrograms = isManager
+    ? programs
+    : programs.filter(p => p.staff_name === staffName);
+
+  // Filter by season/year
+  const filtered = myPrograms.filter(p => {
+    if(season !== "all" && p.season !== season) return false;
+    if(year   !== "all" && p.year   !== year)   return false;
+    return true;
+  });
+
+  const allSeasons = [...new Set(myPrograms.map(p=>p.season).filter(Boolean))].sort();
+  const allYears   = [...new Set(myPrograms.map(p=>p.year).filter(Boolean))].sort().reverse();
+
+  const px = which === "budgeted" ? "ant_" : "act_";
+
+  const toggleProg = id => setSelected(s => ({...s, [id]: !s[id]}));
+  const selAll = () => setSelected(Object.fromEntries(filtered.map(p=>[p.id,true])));
+  const selNone = () => setSelected({});
+
+  const selectedProgs = filtered.filter(p => selected[p.id]);
+
+  function calculate() {
+    setErr("");
+    if(!totalCost || parseFloat(totalCost) <= 0) { setErr("Enter a total cost to allocate."); return; }
+    if(selectedProgs.length < 2) { setErr("Select at least 2 programs to split between."); return; }
+
+    const total = parseFloat(totalCost);
+    let rows = [];
+
+    if(mode === "enrollment") {
+      const enrollments = selectedProgs.map(p => parseFloat(p[px+"enrollment"]) || 0);
+      const totalEnroll = enrollments.reduce((a,b)=>a+b,0);
+      if(totalEnroll === 0) { setErr("None of the selected programs have enrollment entered. Try manual weights or equal split."); return; }
+      rows = selectedProgs.map((p,i) => ({
+        id: p.id, name: p.name, area: p.area,
+        basis: enrollments[i],
+        pct: totalEnroll > 0 ? enrollments[i] / totalEnroll : 0,
+        amount: totalEnroll > 0 ? (enrollments[i] / totalEnroll) * total : 0,
+      }));
+    } else if(mode === "equal") {
+      rows = selectedProgs.map(p => ({
+        id: p.id, name: p.name, area: p.area,
+        basis: 1,
+        pct: 1 / selectedProgs.length,
+        amount: total / selectedProgs.length,
+      }));
+    } else {
+      // manual weights
+      const wts = selectedProgs.map(p => parseFloat(weights[p.id]) || 0);
+      const totalWt = wts.reduce((a,b)=>a+b,0);
+      if(totalWt === 0) { setErr("Enter at least one weight value."); return; }
+      rows = selectedProgs.map((p,i) => ({
+        id: p.id, name: p.name, area: p.area,
+        basis: wts[i],
+        pct: wts[i] / totalWt,
+        amount: (wts[i] / totalWt) * total,
+      }));
+    }
+
+    // Round to cents, fix rounding error on last row
+    let allocated = 0;
+    rows = rows.map((r,i) => {
+      const amt = i < rows.length-1 ? Math.round(r.amount*100)/100 : Math.round((total-allocated)*100)/100;
+      allocated += amt;
+      return {...r, amount: amt};
+    });
+
+    setResult({ rows, total, label: costLabel||"Shared Cost", mode });
+  }
+
+  async function applyAlloc() {
+    if(!result) return;
+    setApplying(true); setErr("");
+    const field = which==="budgeted" ? "ant_other1" : "act_other1";
+    const status = {};
+    for(const row of result.rows) {
+      try {
+        const prog = programs.find(p=>p.id===row.id);
+        const existing = parseFloat(prog?.[field])||0;
+        const newVal = Math.round((existing + row.amount)*100)/100;
+        const {error:e} = await db.from("programs").update({[field]:newVal}).eq("id",row.id);
+        status[row.id] = e ? "error" : "ok";
+        if(e) setErr(prev=>prev+(prev?"\n":"")+row.name+": "+e.message);
+      } catch(ex) {
+        status[row.id] = "error";
+      }
+    }
+    setApplyStatus(status);
+    setApplying(false);
+  }
+
+  const appliedCount = Object.values(applyStatus).filter(v=>v==="ok").length;
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded p-4" style={{background:"rgba(0,169,206,0.05)",border:"1px solid rgba(0,169,206,0.2)"}}>
+        <div className="text-xs font-bold uppercase mb-1" style={{letterSpacing:"0.10em",color:"#00A9CE"}}>What this does</div>
+        <p className="text-xs text-slate-600 leading-relaxed">Split a shared cost — facility rental, shared instructor, shared supplies — across multiple programs proportionally by enrollment, equal split, or custom weights. Results can be applied directly to the Other Cost field on each program.</p>
+      </div>
+
+      {/* ── Step 1: Filter + Period ── */}
+      <div className="rounded" style={{border:"1px solid rgba(92,70,43,0.15)"}}>
+        <div className="px-4 py-2.5 text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B",background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>Step 1 — Select Programs & Period</div>
+        <div className="p-4 space-y-3">
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Season</label>
+              <select value={season} onChange={e=>setSeason(e.target.value)} className="w-full text-sm rounded border border-slate-200 px-3 py-2 bg-white">
+                <option value="all">All Seasons</option>
+                {allSeasons.map(s=><option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Fiscal Year</label>
+              <select value={year} onChange={e=>setYear(e.target.value)} className="w-full text-sm rounded border border-slate-200 px-3 py-2 bg-white">
+                <option value="all">All Years</option>
+                {allYears.map(y=><option key={y}>{y}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Budget Type</label>
+              <select value={which} onChange={e=>setWhich(e.target.value)} className="w-full text-sm rounded border border-slate-200 px-3 py-2 bg-white">
+                <option value="budgeted">Budgeted</option>
+                <option value="actual">Actuals</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-slate-600">Programs to allocate between</label>
+              <div className="flex gap-2">
+                <button onClick={selAll} className="text-xs text-slate-500 hover:text-slate-700 underline">All</button>
+                <button onClick={selNone} className="text-xs text-slate-500 hover:text-slate-700 underline">None</button>
+              </div>
+            </div>
+            {filtered.length === 0 ? (
+              <div className="text-xs text-slate-400 py-4 text-center">No programs match this filter.</div>
+            ) : (
+              <div className="border border-slate-200 rounded overflow-hidden divide-y divide-slate-100 max-h-52 overflow-y-auto">
+                {filtered.map(p=>{
+                  const enroll = parseFloat(p[px+"enrollment"])||0;
+                  return (
+                    <label key={p.id} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-50">
+                      <input type="checkbox" checked={!!selected[p.id]} onChange={()=>toggleProg(p.id)} className="shrink-0"/>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-slate-700 truncate">{p.name}</div>
+                        <div className="text-xs text-slate-400">{p.area} · {p.season} · Enrollment: {enroll||"—"}</div>
+                      </div>
+                      {mode==="manual" && selected[p.id] && (
+                        <input type="number" value={weights[p.id]||""} onChange={e=>setWeights(w=>({...w,[p.id]:e.target.value}))}
+                          placeholder="weight" onClick={e=>e.preventDefault()}
+                          className="w-20 text-sm rounded border border-slate-200 px-2 py-1"/>
+                      )}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+            <div className="text-xs text-slate-400 mt-1">{selectedProgs.length} selected</div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Step 2: Cost & Method ── */}
+      <div className="rounded" style={{border:"1px solid rgba(92,70,43,0.15)"}}>
+        <div className="px-4 py-2.5 text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B",background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>Step 2 — Enter Cost & Allocation Method</div>
+        <div className="p-4 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Cost Description</label>
+              <input type="text" value={costLabel} onChange={e=>setCostLabel(e.target.value)}
+                placeholder="e.g. Shared facility rental, Shared instructor"
+                className="w-full text-sm rounded border border-slate-200 px-3 py-2"/>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Total Cost to Allocate ($)</label>
+              <input type="number" value={totalCost} onChange={e=>setTotalCost(e.target.value)}
+                placeholder="e.g. 1200"
+                className="w-full text-sm rounded border border-slate-200 px-3 py-2"/>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Split method</label>
+            <div className="flex gap-2">
+              {[["enrollment","By Enrollment"],["equal","Equal Split"],["manual","Manual Weights"]].map(([val,label])=>(
+                <button key={val} onClick={()=>setMode(val)}
+                  className="flex-1 py-1.5 text-xs font-bold rounded border transition"
+                  style={mode===val?{background:"#5C462B",color:"#ffffff",borderColor:"#5C462B"}:{background:"#ffffff",color:"#A09080",borderColor:"rgba(92,70,43,0.2)"}}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="text-xs text-slate-400 mt-1">
+              {mode==="enrollment"?"Splits proportionally to each program's enrollment count — programs with more participants absorb more cost.":
+               mode==="equal"?"Divides the total evenly regardless of enrollment or size.":
+               "Enter a weight for each selected program above — higher weight = larger share of cost."}
+            </div>
+          </div>
+          {err && <div className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded">{err}</div>}
+          <button onClick={calculate} disabled={selectedProgs.length<2||!totalCost}
+            className="px-4 py-2 text-sm font-bold rounded text-white disabled:opacity-40"
+            style={{background:"#00A9CE"}}>
+            Calculate Allocation →
+          </button>
+        </div>
+      </div>
+
+      {/* ── Step 3: Results + Apply ── */}
+      {result&&(
+        <div className="rounded" style={{border:"1px solid rgba(92,70,43,0.15)"}}>
+          <div className="px-4 py-2.5 text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B",background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>Step 3 — Review & Apply</div>
+          <div className="p-4 space-y-3">
+            <div className="text-sm font-bold text-slate-700 mb-2">{result.label} — Total: {dollar(result.total)}</div>
+            <div className="border border-slate-200 rounded overflow-hidden">
+              <div className="grid grid-cols-4 gap-0 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-500 uppercase" style={{letterSpacing:"0.08em"}}>
+                <div className="col-span-2">Program</div>
+                <div className="text-right">Share</div>
+                <div className="text-right">Amount</div>
+              </div>
+              {result.rows.map(row=>(
+                <div key={row.id} className="grid grid-cols-4 gap-0 px-3 py-2.5 border-t border-slate-100 items-center">
+                  <div className="col-span-2">
+                    <div className="text-sm font-semibold text-slate-700">{row.name}</div>
+                    <div className="text-xs text-slate-400">{row.area}</div>
+                  </div>
+                  <div className="text-right text-sm text-slate-500">{Math.round(row.pct*100)}%</div>
+                  <div className="text-right font-bold text-sm" style={{color:applyStatus[row.id]==="ok"?"#84BD00":applyStatus[row.id]==="error"?"#E35205":"#5C462B"}}>
+                    {dollar(row.amount)}
+                    {applyStatus[row.id]==="ok"&&<span className="ml-1 text-xs">✓</span>}
+                    {applyStatus[row.id]==="error"&&<span className="ml-1 text-xs">✗</span>}
+                  </div>
+                </div>
+              ))}
+              <div className="grid grid-cols-4 gap-0 px-3 py-2 bg-slate-50 border-t border-slate-200 font-bold text-sm">
+                <div className="col-span-2 text-slate-600">Total</div>
+                <div></div>
+                <div className="text-right" style={{color:"#5C462B"}}>{dollar(result.total)}</div>
+              </div>
+            </div>
+            <div className="text-xs text-slate-500">Applying will add these amounts to the <strong>Other Cost 1</strong> field on each program's {which} tab. Existing values are preserved (amounts are added, not replaced).</div>
+            {appliedCount > 0 && (
+              <div className="text-xs font-semibold px-3 py-2 rounded" style={{background:"#EEF5E0",color:"#4A6B00"}}>✓ Applied to {appliedCount} of {result.rows.length} programs</div>
+            )}
+            <button onClick={applyAlloc} disabled={applying||appliedCount===result.rows.length}
+              className="px-4 py-2 text-sm font-bold rounded text-white disabled:opacity-40"
+              style={{background:"#84BD00"}}>
+              {applying?"Applying...":appliedCount===result.rows.length?"✓ Applied":"Apply to Programs"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [tab,setTab]                       = useState("dashboard");
   const [programs,setPrograms]             = useState([]);
@@ -6891,7 +7176,7 @@ export default function App() {
         <DupModal program={dupProgram} onConfirm={opts=>handleDuplicate(dupProgram,opts)} onCancel={()=>setDupProgram(null)}/>
       )}
       {showBulkDup&&(
-        <BulkDupModal programs={programs} onConfirm={handleBulkDuplicate} onCancel={()=>setShowBulkDup(false)}/>
+        <BulkDupModal programs={effectiveManager?programs:programs.filter(p=>p.staff_name===staffName)} onConfirm={handleBulkDuplicate} onCancel={()=>setShowBulkDup(false)}/>
       )}
 
       <header style={{backgroundColor:"#ffffff",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>
