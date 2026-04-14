@@ -6328,6 +6328,20 @@ function CapacityCalculator() {
   const [courts, setCourts]     = useState("");
   const [campers, setCampers]   = useState("");
   const [result, setResult]     = useState(null);
+  const [instMethod, setInstMethod] = useState("sqft"); // "sqft" or "ratio"
+  const [numInst, setNumInst]   = useState("");
+
+  const INST_RATIOS = {
+    contractual: {low:8,  high:20, note:"Contractual classes vary by activity. Martial arts/dance: 1:8–12. Enrichment: 1:10–15. Large lecture formats: 1:20+."},
+    dropin:      {low:25, high:30, note:"Drop-in/open gym: 1 staff per 25–30 for safety monitoring. Self-directed programs may not require active instruction."},
+    class:       {low:8,  high:15, note:"Instructional classes: 1:8 for hands-on skills (arts, martial arts), 1:15 for demonstration formats (NRPA Programming Standards)."},
+    event:       {low:50, high:100,note:"Community events: 1 staff per 50–100 attendees for general crowd management. Add first aid and registration staff separately."},
+    event_large: {low:75, high:150,note:"Large events: 1 general staff per 75–150 attendees. Supplement with volunteers. Security staffing is venue/permit dependent."},
+    league:      {low:0,  high:0,  note:"Leagues use team rosters, not instructor ratios. Standard: 1 official per game, 1 site supervisor per venue."},
+    camp:        {low:6,  high:10, note:"ACA ratios: ages 6–8 = 1:6, ages 9–14 = 1:8, ages 15+ = 1:10. Illinois DCFS may require stricter ratios."},
+    fitness:     {low:10, high:15, note:"Group exercise: 1 instructor per 10–15 participants (ACSM). Lower end for HIIT/step, higher end for yoga/stretch."},
+    production:  {low:8,  high:15, note:"Performing arts: 1 director per 8–15 performers in rehearsal. Add stage managers and tech staff separately."},
+  };
 
   const CALC_TYPES = [
     {label:"Small Contractual / Contractual Class", key:"contractual"},
@@ -6491,7 +6505,23 @@ function CapacityCalculator() {
 
       {selected&&(
         <div className="space-y-3">
-          {(needsSqft||needsCourts)&&(
+
+          {/* Method toggle — sqft vs instructor ratio */}
+          {selected.key!=="camp"&&selected.key!=="league"&&(
+            <div className="flex gap-2">
+              {[["sqft","By Space (sq ft)"],["ratio","By Instructor Ratio"]].map(([val,label])=>(
+                <button key={val} onClick={()=>{setInstMethod(val);setResult(null);}}
+                  className="flex-1 py-1.5 text-xs font-bold rounded border transition"
+                  style={instMethod===val
+                    ?{background:"#00A9CE",color:"#ffffff",borderColor:"#00A9CE"}
+                    :{background:"#ffffff",color:"#A09080",borderColor:"rgba(92,70,43,0.15)"}}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {(needsSqft||needsCourts)&&instMethod==="sqft"&&(
             <div className="grid grid-cols-2 gap-3">
               {needsSqft&&(
                 <div>
@@ -6511,6 +6541,48 @@ function CapacityCalculator() {
               )}
             </div>
           )}
+          {/* Instructor ratio inputs */}
+          {instMethod==="ratio"&&selected.key!=="camp"&&selected.key!=="league"&&(
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Number of Instructors / Staff</label>
+                  <input type="number" value={numInst} onChange={e=>setNumInst(e.target.value)}
+                    placeholder="e.g. 2"
+                    className="w-full text-sm rounded border border-slate-200 px-3 py-2"/>
+                </div>
+                <div className="flex flex-col justify-end pb-0.5">
+                  {INST_RATIOS[selected.key]&&(
+                    <div className="text-xs text-slate-500 leading-relaxed">
+                      <span className="font-semibold text-slate-700">Standard ratio: </span>
+                      {INST_RATIOS[selected.key].low===INST_RATIOS[selected.key].high||INST_RATIOS[selected.key].high===0
+                        ? `1:${INST_RATIOS[selected.key].low}`
+                        : `1:${INST_RATIOS[selected.key].low} – 1:${INST_RATIOS[selected.key].high}`}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <button onClick={()=>{
+                const n=parseInt(numInst)||0;
+                if(!n){setResult({error:"Enter the number of instructors or staff."});return;}
+                const ratio=INST_RATIOS[selected.key];
+                if(!ratio||ratio.low===0){setResult({error:"Instructor ratio not applicable for this program type."});return;}
+                setResult({
+                  label:selected.label+" — By Instructor Ratio",
+                  ratioLow:  ratio.high>0?n*ratio.low:null,
+                  ratioHigh: ratio.high>0?n*ratio.high:null,
+                  ratioSingle: ratio.high===0?n*ratio.low:null,
+                  note: ratio.note,
+                  source:"NRPA Programming Standards; ACSM Facility Guidelines; ACA Accreditation Standards"
+                });
+              }}
+                className="px-4 py-2 text-sm font-bold rounded text-white"
+                style={{background:"#00A9CE"}}>
+                Calculate by Ratio →
+              </button>
+            </div>
+          )}
+
           {needsCamp&&(
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -6592,6 +6664,25 @@ function CapacityCalculator() {
                         <div className="text-xs text-slate-500 mt-0.5 leading-tight">{label}</div>
                       </div>
                     ))}
+                  </div>
+                )}
+                {/* Ratio result */}
+                {result.ratioLow!=null&&(
+                  <div className="grid grid-cols-2 gap-3 text-center">
+                    {[["Conservative (1:"+Math.round(result.ratioLow/parseInt(numInst||1))+")",result.ratioLow,"#F6AB00"],
+                      ["Maximum (1:"+Math.round(result.ratioHigh/parseInt(numInst||1))+")",result.ratioHigh,"#84BD00"]
+                    ].map(([label,val,color])=>(
+                      <div key={label} className="rounded p-3" style={{background:"rgba(0,0,0,0.03)",border:"1px solid rgba(0,0,0,0.06)"}}>
+                        <div className="text-2xl font-bold" style={{color}}>{val}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {result.ratioSingle!=null&&(
+                  <div className="text-center">
+                    <div className="text-4xl font-bold" style={{color:"#00A9CE"}}>{result.ratioSingle}</div>
+                    <div className="text-sm text-slate-500 mt-1">participants (1:{Math.round(result.ratioSingle/parseInt(numInst||1))} ratio)</div>
                   </div>
                 )}
                 {/* Single value */}
