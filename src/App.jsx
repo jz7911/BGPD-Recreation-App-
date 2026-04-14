@@ -2735,69 +2735,6 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
             {!svcTarget.onTarget&&<span className="ml-2 font-bold font-medium">Not yet on target.</span>}
           </div>
         </div>
-
-      {/* ── Capital Improvement Fund Panel ── */}
-      {totalPL !== 0 && (
-        <div className="bg-white p-5" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.09)"}}>
-          <div className="flex items-start justify-between flex-wrap gap-3 mb-4">
-            <div>
-              <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.12em",color:"#5C462B"}}>Capital Improvement Contribution</div>
-              <div className="text-xs mt-0.5" style={{color:"#A09080"}}>NRPA best practice: allocate a % of net program surplus toward capital reserve</div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500">Allocation rate:</span>
-              {[3,5,10,15].map(pct=>(
-                <button key={pct} onClick={()=>setCapitalPct(pct)}
-                  className="text-xs font-bold px-2 py-1 rounded border transition"
-                  style={capitalPct===pct?{background:"#5C462B",color:"#ffffff",borderColor:"#5C462B"}:{background:"#ffffff",color:"#A09080",borderColor:"rgba(92,70,43,0.2)"}}>
-                  {pct}%
-                </button>
-              ))}
-              <div className="flex items-center gap-1">
-                <input type="number" value={capitalPct} onChange={e=>setCapitalPct(Math.max(0,Math.min(100,parseFloat(e.target.value)||0)))}
-                  className="w-14 text-xs text-center rounded border border-slate-200 px-2 py-1"/>
-                <span className="text-xs text-slate-400">%</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mb-4">
-            {[
-              {label:"Portfolio Net P/(L)",  value:dollar(totalPL),      color:totalPL>=0?"#84BD00":"#E35205"},
-              {label:"Surplus Programs",     value:kpis.filter(p=>p.profitLoss>0).length+" programs",  color:"#84BD00"},
-              {label:"Subsidy Programs",     value:kpis.filter(p=>p.profitLoss<0).length+" programs",  color:"#E35205"},
-              {label:"Suggested Allocation", value:totalPL>0?dollar(Math.round(totalPL*(capitalPct/100))):"—", color:"#00A9CE"},
-            ].map(({label,value,color})=>(
-              <div key={label} className="p-3 rounded" style={{background:"rgba(0,0,0,0.025)",border:"1px solid rgba(0,0,0,0.06)"}}>
-                <div className="text-xs uppercase font-bold mb-1" style={{letterSpacing:"0.08em",color:"#A09080"}}>{label}</div>
-                <div className="text-xl font-bold" style={{color}}>{value}</div>
-              </div>
-            ))}
-          </div>
-
-          {totalPL > 0 ? (
-            <div className="space-y-2">
-              <div className="text-xs font-semibold text-slate-600 mb-1">Top surplus contributors</div>
-              {[...kpis].filter(p=>p.profitLoss>0).sort((a,b)=>b.profitLoss-a.profitLoss).slice(0,5).map(p=>(
-                <div key={p.id} className="flex items-center gap-3">
-                  <div className="flex-1 text-xs text-slate-600 truncate">{p.name}</div>
-                  <div className="w-32 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                    <div className="h-full rounded-full" style={{width:Math.min(100,p.profitLoss/Math.max(...kpis.map(k=>k.profitLoss))*100)+"%",background:"#84BD00"}}/>
-                  </div>
-                  <div className="text-xs font-mono font-semibold w-20 text-right" style={{color:"#84BD00"}}>{dollar(Math.round(p.profitLoss))}</div>
-                  <div className="text-xs font-mono text-slate-400 w-16 text-right">→ {dollar(Math.round(p.profitLoss*(capitalPct/100)))}</div>
-                </div>
-              ))}
-              <div className="mt-3 px-3 py-2 rounded text-xs leading-relaxed" style={{background:"rgba(0,169,206,0.06)",border:"1px solid rgba(0,169,206,0.15)",color:"#5C462B"}}>
-                <span className="font-bold">NRPA recommendation:</span> A {capitalPct}% capital allocation rate on your current portfolio surplus would generate <span className="font-bold" style={{color:"#00A9CE"}}>{dollar(Math.round(Math.max(0,totalPL)*(capitalPct/100)))}</span> toward capital reserve this cycle. NRPA's Fiscal Health model recommends 3–10% of program net revenue as an annual capital contribution target, building toward a reserve equal to 15–25% of annual operating budget.
-              </div>
-            </div>
-          ) : (
-            <div className="text-xs text-slate-400 italic">Portfolio is currently running at a net subsidy of {dollar(Math.abs(Math.round(totalPL)))}. Capital contribution targets apply when portfolio achieves net surplus. Focus on cost recovery improvements in revenue-driven programs first.</div>
-          )}
-        </div>
-      )}
-
       )}
 
       <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
