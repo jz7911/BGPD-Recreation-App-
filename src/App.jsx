@@ -3127,20 +3127,20 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
             <button onClick={handleBack} className="px-4 py-2 text-sm text-slate-700 border border-slate-200 rounded">Cancel</button>
             <div className="flex gap-2">
               {tabs.map(t=>t.id).indexOf(sec) < tabs.length-1 && (
-                  <button onClick={async()=>{
-                      if(!p.name||saving) return;
+                  <button onClick={()=>{
+                      if(!p.name) return;
                       const tabIds = tabs.map(t=>t.id);
                       const next = tabIds[tabIds.indexOf(sec)+1];
                       if(!next) return;
                       saveLastUsed(staffName,{area:p.area,season:p.season,year:p.year,classification:p.classification,service_category:p.service_category,program_type:p.ant_program_type});
                       setDirty(false);
-                      if(onSaveAndStay) await onSaveAndStay(p);
                       setSec(next);
+                      if(onSaveAndStay) onSaveAndStay(p);
                     }}
-                    disabled={!p.name||saving}
+                    disabled={!p.name}
                     className="px-4 py-2 text-sm font-semibold border rounded disabled:opacity-40"
                     style={{color:"#00A9CE",borderColor:"#00A9CE",background:"#ffffff"}}>
-                    {saving?"Saving...":"Save & Next →"}
+                    Save & Next →
                   </button>
               )}
               <button onClick={handleSave} disabled={!p.name||saving}
@@ -6806,18 +6806,23 @@ export default function App() {
   };
 
   const handleSaveProgramAndStay = async p => {
-    // Saves to DB but does NOT navigate away — used by Save & Next
+    // Saves to DB but does NOT navigate away and does NOT call fetchAll (avoids loading flash)
     setSaving(true); setError(null);
     try {
       const data = cleanForDB(p);
-      if(data.id){ const{error:e}=await supabase.from("programs").update(data).eq("id",data.id); if(e) throw e; }
-      else {
+      if(data.id){
+        const{error:e}=await supabase.from("programs").update(data).eq("id",data.id);
+        if(e) throw e;
+        // Update local programs array in place — no fetchAll needed
+        setPrograms(prev=>prev.map(x=>x.id===data.id?{...x,...data}:x));
+      } else {
         const{data:inserted,error:e}=await supabase.from("programs").insert(data).select().single();
         if(e) throw e;
-        // For new programs: update local state with the returned id so subsequent saves update not insert
-        if(inserted) setEditingProgram(inserted);
+        if(inserted){
+          setPrograms(prev=>[inserted,...prev]);
+          setEditingProgram(inserted);
+        }
       }
-      await fetchAll();
     } catch(e){ setError("Failed to save: "+(e.message||"unknown error")); }
     setSaving(false);
   };
