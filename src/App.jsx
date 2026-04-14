@@ -4897,7 +4897,7 @@ function ProgramGuideSection({isManager,db}){
 
 
 function Reference({isManager,db,programs,staffName}) {
-  const [sec,setSec] = useState("standards");
+  const [sec,setSec] = useState("start");
   const workload = [
     {activity:"Program planning & management", pct:"50-60%"},
     {activity:"Meetings / admin",              pct:"15-20%"},
@@ -4955,6 +4955,7 @@ function Reference({isManager,db,programs,staffName}) {
     <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
       <div className="flex border-b border-slate-100 overflow-x-auto">
         {[
+          {id:"start",label:"🚀 Getting Started"},
           {id:"standards",label:"District Standards"},
           {id:"kpis",label:"Program Types & Guide"},
           {id:"philosophy",label:"🏛 Philosophy"},
@@ -4970,6 +4971,95 @@ function Reference({isManager,db,programs,staffName}) {
             style={sec===s.id?{borderColor:"#00A9CE",color:"#00A9CE"}:{color:"#6B5744"}}>{s.label}</button>
         ))}
       </div>
+      {sec==="start"&&(
+        <div className="p-5 space-y-6">
+          {/* Header */}
+          <div className="rounded p-6 text-white" style={{background:"#5C462B"}}>
+            <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{color:"rgba(255,255,255,0.7)"}}>Welcome to the</div>
+            <div className="text-2xl font-black mb-2">BGPD Recreation Program Dashboard</div>
+            <div className="text-sm mb-4" style={{color:"rgba(255,255,255,0.8)"}}>Everything you need to get started. The full training guide, Q&A, and reference materials are in the other tabs.</div>
+          </div>
+
+          {/* 4 steps */}
+          <div>
+            <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{color:"#5C462B",letterSpacing:"0.12em"}}>The 4 Things You Need to Do</div>
+            <div className="space-y-3">
+              {[
+                {n:"1",title:"Log in",desc:"You're already in. Your name was your login. If your programs don't appear, check the staff filter on the Programs tab or reach out to your supervisor.",color:"#00A9CE"},
+                {n:"2",title:"Find your programs",desc:"Go to the Programs tab. Use the staff filter to show only yours. If a program is missing, let your supervisor know so it can be added.",color:"#00A9CE"},
+                {n:"3",title:"Fill in budgeted data at the start of each season",desc:"Open a program → Budgeted tab. Enter: Program Type, Capacity, Budgeted Enrollment, Budgeted Revenue, and any known direct costs. Takes about 5 minutes.",color:"#5C462B"},
+                {n:"4",title:"Enter actuals within 2 weeks of season end",desc:"Open the program → Actuals tab. Update: Actual Enrollment, Actual Revenue, and actual costs. That's it — the dashboard updates automatically.",color:"#5C462B"},
+              ].map(s=>(
+                <div key={s.n} className="flex gap-4 p-4 rounded" style={{background:"#ffffff",border:"1px solid rgba(92,70,43,0.12)"}}>
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-black shrink-0" style={{background:s.color}}>{s.n}</div>
+                  <div>
+                    <div className="font-bold text-slate-700 text-sm">{s.title}</div>
+                    <div className="text-xs text-slate-500 mt-0.5 leading-relaxed">{s.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* What the numbers mean */}
+          <div>
+            <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{color:"#5C462B",letterSpacing:"0.12em"}}>What the Numbers Mean</div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {[
+                {label:"Fill Rate",formula:"Enrollment ÷ Capacity",target:"70%+ = Healthy",color:"#00A9CE",desc:"How full the program was. Target is 70% or above."},
+                {label:"Cost Recovery",formula:"Revenue ÷ Total Cost",target:"Depends on classification",color:"#5C462B",desc:"How much of the program's true cost is covered by revenue. Revenue programs should be at or above 100%."},
+                {label:"Status",formula:"Healthy / Monitor / Needs Redesign",target:"Calculated automatically",color:"#84BD00",desc:"Based on fill rate and cost recovery. Healthy = meeting targets. Monitor = watch it. Needs Redesign = action required."},
+              ].map(m=>(
+                <div key={m.label} className="p-4 rounded" style={{background:"#ffffff",border:"1px solid rgba(92,70,43,0.12)"}}>
+                  <div className="font-bold text-sm mb-1" style={{color:m.color}}>{m.label}</div>
+                  <div className="text-xs font-mono bg-slate-50 rounded px-2 py-1 mb-2">{m.formula}</div>
+                  <div className="text-xs text-slate-500 leading-relaxed">{m.desc}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Resources */}
+          <div>
+            <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{color:"#5C462B",letterSpacing:"0.12em"}}>Everything Else Is in the Other Tabs</div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {[
+                {tab:"📋 Training Guide",desc:"Full walkthrough of every field, every tab, and what everything means. Start here if you have a question."},
+                {tab:"🧮 Capacity Calculator",desc:"Enter your room size or staff count to get an NRPA/ACSM-backed capacity estimate for any program type."},
+                {tab:"🔄 Redesign Ideas",desc:"26 research-backed strategies when a program needs a change — with full context and NRPA/IPRA citations."},
+                {tab:"📋 Program Review",desc:"The formal review process for Continue, Redesign, or Sunset decisions. Required before any major program change."},
+                {tab:"District Standards",desc:"Workload percentages, cost recovery targets, service level targets, and district KPI definitions."},
+                {tab:"Program Types & Guide",desc:"What each program type means, its default workload %, and how the cost formula applies to it."},
+              ].map(r=>(
+                <div key={r.tab} className="flex gap-3 p-3 rounded" style={{background:"#F8F7F4",border:"1px solid rgba(92,70,43,0.10)"}}>
+                  <div className="shrink-0 text-sm font-bold" style={{color:"#00A9CE",minWidth:"140px"}}>{r.tab}</div>
+                  <div className="text-xs text-slate-500 leading-relaxed">{r.desc}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Common questions teaser */}
+          <div className="rounded p-4" style={{background:"rgba(0,169,206,0.06)",border:"1px solid rgba(0,169,206,0.15)"}}>
+            <div className="text-xs font-bold uppercase tracking-widest mb-2" style={{color:"#00A9CE",letterSpacing:"0.10em"}}>Common First Questions</div>
+            <div className="space-y-2">
+              {[
+                {q:"What if my program isn't here?",a:"Let your supervisor know. Programs need to be added to the system."},
+                {q:"Do I need to enter every program every season?",a:"Yes, but the Copy button on each program card lets you duplicate last season's record so you only need to update the numbers."},
+                {q:"What if I run a year-round program?",a:"Select "All Year" as the season and enter it once per year — budgeted at the start, actuals at year-end."},
+                {q:"Can I enter 0 on the waitlist?",a:"Yes — 0 means you confirmed there is no waitlist. Leaving it blank means you didn't check. They mean different things."},
+                {q:"My numbers look bad. What happens?",a:"Nothing automatic. Data surfaces a conversation — it doesn't make decisions. If a program shows Needs Redesign, that starts a review, not a cut."},
+              ].map(r=>(
+                <div key={r.q} className="text-xs">
+                  <span className="font-semibold text-slate-700">Q: {r.q} </span>
+                  <span className="text-slate-500">{r.a}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {sec==="standards"&&(
         <div className="p-5 space-y-8">
           <p className="text-sm text-slate-700">District standard assumption numbers to use consistently across all program cost worksheets.</p>
@@ -5491,7 +5581,7 @@ function Reference({isManager,db,programs,staffName}) {
         <div className="p-5 space-y-4">
           <div>
             <p className="text-sm text-slate-700 mb-1">When a program is flagged for redesign, these strategies are drawn from NRPA, IPRA, ACA, and CAPRA best practices. In the Program Review, you can quickly select which apply — this page gives you the full context behind each one.</p>
-            <p className="text-xs text-slate-500">{Object.keys({timing:1,capacity:1}).length && "Tip: In the Program Review, when you select "Redesign" as the decision, a short list of the most relevant ideas will appear as checkboxes based on your program's type and specific issues."}</p>
+              <p className="text-xs text-slate-500">Tip: In the Program Review, when you select Redesign as the decision, a short list of the most relevant ideas will appear as checkboxes based on your program&#39;s type and specific issues.</p>
           </div>
           <div className="space-y-3">
             {[
