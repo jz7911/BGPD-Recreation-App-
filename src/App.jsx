@@ -4986,8 +4986,8 @@ function Reference({isManager,db,programs,staffName}) {
             <div className="space-y-3">
               {[
                 {n:"1",title:"Log in",desc:"You're already in. Your name was your login. If your programs don't appear, check the staff filter on the Programs tab or reach out to your supervisor.",color:"#00A9CE"},
-                {n:"2",title:"Find your programs",desc:"Go to the Programs tab. Use the staff filter to show only yours. If a program is missing, let your supervisor know so it can be added.",color:"#00A9CE"},
-                {n:"3",title:"Fill in budgeted data at the start of each season",desc:"Open a program → Budgeted tab. Enter: Program Type, Capacity, Budgeted Enrollment, Budgeted Revenue, and any known direct costs. Takes about 5 minutes.",color:"#5C462B"},
+                {n:"2",title:"Enter your programs",desc:"Click the Programs tab, then + Add Program at the top right. Enter program name, area, season, year, and program type. Do this for each program — the goal is the last two years entered by May 1. Use the Copy button to duplicate a previous season and save time.",color:"#00A9CE"},
+                {n:"3",title:"Fill in budgeted data at the start of each season",desc:"Once a program is created, open it → Budgeted tab. Enter: Program Type, Capacity, Budgeted Enrollment, Budgeted Revenue, and any direct costs from Incode. Takes about 5 minutes.",color:"#5C462B"},
                 {n:"4",title:"Enter actuals within 2 weeks of season end",desc:"Open the program → Actuals tab. Update: Actual Enrollment, Actual Revenue, and actual costs. That's it — the dashboard updates automatically.",color:"#5C462B"},
               ].map(s=>(
                 <div key={s.n} className="flex gap-4 p-4 rounded" style={{background:"#ffffff",border:"1px solid rgba(92,70,43,0.12)"}}>
@@ -5044,9 +5044,9 @@ function Reference({isManager,db,programs,staffName}) {
             <div className="text-xs font-bold uppercase tracking-widest mb-2" style={{color:"#00A9CE",letterSpacing:"0.10em"}}>Common First Questions</div>
             <div className="space-y-2">
               {[
-                {q:"What if my program isn't here?",a:"Let your supervisor know. Programs need to be added to the system."},
+                {q:"How do I add a program?",a:"Click the + Add Program button at the top right. Fill in the program name, area, season, year, and program type. You can duplicate a program from a previous season using the Copy button to save time."},
                 {q:"Do I need to enter every program every season?",a:"Yes, but the Copy button on each program card lets you duplicate last season's record so you only need to update the numbers."},
-                {q:"What if I run a year-round program?",a:'Select "All Year" as the season and enter it once per year — budgeted at the start, actuals at year-end.'},
+                  {q:"What if I run a year-round program — do I enter it every season?",a:"No. Select All Year as the season and enter it once per year. Do your budgeted entry at the start of the year and your actuals entry at year-end."},
                 {q:"Can I enter 0 on the waitlist?",a:"Yes — 0 means you confirmed there is no waitlist. Leaving it blank means you didn't check. They mean different things."},
                 {q:"My numbers look bad. What happens?",a:"Nothing automatic. Data surfaces a conversation — it doesn't make decisions. If a program shows Needs Redesign, that starts a review, not a cut."},
               ].map(r=>(
