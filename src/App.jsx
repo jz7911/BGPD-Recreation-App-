@@ -736,7 +736,8 @@ function PBar({label,actual,budget,ff,inv}) {
 function Inp({label,type="text",value,onChange,options,min,max,hint,placeholder,required}) {
   const cls = "w-full px-3 py-2 text-sm focus:outline-none transition bg-white";
   const style = {border:"1px solid rgba(92,70,43,0.15)",borderRadius:"2px"};
-  const focusStyle = "focus:border-blue-400";
+  // For number inputs: track a local display string so backspace/delete work freely
+  const [localVal, setLocalVal] = useState(null);
   return (
     <div className="flex flex-col gap-1">
       <label className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#6B5744"}}>
@@ -746,16 +747,24 @@ function Inp({label,type="text",value,onChange,options,min,max,hint,placeholder,
         ? <select className={cls} style={style} value={value||""} onChange={e=>onChange(e.target.value)}>
             {options.map(o=><option key={o} value={o}>{o}</option>)}
           </select>
-        : <input className={cls} style={style} type={type}
-            value={type==="number"?(value===0||value==="0"?"0":value||""):value||""}
-            min={min} max={max}
-            placeholder={placeholder||""}
-            inputMode={type==="number"?"decimal":undefined}
-            onChange={e=>{
-              const v=e.target.value;
-              if(type==="number") onChange(v===""?0:parseFloat(v)||0);
-              else onChange(v);
-            }}/>
+        : type==="number"
+          ? <input className={cls} style={style} type="number"
+              value={localVal!==null ? localVal : (value===0||value==="0" ? "0" : value||"")}
+              min={min} max={max}
+              placeholder={placeholder||""}
+              inputMode="decimal"
+              style={{...style, MozAppearance:"textfield"}}
+              onChange={e=>{
+                const raw=e.target.value;
+                setLocalVal(raw);
+                if(raw==="") onChange(0);
+                else { const n=parseFloat(raw); if(!isNaN(n)) onChange(n); }
+              }}
+              onBlur={()=>setLocalVal(null)}/>
+          : <input className={cls} style={style} type={type}
+              value={value||""}
+              placeholder={placeholder||""}
+              onChange={e=>onChange(e.target.value)}/>
       }
       {hint&&<span className="text-xs" style={{color:"#6B5744",fontWeight:"300"}}>{hint}</span>}
     </div>
