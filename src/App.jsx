@@ -3126,25 +3126,23 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
           <div className="flex gap-3">
             <button onClick={handleBack} className="px-4 py-2 text-sm text-slate-700 border border-slate-200 rounded">Cancel</button>
             <div className="flex gap-2">
-              {(()=>{
-                const tabIds = tabs.map(t=>t.id);
-                const curIdx = tabIds.indexOf(sec);
-                const nextId = curIdx < tabIds.length-1 ? tabIds[curIdx+1] : null;
-                return nextId ? (
+              {tabs.map(t=>t.id).indexOf(sec) < tabs.length-1 && (
                   <button onClick={async()=>{
                       if(!p.name||saving) return;
+                      const tabIds = tabs.map(t=>t.id);
+                      const next = tabIds[tabIds.indexOf(sec)+1];
+                      if(!next) return;
                       saveLastUsed(staffName,{area:p.area,season:p.season,year:p.year,classification:p.classification,service_category:p.service_category,program_type:p.ant_program_type});
                       setDirty(false);
                       if(onSaveAndStay) await onSaveAndStay(p);
-                      setSec(nextId);
+                      setSec(next);
                     }}
                     disabled={!p.name||saving}
                     className="px-4 py-2 text-sm font-semibold border rounded disabled:opacity-40"
                     style={{color:"#00A9CE",borderColor:"#00A9CE",background:"#ffffff"}}>
                     {saving?"Saving...":"Save & Next →"}
                   </button>
-                ) : null;
-              })()}
+              )}
               <button onClick={handleSave} disabled={!p.name||saving}
                 title="Save (Ctrl+S)"
                 className="px-5 py-2 text-sm font-semibold text-white rounded disabled:opacity-40"
