@@ -853,7 +853,13 @@ function CostPanel({px,p,set,isManager=false}) {
             <Inp label="Program Type" value={p[px+"program_type"]||"Custom"} onChange={v=>{
               set(px+"program_type")(v);
               const typePct = PROGRAM_TYPES.find(t=>t.label===v)?.pct||0;
-              if(v!=="Custom") set(px+"custom_workload")((typePct*100).toFixed(1));
+              if(v!=="Custom") {
+                set(px+"custom_workload")(parseFloat((typePct*100).toFixed(1)));
+                set(px+"custom_workload_display")(undefined);
+              } else {
+                set(px+"custom_workload")(0);
+                set(px+"custom_workload_display")(undefined);
+              }
             }} options={["Custom",...PROGRAM_TYPES.map(t=>t.label)]}/>
             {p[px+"program_type"]&&p[px+"program_type"]!=="Custom"&&(()=>{
               const hint=PROGRAM_TYPES.find(t=>t.label===p[px+"program_type"])?.hint;
@@ -3119,10 +3125,25 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onDelete,on
           </div>
           <div className="flex gap-3">
             <button onClick={handleBack} className="px-4 py-2 text-sm text-slate-700 border border-slate-200 rounded">Cancel</button>
-            <button onClick={handleSave} disabled={!p.name||saving}
-              title="Save (Ctrl+S)"
-              className="px-5 py-2 text-sm font-semibold text-white rounded disabled:opacity-40"
-              style={{backgroundColor:"#00A9CE"}}>{saving?"Saving...":isNew?"Save Program":"Update Program"}</button>
+            <div className="flex gap-2">
+              {(()=>{
+                const tabIds = tabs.map(t=>t.id);
+                const curIdx = tabIds.indexOf(sec);
+                const nextId = curIdx < tabIds.length-1 ? tabIds[curIdx+1] : null;
+                return nextId ? (
+                  <button onClick={()=>{if(!p.name||saving) return; handleSave(); setSec(nextId);}}
+                    disabled={!p.name||saving}
+                    className="px-4 py-2 text-sm font-semibold border rounded disabled:opacity-40"
+                    style={{color:"#00A9CE",borderColor:"#00A9CE",background:"#ffffff"}}>
+                    {saving?"Saving...":"Save & Next →"}
+                  </button>
+                ) : null;
+              })()}
+              <button onClick={handleSave} disabled={!p.name||saving}
+                title="Save (Ctrl+S)"
+                className="px-5 py-2 text-sm font-semibold text-white rounded disabled:opacity-40"
+                style={{backgroundColor:"#00A9CE"}}>{saving?"Saving...":isNew?"Save Program":"Update Program"}</button>
+            </div>
           </div>
         </div>
       )}
