@@ -749,7 +749,7 @@ function Inp({label,type="text",value,onChange,options,min,max,hint,placeholder,
             {options.map(o=><option key={o} value={o}>{o}</option>)}
           </select>
         : type==="number"
-          ? <input className={cls} style={style} type="number"
+          ? <input className={cls} type="number"
               value={localVal!==null ? localVal : (value===0||value==="0" ? "0" : value||"")}
               min={min} max={max}
               placeholder={placeholder||""}
@@ -7566,6 +7566,254 @@ function ClubhouseAllocationTool({db,programs,staffName}){
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── App Root ─────────────────────────────────────────────────────────────────
+export default function App() {
+  const [programs,setPrograms]           = useState([]);
+  const [staffName,setStaffName]         = useState(()=>localStorage.getItem("bgpd_staff_name")||"");
+  const [isManager,setIsManager]         = useState(false);
+  const [viewAsManager,setViewAsManager] = useState(false);
+  const [tab,setTab]                     = useState("dashboard");
+  const [editingProgram,setEditingProgram] = useState(null);
+  const [addingProgram,setAddingProgram]   = useState(false);
+  const [dupProgram,setDupProgram]         = useState(null);
+  const [showBulkDup,setShowBulkDup]       = useState(false);
+  const [loading,setLoading]               = useState(true);
+  const [saving,setSaving]                 = useState(false);
+  const [error,setError]                   = useState(null);
+
+  const effectiveManager = isManager || viewAsManager;
+  const db = supabase;
+
+  const fetchAll = useCallback(async()=>{
+    setLoading(true);
+    const {data:p, error:fe} = await supabase.from("programs").select("*").order("created_at",{ascending:false});
+    if(fe) setError("Failed to load programs: "+fe.message);
+    const normalized=(p||[]).map(prog=>{
+      if(prog.year&&/^\d{4}$/.test(String(prog.year))){
+        return {...prog, year:toFY(prog.year)};
+      }
+      return prog;
+    });
+    setPrograms(normalized);
+    setLoading(false);
+  },[]);
+
+  useEffect(()=>{
+    if(staffName){
+      const name = staffName.toLowerCase().trim();
+      setIsManager(MANAGER_NAMES.includes(name));
+      fetchAll();
+    }
+  },[staffName,fetchAll]);
+
+  const handleConfirmName = name => { localStorage.setItem("bgpd_staff_name",name); setStaffName(name); };
+
+  const handleSaveProgram = async p => {
+    setSaving(true); setError(null);
+    try {
+      const data = cleanForDB(p);
+      if(data.id){ const{error:e}=await supabase.from("programs").update(data).eq("id",data.id); if(e) throw e; }
+      else        { const{error:e}=await supabase.from("programs").insert(data);                 if(e) throw e; }
+      await fetchAll(); setEditingProgram(null); setAddingProgram(false); setTab("programs");
+    } catch(e){ setError("Failed to save: "+(e.message||"unknown error")); }
+    setSaving(false);
+  };
+
+  const handleSaveProgramAndStay = async p => {
+    setSaving(true); setError(null);
+    try {
+      const data = cleanForDB(p);
+      if(data.id){
+        const{error:e}=await supabase.from("programs").update(data).eq("id",data.id);
+        if(e) throw e;
+        setPrograms(prev=>prev.map(x=>x.id===data.id?{...x,...data}:x));
+      } else {
+        const{data:inserted,error:e}=await supabase.from("programs").insert(data).select().single();
+        if(e) throw e;
+        if(inserted){ setPrograms(prev=>[inserted,...prev]); setEditingProgram(inserted); }
+      }
+    } catch(e){ setError("Failed to save: "+(e.message||"unknown error")); }
+    setSaving(false);
+  };
+
+  const handleDeleteProgram = async id => {
+    setSaving(true);
+    const {error:de}=await supabase.from("programs").delete().eq("id",id);
+    if(de) setError("Failed to delete program: "+de.message);
+    else { await fetchAll(); setEditingProgram(null); setTab("dashboard"); }
+    setSaving(false);
+  };
+
+  const handleArchiveProgram = async (id, archive) => {
+    setSaving(true);
+    const {error:ae}=await supabase.from("programs").update({is_archived:archive}).eq("id",id);
+    if(ae) setError("Failed to archive program: "+ae.message);
+    else { await fetchAll(); setEditingProgram(null); setAddingProgram(false); }
+    setSaving(false);
+  };
+
+  const handleBulkDuplicate = async ({ids,season,year,carry}) => {
+    setSaving(true); setError(null);
+    try {
+      const sources = programs.filter(p=>ids.includes(p.id));
+      const dupes = sources.map(p=>{
+        const d = {...p};
+        delete d.id; delete d.created_at;
+        d.season=season; d.year=year;
+        d.trend="New";
+        if(!carry){
+          d.ant_personnel=0;d.ant_commodities=0;d.ant_contractuals=0;
+          d.ant_other1=0;d.ant_other2=0;d.ant_facility_hours=0;
+          d.ant_revenue=0;
+        }
+        d.act_enrollment=0;d.act_revenue=0;d.act_personnel=0;
+        d.act_commodities=0;d.act_contractuals=0;d.act_contractuals=0;
+        d.act_other1=0;d.act_other2=0;d.act_facility_hours=0;
+        d.act_capacity=0;d.waitlist=0;
+        return d;
+      });
+      const {error:e}=await supabase.from("programs").insert(dupes);
+      if(e) throw e;
+      await fetchAll(); setShowBulkDup(false); setTab("programs");
+    } catch(e){ setError("Bulk duplicate failed: "+(e.message||"unknown error")); }
+    setSaving(false);
+  };
+
+  const tabs = [
+    {id:"dashboard",label:"Dashboard"},
+    {id:"programs",label:"Programs"},
+    {id:"history",label:"Multi-Season"},
+    {id:"kpi",label:"Guide & Resources"},
+  ];
+
+  const showingForm = editingProgram||addingProgram;
+
+  if(!staffName) return <StaffSetup onConfirm={handleConfirmName}/>;
+
+  return (
+    <div className="min-h-screen" style={{background:"#F8F7F4",fontFamily:"'Nunito Sans',Arial,sans-serif"}}>
+      {/* Header */}
+      <div className="bg-white border-b" style={{borderColor:"rgba(92,70,43,0.12)"}}>
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <BGPDLogo size={36}/>
+            <div>
+              <div className="font-black text-sm tracking-tight" style={{color:"#5C462B"}}>Buffalo Grove Park District</div>
+              <div className="text-xs font-semibold" style={{color:"#00A9CE"}}>Recreation Program Dashboard</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {isManager&&(
+              <button onClick={()=>setViewAsManager(v=>!v)}
+                className="text-xs font-bold px-3 py-1.5 rounded border transition"
+                style={viewAsManager?{background:"#5C462B",color:"#fff",borderColor:"#5C462B"}:{background:"#fff",color:"#5C462B",borderColor:"rgba(92,70,43,0.3)"}}>
+                {viewAsManager?"Manager View":"Staff View"}
+              </button>
+            )}
+            <div className="text-xs font-semibold" style={{color:"#6B5744"}}>{staffName}</div>
+            <button onClick={()=>{localStorage.removeItem("bgpd_staff_name");setStaffName("");setPrograms([]);setIsManager(false);}}
+              className="text-xs text-slate-400 hover:text-slate-600 underline">Switch</button>
+          </div>
+        </div>
+        {/* Nav */}
+        <div className="max-w-5xl mx-auto px-4 flex border-t" style={{borderColor:"rgba(92,70,43,0.08)"}}>
+          {tabs.map(t=>(
+            <button key={t.id} onClick={()=>{setTab(t.id);setEditingProgram(null);setAddingProgram(false);}}
+              className="px-5 py-3 text-sm font-semibold border-b-2 transition"
+              style={tab===t.id?{borderColor:"#00A9CE",color:"#00A9CE"}:{borderColor:"transparent",color:"#A09080"}}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Main */}
+      <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
+        {error&&(
+          <div className="px-4 py-3 text-sm flex justify-between rounded"
+            style={{background:"#FDF0E6",border:"1px solid rgba(227,82,5,0.2)",color:"#E35205"}}>
+            <span>{error}</span>
+            <button onClick={()=>setError(null)} className="font-bold ml-4">×</button>
+          </div>
+        )}
+
+        {loading&&!programs.length&&(
+          <div className="text-center py-16 text-slate-400 text-sm">Loading programs…</div>
+        )}
+
+        {/* Modals */}
+        {dupProgram&&(
+          <DupModal program={dupProgram}
+            onConfirm={async({season,year,carry})=>{
+              setSaving(true);
+              const d={...dupProgram}; delete d.id; delete d.created_at;
+              d.season=season; d.year=year; d.trend="New";
+              if(!carry){d.ant_personnel=0;d.ant_commodities=0;d.ant_contractuals=0;d.ant_other1=0;d.ant_other2=0;d.ant_facility_hours=0;d.ant_revenue=0;}
+              d.act_enrollment=0;d.act_revenue=0;d.act_personnel=0;d.act_commodities=0;d.act_contractuals=0;d.act_other1=0;d.act_other2=0;d.act_facility_hours=0;d.act_capacity=0;d.waitlist=0;
+              const{error:e}=await supabase.from("programs").insert(d);
+              if(e) setError("Duplicate failed: "+e.message);
+              else await fetchAll();
+              setDupProgram(null); setSaving(false);
+            }}
+            onCancel={()=>setDupProgram(null)}/>
+        )}
+        {showBulkDup&&(
+          <BulkDupModal programs={effectiveManager?programs:programs.filter(p=>p.staff_name===staffName)} onConfirm={handleBulkDuplicate} onCancel={()=>setShowBulkDup(false)}/>
+        )}
+
+        {/* Tab content */}
+        {tab==="dashboard"&&!showingForm&&(
+          effectiveManager
+            ? <ManagerDashboard programs={programs} staffName={staffName} isManager={effectiveManager}
+                onEdit={p=>{setEditingProgram(p);}} db={db}/>
+            : <StaffDashboard programs={programs} staffName={staffName} onEdit={p=>{setEditingProgram(p);}} db={db}/>
+        )}
+
+        {tab==="programs"&&!showingForm&&(
+          <ProgramsList
+            programs={programs}
+            isManager={effectiveManager}
+            staffName={staffName}
+            onEdit={p=>{setEditingProgram(p); setAddingProgram(false);}}
+            onAdd={()=>{setAddingProgram(true); setEditingProgram(null);}}
+            onBulkDup={()=>setShowBulkDup(true)}
+            onDupSingle={p=>setDupProgram(p)}
+            onFilterChange={()=>{}}
+          />
+        )}
+
+        {tab==="history"&&!showingForm&&(
+          <MultiSeasonView programs={programs} onEdit={p=>{setEditingProgram(p); setTab("programs");}}/>
+        )}
+
+        {tab==="kpi"&&!showingForm&&(
+          <Reference isManager={effectiveManager} db={db} programs={programs} staffName={staffName}/>
+        )}
+
+        {showingForm&&(
+          <ProgramForm
+            initial={editingProgram||null}
+            staffName={staffName}
+            isManager={effectiveManager}
+            programs={programs}
+            onSave={handleSaveProgram}
+            onSaveAndStay={handleSaveProgramAndStay}
+            onDelete={handleDeleteProgram}
+            onArchive={handleArchiveProgram}
+            onDuplicate={p=>setDupProgram(p)}
+            onCancel={()=>{setEditingProgram(null);setAddingProgram(false);}}
+            saving={saving}/>
+        )}
+
+        {!showingForm&&tab==="programs"&&!loading&&(
+          <ProgramReviewSection db={db} programs={programs} staffName={staffName} isManager={effectiveManager}
+            onEdit={p=>{setEditingProgram(p);}}/>
+        )}
+      </div>
     </div>
   );
 }
