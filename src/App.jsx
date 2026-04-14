@@ -4343,7 +4343,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                 <div className="rounded-lg border border-slate-200 overflow-hidden">
                   <div className="px-4 py-2.5 border-b border-slate-100" style={{background:"#FDF0E6",borderLeft:"3px solid #E35205"}}>
                     <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#E35205"}}>Redesign Ideas</div>
-                    <div className="text-xs text-slate-500 mt-0.5">Select any that apply — saved with this review. Full explanations in Guide & Resources → Redesign Strategies.</div>
+                    <div className="text-xs text-slate-500 mt-0.5">Select any that apply — saved with this review. Full explanations in Guide & Resources → Redesign Ideas tab.</div>
                   </div>
                   <div className="divide-y divide-slate-50">
                     {suggestions.map(sg=>(
@@ -4961,6 +4961,8 @@ function Reference({isManager,db,programs,staffName}) {
           {id:"guide",label:"Dashboard Guide"},
           {id:"training",label:"📋 Training Guide"},
           {id:"review",label:"📋 Program Review"},
+          {id:"capacity",label:"🧮 Capacity Calculator"},
+          {id:"redesign",label:"🔄 Redesign Ideas"},
           ...(isManager?[{id:"clubhouse",label:"🏫 Clubhouse Allocation"}]:[]),
         ].map(s=>(
           <button key={s.id} onClick={()=>setSec(s.id)}
@@ -5226,44 +5228,12 @@ function Reference({isManager,db,programs,staffName}) {
               ))}
             </div>
             <p className="text-sm text-slate-700 mt-3">Use this queue as your weekly check-in list. Programs that appear here need a decision: redesign, remarket, adjust pricing, or sunset. The queue is capped at 8 programs — if more qualify, the 8 with the lowest fill rates are shown.</p>
-
-          {/* ── Capacity Calculator ── */}
-          <GuideSection title="🧮 Program Capacity Calculator" accent="#00A9CE">
-            <p className="text-sm text-slate-700 mb-4">Estimate the right capacity for your program based on industry standards from NRPA, ACSM, ACA, and IPRA. Enter your space or staffing details and get a research-backed starting point. These are estimates — always check fire code occupancy limits and any applicable licensing requirements.</p>
-            <CapacityCalculator/>
-          </GuideSection>
-
-          {/* ── Redesign Strategies ── */}
-          <GuideSection title="🔄 Redesign Strategies Reference" accent="#E35205">
-            <p className="text-sm text-slate-700 mb-4">When a program is flagged for redesign, these strategies are drawn from NRPA, IPRA, ACA, and CAPRA best practices. In the Program Review, you can quickly select which apply — this section gives you the full context behind each one.</p>
-            <div className="space-y-3">
-              {[
-                {id:"timing",    label:"Adjust day or time",           color:"#00A9CE", detail:"NRPA research consistently identifies scheduling as the #1 barrier to recreation participation. Even a single-period shift (e.g., Tuesday 6pm → Thursday 5:30pm) can meaningfully change your audience. Consider peak demand windows for your target demographic: working adults fill weeknight classes; parents of young children prefer Saturday mornings; seniors respond well to mid-morning weekday sessions."},
-                {id:"capacity",  label:"Right-size the capacity",       color:"#00A9CE", detail:"Oversized capacity is a silent killer of program health. A class with 20 spots and 9 enrollees shows 45% fill — the same 9 enrollees in a 14-spot class shows 64% and changes the program's status. NRPA programming guidelines recommend setting initial capacity at 75–80% of your realistic maximum, then adjusting upward based on demand signals."},
-                {id:"marketing", label:"Rewrite the description and remarket", color:"#00A9CE", detail:"IPRA best practices for program marketing emphasize outcome-focused descriptions over logistics. 'Build confidence and strength in a welcoming group environment' outperforms 'Mondays 6–7pm, 8 weeks.' Refresh the program name, lead with the benefit, and identify which platform your audience actually uses. Registration spikes of 20–40% are common after a description rewrite alone."},
-                {id:"trial",     label:"Offer a free or discounted trial", color:"#00A9CE", detail:"Reducing the commitment barrier for first-time participants is a proven tactic. NRPA's Programming Guide cites trial offerings as a top driver of new participant acquisition, particularly for programs where participants are unfamiliar with the format. One complimentary session, a reduced first-week fee, or a bring-a-friend discount all accomplish the same goal."},
-                {id:"audience",  label:"Re-examine the target audience", color:"#00A9CE", detail:"Programs marketed broadly often underperform programs targeted narrowly. Evaluate whether your current participants match your intended audience — if not, either adjust marketing to reach the intended group or adjust the program to serve who is actually showing up. Both are legitimate strategies; the mistake is doing neither."},
-                {id:"pricing",   label:"Review the fee structure",       color:"#F6AB00", detail:"NRPA cost recovery frameworks suggest fees for revenue-driven programs should cover 75–100% of total program cost. If fill rate is healthy but cost recovery is low, the fee is likely underpriced relative to true cost. A fee increase of $5–10 per participant often has minimal impact on enrollment but can move cost recovery significantly. Consider incremental increases (5–8% per season) rather than large jumps."},
-                {id:"costs",     label:"Reduce direct costs",             color:"#F6AB00", detail:"A 10% reduction in direct costs has the same cost recovery impact as a 10% fee increase without the enrollment risk. Review each cost line: Can instructor pay be adjusted? Are commodities being over-ordered? Can the program share supplies with another? Can facility hours be reduced by 30 minutes without impacting the program?"},
-                {id:"subsidize", label:"Formally reclassify as Community Driven", color:"#F6AB00", detail:"CAPRA standard 8.1 recognizes intentional subsidization as a legitimate organizational decision when community need is documented. The distinction is between accidental subsidy (cost recovery is low because nobody noticed) and intentional subsidy (cost recovery is low because we made a deliberate choice for equity or community benefit reasons). Reclassifying a program formally documents the intent and aligns expectations."},
-                {id:"bundle",    label:"Bundle or add a fee tier",        color:"#F6AB00", detail:"A premium tier — reserved spot guarantee, early enrollment access, materials included — allows revenue-generating price differentiation without raising the base fee. Common in NRPA peer agencies. Participants who value convenience will pay a 15–25% premium for certainty of enrollment; this is effectively free additional revenue from existing demand."},
-                {id:"format",    label:"Change the delivery format",      color:"#F6AB00", detail:"Contractual delivery models (outside instructor absorbs staffing cost), hybrid formats (in-person + online), and self-directed open studio formats all reduce per-session overhead. A 60-minute instructed class can often become a 90-minute drop-in studio with an instructor present for the first 30 minutes — same cost, more perceived value."},
-                {id:"pilot",     label:"Run a one-season pilot with reduced scope", color:"#E35205", detail:"Before sunsetting, a minimum viable version tests whether demand exists without full investment. Cut capacity in half, reduce sessions by 30%, reduce supply budget. If the pilot meets threshold targets, it proves a path forward. If not, the sunset decision is easier to make with clean data rather than on the basis of a full program that may have been over-scoped."},
-                {id:"partner",   label:"Partner with another agency or organization", color:"#E35205", detail:"IPRA's cooperative programming framework documents numerous models: shared instructors, co-marketed programs, facility-sharing agreements, and joint registrations. Co-programming with schools, nonprofits, or neighboring park districts can simultaneously reduce cost and expand audience — two common redesign needs addressed at once."},
-                {id:"sunset_review", label:"Set a sunset threshold and timeline", color:"#E35205", detail:"NRPA program lifecycle guidance recommends defining the specific conditions a program must meet to continue. Without a defined threshold, programs linger in 'Monitor' status indefinitely. A documented sunset condition ('If fill rate does not reach 60% and cost recovery does not reach 50% by Spring 2026, the program will be discontinued') protects both the program and the staff managing it from ambiguity."},
-                {id:"camp_curriculum", label:"Add a specialty curriculum track (camps)", color:"#84BD00", detail:"ACA and NRPA data consistently show specialty camps (STEM, arts, sports-specific, nature/outdoor) outperform general day camps in enrollment growth and cost recovery. Specialty tracks can be layered onto an existing general camp as an optional add-on, reducing the implementation barrier while testing market demand."},
-                {id:"league_format",   label:"Shift from competitive to recreational format (leagues)", color:"#84BD00", detail:"IPRA participation data shows recreational leagues attract 30–40% more first-time participants than competitive leagues at the community park district level. If a competitive league is struggling, a recreational division or a combined recreational/competitive structure can expand the participant base without eliminating the competitive option."},
-              ].map(s=>(
-                <div key={s.id} className="rounded border border-slate-200 overflow-hidden">
-                  <div className="px-4 py-2.5" style={{borderLeft:"3px solid "+s.color,background:"rgba(0,0,0,0.02)"}}>
-                    <div className="text-sm font-bold text-slate-700">{s.label}</div>
-                  </div>
-                  <div className="px-4 py-3 text-xs text-slate-600 leading-relaxed">{s.detail}</div>
-                </div>
-              ))}
-            </div>
-          </GuideSection>
           </GuideSection>}
+
+          {/* Capacity Calculator moved to its own tab */}
+
+
+          {/* Redesign Strategies moved to its own tab */}
 
         </div>
       )}
@@ -5507,7 +5477,66 @@ function Reference({isManager,db,programs,staffName}) {
       {sec==="review"&&(
         <ProgramReviewSection db={db} programs={programs} staffName={staffName} isManager={isManager}/>
       )}
-      {sec==="clubhouse"&&isManager&&(
+      {sec==="capacity"&&(
+        <div className="p-5 space-y-4">
+          <div>
+            <p className="text-sm text-slate-700 mb-1">Estimate the right capacity for your program using industry standards from NRPA, ACSM, ACA, and IPRA. Select a program type, enter your space or staffing details, and get a research-backed starting point.</p>
+            <p className="text-xs text-slate-500">These are estimates only — always verify against fire code occupancy limits and any applicable licensing requirements (e.g. Illinois DCFS for camps).</p>
+          </div>
+          <CapacityCalculator/>
+        </div>
+      )}
+
+      {sec==="redesign"&&(
+        <div className="p-5 space-y-4">
+          <div>
+            <p className="text-sm text-slate-700 mb-1">When a program is flagged for redesign, these strategies are drawn from NRPA, IPRA, ACA, and CAPRA best practices. In the Program Review, you can quickly select which apply — this page gives you the full context behind each one.</p>
+            <p className="text-xs text-slate-500">{Object.keys({timing:1,capacity:1}).length && "Tip: In the Program Review, when you select "Redesign" as the decision, a short list of the most relevant ideas will appear as checkboxes based on your program's type and specific issues."}</p>
+          </div>
+          <div className="space-y-3">
+            {[
+              {id:"timing",    color:"#00A9CE", label:"Adjust day or time",                        detail:"NRPA research consistently identifies scheduling as the #1 barrier to recreation participation. Even a single-period shift (e.g., Tuesday 6pm → Thursday 5:30pm) can meaningfully change your audience. Consider peak demand windows for your target demographic: working adults fill weeknight classes; parents of young children prefer Saturday mornings; seniors respond well to mid-morning weekday sessions."},
+              {id:"capacity",  color:"#00A9CE", label:"Right-size the capacity",                   detail:"Oversized capacity is a silent killer of program health. A class with 20 spots and 9 enrollees shows 45% fill — the same 9 enrollees in a 14-spot class shows 64% and changes the program's status. NRPA programming guidelines recommend setting initial capacity at 75–80% of your realistic maximum, then adjusting upward based on demand signals."},
+              {id:"marketing", color:"#00A9CE", label:"Rewrite the description and remarket",      detail:"IPRA best practices for program marketing emphasize outcome-focused descriptions over logistics. 'Build confidence and strength in a welcoming group environment' outperforms 'Mondays 6–7pm, 8 weeks.' Refresh the program name, lead with the benefit, and identify which platform your audience actually uses. Registration spikes of 20–40% are common after a description rewrite alone."},
+              {id:"trial",     color:"#00A9CE", label:"Offer a free or discounted trial",          detail:"Reducing the commitment barrier for first-time participants is a proven tactic. NRPA's Programming Guide cites trial offerings as a top driver of new participant acquisition, particularly for programs where participants are unfamiliar with the format. One complimentary session, a reduced first-week fee, or a bring-a-friend discount all accomplish the same goal."},
+              {id:"audience",  color:"#00A9CE", label:"Re-examine the target audience",            detail:"Programs marketed broadly often underperform programs targeted narrowly. Evaluate whether your current participants match your intended audience — if not, either adjust marketing to reach the intended group or adjust the program to serve who is actually showing up. Both are legitimate strategies; the mistake is doing neither."},
+              {id:"day_of_week",color:"#00A9CE",label:"Test a different day of the week",          detail:"Day-of-week effects are often underestimated. NRPA survey data shows Thursday and Saturday are consistently the highest-enrollment days for community recreation across most program types. If a Tuesday program is underperforming, a direct comparison test (same program, different day) is low-cost and high-value before making structural changes."},
+              {id:"fee_assistance",color:"#00A9CE",label:"Add a fee assistance or scholarship tier",detail:"Programs with lower cost recovery sometimes have a demand problem driven by affordability, not interest. Adding a scholarship tier funded by general revenue or a foundation can reveal latent demand. NRPA equity frameworks and CAPRA standard 8.4 both support tiered pricing as a community service strategy."},
+              {id:"location",  color:"#00A9CE", label:"Move the program to a different facility",  detail:"Facility location affects enrollment more than most coordinators expect. Proximity to target demographic, parking, ADA accessibility, and co-location with other programs all influence registration. A program that fails at one facility sometimes fills at another — try before sunsetting."},
+              {id:"pricing",   color:"#F6AB00", label:"Review the fee structure",                  detail:"NRPA cost recovery frameworks suggest fees for revenue-driven programs should cover 75–100% of total program cost. If fill rate is healthy but cost recovery is low, the fee is likely underpriced relative to true cost. A fee increase of $5–10 per participant often has minimal impact on enrollment but can move cost recovery significantly."},
+              {id:"costs",     color:"#F6AB00", label:"Reduce direct costs",                       detail:"A 10% reduction in direct costs has the same cost recovery impact as a 10% fee increase without the enrollment risk. Review each cost line: Can instructor pay be adjusted? Are commodities being over-ordered? Can the program share supplies with another? Can facility hours be reduced without impacting the program?"},
+              {id:"subsidize", color:"#F6AB00", label:"Formally reclassify as Community Driven",   detail:"CAPRA standard 8.1 recognizes intentional subsidization as a legitimate organizational decision when community need is documented. The distinction is between accidental subsidy and intentional subsidy. Reclassifying formally documents the intent and aligns expectations."},
+              {id:"bundle",    color:"#F6AB00", label:"Bundle or add a fee tier",                  detail:"A premium tier — reserved spot guarantee, early enrollment access, materials included — allows revenue-generating price differentiation without raising the base fee. Common in NRPA peer agencies. Participants who value convenience will pay a 15–25% premium for certainty of enrollment."},
+              {id:"format",    color:"#F6AB00", label:"Change the delivery format",                detail:"Contractual delivery models, hybrid formats, and self-directed open studio formats all reduce per-session overhead. A 60-minute instructed class can often become a 90-minute drop-in studio with an instructor present for the first 30 minutes — same cost, more perceived value."},
+              {id:"multi_session",color:"#F6AB00",label:"Convert from multi-session to drop-in",   detail:"Multi-session commitment is a barrier for busy adults. NRPA research shows drop-in and punch-card formats can increase adult participation by 25–35% compared to required multi-session registration. Works well for fitness, open studio, and skills-based programs."},
+              {id:"collab_prog",color:"#F6AB00",label:"Combine two underperforming programs",      detail:"Two programs each filling at 45% may together fill a single session at 80%+. IPRA cooperative programming data supports merging complementary programs when individual sections are too small to be sustainable."},
+              {id:"instructor",color:"#F6AB00", label:"Evaluate instructor quality and fit",       detail:"Instructor personality and teaching style are among the strongest predictors of repeat enrollment. If cost recovery or enrollment has declined since an instructor change, that correlation is worth investigating. Participant retention drops 40–60% when instructor quality is perceived as inconsistent."},
+              {id:"rebranding",color:"#F6AB00", label:"Rename and rebrand the program",            detail:"Program names carry reputations — sometimes unfairly. If a program has declined despite format improvements, a full rebrand (new name, description, positioning) can reset participant perception. IPRA has documented enrollment increases of 30%+ from rebranding alone."},
+              {id:"waitlist",  color:"#84BD00", label:"Convert waitlist into a second section",    detail:"A sustained waitlist is demand you are not capturing. If a program has had a waitlist for two or more consecutive seasons, open a second section before redesigning. NRPA recommends treating a waitlist exceeding 15% of capacity as a trigger to evaluate expansion."},
+              {id:"pilot",     color:"#E35205", label:"Run a one-season pilot with reduced scope", detail:"Before sunsetting, a minimum viable version tests whether demand exists without full investment. Cut capacity in half, reduce sessions by 30%, reduce supply budget. If the pilot meets threshold targets, it proves a path forward."},
+              {id:"partner",   color:"#E35205", label:"Partner with another agency or organization",detail:"IPRA cooperative programming framework documents shared instructors, co-marketed programs, facility-sharing, and joint registrations. Co-programming can simultaneously reduce cost and expand audience."},
+              {id:"sunset_review",color:"#E35205",label:"Set a sunset threshold and timeline",    detail:"NRPA program lifecycle guidance recommends defining the specific conditions a program must meet to continue. A documented sunset condition protects both the program and the staff managing it from ambiguity."},
+              {id:"feedback_loop",color:"#E35205",label:"Survey current and past participants",    detail:"Before making structural changes, ask the people who enrolled — and those who dropped out. A 3-question exit survey provides more actionable redesign data than any benchmark. CAPRA standard 9.2 requires participant feedback mechanisms."},
+              {id:"age_range", color:"#E35205", label:"Narrow or broaden the target age range",   detail:"Age range mismatches create programming difficulty. A youth program spanning ages 6–12 serves six developmental stages poorly; splitting into 6–8 and 9–12 sections typically improves both satisfaction and enrollment."},
+              {id:"online_hybrid",color:"#E35205",label:"Add an online or hybrid component",      detail:"Post-2020 NRPA data shows hybrid programming increases participation in instructional programs by 15–25% by removing transportation and scheduling barriers. Works well for educational, discussion-based, and some fitness formats."},
+              {id:"camp_curriculum",color:"#84BD00",label:"Add a specialty curriculum track (camps)",detail:"ACA and NRPA data show specialty camps (STEM, arts, sports-specific, nature/outdoor) outperform general day camps in enrollment growth and cost recovery. Specialty tracks can be layered onto an existing general camp as an optional add-on."},
+              {id:"league_format",color:"#84BD00",label:"Shift to recreational format (leagues)",  detail:"IPRA participation data shows recreational leagues attract 30–40% more first-time participants than competitive leagues at the community park district level. A recreational division or combined structure can expand the participant base."},
+            ].map(s=>(
+              <div key={s.id} className="rounded border border-slate-200 overflow-hidden">
+                <div className="px-4 py-2.5 flex items-center gap-2" style={{borderLeft:"3px solid "+s.color,background:"rgba(0,0,0,0.02)"}}>
+                  <div className="text-sm font-bold text-slate-700 flex-1">{s.label}</div>
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{background:s.color+"22",color:s.color}}>
+                    {s.color==="#00A9CE"?"Demand / Reach":s.color==="#F6AB00"?"Cost / Pricing":s.color==="#E35205"?"Major Change":"Program-Specific"}
+                  </span>
+                </div>
+                <div className="px-4 py-3 text-xs text-slate-600 leading-relaxed">{s.detail}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+            {sec==="clubhouse"&&isManager&&(
         <ClubhouseAllocationTool db={db} programs={programs} staffName={staffName}/>
       )}
 
@@ -5560,7 +5589,7 @@ function Reference({isManager,db,programs,staffName}) {
                     {icon:"📊",label:"Dashboard",color:"#5C462B",desc:"Your home screen. Shows all your programs as a list with performance numbers. This is where you'll spend most of your time — checking fill rates, updating status, and spotting anything that needs attention."},
                     {icon:"📁",label:"Programs",color:"#00A9CE",desc:"Where you add new programs and edit existing ones. Think of this as your filing cabinet — every program you run gets an entry here with its enrollment, costs, and revenue."},
                     {icon:"📅",label:"Multi-Season",color:"#990066",desc:"A side-by-side view of the same program across multiple seasons. Useful when your manager asks how Fall Dance has trended over the past few years."},
-                    {icon:"📚",label:"Guide & Resources",color:"#ffffff",desc:"District standards, formulas, and this training guide. If you ever wonder what a number means or how it's calculated, this is where to look."},
+                    {icon:"📚",label:"Guide & Resources",color:"#ffffff",desc:"District standards, formulas, training guide, Capacity Calculator (set program capacity using NRPA/ACSM standards), and Redesign Ideas (27 research-backed strategies when a program needs a change). Start here whenever you have a question."},
                   ].map(t=>(
                     <div key={t.label} className="flex gap-3 p-4 rounded-lg border border-slate-100 bg-slate-50">
                       <div className="text-2xl shrink-0">{t.icon}</div>
@@ -5863,6 +5892,11 @@ function Reference({isManager,db,programs,staffName}) {
                     {q:"A program was canceled midway. How do I enter it?",a:"Enter it as you planned, then update Actual Enrollment and Actual Revenue to reflect what happened before the cancellation. Add a note explaining it was canceled (e.g. 'Canceled after week 4 — low enrollment'). This keeps the record honest and gives context for future planning."},
                     {q:"I made a mistake. Can I change data after saving?",a:"Yes, anytime. Click the program name on the Dashboard or Programs tab, edit any field, and save. All metrics recalculate immediately. There's no lock-out period."},
                     {q:"What's the difference between Budgeted and Actual fields?",a:"Budgeted = your plan before the program runs (enrollment target, budgeted revenue). Actual = what really happened (real enrollment count, real revenue collected). You fill in Budgeted first, then come back and update Actual after the program ends."},
+                  {q:"What if I run a year-round program — do I enter it every season?",a:"No. Select "All Year" as the season and enter it once per year. Do your budgeted entry at the start of the year and your actuals entry at year-end."},
+                  {q:"Can I enter 0 on the waitlist?",a:"Yes — entering 0 means you confirmed there is no waitlist. Leaving the field blank means you did not check. These mean different things to the dashboard, so enter 0 if you know it is empty."},
+                  {q:"How do I figure out what capacity to set for my program?",a:"Check the Capacity Calculator tab in Guide & Resources. Select your program type, enter your room size or staff count, and it gives you a research-backed starting point based on NRPA, ACSM, and ACA standards."},
+                  {q:"My program was flagged as Needs Redesign — what do I do?",a:"Open the Program Review, select Redesign as the decision, and a list of redesign ideas will appear based on your program type and what the numbers show. You can also browse the full Redesign Ideas tab in Guide & Resources for 26 detailed strategies with NRPA and IPRA backing."},
+                  {q:"What does the Custom program type mean?",a:"Use Custom when none of the 10 standard types fit — for example a multi-site supervisor role or a hybrid program. When you select Custom, type a name for it and enter the workload % that fits your situation."},
                   ].map((r,i)=>(
                     <div key={i} className="rounded-lg border border-slate-200 overflow-hidden">
                       <div className="px-4 py-3 bg-slate-50 text-sm font-semibold text-slate-800 border-b border-slate-100">{r.q}</div>
@@ -6021,11 +6055,75 @@ function Reference({isManager,db,programs,staffName}) {
                     {q:"How do I prepare for an annual report using this app?",a:"Clear all filters to show the full portfolio. Note the Health Score, total Net P/(L), and Subsidy Burden. Use the Classification Mix section for the community-benefit vs. revenue narrative. Export CSV for a full data appendix. Export Season Report as a PDF summary. Admin → Executive Summary has fund-level P&L."},
                     {q:"A staff member left. What happens to their programs?",a:"Their programs stay in the system under their name. You can edit each program and reassign it to a new staff member by changing the Staff Name field. Alternatively, leave them as-is for historical accuracy and create new entries for the replacement's future work."},
                     {q:"Can I see how a specific program has performed over multiple years?",a:"Yes — use the Multi-Season tab. Search for the program by name and you'll see its enrollment, revenue, fill rate, and cost recovery side-by-side across all seasons it's been offered."},
+                    {q:"Where do I find the Capacity Calculator?",a:"Guide & Resources → 🧮 Capacity Calculator tab. Select program type, enter room size or staff count, and get NRPA/ACSM/ACA-backed estimates for all 10 program types. Useful when planning a new program or when you want to help a staff member set a realistic capacity."},
+                    {q:"How do redesign suggestions work in the Program Review?",a:"When you or a staff member selects Redesign as the decision in a review, a short list of checkboxes appears — ideas tailored to that program's type, fill rate, and cost recovery. Selected ones save with the review. The full list of 26 strategies with detailed explanations is in Guide & Resources → 🔄 Redesign Ideas."},
+                    {q:"The Needs Attention queue shows too many programs — can I limit it?",a:"The queue shows all programs with Needs Redesign or Monitor status with no cap. It's sorted Needs Redesign first, then Monitor, each group by lowest fill rate. Use the staff and area filters at the top of the dashboard to scope it down to a specific team or area."},
+                    {q:"How do I override the workload % for a specific program?",a:"In admin view, open the program form and go to the Budgeted or Actuals tab. The workload % field shows the program type default — click into it, delete the number, type whatever % feels right, and tab away. It saves immediately. Staff see this field as read-only."},
+                    {q:"What's the difference between the FT Staff Allocation panel and the Workload section?",a:"The FT Staff Allocation panel (always visible at the top of the Manager Dashboard) shows total allocated FT salary cost across the portfolio vs. the 60% target — it's the portfolio-level view. The Workload section in the dashboard is a per-program breakdown showing which programs are consuming the most staff time."},
                     {q:"What's the difference between the Dashboard Net P/(L) and what I see in the Admin Fund Performance tab?",a:"The Dashboard P/(L) is at the program-cost level — it includes allocated FT staff cost, overhead, and facility charges. The Fund Performance tab tracks actual fund-level revenue and expenses from your financial system. They measure different things and will not match."},
                   ].map((r,i)=>(
                     <div key={i} className="rounded-lg border border-slate-200 overflow-hidden">
                       <div className="px-4 py-3 bg-slate-50 text-sm font-semibold text-slate-800 border-b border-slate-100">{r.q}</div>
                       <div className="px-4 py-3 text-sm text-slate-700">{r.a}</div>
+                    </div>
+                  ))}
+                </div>
+              </GuideSection>
+
+              {/* ── New Features Guide ── */}
+              <GuideSection title="New Features — What's Been Added" accent="#84BD00">
+                <p className="text-sm text-slate-700 mb-4">These features were added based on staff feedback. Here's what they do and where to find them.</p>
+                <div className="space-y-4">
+                  {[
+                    {
+                      icon:"🧮", title:"Capacity Calculator",
+                      where:"Guide & Resources → 🧮 Capacity Calculator tab",
+                      what:"Estimates program capacity using NRPA, ACSM, ACA, and IPRA standards for all 10 program types. Staff enter room size (sq ft) or staff count and get conservative/standard/maximum estimates with the source cited.",
+                      use:"Use this when planning a new program, when a program feels over- or under-capacitated, or when you need to justify a capacity decision to a supervisor or board."
+                    },
+                    {
+                      icon:"🔄", title:"Redesign Ideas Reference",
+                      where:"Guide & Resources → 🔄 Redesign Ideas tab",
+                      what:"26 research-backed strategies organized into four categories: Demand/Reach (timing, marketing, audience), Cost/Pricing (fees, cost reduction, format), Major Change (pilots, partnerships, sunset thresholds), and Program-Specific (camps, leagues). Each strategy includes detailed context and NRPA/IPRA/CAPRA citations.",
+                      use:"Direct staff here when a program is struggling and they're not sure where to start. The strategies are also available as checkboxes in the Program Review when decision = Redesign."
+                    },
+                    {
+                      icon:"✅", title:"Redesign Suggestions in Program Review",
+                      where:"Program Review → Final Decision step, when decision = Redesign",
+                      what:"When Redesign is selected, up to 7 checkboxes appear automatically — tailored to the program's type, fill rate, and cost recovery issue. Selected ideas save with the review record. Referencing the full Redesign Ideas tab gives the detailed explanation for each.",
+                      use:"Ensures every redesign decision comes with a documented plan, not just a label. Makes the review conversation more concrete."
+                    },
+                    {
+                      icon:"📊", title:"FT Staff Allocation Panel",
+                      where:"Manager Dashboard — always visible at the top",
+                      what:"Shows total allocated FT staff cost across the portfolio vs. the 60% sustainability target. Two bars (budgeted and actuals) scaled against the 60% target, color-coded green/amber/red. Warns if either exceeds 60%.",
+                      use:"Your first check at the start of any planning conversation. If the portfolio is over 60%, the problem is structural and data entry won't fix it — programs need to be repriced, reclassified, or sunset."
+                    },
+                    {
+                      icon:"⚠", title:"Needs Attention Queue (updated)",
+                      where:"Manager Dashboard — expandable queue",
+                      what:"Now shows all programs with Needs Redesign or Monitor status — no cap on number shown. Sorted Needs Redesign first, then Monitor, each group by fill rate ascending. Count badges in the header show how many of each type.",
+                      use:"Replaces the old 8-program cap. Use with the staff/area filters to scope it to a specific team member's work before a 1:1 conversation."
+                    },
+                    {
+                      icon:"✏", title:"Workload % Override (admin only)",
+                      where:"Program form → Budgeted or Actuals tab → Workload % field",
+                      what:"Managers can now freely edit the workload % for any program type. The field shows the program type default, allows free typing and backspace, and resets to the default if left blank on tab-away. Custom program type starts blank for free entry.",
+                      use:"Use when a large program clearly doesn't take the default % of a coordinator's time, or when a small program requires disproportionate effort. Changes the cost calculation immediately."
+                    },
+                  ].map(f=>(
+                    <div key={f.title} className="rounded border border-slate-200 overflow-hidden">
+                      <div className="px-4 py-2.5 flex items-center gap-2 border-b border-slate-100" style={{background:"rgba(132,189,0,0.06)"}}>
+                        <span className="text-lg">{f.icon}</span>
+                        <div>
+                          <div className="text-sm font-bold text-slate-700">{f.title}</div>
+                          <div className="text-xs text-slate-500">{f.where}</div>
+                        </div>
+                      </div>
+                      <div className="px-4 py-3 space-y-1.5">
+                        <div className="text-xs text-slate-600"><span className="font-semibold text-slate-700">What it does: </span>{f.what}</div>
+                        <div className="text-xs text-slate-600"><span className="font-semibold text-slate-700">How to use it: </span>{f.use}</div>
+                      </div>
                     </div>
                   ))}
                 </div>
