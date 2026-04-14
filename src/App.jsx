@@ -5025,17 +5025,19 @@ function Reference({isManager,db,programs,staffName}) {
             <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{color:"#5C462B",letterSpacing:"0.12em"}}>Everything Else Is in the Other Tabs</div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {[
-                {tab:"📋 Training Guide",desc:"Full walkthrough of every field, every tab, and what everything means. Start here if you have a question."},
-                {tab:"🧮 Capacity Calculator",desc:"Enter your room size or staff count to get an NRPA/ACSM-backed capacity estimate for any program type."},
-                {tab:"🔄 Redesign Ideas",desc:"26 research-backed strategies when a program needs a change — with full context and NRPA/IPRA citations."},
-                {tab:"📋 Program Review",desc:"The formal review process for Continue, Redesign, or Sunset decisions. Required before any major program change."},
-                {tab:"District Standards",desc:"Workload percentages, cost recovery targets, service level targets, and district KPI definitions."},
-                {tab:"Program Types & Guide",desc:"What each program type means, its default workload %, and how the cost formula applies to it."},
+                {tab:"📋 Training Guide",      sec:"training",  desc:"Full walkthrough of every field, every tab, and what everything means. Start here if you have a question."},
+                {tab:"🧮 Capacity Calculator", sec:"capacity",  desc:"Enter your room size or staff count to get an NRPA/ACSM-backed capacity estimate for any program type."},
+                {tab:"🔄 Redesign Ideas",      sec:"redesign",  desc:"26 research-backed strategies when a program needs a change — with full context and NRPA/IPRA citations."},
+                {tab:"📋 Program Review",      sec:"review",    desc:"The formal review process for Continue, Redesign, or Sunset decisions. Required before any major program change."},
+                {tab:"District Standards",     sec:"standards", desc:"Workload percentages, cost recovery targets, service level targets, and district KPI definitions."},
+                {tab:"Program Types & Guide",  sec:"kpis",      desc:"What each program type means, its default workload %, and how the cost formula applies to it."},
               ].map(r=>(
-                <div key={r.tab} className="flex gap-3 p-3 rounded" style={{background:"#F8F7F4",border:"1px solid rgba(92,70,43,0.10)"}}>
-                  <div className="shrink-0 text-sm font-bold" style={{color:"#00A9CE",minWidth:"140px"}}>{r.tab}</div>
+                <button key={r.tab} onClick={()=>setSec(r.sec)}
+                  className="flex gap-3 p-3 rounded text-left w-full transition hover:opacity-80"
+                  style={{background:"#F8F7F4",border:"1px solid rgba(92,70,43,0.10)",cursor:"pointer"}}>
+                  <div className="shrink-0 text-sm font-bold" style={{color:"#00A9CE",minWidth:"140px"}}>{r.tab} →</div>
                   <div className="text-xs text-slate-500 leading-relaxed">{r.desc}</div>
-                </div>
+                </button>
               ))}
             </div>
           </div>
