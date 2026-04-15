@@ -1531,7 +1531,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   const [filters,setFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
   function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
   const [capitalPct,setCapitalPct] = useState(5);
-  const [collapsed,setCollapsed] = useState({topbottom:true,rpp:true,capacity:true,classmix:true,workload:true,snapshot:true,areabreakdown:true,nps:true});
+  const [collapsed,setCollapsed] = useState({topbottom:true,rpp:true,capacity:true,classmix:true,workload:true,snapshot:true,areabreakdown:true,nps:true,programdetail:false});
   function toggleSection(id){setCollapsed(s=>({...s,[id]:!s[id]}));}
   // SectionHeader hoisted to module level — see below ManagerDashboard
   const [dv,setDv]           = useState("summary");
@@ -2335,7 +2335,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
         </div>
       </div>
 
-      {/* ── Capital Improvement Fund Panel ── */}
+      {/* Capital Improvement Fund Panel */}
       {kpis.some(p=>p.hasActuals)&&(()=>{
         const surplusProgs = [...kpis].filter(p=>p.hasActuals&&p.profitLoss>0).sort((a,b)=>b.profitLoss-a.profitLoss);
         const deficitProgs = kpis.filter(p=>p.hasActuals&&p.profitLoss<0);
@@ -2352,7 +2352,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                 <div className="text-xs mt-0.5" style={{color:"#A09080"}}>NRPA best practice: allocate a % of net program surplus toward capital reserve</div>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs" style={{color:"#A09080"}}>Allocation rate:</span>
+                <span className="text-xs" style={{color:"#A09080"}}>Rate:</span>
                 {[3,5,10,15].map(pct=>(
                   <button key={pct} onClick={()=>setCapitalPct(pct)}
                     className="text-xs font-bold px-2 py-1 rounded border transition"
@@ -2371,10 +2371,10 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-4">
               {[
-                {label:"Portfolio Net P/(L)", value:dollar(Math.round(netPL)),        color:netPL>=0?"#84BD00":"#E35205"},
-                {label:"Surplus Programs",    value:surplusProgs.length+" programs",  color:"#84BD00"},
-                {label:"Subsidy Programs",    value:deficitProgs.length+" programs",  color:"#E35205"},
-                {label:"Suggested Allocation",value:netPL>0?dollar(suggested):"—",   color:"#00A9CE"},
+                {label:"Portfolio Net P/(L)", value:dollar(Math.round(netPL)),       color:netPL>=0?"#84BD00":"#E35205"},
+                {label:"Surplus Programs",    value:surplusProgs.length+" programs", color:"#84BD00"},
+                {label:"Subsidy Programs",    value:deficitProgs.length+" programs", color:"#E35205"},
+                {label:"Suggested Allocation",value:netPL>0?dollar(suggested):"—",  color:"#00A9CE"},
               ].map(({label,value,color})=>(
                 <div key={label} className="rounded p-3" style={{background:"rgba(0,0,0,0.025)",border:"1px solid rgba(0,0,0,0.06)"}}>
                   <div className="text-xs uppercase font-bold mb-1" style={{letterSpacing:"0.08em",color:"#A09080",fontSize:"10px"}}>{label}</div>
@@ -2384,30 +2384,23 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
             </div>
             {netPL>0?(
               <div className="space-y-3">
-                {surplusProgs.length>0&&(
-                  <div>
-                    <div className="text-xs font-semibold mb-2" style={{color:"#5C462B"}}>Top surplus contributors</div>
-                    <div className="space-y-1.5">
-                      {surplusProgs.slice(0,5).map(p=>(
-                        <div key={p.id} className="flex items-center gap-3">
-                          <div className="flex-1 text-xs truncate" style={{color:"#5C462B"}}>{p.name}</div>
-                          <div className="w-28 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                            <div className="h-full rounded-full" style={{width:Math.min(100,Math.round(p.profitLoss/maxBar*100))+"%",background:"#84BD00"}}/>
-                          </div>
-                          <div className="text-xs font-mono font-semibold w-20 text-right" style={{color:"#84BD00"}}>{dollar(Math.round(p.profitLoss))}</div>
-                          <div className="text-xs font-mono w-16 text-right" style={{color:"#A09080"}}>→ {dollar(Math.round(p.profitLoss*(capitalPct/100)))}</div>
-                        </div>
-                      ))}
+                {surplusProgs.slice(0,5).map(p=>(
+                  <div key={p.id} className="flex items-center gap-3">
+                    <div className="flex-1 text-xs truncate" style={{color:"#5C462B"}}>{p.name}</div>
+                    <div className="w-28 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                      <div className="h-full rounded-full" style={{width:Math.min(100,Math.round(p.profitLoss/maxBar*100))+"%",background:"#84BD00"}}/>
                     </div>
+                    <div className="text-xs font-mono font-semibold w-20 text-right" style={{color:"#84BD00"}}>{dollar(Math.round(p.profitLoss))}</div>
+                    <div className="text-xs font-mono w-16 text-right" style={{color:"#A09080"}}>{dollar(Math.round(p.profitLoss*(capitalPct/100)))}</div>
                   </div>
-                )}
-                <div className="rounded px-3 py-2.5 text-xs leading-relaxed" style={{background:"rgba(0,169,206,0.05)",border:"1px solid rgba(0,169,206,0.15)",color:"#5C462B"}}>
-                  <span className="font-bold">NRPA recommendation:</span> A {capitalPct}% allocation rate on your current net surplus generates <span className="font-bold" style={{color:"#00A9CE"}}>{dollar(suggested)}</span> toward capital reserve this cycle. NRPA's Fiscal Health model targets 3–10% of program net revenue annually (CAPRA standard 6.2).
+                ))}
+                <div className="rounded px-3 py-2.5 text-xs" style={{background:"rgba(0,169,206,0.05)",border:"1px solid rgba(0,169,206,0.15)",color:"#5C462B"}}>
+                  <span className="font-bold">NRPA recommendation:</span> A {capitalPct}% rate generates <span className="font-bold" style={{color:"#00A9CE"}}>{dollar(suggested)}</span> toward capital reserve. NRPA Fiscal Health model targets 3–10% annually (CAPRA 6.2).
                 </div>
               </div>
             ):(
-              <div className="rounded px-3 py-2.5 text-xs leading-relaxed" style={{background:"#FDF0E6",border:"1px solid rgba(227,82,5,0.2)"}}>
-                <span className="font-semibold" style={{color:"#A33900"}}>Portfolio net deficit: {dollar(Math.abs(Math.round(netPL)))}.</span> Capital contribution targets apply when the portfolio achieves net surplus.
+              <div className="rounded px-3 py-2.5 text-xs" style={{background:"#FDF0E6",border:"1px solid rgba(227,82,5,0.2)",color:"#A33900"}}>
+                Portfolio net deficit. Capital targets apply when portfolio achieves net surplus.
               </div>
             )}
           </div>
@@ -2806,7 +2799,6 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                   placeholder="Strategy notes, drivers, multi-year context..."
                   value={p.notes||""} onChange={e=>{setP(prev=>({...prev,notes:e.target.value}));setDirty(true);}}/>
               </div>
-              {/* Peer Visibility */}
               <div className="flex items-center justify-between rounded border border-slate-200 px-4 py-3">
                 <div>
                   <div className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Visible to Peers</div>
@@ -5762,9 +5754,7 @@ function Reference({isManager,db,programs,staffName}) {
       )}
 
             {sec==="allocation"&&(
-        <div className="p-5 space-y-5">
-          <AllocationCalculator programs={programs} staffName={staffName} isManager={isManager} db={db}/>
-        </div>
+        <AllocationCalculator programs={programs} staffName={staffName} isManager={isManager}/>
       )}
 
       {sec==="clubhouse"&&isManager&&(
@@ -7094,123 +7084,111 @@ export default function App() {
   );
 }
 // ─── Allocation Calculator ────────────────────────────────────────────────────
-// Splits a shared cost across multiple programs proportionally
-function AllocationCalculator({programs, staffName, isManager, db}) {
-  const [season, setSeason]   = useState("all");
-  const [year,   setYear]     = useState("all");
-  const [which,  setWhich]    = useState("budgeted");
-  const [costLabel, setCostLabel] = useState("");
-  const [costLines, setCostLines] = useState([{desc:"",amount:""}]);
-  const [mode, setMode]       = useState("enrollment"); // enrollment | equal | manual
-  const [selected, setSelected] = useState({}); // id → true/false
-  const [weights, setWeights] = useState({});    // id → manual weight string
-  const [result, setResult]   = useState(null);
+function AllocationCalculator({programs, staffName, isManager}) {
+  const [season, setSeason]     = useState("all");
+  const [year,   setYear]       = useState("all");
+  const [which,  setWhich]      = useState("budgeted");
+  const [costLines, setCostLines] = useState([{desc:"",amount:"",category:"other1"}]);
+  const [mode,   setMode]       = useState("enrollment");
+  const [selected, setSelected] = useState({});
+  const [weights,  setWeights]  = useState({});
+  const [result,   setResult]   = useState(null);
   const [applying, setApplying] = useState(false);
   const [applyStatus, setApplyStatus] = useState({});
-  const [targetField, setTargetField] = useState("ant_other1");
-  const [err, setErr]         = useState("");
+  const [err, setErr]           = useState("");
 
-  const FIELD_LABELS = {
-    ant_other1:"Other Cost 1 (Budgeted)", ant_other2:"Other Cost 2 (Budgeted)",
-    act_other1:"Other Cost 1 (Actuals)",  act_other2:"Other Cost 2 (Actuals)",
-    ant_personnel:"Personnel (Budgeted)", act_personnel:"Personnel (Actuals)",
-    ant_contractuals:"Contractuals (Budgeted)", act_contractuals:"Contractuals (Actuals)",
-    ant_commodities:"Commodities (Budgeted)", act_commodities:"Commodities (Actuals)",
-  };
+  const CATEGORIES = [
+    {id:"other1",      label:"Other Cost 1"},
+    {id:"other2",      label:"Other Cost 2"},
+    {id:"personnel",   label:"Personnel"},
+    {id:"contractuals",label:"Contractuals"},
+    {id:"commodities", label:"Commodities"},
+  ];
 
-  // Programs visible to this user
+  // Derive DB field from budget type + category per line
+  const getField = (category) => (which === "budgeted" ? "ant_" : "act_") + category;
+
   const myPrograms = isManager
     ? programs.filter(p=>!p.is_archived)
     : programs.filter(p=>!p.is_archived && p.staff_name === staffName);
 
-  // Filter by season/year
-  const filtered = myPrograms.filter(p => {
-    if(season !== "all" && p.season !== season) return false;
-    if(year   !== "all" && p.year   !== year)   return false;
-    return true;
-  });
+  const filtered = myPrograms.filter(p =>
+    (season === "all" || p.season === season) &&
+    (year   === "all" || p.year   === year)
+  );
 
   const allSeasons = [...new Set(myPrograms.map(p=>p.season).filter(Boolean))].sort();
   const allYears   = [...new Set(myPrograms.map(p=>p.year).filter(Boolean))].sort().reverse();
+  const px         = which === "budgeted" ? "ant_" : "act_";
 
-  const px = which === "budgeted" ? "ant_" : "act_";
+  const toggleProg = id => { setSelected(s=>({...s,[id]:!s[id]})); setResult(null); setApplyStatus({}); };
+  const selAll     = () => { setSelected(Object.fromEntries(filtered.map(p=>[p.id,true]))); setResult(null); setApplyStatus({}); };
+  const selNone    = () => { setSelected({}); setResult(null); setApplyStatus({}); };
 
-  const toggleProg = id => { setSelected(s => ({...s, [id]: !s[id]})); setResult(null); setApplyStatus({}); };
-  const selAll  = () => { setSelected(Object.fromEntries(filtered.map(p=>[p.id,true]))); setResult(null); setApplyStatus({}); };
-  const selNone = () => { setSelected({}); setResult(null); setApplyStatus({}); };
-
-  const selectedProgs = filtered.filter(p => selected[p.id]);
-  const totalCost = costLines.reduce((a,l)=>a+(parseFloat(l.amount)||0), 0);
+  const selectedProgs = filtered.filter(p=>selected[p.id]);
+  const totalCost     = costLines.reduce((a,l)=>a+(parseFloat(l.amount)||0), 0);
 
   function calculate() {
     setErr("");
-    if(totalCost <= 0) { setErr("Enter a total cost to allocate."); return; }
-    if(selectedProgs.length < 2) { setErr("Select at least 2 programs to split between."); return; }
+    if(totalCost <= 0)            { setErr("Enter a cost amount."); return; }
+    if(selectedProgs.length < 2)  { setErr("Select at least 2 programs."); return; }
 
-    const total = totalCost;
     let rows = [];
-
     if(mode === "enrollment") {
-      const enrollments = selectedProgs.map(p => parseFloat(p[px+"enrollment"]) || 0);
-      const totalEnroll = enrollments.reduce((a,b)=>a+b,0);
-      if(totalEnroll === 0) { setErr("None of the selected programs have enrollment entered. Try manual weights or equal split."); return; }
-      rows = selectedProgs.map((p,i) => ({
-        id: p.id, name: p.name, area: p.area,
-        basis: enrollments[i],
-        pct: totalEnroll > 0 ? enrollments[i] / totalEnroll : 0,
-        amount: totalEnroll > 0 ? (enrollments[i] / totalEnroll) * total : 0,
-      }));
+      const enrs      = selectedProgs.map(p=>parseFloat(p[px+"enrollment"])||0);
+      const totalEnr  = enrs.reduce((a,b)=>a+b,0);
+      if(totalEnr===0) { setErr("No enrollment data. Try Equal Split or Manual Weights."); return; }
+      rows = selectedProgs.map((p,i)=>({id:p.id,name:p.name,area:p.area,pct:enrs[i]/totalEnr}));
     } else if(mode === "equal") {
-      rows = selectedProgs.map(p => ({
-        id: p.id, name: p.name, area: p.area,
-        basis: 1,
-        pct: 1 / selectedProgs.length,
-        amount: total / selectedProgs.length,
-      }));
+      rows = selectedProgs.map(p=>({id:p.id,name:p.name,area:p.area,pct:1/selectedProgs.length}));
     } else {
-      const wts = selectedProgs.map(p => parseFloat(weights[p.id]) || 0);
-      const totalWt = wts.reduce((a,b)=>a+b,0);
-      if(totalWt === 0) { setErr("Enter at least one weight value."); return; }
-      rows = selectedProgs.map((p,i) => ({
-        id: p.id, name: p.name, area: p.area,
-        basis: wts[i],
-        pct: wts[i] / totalWt,
-        amount: (wts[i] / totalWt) * total,
-      }));
+      const wts      = selectedProgs.map(p=>parseFloat(weights[p.id])||0);
+      const totalWt  = wts.reduce((a,b)=>a+b,0);
+      if(totalWt===0) { setErr("Enter at least one weight."); return; }
+      rows = selectedProgs.map((p,i)=>({id:p.id,name:p.name,area:p.area,pct:wts[i]/totalWt}));
     }
 
-    // Round to cents, fix rounding error on last row
-    let allocated = 0;
-    rows = rows.map((r,i) => {
-      const amt = i < rows.length-1
-        ? Math.round(r.amount*100)/100
-        : Math.round((total-allocated)*100)/100;
-      allocated += Math.round(r.amount*100)/100;
-      return {...r, amount: i < rows.length-1 ? Math.round(r.amount*100)/100 : Math.round((total-allocated+Math.round(r.amount*100)/100)*100)/100};
-    });
-    // Simpler correct rounding
-    let runningTotal = 0;
-    rows = rows.map((r,i)=>{
-      const amt = i < rows.length-1 ? Math.round(r.pct*total*100)/100 : Math.round((total-runningTotal)*100)/100;
-      runningTotal += Math.round(r.pct*total*100)/100;
-      return {...r, amount: amt};
+    // For each cost line, compute the per-program amount
+    // Then round correctly (last row gets remainder per line)
+    const activeCostLines = costLines.filter(l=>parseFloat(l.amount)>0);
+    const rowsWithAmounts = rows.map(row=>({
+      ...row,
+      lines: activeCostLines.map(line=>({
+        desc:     line.desc,
+        category: line.category,
+        field:    getField(line.category),
+        amount:   Math.round(row.pct * parseFloat(line.amount) * 100) / 100,
+      })),
+      totalAmount: activeCostLines.reduce((a,line)=>a + Math.round(row.pct*parseFloat(line.amount)*100)/100, 0),
+    }));
+
+    // Fix rounding on last row per cost line
+    activeCostLines.forEach((line,li)=>{
+      const lineTotal = parseFloat(line.amount);
+      const sumExLast = rowsWithAmounts.slice(0,-1).reduce((a,r)=>a+r.lines[li].amount,0);
+      rowsWithAmounts[rowsWithAmounts.length-1].lines[li].amount = Math.round((lineTotal-sumExLast)*100)/100;
     });
 
-    const descLabel = costLines.filter(l=>l.desc||l.amount).map(l=>l.desc||(dollar(parseFloat(l.amount)||0))).join(", ");
-    setResult({ rows, total, label: descLabel||costLabel||"Shared Cost", mode });
+    setResult({rows:rowsWithAmounts, totalCost, costLines:activeCostLines, mode});
     setApplyStatus({});
   }
 
   async function applyAlloc() {
     if(!result) return;
     setApplying(true); setErr("");
+    const db = supabase;
+
     const status = {};
     for(const row of result.rows) {
       try {
         const prog = programs.find(p=>p.id===row.id);
-        const existing = parseFloat(prog?.[targetField])||0;
-        const newVal = Math.round((existing + row.amount)*100)/100;
-        const {error:e} = await db.from("programs").update({[targetField]:newVal}).eq("id",row.id);
+        // Build a single update object with all field changes for this row
+        const update = {};
+        for(const line of row.lines) {
+          const existing = parseFloat(prog?.[line.field])||0;
+          update[line.field] = Math.round((existing + line.amount)*100)/100;
+        }
+        const {error:e} = await db.from("programs").update(update).eq("id",row.id);
         status[row.id] = e ? "error" : "ok";
         if(e) setErr(prev=>prev+(prev?"\n":"")+row.name+": "+e.message);
       } catch(ex) {
@@ -7222,19 +7200,29 @@ function AllocationCalculator({programs, staffName, isManager, db}) {
   }
 
   const appliedCount = Object.values(applyStatus).filter(v=>v==="ok").length;
+  const budgetLabel  = which === "budgeted" ? "Budgeted" : "Actuals";
 
   return (
     <div className="space-y-5">
       <div className="rounded p-4" style={{background:"rgba(0,169,206,0.05)",border:"1px solid rgba(0,169,206,0.2)"}}>
         <div className="text-xs font-bold uppercase mb-1" style={{letterSpacing:"0.10em",color:"#00A9CE"}}>What this does</div>
-        <p className="text-xs leading-relaxed" style={{color:"#5C462B"}}>Split a shared cost — facility rental, shared instructor, shared supplies — across multiple programs proportionally by enrollment, equal split, or custom weights. Results add to the selected cost field on each program record.</p>
+        <p className="text-xs leading-relaxed" style={{color:"#5C462B"}}>Split shared costs across multiple programs. Each cost line can go to a different field — e.g. instructor cost to Personnel, supplies to Commodities. Results add to the existing value on each program record.</p>
       </div>
 
-      {/* ── Step 1: Filter + Select Programs ── */}
+      {/* Step 1: Programs + filters */}
       <div className="rounded" style={{border:"1px solid rgba(92,70,43,0.15)"}}>
-        <div className="px-4 py-2.5 text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B",background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>Step 1 — Select Programs & Period</div>
+        <div className="px-4 py-2.5 text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B",background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>
+          Step 1 — Select Programs
+        </div>
         <div className="p-4 space-y-3">
           <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Budget Type</label>
+              <select value={which} onChange={e=>{setWhich(e.target.value);setResult(null);}} className="w-full text-sm rounded border border-slate-200 px-3 py-2 bg-white">
+                <option value="budgeted">Budgeted</option>
+                <option value="actual">Actuals</option>
+              </select>
+            </div>
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">Season</label>
               <select value={season} onChange={e=>{setSeason(e.target.value);setResult(null);}} className="w-full text-sm rounded border border-slate-200 px-3 py-2 bg-white">
@@ -7249,79 +7237,89 @@ function AllocationCalculator({programs, staffName, isManager, db}) {
                 {allYears.map(y=><option key={y}>{y}</option>)}
               </select>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Budget Type</label>
-              <select value={which} onChange={e=>{setWhich(e.target.value);setResult(null);}} className="w-full text-sm rounded border border-slate-200 px-3 py-2 bg-white">
-                <option value="budgeted">Budgeted</option>
-                <option value="actual">Actuals</option>
-              </select>
-            </div>
           </div>
-
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-semibold text-slate-600">Programs to allocate between</label>
-              <div className="flex gap-2">
+              <label className="text-xs font-semibold text-slate-600">Programs to split between</label>
+              <div className="flex gap-3">
                 <button onClick={selAll}  className="text-xs underline" style={{color:"#00A9CE",background:"none",border:"none"}}>All</button>
                 <button onClick={selNone} className="text-xs underline" style={{color:"#A09080",background:"none",border:"none"}}>None</button>
               </div>
             </div>
-            {filtered.length === 0 ? (
-              <div className="text-xs text-center py-4" style={{color:"#A09080"}}>No programs match this filter.</div>
-            ) : (
-              <div className="border border-slate-200 rounded overflow-hidden divide-y divide-slate-100 max-h-52 overflow-y-auto">
-                {filtered.map(p=>{
-                  const enroll = parseFloat(p[px+"enrollment"])||0;
-                  return (
+            {filtered.length===0
+              ? <div className="text-xs text-center py-4 text-slate-400">No programs match this filter.</div>
+              : <div className="border border-slate-200 rounded overflow-hidden divide-y divide-slate-100 max-h-52 overflow-y-auto">
+                  {filtered.map(p=>(
                     <label key={p.id} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-slate-50">
                       <input type="checkbox" checked={!!selected[p.id]} onChange={()=>toggleProg(p.id)} className="shrink-0"/>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-semibold truncate" style={{color:"#5C462B"}}>{p.name}</div>
-                        <div className="text-xs" style={{color:"#A09080"}}>{p.area} · {p.season} · Enrollment: {enroll||"—"}</div>
+                        <div className="text-xs" style={{color:"#A09080"}}>{p.area} · {p.season} · Enr: {p[px+"enrollment"]||"—"}</div>
                       </div>
-                      {mode==="manual" && selected[p.id] && (
+                      {mode==="manual"&&selected[p.id]&&(
                         <input type="number" value={weights[p.id]||""} onChange={e=>setWeights(w=>({...w,[p.id]:e.target.value}))}
-                          placeholder="weight" onClick={e=>e.stopPropagation()}
-                          className="w-20 text-sm rounded border border-slate-200 px-2 py-1"
+                          placeholder="wt" onClick={e=>e.stopPropagation()}
+                          className="w-16 text-xs text-center rounded border border-slate-200 px-2 py-1"
                           style={{MozAppearance:"textfield"}}/>
                       )}
                     </label>
-                  );
-                })}
-              </div>
-            )}
+                  ))}
+                </div>
+            }
             <div className="text-xs mt-1" style={{color:"#A09080"}}>{selectedProgs.length} selected</div>
           </div>
         </div>
       </div>
 
-      {/* ── Step 2: Cost lines & Method ── */}
+      {/* Step 2: Cost lines with per-line field selector */}
       <div className="rounded" style={{border:"1px solid rgba(92,70,43,0.15)"}}>
-        <div className="px-4 py-2.5 text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B",background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>Step 2 — Enter Cost & Allocation Method</div>
-        <div className="p-4 space-y-3">
+        <div className="px-4 py-2.5 text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B",background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>
+          Step 2 — Cost Lines & Split Method
+        </div>
+        <div className="p-4 space-y-4">
+          {/* Cost lines */}
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Cost line(s)</label>
+            <label className="block text-xs font-semibold text-slate-600 mb-2">Cost line(s) — each line can go to a different field</label>
             {costLines.map((line,i)=>(
-              <div key={i} className="flex gap-2 items-center mb-2">
-                <input type="text" value={line.desc} onChange={e=>{const n=[...costLines];n[i]={...n[i],desc:e.target.value};setCostLines(n);}}
-                  placeholder="Description (e.g. Shared facility rental)"
-                  className="flex-1 text-sm rounded border border-slate-200 px-3 py-2"/>
-                <input type="number" value={line.amount} onChange={e=>{const n=[...costLines];n[i]={...n[i],amount:e.target.value};setCostLines(n);setResult(null);}}
-                  placeholder="$0.00" min={0}
-                  className="w-28 text-sm rounded border border-slate-200 px-3 py-2 font-mono"
-                  style={{MozAppearance:"textfield"}}/>
-                {costLines.length>1&&<button onClick={()=>{setCostLines(costLines.filter((_,j)=>j!==i));setResult(null);}}
-                  className="text-xs font-bold px-1" style={{color:"#E35205",background:"none",border:"none"}}>✕</button>}
+              <div key={i} className="mb-3 p-3 rounded" style={{background:"rgba(92,70,43,0.03)",border:"1px solid rgba(92,70,43,0.08)"}}>
+                <div className="flex gap-2 items-center mb-2">
+                  <input type="text" value={line.desc}
+                    onChange={e=>{const n=[...costLines];n[i]={...n[i],desc:e.target.value};setCostLines(n);}}
+                    placeholder="Description (e.g. Shared instructor)"
+                    className="flex-1 text-sm rounded border border-slate-200 px-3 py-2"/>
+                  <input type="number" value={line.amount}
+                    onChange={e=>{const n=[...costLines];n[i]={...n[i],amount:e.target.value};setCostLines(n);setResult(null);}}
+                    placeholder="$0.00" min={0}
+                    className="w-28 text-sm rounded border border-slate-200 px-3 py-2 font-mono"
+                    style={{MozAppearance:"textfield"}}/>
+                  {costLines.length>1&&<button onClick={()=>{setCostLines(costLines.filter((_,j)=>j!==i));setResult(null);}}
+                    className="text-xs font-bold px-1 shrink-0" style={{color:"#E35205",background:"none",border:"none"}}>✕</button>}
+                </div>
+                {/* Field selector — 5 buttons, budget type already set above */}
+                <div className="flex gap-1.5 flex-wrap items-center">
+                  <span className="text-xs mr-1" style={{color:"#A09080"}}>→ {budgetLabel}:</span>
+                  {CATEGORIES.map(cat=>(
+                    <button key={cat.id} onClick={()=>{const n=[...costLines];n[i]={...n[i],category:cat.id};setCostLines(n);}}
+                      className="px-2.5 py-1 text-xs font-semibold rounded border transition"
+                      style={line.category===cat.id
+                        ?{background:"#5C462B",color:"#fff",borderColor:"#5C462B"}
+                        :{background:"#fff",color:"#A09080",borderColor:"rgba(92,70,43,0.25)"}}>
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             ))}
-            <div className="flex items-center justify-between mt-1">
-              <button onClick={()=>setCostLines([...costLines,{desc:"",amount:""}])}
+            <div className="flex items-center justify-between">
+              <button onClick={()=>setCostLines([...costLines,{desc:"",amount:"",category:"other1"}])}
                 className="text-xs font-semibold" style={{color:"#00A9CE",background:"none",border:"none"}}>
                 + Add cost line
               </button>
               {totalCost>0&&<div className="text-sm font-bold" style={{color:"#5C462B"}}>Total: {dollar(totalCost)}</div>}
             </div>
           </div>
+
+          {/* Split method */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5">Split method</label>
             <div className="flex gap-2">
@@ -7334,61 +7332,91 @@ function AllocationCalculator({programs, staffName, isManager, db}) {
               ))}
             </div>
             <div className="text-xs mt-1" style={{color:"#A09080"}}>
-              {mode==="enrollment"?"Splits proportionally to each program's enrollment — more participants = more cost.":
-               mode==="equal"?"Divides the total evenly across all selected programs.":
-               "Enter a weight for each selected program — higher weight = larger share of cost."}
+              {mode==="enrollment"?"Splits each cost line proportionally to program enrollment.":
+               mode==="equal"?"Divides each cost line evenly across all selected programs.":
+               "Enter a weight per program above — higher weight = larger share."}
             </div>
           </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Apply result to field</label>
-            <select value={targetField} onChange={e=>setTargetField(e.target.value)} className="w-full text-sm rounded border border-slate-200 px-3 py-2 bg-white">
-              {Object.entries(FIELD_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}
-            </select>
-            <div className="text-xs mt-1" style={{color:"#A09080"}}>Amounts are added to the existing value — not replaced. Find this field on the {which==="budgeted"?"Budgeted":"Actuals"} tab of each program.</div>
-          </div>
-          {err && <div className="text-xs px-3 py-2 rounded" style={{background:"#FDF0E6",color:"#E35205"}}>{err}</div>}
+
+          {err&&<div className="text-xs px-3 py-2 rounded" style={{background:"#FDF0E6",color:"#E35205"}}>{err}</div>}
           <button onClick={calculate} disabled={selectedProgs.length<2||totalCost<=0}
             className="px-4 py-2 text-sm font-bold rounded text-white disabled:opacity-40"
             style={{background:"#00A9CE"}}>
-            Calculate Allocation →
+            Calculate →
           </button>
         </div>
       </div>
 
-      {/* ── Step 3: Results + Apply ── */}
+      {/* Step 3: Results */}
       {result&&(
         <div className="rounded" style={{border:"1px solid rgba(92,70,43,0.15)"}}>
-          <div className="px-4 py-2.5 text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B",background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>Step 3 — Review & Apply</div>
+          <div className="px-4 py-2.5 text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B",background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>
+            Step 3 — Review & Apply
+          </div>
           <div className="p-4 space-y-3">
-            <div className="text-sm font-bold mb-2" style={{color:"#5C462B"}}>{result.label} — Total: {dollar(result.total)}</div>
-            <div className="border border-slate-200 rounded overflow-hidden">
-              <div className="grid grid-cols-4 gap-0 px-3 py-2 text-xs font-bold uppercase" style={{background:"#F0EBE3",letterSpacing:"0.08em",color:"#A09080"}}>
-                <div className="col-span-2">Program</div>
-                <div className="text-right">Share</div>
-                <div className="text-right">Amount</div>
-              </div>
-              {result.rows.map(row=>(
-                <div key={row.id} className="grid grid-cols-4 gap-0 px-3 py-2.5 border-t border-slate-100 items-center">
-                  <div className="col-span-2">
-                    <div className="text-sm font-semibold" style={{color:"#5C462B"}}>{row.name}</div>
-                    <div className="text-xs" style={{color:"#A09080"}}>{row.area}</div>
-                  </div>
-                  <div className="text-right text-sm" style={{color:"#A09080"}}>{Math.round(row.pct*100)}%</div>
-                  <div className="text-right font-bold text-sm" style={{color:applyStatus[row.id]==="ok"?"#84BD00":applyStatus[row.id]==="error"?"#E35205":"#5C462B"}}>
-                    {dollar(row.amount)}
-                    {applyStatus[row.id]==="ok"&&<span className="ml-1 text-xs">✓</span>}
-                    {applyStatus[row.id]==="error"&&<span className="ml-1 text-xs">✗</span>}
-                  </div>
+            {/* Summary of what will be applied */}
+            <div className="space-y-1">
+              {result.costLines.map((line,i)=>(
+                <div key={i} className="flex items-center gap-2 text-xs">
+                  <span className="font-semibold" style={{color:"#5C462B"}}>{line.desc||"Cost line "+(i+1)}</span>
+                  <span style={{color:"#A09080"}}>{dollar(parseFloat(line.amount))}</span>
+                  <span style={{color:"#A09080"}}>→</span>
+                  <span className="font-semibold px-2 py-0.5 rounded" style={{background:"rgba(0,169,206,0.08)",color:"#00A9CE"}}>
+                    {CATEGORIES.find(c=>c.id===line.category)?.label} ({budgetLabel})
+                  </span>
                 </div>
               ))}
-              <div className="grid grid-cols-4 gap-0 px-3 py-2 border-t border-slate-200 font-bold text-sm" style={{background:"#F0EBE3"}}>
-                <div className="col-span-2" style={{color:"#5C462B"}}>Total</div>
-                <div></div>
-                <div className="text-right" style={{color:"#5C462B"}}>{dollar(result.total)}</div>
-              </div>
             </div>
+
+            {/* Results table */}
+            <div className="border border-slate-200 rounded overflow-hidden overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr style={{background:"#F0EBE3"}}>
+                    <th className="px-3 py-2 text-left font-bold uppercase" style={{letterSpacing:"0.08em",color:"#A09080"}}>Program</th>
+                    <th className="px-3 py-2 text-right font-bold uppercase" style={{letterSpacing:"0.08em",color:"#A09080"}}>Share</th>
+                    {result.costLines.map((line,i)=>(
+                      <th key={i} className="px-3 py-2 text-right font-bold uppercase whitespace-nowrap" style={{letterSpacing:"0.08em",color:"#A09080"}}>
+                        {line.desc||"Line "+(i+1)}
+                      </th>
+                    ))}
+                    <th className="px-3 py-2 text-right font-bold uppercase" style={{letterSpacing:"0.08em",color:"#A09080"}}>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.rows.map(row=>(
+                    <tr key={row.id} className="border-t border-slate-100">
+                      <td className="px-3 py-2.5 font-semibold" style={{color:"#5C462B"}}>{row.name}</td>
+                      <td className="px-3 py-2.5 text-right" style={{color:"#A09080"}}>{Math.round(row.pct*100)}%</td>
+                      {row.lines.map((line,i)=>(
+                        <td key={i} className="px-3 py-2.5 text-right font-mono font-semibold"
+                          style={{color:applyStatus[row.id]==="ok"?"#84BD00":applyStatus[row.id]==="error"?"#E35205":"#5C462B"}}>
+                          {dollar(line.amount)}
+                        </td>
+                      ))}
+                      <td className="px-3 py-2.5 text-right font-mono font-bold" style={{color:applyStatus[row.id]==="ok"?"#84BD00":applyStatus[row.id]==="error"?"#E35205":"#5C462B"}}>
+                        {dollar(row.totalAmount)}
+                        {applyStatus[row.id]==="ok"&&<span className="ml-1">✓</span>}
+                        {applyStatus[row.id]==="error"&&<span className="ml-1">✗</span>}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="border-t border-slate-200 font-bold" style={{background:"#F0EBE3"}}>
+                    <td className="px-3 py-2" style={{color:"#5C462B"}}>Total</td>
+                    <td></td>
+                    {result.costLines.map((line,i)=>(
+                      <td key={i} className="px-3 py-2 text-right font-mono" style={{color:"#5C462B"}}>{dollar(parseFloat(line.amount))}</td>
+                    ))}
+                    <td className="px-3 py-2 text-right font-mono" style={{color:"#5C462B"}}>{dollar(result.totalCost)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
             {appliedCount>0&&(
-              <div className="text-xs font-semibold px-3 py-2 rounded" style={{background:"rgba(132,189,0,0.08)",color:"#4A6B00"}}>✓ Applied to {appliedCount} of {result.rows.length} programs — check the <strong>{FIELD_LABELS[targetField]}</strong> field on each program to verify.</div>
+              <div className="text-xs font-semibold px-3 py-2 rounded" style={{background:"rgba(132,189,0,0.08)",color:"#4A6B00"}}>
+                ✓ Applied to {appliedCount} of {result.rows.length} programs on the {budgetLabel} tab.
+              </div>
             )}
             <button onClick={applyAlloc} disabled={applying||appliedCount===result.rows.length}
               className="px-4 py-2 text-sm font-bold rounded text-white disabled:opacity-40"
