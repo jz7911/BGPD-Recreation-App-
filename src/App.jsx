@@ -1225,242 +1225,179 @@ function MultiFilter({filters, onChange, counts}) {
 }
 
 // ─── Dashboard (Staff View — unchanged from original) ─────────────────────────
-function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
-  // Default to filtering by own name so staff see their programs immediately
-  const [filters,setFilters] = useState({staff:new Set([staffName].filter(Boolean)),area:new Set(),season:new Set(),year:new Set()});
-  const [dv,setDv]           = useState("summary");
-  const [showReport,setShowReport] = useState(false);
+function StaffDashboard({programs,staffName,onEdit,onAddProgram,db}) {
+  const myPrograms = programs.filter(p=>!p.is_archived&&p.staff_name===staffName);
+  const kpis = myPrograms.map(p=>({...p,...calcKPIs(p)}));
 
-  function onFilterChange(key, val) { setFilters(f=>({...f,[key]:val})); }
-
-  const allStaff   = [...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
-  const allAreas   = [...new Set(programs.map(p=>p.area))];
-  const allYears   = [...YEARS];
-  const allSeasons = [...SEASONS];
-
-  const vis  = programs
-    .filter(p=>!p.is_archived)
-    .filter(p=>filters.staff.size===0||filters.staff.has(p.staff_name))
-    .filter(p=>isManager||p.staff_name===staffName||p.peer_visible!==false)
-    .filter(p=>filters.area.size===0||filters.area.has(p.area))
-    .filter(p=>filters.year.size===0||filters.year.has(toFY(p.year)))
-    .filter(p=>filters.season.size===0||filters.season.has(p.season));
-
-  const kpis    = vis.map(p=>({...p,...calcKPIs(p)}));
-  const avgFill = kpis.length ? kpis.reduce((a,p)=>a+p.fillRate,0)/kpis.length : 0;
-  const avgCR   = kpis.length ? kpis.reduce((a,p)=>a+p.costRecovery,0)/kpis.length : 0;
-  const surplus = kpis.reduce((a,p)=>a+p.profitLoss,0);
-  const antRev  = kpis.reduce((a,p)=>a+p.antRevenue,0);
-  const actRev  = kpis.reduce((a,p)=>a+p.revenue,0);
-  const antEnr  = vis.reduce((a,p)=>a+(p.ant_enrollment||0),0);
-  const actEnr  = vis.reduce((a,p)=>a+(p.act_enrollment||0),0);
-  const antCost = kpis.reduce((a,p)=>a+p.antTotal,0);
-  const actCost = kpis.reduce((a,p)=>a+p.totalCost,0);
   const healthy  = kpis.filter(p=>p.status==="Healthy").length;
   const monitor  = kpis.filter(p=>p.status==="Monitor").length;
   const redesign = kpis.filter(p=>p.status==="Needs Redesign").length;
-  const low50    = kpis.filter(p=>p.costRecovery<0.5).length;
+  const noActuals= kpis.filter(p=>!p.hasActuals).length;
+  const avgFill  = kpis.length ? kpis.reduce((a,p)=>a+p.fillRate,0)/kpis.length : 0;
+  const avgCR    = kpis.length ? kpis.reduce((a,p)=>a+p.costRecovery,0)/kpis.length : 0;
+
+  // Programs needing attention — Needs Redesign first, then Monitor, sorted by fill rate
+  const needsAttn = [...kpis]
+    .filter(p=>p.status==="Needs Redesign"||p.status==="Monitor")
+    .sort((a,b)=>{
+      if(a.status!==b.status) return a.status==="Needs Redesign"?-1:1;
+      return a.fillRate-b.fillRate;
+    });
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <MultiFilter filters={filters} onChange={onFilterChange}
-          counts={{staff:allStaff,area:allAreas,season:allSeasons,year:allYears}}/>
-        <div className="flex gap-2 justify-end">
-          <button onClick={()=>exportCSV(vis)} className="text-xs font-semibold px-3 py-2 rounded border border-slate-200 text-slate-700 hover:bg-gray-200 transition whitespace-nowrap">↓ Export CSV</button>
-          <button onClick={()=>setShowReport(true)} className="text-xs font-semibold px-3 py-2 rounded transition whitespace-nowrap text-white" style={{backgroundColor:"#00A9CE"}}>⬜ Season Report</button>
+    <div className="space-y-5">
+
+      {/* Welcome bar */}
+      <div className="rounded p-5" style={{background:"#5C462B"}}>
+        <div className="text-xs font-bold uppercase mb-1" style={{letterSpacing:"0.12em",color:"rgba(255,255,255,0.6)"}}>Your Dashboard</div>
+        <div className="text-xl font-black text-white">{staffName}</div>
+        <div className="text-sm mt-1" style={{color:"rgba(255,255,255,0.7)"}}>
+          {myPrograms.length} active program{myPrograms.length!==1?"s":""} this view
+          {noActuals>0&&<span className="ml-2 font-semibold" style={{color:"#F6AB00"}}>· {noActuals} need actuals</span>}
         </div>
       </div>
-      {showReport&&(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:"rgba(15,23,42,0.7)"}}>
-          <div className="bg-white rounded shadow-2xl w-full max-w-sm p-6 text-center space-y-4">
-            <div className="text-base font-bold font-semibold">Season Performance Report</div>
-            <div className="text-sm text-slate-700">This will open your browser's print dialog. Choose "Save as PDF" to export.</div>
-            <div className="text-xs text-slate-700">{vis.length} programs with current filters applied</div>
-            <div className="flex gap-3 justify-center pt-2">
-              <button onClick={()=>setShowReport(false)} className="px-4 py-2 text-sm text-slate-700 border border-slate-200 rounded-lg hover:bg-gray-200">Cancel</button>
-              <button onClick={()=>{ setShowReport(false); printSeasonReport(vis, `${[...filters.staff].join(", ")||"All Staff"} · ${[...filters.area].join(", ")||"All Areas"} · ${[...filters.season].join(", ")||"All Seasons"} · ${[...filters.year].map(y=>`FY ${y}`).join(", ")||"All Years"}`); }}
-                className="px-5 py-2 text-sm font-semibold text-white rounded-lg" style={{backgroundColor:"#00A9CE"}}>Save as PDF</button>
+
+      {/* Status summary */}
+      {kpis.length>0&&(
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            {label:"Healthy",      value:healthy,  color:"#84BD00", bg:"rgba(132,189,0,0.08)"},
+            {label:"Monitor",      value:monitor,  color:"#F6AB00", bg:"rgba(246,171,0,0.08)"},
+            {label:"Needs Review", value:redesign, color:"#E35205", bg:"rgba(227,82,5,0.08)"},
+          ].map(({label,value,color,bg})=>(
+            <div key={label} className="rounded p-4 text-center" style={{background:bg,border:`1px solid ${color}33`}}>
+              <div className="text-2xl font-black" style={{color}}>{value}</div>
+              <div className="text-xs font-semibold mt-0.5" style={{color}}>{label}</div>
             </div>
-          </div>
+          ))}
         </div>
       )}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <KCard label="Programs"                value={vis.length}      accent="#00A9CE"/>
-        <KCard label="Avg Fill Rate"           value={pct(avgFill)}    accent="#00A9CE"/>
-        <KCard label="Avg Cost Recovery"       value={pct(avgCR)}      accent="#00A9CE"/>
-        <KCard label="Total Net Profit/(Loss)" value={dollar(surplus)} accent={surplus>=0?"#84BD00":"#E35205"}/>
-      </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <KCard label="Healthy"            value={healthy}  sub="programs" accent="#84BD00"/>
-        <KCard label="Monitor"            value={monitor}  sub="programs" accent="#F6AB00"/>
-        <KCard label="Needs Redesign"     value={redesign} sub="programs" accent="#E35205"/>
-        <KCard label="Below 50% Recovery" value={low50}    sub="programs" accent="#f97316"/>
-      </div>
-      <div className="bg-white rounded-lg shadow-sm p-5 space-y-5">
-        <h3 className="font-bold text-slate-800 text-sm">Program Snapshot: Budgeted vs Actual</h3>
-        <PBar label="Total Revenue"      actual={actRev}  budget={antRev}  ff={v=>dollar(v)}/>
-        <PBar label="Total Enrollment"   actual={actEnr}  budget={antEnr}  ff={v=>v.toString()}/>
-        <PBar label="Total Program Cost" actual={actCost} budget={antCost} ff={v=>dollar(v)} inv/>
-      </div>
-      <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 flex-wrap gap-2">
-          <h2 className="font-bold text-slate-800 text-sm">Program Detail</h2>
-          <div className="flex gap-1">
-            {[["summary","Summary"],["variances","Variances"],["progress","Progress"]].map(([v,l])=>(
-              <button key={v} onClick={()=>setDv(v)}
-                className={`text-xs px-3 py-1.5 rounded font-medium transition ${dv===v?"text-white":"bg-gray-200 text-slate-700 hover:bg-slate-200"}`}
-                style={dv===v?{backgroundColor:"#00A9CE"}:{}}>{l}</button>
+
+      {/* Needs Attention */}
+      {needsAttn.length>0&&(
+        <div className="rounded overflow-hidden" style={{border:"1px solid rgba(92,70,43,0.12)"}}>
+          <div className="px-4 py-2.5 flex items-center justify-between" style={{background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>
+            <div>
+              <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B"}}>Needs Your Attention</div>
+              <div className="text-xs mt-0.5" style={{color:"#A09080"}}>Programs below target — review and update as needed</div>
+            </div>
+            <div className="flex gap-1.5">
+              {redesign>0&&<span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{background:"rgba(227,82,5,0.12)",color:"#E35205"}}>{redesign} NR</span>}
+              {monitor>0&&<span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{background:"rgba(246,171,0,0.12)",color:"#B07A00"}}>{monitor} Mon</span>}
+            </div>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {needsAttn.map(p=>(
+              <div key={p.id} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50">
+                <div className="flex-1 min-w-0">
+                  <button onClick={()=>onEdit(p)} className="font-semibold text-sm text-slate-700 hover:underline text-left truncate block">{p.name}</button>
+                  <div className="text-xs mt-0.5" style={{color:"#A09080"}}>{p.area} · {p.season} FY {toFY(p.year)}</div>
+                </div>
+                <div className="flex gap-3 text-xs font-mono shrink-0">
+                  <div className="text-center">
+                    <div className="font-bold" style={{color:p.fillRate>=0.7?"#84BD00":p.fillRate>=0.6?"#F6AB00":"#E35205"}}>{pct(p.fillRate)}</div>
+                    <div className="text-slate-400">Fill</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-bold" style={{color:p.costRecovery>=1?"#84BD00":p.costRecovery>=0.5?"#F6AB00":"#E35205"}}>{pct(p.costRecovery)}</div>
+                    <div className="text-slate-400">CR</div>
+                  </div>
+                </div>
+                <Badge status={p.status}/>
+                <button onClick={()=>onEdit(p)} className="text-xs font-semibold shrink-0" style={{color:"#00A9CE"}}>Edit →</button>
+              </div>
             ))}
           </div>
         </div>
-        {vis.length===0 ? (
-          <div className="p-8 text-center text-slate-700 text-sm">No programs yet. <button onClick={onAddProgram} className=" font-semibold underline">Add a program.</button></div>
-        ) : dv==="summary" ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="bg-slate-50 text-xs text-slate-700 uppercase tracking-wider">
-                {["Program","Staff","Area","Season","Fill Rate","Cost Recovery","Net P/(L)","Total Cost","Waitlist","Trend","NPS","Status",""].map(h=>(
-                  <th key={h} className="px-3 py-2 text-left font-semibold">{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>{kpis.map((p,i)=>(
-                <tr key={p.id} className={`border-t border-slate-50 hover:bg-gray-200 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
-                  <td className="px-3 py-2.5 font-semibold text-slate-800">
-                    <button onClick={()=>onEdit(p)} className="hover:text-blue-600 hover:underline text-left">{p.name}</button>
-                    {(()=>{
-                      const svt=getSvcTarget(p.service_category,p.costRecovery);
-                      if(!svt||!p.hasActuals||p.costRecovery>=svt.min) return null;
-                      const enrollment=p.act_enrollment||0;
-                      const targetRev=p.totalCost*svt.min;
-                      const currentFee=p.fee>0?p.fee:(enrollment>0?p.revenue/enrollment:null);
-                      const sugFee=enrollment>0?targetRev/enrollment:null;
-                      const gap=sugFee!=null&&currentFee!=null?sugFee-currentFee:null;
-                      if(!gap||gap<=0) return null;
-                      return <span className="ml-2 text-xs font-semibold px-1.5 py-0.5 rounded" style={{background:"#FEF4DC",color:"#8A5E00"}}>+{dollar(Math.ceil(gap))}/person needed</span>;
-                    })()}
-                  </td>
-                  <td className="px-3 py-2.5 text-slate-700 text-xs">{p.staff_name}</td>
-                  <td className="px-3 py-2.5 text-slate-700">{p.area}</td>
-                  <td className="px-3 py-2.5 text-slate-700 whitespace-nowrap">{p.season} FY {toFY(p.year)}</td>
-                  <td className="px-3 py-2.5 font-mono">{pct(p.fillRate)}</td>
-                  <td className="px-3 py-2.5 font-mono">{pct(p.costRecovery)}</td>
-                  <td className={`px-3 py-2.5 font-mono font-semibold ${p.profitLoss>=0?"text-green-700":"text-red-600"}`}>{dollar(p.profitLoss)}</td>
-                  <td className="px-3 py-2.5 font-mono text-slate-700">{dollar(p.totalCost)}</td>
-                  <td className="px-3 py-2.5 text-slate-700">{p.waitlist||0}</td>
-                  <td className="px-3 py-2.5 text-slate-700">{p.trend}</td>
-                  <td className="px-3 py-2.5 font-mono text-xs">
-                    {p.nps>0?<span className="font-bold" style={{color:p.nps>=50?"#84BD00":p.nps>=0?"#F6AB00":"#E35205"}}>{p.nps}</span>:<span className="text-slate-400">—</span>}
-                  </td>
-                  <td className="px-3 py-2.5 whitespace-nowrap">
-                    <Badge status={p.status}/>
-                    
-                  </td>
-                  <td className="px-3 py-2.5"><button onClick={()=>onEdit(p)} className="text-xs text-slate-700 hover:text-slate-800 font-medium">Edit</button></td>
-                </tr>
-              ))}</tbody>
-            </table>
-          </div>
-        ) : dv==="variances" ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-slate-50 text-xs text-slate-700 uppercase tracking-wider">
-                  <th className="px-3 py-2 text-left font-semibold">Program</th>
-                  <th className="px-3 py-2 text-center font-semibold" colSpan={3}>Enrollment</th>
-                  <th className="px-3 py-2 text-center font-semibold border-l border-slate-200" colSpan={3}>Revenue</th>
-                  <th className="px-3 py-2 text-center font-semibold border-l border-slate-200" colSpan={3}>Total Cost</th>
-                  <th className="px-3 py-2 text-center font-semibold border-l border-slate-200" colSpan={3}>Cost Recovery</th>
-                  <th className="px-3 py-2 text-center font-semibold border-l border-slate-200" colSpan={3}>Net Profit/(Loss)</th>
-                </tr>
-                <tr className="bg-slate-50 text-xs text-slate-400 uppercase">
-                  <th className="px-3 py-1"/>
-                  <th className="px-2 py-1 text-center">Bud.</th><th className="px-2 py-1 text-center">Actual</th><th className="px-2 py-1 text-center">Var.</th>
-                  <th className="px-2 py-1 text-center border-l border-slate-200">Bud.</th><th className="px-2 py-1 text-center">Actual</th><th className="px-2 py-1 text-center">Var.</th>
-                  <th className="px-2 py-1 text-center border-l border-slate-200">Bud.</th><th className="px-2 py-1 text-center">Actual</th><th className="px-2 py-1 text-center">Var.</th>
-                  <th className="px-2 py-1 text-center border-l border-slate-200">Bud.</th><th className="px-2 py-1 text-center">Actual</th><th className="px-2 py-1 text-center">Var.</th>
-                  <th className="px-2 py-1 text-center border-l border-slate-200">Bud.</th><th className="px-2 py-1 text-center">Actual</th><th className="px-2 py-1 text-center">Var.</th>
-                </tr>
-              </thead>
-              <tbody>{kpis.map((p,i)=>(
-                <tr key={p.id} className={`border-t border-slate-50 hover:bg-gray-200 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
-                  <td className="px-3 py-2.5 font-semibold text-slate-800 whitespace-nowrap">
-                    <button onClick={()=>onEdit(p)} className="hover:text-blue-600 hover:underline text-left">{p.name}</button>
-                    {!p.hasActuals&&!p.is_archived&&(
-                      <span className="ml-2 text-xs px-1.5 py-0.5 rounded font-semibold" style={{background:"#FEF4DC",color:"#8A5E00"}}>Budgeted Only</span>
-                    )}
+      )}
 
-                    {(()=>{
-                      const svt=getSvcTarget(p.service_category,p.costRecovery);
-                      if(!svt||!p.hasActuals||p.costRecovery>=svt.min) return null;
-                      const enrollment=p.act_enrollment||0;
-                      const targetRev=p.totalCost*svt.min;
-                      const currentFee=p.fee>0?p.fee:(enrollment>0?p.revenue/enrollment:null);
-                      const sugFee=enrollment>0?targetRev/enrollment:null;
-                      const gap=sugFee!=null&&currentFee!=null?sugFee-currentFee:null;
-                      if(!gap||gap<=0) return null;
-                      return <span className="ml-2 text-xs font-semibold px-1.5 py-0.5 rounded" style={{background:"#FAE8D8",color:"#E35205"}}>+{dollar(Math.ceil(gap))}/person needed</span>;
-                    })()}
-                  </td>
-                  <td className="px-2 py-2.5 text-center text-slate-700 font-mono text-xs">{p.ant_enrollment}</td>
-                  <td className="px-2 py-2.5 text-center font-mono text-xs">{p.act_enrollment}</td>
-                  <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varEnr)}`}>{vNum(p.varEnr)}</td>
-                  <td className="px-2 py-2.5 text-center text-slate-700 font-mono text-xs border-l border-slate-100">{dollar(p.antRevenue)}</td>
-                  <td className="px-2 py-2.5 text-center font-mono text-xs">{dollar(p.revenue)}</td>
-                  <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varRev)}`}>{vDollar(p.varRev)}</td>
-                  <td className="px-2 py-2.5 text-center text-slate-700 font-mono text-xs border-l border-slate-100">{dollar(p.antTotal)}</td>
-                  <td className="px-2 py-2.5 text-center font-mono text-xs">{dollar(p.totalCost)}</td>
-                  <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varCost,true)}`}>{vDollar(p.varCost)}</td>
-                  <td className="px-2 py-2.5 text-center text-slate-700 font-mono text-xs border-l border-slate-100">{pct(p.antCR)}</td>
-                  <td className="px-2 py-2.5 text-center font-mono text-xs">{pct(p.costRecovery)}</td>
-                  <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varCR)}`}>{vPct(p.varCR)}</td>
-                  <td className="px-2 py-2.5 text-center text-slate-700 font-mono text-xs border-l border-slate-100">{dollar(p.antProfit)}</td>
-                  <td className="px-2 py-2.5 text-center font-mono text-xs">{dollar(p.profitLoss)}</td>
-                  <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varProfit)}`}>{vDollar(p.varProfit)}</td>
-                </tr>
-              ))}</tbody>
-            </table>
+      {/* All my programs */}
+      <div className="rounded overflow-hidden" style={{border:"1px solid rgba(92,70,43,0.12)"}}>
+        <div className="px-4 py-2.5 flex items-center justify-between" style={{background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>
+          <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B"}}>My Programs</div>
+          <button onClick={onAddProgram}
+            className="text-xs font-bold px-3 py-1 rounded"
+            style={{background:"#00A9CE",color:"#fff"}}>
+            + Add Program
+          </button>
+        </div>
+        {myPrograms.length===0?(
+          <div className="p-8 text-center text-sm text-slate-400">
+            No programs yet.{" "}
+            <button onClick={onAddProgram} className="font-semibold underline" style={{color:"#00A9CE"}}>Add your first program.</button>
           </div>
-        ) : (
-          <div className="p-4 space-y-5">{kpis.map(p=>(
-            <div key={p.id} className="border border-slate-100 rounded-lg p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <button onClick={()=>onEdit(p)} className="font-semibold text-slate-800 hover:text-blue-600 hover:underline text-left">{p.name}</button>
-                  <div className="text-xs text-slate-700">{p.area} - {p.season} FY {toFY(p.year)}</div>
+        ):(
+          <div className="divide-y divide-slate-100">
+            {kpis.map(p=>(
+              <div key={p.id} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50">
+                <div className="flex-1 min-w-0">
+                  <button onClick={()=>onEdit(p)} className="font-semibold text-sm text-slate-700 hover:underline text-left truncate block">{p.name}</button>
+                  <div className="text-xs mt-0.5" style={{color:"#A09080"}}>{p.area} · {p.season} FY {toFY(p.year)}</div>
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Badge status={p.status}/>
-                  
-                </div>
+                {!p.hasActuals&&(
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0" style={{background:"rgba(246,171,0,0.12)",color:"#8A6000"}}>Budgeted Only</span>
+                )}
+                {p.hasActuals&&(
+                  <div className="flex gap-3 text-xs font-mono shrink-0">
+                    <div className="text-center">
+                      <div className="font-bold" style={{color:p.fillRate>=0.7?"#84BD00":p.fillRate>=0.6?"#F6AB00":"#E35205"}}>{pct(p.fillRate)}</div>
+                      <div className="text-slate-400">Fill</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-bold" style={{color:p.costRecovery>=1?"#84BD00":p.costRecovery>=0.5?"#F6AB00":"#E35205"}}>{pct(p.costRecovery)}</div>
+                      <div className="text-slate-400">CR</div>
+                    </div>
+                    <div className="text-center">
+                      <div className={`font-bold ${p.profitLoss>=0?"text-green-600":"text-red-500"}`}>{dollar(Math.round(p.profitLoss))}</div>
+                      <div className="text-slate-400">P/(L)</div>
+                    </div>
+                  </div>
+                )}
+                <Badge status={p.status}/>
+                <button onClick={()=>onEdit(p)} className="text-xs font-semibold shrink-0" style={{color:"#00A9CE"}}>Edit →</button>
               </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <PBar label="Enrollment"  actual={p.act_enrollment} budget={p.ant_enrollment} ff={v=>v.toString()}/>
-                <PBar label="Revenue"     actual={p.revenue}        budget={p.antRevenue}      ff={v=>dollar(v)}/>
-                <PBar label="Total Cost"  actual={p.totalCost}      budget={p.antTotal}        ff={v=>dollar(v)} inv/>
-              </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <PBar label="Cost Recovery"     actual={p.costRecovery*100} budget={p.antCR*100} ff={v=>`${v.toFixed(1)}%`}/>
-                <PBar label="Net Profit/(Loss)" actual={p.profitLoss}       budget={p.antProfit} ff={v=>dollar(v)}/>
-              </div>
-            </div>
-          ))}</div>
+            ))}
+          </div>
         )}
       </div>
-      <div className="bg-white rounded-lg shadow-sm p-4">
-        <h3 className="font-bold text-slate-800 text-sm mb-3">Status Guide</h3>
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center gap-3"><Badge status="Healthy"/><span className="text-slate-700">70%+ fill rate and 100%+ cost recovery</span></div>
-          <div className="flex items-center gap-3"><Badge status="Monitor"/><span className="text-slate-700">60-69.9% fill rate or approaching targets</span></div>
-          <div className="flex items-center gap-3"><Badge status="Needs Redesign"/><span className="text-slate-700">Below 60% fill rate or below 50% cost recovery</span></div>
+
+      {/* Averages if data exists */}
+      {kpis.some(p=>p.hasActuals)&&(
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded p-4" style={{background:"#ffffff",border:"1px solid rgba(92,70,43,0.12)"}}>
+            <div className="text-xs font-bold uppercase mb-1" style={{letterSpacing:"0.10em",color:"#A09080"}}>Avg Fill Rate</div>
+            <div className="text-2xl font-black" style={{color:avgFill>=0.7?"#84BD00":avgFill>=0.6?"#F6AB00":"#E35205"}}>{pct(avgFill)}</div>
+            <div className="text-xs mt-0.5" style={{color:"#A09080"}}>Target: 70%+</div>
+          </div>
+          <div className="rounded p-4" style={{background:"#ffffff",border:"1px solid rgba(92,70,43,0.12)"}}>
+            <div className="text-xs font-bold uppercase mb-1" style={{letterSpacing:"0.10em",color:"#A09080"}}>Avg Cost Recovery</div>
+            <div className="text-2xl font-black" style={{color:avgCR>=1?"#84BD00":avgCR>=0.5?"#F6AB00":"#E35205"}}>{pct(avgCR)}</div>
+            <div className="text-xs mt-0.5" style={{color:"#A09080"}}>Target varies by classification</div>
+          </div>
+        </div>
+      )}
+
+      {/* Status guide */}
+      <div className="rounded p-4" style={{background:"#ffffff",border:"1px solid rgba(92,70,43,0.09)"}}>
+        <div className="text-xs font-bold uppercase mb-3" style={{letterSpacing:"0.10em",color:"#5C462B"}}>What the Status Means</div>
+        <div className="space-y-2">
+          {[
+            {status:"Healthy",       desc:"70%+ fill rate and meets cost recovery target"},
+            {status:"Monitor",       desc:"Close to targets — watch it next season"},
+            {status:"Needs Redesign",desc:"Below 60% fill or below 50% cost recovery — review needed"},
+          ].map(({status,desc})=>(
+            <div key={status} className="flex items-center gap-3">
+              <Badge status={status}/>
+              <span className="text-xs text-slate-600">{desc}</span>
+            </div>
+          ))}
         </div>
       </div>
+
     </div>
   );
 }
 
-// ─── Dashboard (Manager View — full analytics) ────────────────────────────────
-// ─── Section Header (shared by ManagerDashboard) ─────────────────────────────
 function SectionHeader({id,title,sub,badge,collapsed,onToggle}) {
   const open = !collapsed[id];
   return(
@@ -3265,7 +3202,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
 
 // ─── Programs List ────────────────────────────────────────────────────────────
 function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDupSingle}) {
-  const [filters,setFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
+  const [filters,setFilters] = useState({staff:isManager?new Set():new Set([staffName].filter(Boolean)),area:new Set(),season:new Set(),year:new Set()});
   const [search,setSearch]   = useState("");
   const [showArchived,setShowArchived] = useState(false);
   function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
