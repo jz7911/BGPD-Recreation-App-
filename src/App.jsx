@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "./supabase.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const AREAS = ["Adult General","Adult Sports","Aquatics","Camps","Clubhouse","Dance","Fitness","Golf Dome","Museum","Performing Arts","Rentals","Seniors","Special Events","Youth General","Youth Sports","Other"];
+const AREAS = ["Adult General","Adult Sports","Aquatics","Camps","Clubhouse","Dance","Early Childhood","Fitness","Golf Dome","Museum","Performing Arts","Preschool","Rentals","Seniors","Special Events","Youth General","Youth Sports","Other"];
 const SEASONS = ["Spring","Summer","Fall","Winter","All Year"];
 /* inject no-spinner CSS */
 if(typeof document!=="undefined"){const s=document.createElement("style");s.textContent="input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield}";document.head.appendChild(s);}
