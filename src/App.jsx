@@ -1864,55 +1864,86 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
         </div>
       )}
 
-      {/* ── Capital Improvement Panel — always visible ── */}
-      {(()=>{
-        const surplusProgs = kpis.filter(p=>p.hasActuals && p.profit>0);
-        const deficitProgs = kpis.filter(p=>p.hasActuals && p.profit<0);
+      {/* ── Capital Improvement Fund Panel ── */}
+      {kpis.some(p=>p.hasActuals)&&(()=>{
+        const surplusProgs = [...kpis].filter(p=>p.hasActuals&&p.profit>0).sort((a,b)=>b.profit-a.profit);
+        const deficitProgs = kpis.filter(p=>p.hasActuals&&p.profit<0);
         const totalSurplus = surplusProgs.reduce((a,p)=>a+p.profit,0);
         const totalDeficit = Math.abs(deficitProgs.reduce((a,p)=>a+p.profit,0));
-        const netPL = totalSurplus - totalDeficit;
-        const capTarget5  = Math.max(0, netPL * 0.05);
-        const capTarget10 = Math.max(0, netPL * 0.10);
-        if(!kpis.some(p=>p.hasActuals)) return null;
+        const netPL        = totalSurplus - totalDeficit;
+        const suggested    = Math.max(0, Math.round(netPL * (capitalPct/100)));
+        const maxBar       = surplusProgs.length>0 ? surplusProgs[0].profit : 1;
         return (
           <div className="bg-white p-5" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.09)"}}>
-            <div className="flex items-start justify-between mb-4 flex-wrap gap-2">
+            {/* Header row */}
+            <div className="flex items-start justify-between flex-wrap gap-3 mb-4">
               <div>
-                <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.12em",color:"#5C462B"}}>Capital Improvement Contribution</div>
-                <div className="text-xs text-slate-500 mt-0.5">Based on current actuals across the portfolio</div>
+                <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.12em",color:"#5C462B"}}>Capital Improvement Fund</div>
+                <div className="text-xs mt-0.5" style={{color:"#A09080"}}>NRPA best practice: allocate a % of net program surplus toward capital reserve</div>
               </div>
-              <span className="text-xs px-2 py-1 rounded font-semibold" style={{background:"rgba(0,169,206,0.08)",color:"#00A9CE"}}>NRPA Best Practice</span>
+              {/* Rate selector */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-slate-500">Allocation rate:</span>
+                {[3,5,10,15].map(pct=>(
+                  <button key={pct} onClick={()=>setCapitalPct(pct)}
+                    className="text-xs font-bold px-2 py-1 rounded border transition"
+                    style={capitalPct===pct?{background:"#5C462B",color:"#fff",borderColor:"#5C462B"}:{background:"#fff",color:"#A09080",borderColor:"rgba(92,70,43,0.2)"}}>
+                    {pct}%
+                  </button>
+                ))}
+                <div className="flex items-center gap-1">
+                  <input type="number" value={capitalPct}
+                    onChange={e=>setCapitalPct(Math.max(0,Math.min(100,parseFloat(e.target.value)||0)))}
+                    className="w-14 text-xs text-center rounded border border-slate-200 px-2 py-1"
+                    style={{MozAppearance:"textfield"}}/>
+                  <span className="text-xs text-slate-400">%</span>
+                </div>
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mb-4">
+
+            {/* KPI cards */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-4">
               {[
-                {label:"Total Surplus",    value:dollar(totalSurplus),  color:"#84BD00"},
-                {label:"Total Deficit",    value:dollar(totalDeficit),  color:"#E35205"},
-                {label:"Net P/(L)",        value:dollar(netPL),         color:netPL>=0?"#84BD00":"#E35205"},
-                {label:"Programs w/ Data", value:`${kpis.filter(p=>p.hasActuals).length}`,color:"#5C462B"},
+                {label:"Portfolio Net P/(L)", value:dollar(Math.round(netPL)),         color:netPL>=0?"#84BD00":"#E35205"},
+                {label:"Surplus Programs",    value:surplusProgs.length+" programs",   color:"#84BD00"},
+                {label:"Subsidy Programs",    value:deficitProgs.length+" programs",   color:"#E35205"},
+                {label:"Suggested Allocation",value:netPL>0?dollar(suggested):"—",    color:"#00A9CE"},
               ].map(({label,value,color})=>(
-                <div key={label} className="rounded p-3 text-center" style={{background:"rgba(0,0,0,0.02)",border:"1px solid rgba(0,0,0,0.05)"}}>
-                  <div className="text-xs text-slate-500 uppercase mb-1" style={{letterSpacing:"0.08em",fontSize:"10px"}}>{label}</div>
-                  <div className="font-bold text-lg" style={{color}}>{value}</div>
+                <div key={label} className="rounded p-3" style={{background:"rgba(0,0,0,0.025)",border:"1px solid rgba(0,0,0,0.06)"}}>
+                  <div className="text-xs uppercase font-bold mb-1" style={{letterSpacing:"0.08em",color:"#A09080",fontSize:"10px"}}>{label}</div>
+                  <div className="text-lg font-bold" style={{color}}>{value}</div>
                 </div>
               ))}
             </div>
-            {netPL > 0 ? (
-              <>
-                <div className="rounded p-3 mb-3" style={{background:"rgba(132,189,0,0.06)",border:"1px solid rgba(132,189,0,0.2)"}}>
-                  <div className="text-xs font-bold text-slate-700 mb-1">Recommended Capital Contribution Range</div>
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <div className="text-2xl font-bold" style={{color:"#84BD00"}}>{dollar(capTarget5)} – {dollar(capTarget10)}</div>
-                    <div className="text-xs text-slate-500 leading-relaxed">5–10% of net program revenue<br/><span className="italic">NRPA fiscal sustainability framework</span></div>
+
+            {netPL>0?(
+              <div className="space-y-3">
+                {/* Top contributors */}
+                {surplusProgs.length>0&&(
+                  <div>
+                    <div className="text-xs font-semibold text-slate-600 mb-2">Top surplus contributors</div>
+                    <div className="space-y-1.5">
+                      {surplusProgs.slice(0,5).map(p=>(
+                        <div key={p.id} className="flex items-center gap-3">
+                          <div className="flex-1 text-xs text-slate-600 truncate">{p.name}</div>
+                          <div className="w-28 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                            <div className="h-full rounded-full" style={{width:Math.min(100,Math.round(p.profit/maxBar*100))+"%",background:"#84BD00"}}/>
+                          </div>
+                          <div className="text-xs font-mono font-semibold w-20 text-right" style={{color:"#84BD00"}}>{dollar(Math.round(p.profit))}</div>
+                          <div className="text-xs font-mono text-slate-400 w-16 text-right">→ {dollar(Math.round(p.profit*(capitalPct/100)))}</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="mt-2 text-xs text-slate-500 leading-relaxed">NRPA recommends park districts allocate a portion of program net revenue to a capital reserve annually. A 5% floor sustains deferred maintenance; 10% supports proactive infrastructure investment. CAPRA standard 6.2 requires a documented capital improvement plan with identified funding sources.</div>
-                </div>
-                {surplusProgs.length > 0 && (
-                  <div className="text-xs text-slate-400">Top surplus programs: {surplusProgs.sort((a,b)=>b.profit-a.profit).slice(0,3).map(p=>`${p.name} (${dollar(p.profit)})`).join(" · ")}</div>
                 )}
-              </>
-            ) : (
-              <div className="rounded p-3 text-xs text-slate-600 leading-relaxed" style={{background:"#FDF0E6",border:"1px solid rgba(227,82,5,0.2)"}}>
-                <span className="font-semibold" style={{color:"#A33900"}}>Portfolio is running at a net deficit of {dollar(Math.abs(netPL))}.</span> No capital contribution is recommended until the portfolio reaches net positive. Focus on cost recovery improvements in the highest-deficit programs first.
+                {/* NRPA recommendation */}
+                <div className="rounded px-3 py-2.5 text-xs leading-relaxed" style={{background:"rgba(0,169,206,0.05)",border:"1px solid rgba(0,169,206,0.15)",color:"#5C462B"}}>
+                  <span className="font-bold">NRPA recommendation:</span> A {capitalPct}% allocation rate on your current net surplus generates <span className="font-bold" style={{color:"#00A9CE"}}>{dollar(suggested)}</span> toward capital reserve this cycle. NRPA's Fiscal Health model targets 3–10% of program net revenue annually, building toward a reserve equal to 15–25% of the annual operating budget (CAPRA standard 6.2).
+                </div>
+              </div>
+            ):(
+              <div className="rounded px-3 py-2.5 text-xs leading-relaxed" style={{background:"#FDF0E6",border:"1px solid rgba(227,82,5,0.2)"}}>
+                <span className="font-semibold" style={{color:"#A33900"}}>Portfolio net deficit: {dollar(Math.abs(Math.round(netPL)))}.</span> Capital contribution targets apply when the portfolio achieves net surplus. Focus cost recovery improvements on the highest-deficit programs first — use the Needs Attention queue above.
               </div>
             )}
           </div>
