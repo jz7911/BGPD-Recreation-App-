@@ -58,7 +58,7 @@ const PROGRAM_TYPES = [
 const ADMIN_OVERHEAD_RATE  = 0.1;
 const FT_ANNUAL_SALARY     = 97700;
 const FACILITY_COST_PER_HR = 3;
-const MANAGER_NAMES        = ["admin","manager","joe zimmermann","erika strojinc","dan stanczak","brian o'malley","chris eckert","chuck burgess","diana clayson","amanda busch","laurie hoffman","Mike Gianatasio"];
+const MANAGER_NAMES        = ["admin","manager","joe zimmermann","erika strojinc","dan stanczak","brian o'malley","chris eckert","chuck burgess","diana clayson","amanda busch"];
 
 
 // Service category cost recovery targets
@@ -1531,6 +1531,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   const [filters,setFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
   function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
   const [capitalPct,setCapitalPct] = useState(5);
+  const [capitalYear,setCapitalYear] = useState("all");
   const [collapsed,setCollapsed] = useState({topbottom:true,rpp:true,capacity:true,classmix:true,workload:true,snapshot:true,areabreakdown:true,nps:true,programdetail:false});
   function toggleSection(id){setCollapsed(s=>({...s,[id]:!s[id]}));}
   // SectionHeader hoisted to module level — see below ManagerDashboard
@@ -2337,8 +2338,10 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
 
       {/* Capital Improvement Fund Panel */}
       {kpis.some(p=>p.hasActuals)&&(()=>{
-        const surplusProgs = [...kpis].filter(p=>p.hasActuals&&p.profitLoss>0).sort((a,b)=>b.profitLoss-a.profitLoss);
-        const deficitProgs = kpis.filter(p=>p.hasActuals&&p.profitLoss<0);
+        const capYears     = ["all",...[...new Set(kpis.filter(p=>p.hasActuals).map(p=>toFY(p.year)))].sort().reverse()];
+        const capKpis      = capitalYear==="all" ? kpis.filter(p=>p.hasActuals) : kpis.filter(p=>p.hasActuals&&toFY(p.year)===capitalYear);
+        const surplusProgs = [...capKpis].filter(p=>p.profitLoss>0).sort((a,b)=>b.profitLoss-a.profitLoss);
+        const deficitProgs = capKpis.filter(p=>p.profitLoss<0);
         const totalSurplus = surplusProgs.reduce((a,p)=>a+p.profitLoss,0);
         const totalDeficit = Math.abs(deficitProgs.reduce((a,p)=>a+p.profitLoss,0));
         const netPL        = totalSurplus - totalDeficit;
@@ -2367,6 +2370,11 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                     style={{MozAppearance:"textfield"}}/>
                   <span className="text-xs" style={{color:"#A09080"}}>%</span>
                 </div>
+                <select value={capitalYear} onChange={e=>setCapitalYear(e.target.value)}
+                  className="text-xs rounded border border-slate-200 px-2 py-1 bg-white"
+                  style={{color:"#5C462B"}}>
+                  {capYears.map(y=><option key={y} value={y}>{y==="all"?"All Years":"FY "+y}</option>)}
+                </select>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-4">
