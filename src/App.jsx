@@ -1866,10 +1866,10 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
 
       {/* ── Capital Improvement Fund Panel ── */}
       {kpis.some(p=>p.hasActuals)&&(()=>{
-        const surplusProgs = [...kpis].filter(p=>p.hasActuals&&p.profit>0).sort((a,b)=>b.profit-a.profit);
-        const deficitProgs = kpis.filter(p=>p.hasActuals&&p.profit<0);
-        const totalSurplus = surplusProgs.reduce((a,p)=>a+p.profit,0);
-        const totalDeficit = Math.abs(deficitProgs.reduce((a,p)=>a+p.profit,0));
+        const surplusProgs = [...kpis].filter(p=>p.hasActuals&&p.profitLoss>0).sort((a,b)=>b.profitLossLoss-a.profitLossLoss);
+        const deficitProgs = kpis.filter(p=>p.hasActuals&&p.profitLoss<0);
+        const totalSurplus = surplusProgs.reduce((a,p)=>a+p.profitLoss,0);
+        const totalDeficit = Math.abs(deficitProgs.reduce((a,p)=>a+p.profitLoss,0));
         const netPL        = totalSurplus - totalDeficit;
         const suggested    = Math.max(0, Math.round(netPL * (capitalPct/100)));
         const maxBar       = surplusProgs.length>0 ? surplusProgs[0].profit : 1;
@@ -1927,10 +1927,10 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                         <div key={p.id} className="flex items-center gap-3">
                           <div className="flex-1 text-xs text-slate-600 truncate">{p.name}</div>
                           <div className="w-28 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                            <div className="h-full rounded-full" style={{width:Math.min(100,Math.round(p.profit/maxBar*100))+"%",background:"#84BD00"}}/>
+                            <div className="h-full rounded-full" style={{width:Math.min(100,Math.round(p.profitLoss/maxBar*100))+"%",background:"#84BD00"}}/>
                           </div>
-                          <div className="text-xs font-mono font-semibold w-20 text-right" style={{color:"#84BD00"}}>{dollar(Math.round(p.profit))}</div>
-                          <div className="text-xs font-mono text-slate-400 w-16 text-right">→ {dollar(Math.round(p.profit*(capitalPct/100)))}</div>
+                          <div className="text-xs font-mono font-semibold w-20 text-right" style={{color:"#84BD00"}}>{dollar(Math.round(p.profitLoss))}</div>
+                          <div className="text-xs font-mono text-slate-400 w-16 text-right">→ {dollar(Math.round(p.profitLoss*(capitalPct/100)))}</div>
                         </div>
                       ))}
                     </div>
