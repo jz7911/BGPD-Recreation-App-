@@ -971,33 +971,141 @@ function BGPDLogo({size=48}){
   );
 }
 
-function StaffSetup({onConfirm}) {
-  const [name,setName] = useState("");
+function StaffSetup({onConfirm, db}) {
+  // Steps: "name" -> "pin_entry" (existing user) | "pin_setup" (new user) | "pin_confirm" (confirm new PIN)
+  const [step, setStep]       = useState("name");
+  const [name, setName]       = useState("");
+  const [pin,  setPin]        = useState("");
+  const [pin2, setPin2]       = useState(""); // confirm
+  const [err,  setErr]        = useState("");
+  const [busy, setBusy]       = useState(false);
+
+  async function handleNameSubmit() {
+    const n = name.trim().toLowerCase();
+    if (!n) return;
+    setBusy(true); setErr("");
+    const {data, error} = await db.from("staff_pins").select("staff_name").eq("staff_name", n).maybeSingle();
+    setBusy(false);
+    if (error) { setErr("Could not connect. Try again."); return; }
+    if (data) setStep("pin_entry");   // existing user — ask for PIN
+    else      setStep("pin_setup");   // new user — set a PIN
+  }
+
+  async function handlePinEntry() {
+    if (pin.length < 4) { setErr("PIN must be at least 4 digits."); return; }
+    setBusy(true); setErr("");
+    const hash = await hashPin(name.trim().toLowerCase(), pin);
+    const {data, error} = await db.from("staff_pins").select("staff_name").eq("staff_name", name.trim().toLowerCase()).eq("pin_hash", hash).maybeSingle();
+    setBusy(false);
+    if (error || !data) { setErr("Incorrect PIN. Try again."); setPin(""); return; }
+    onConfirm(name.trim().toLowerCase());
+  }
+
+  async function handlePinSetup() {
+    if (pin.length < 4) { setErr("PIN must be at least 4 digits."); return; }
+    setStep("pin_confirm"); setPin2(""); setErr("");
+  }
+
+  async function handlePinConfirm() {
+    if (pin !== pin2) { setErr("PINs don't match. Try again."); setPin2(""); return; }
+    setBusy(true); setErr("");
+    const hash = await hashPin(name.trim().toLowerCase(), pin);
+    const {error} = await db.from("staff_pins").insert({
+      staff_name: name.trim().toLowerCase(),
+      pin_hash: hash,
+      updated_at: new Date().toISOString()
+    });
+    setBusy(false);
+    if (error) { setErr("Could not save PIN. Try again."); return; }
+    onConfirm(name.trim().toLowerCase());
+  }
+
+  function reset() { setStep("name"); setName(""); setPin(""); setPin2(""); setErr(""); }
+
+  const titles = {
+    name:        {h:"Sign In",          sub:"Enter your first and last name"},
+    pin_entry:   {h:"Enter Your PIN",   sub:`Welcome back, ${name}`},
+    pin_setup:   {h:"Create a PIN",     sub:"Choose a 4–8 digit PIN for your account"},
+    pin_confirm: {h:"Confirm Your PIN", sub:"Re-enter your PIN to confirm"},
+  };
+  const {h, sub} = titles[step];
+
   return (
     <div className="min-h-screen flex items-center justify-center p-6"
       style={{background:"#F8F7F4",fontFamily:"'Nunito Sans',Arial,sans-serif"}}>
       <div className="w-full max-w-sm">
-        {/* Brand header */}
         <div className="text-center pb-8">
-          <div className="flex justify-center mb-5">
-            <BGPDLogo size={56}/>
-          </div>
+          <div className="flex justify-center mb-5"><BGPDLogo size={56}/></div>
           <div className="font-bold tracking-widest uppercase" style={{fontSize:"11px",color:"#5C462B",letterSpacing:"0.16em"}}>Buffalo Grove Park District</div>
           <div className="mt-1 text-xs font-bold tracking-widest uppercase" style={{color:"#00A9CE",letterSpacing:"0.14em"}}>Recreation Program Management</div>
         </div>
-        {/* Login card */}
+
         <div style={{background:"#ffffff",border:"1px solid rgba(92,70,43,0.15)",borderRadius:"4px",padding:"2.5rem 2rem"}}>
           <div className="text-center mb-6">
-            <div className="font-bold mb-1" style={{color:"#5C462B",fontSize:"13px",letterSpacing:"0.08em",textTransform:"uppercase"}}>Sign In</div>
-            <div className="text-xs" style={{color:"#6B5744",fontWeight:"300"}}>Enter your first and last name to continue</div>
+            <div className="font-bold mb-1" style={{color:"#5C462B",fontSize:"13px",letterSpacing:"0.08em",textTransform:"uppercase"}}>{h}</div>
+            <div className="text-xs" style={{color:"#6B5744",fontWeight:"300"}}>{sub}</div>
           </div>
+
           <div className="space-y-4">
-            <Inp label="First & Last Name" value={name} onChange={setName} placeholder="e.g. Jane Smith" required/>
-            <button onClick={()=>name.trim()&&onConfirm(name.trim())} disabled={!name.trim()}
-              className="w-full py-2.5 text-xs font-bold transition disabled:opacity-40"
-              style={{backgroundColor:"#00A9CE",color:"#ffffff",borderRadius:"2px",letterSpacing:"0.10em",textTransform:"uppercase",border:"none"}}>Get Started →</button>
+            {step==="name"&&(
+              <>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Full Name</label>
+                  <input value={name} onChange={e=>setName(e.target.value)}
+                    onKeyDown={e=>e.key==="Enter"&&name.trim()&&handleNameSubmit()}
+                    placeholder="jane smith"
+                    className="w-full rounded border border-slate-200 px-3 py-2.5 text-sm"
+                    autoComplete="name" autoFocus/>
+                </div>
+                {err&&<div className="text-xs font-semibold" style={{color:"#E35205"}}>{err}</div>}
+                <button onClick={handleNameSubmit} disabled={!name.trim()||busy}
+                  className="w-full py-2.5 text-xs font-bold transition disabled:opacity-40"
+                  style={{backgroundColor:"#00A9CE",color:"#fff",borderRadius:"2px",letterSpacing:"0.10em",textTransform:"uppercase",border:"none"}}>
+                  {busy?"Checking…":"Continue →"}
+                </button>
+              </>
+            )}
+
+            {(step==="pin_entry"||step==="pin_setup"||step==="pin_confirm")&&(
+              <>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+                    {step==="pin_confirm"?"Confirm PIN":"PIN"}
+                  </label>
+                  <input
+                    value={step==="pin_confirm"?pin2:pin}
+                    onChange={e=>{
+                      const v=e.target.value.replace(/\D/g,"").slice(0,8);
+                      step==="pin_confirm"?setPin2(v):setPin(v);
+                    }}
+                    onKeyDown={e=>{
+                      if(e.key!=="Enter") return;
+                      if(step==="pin_entry") handlePinEntry();
+                      else if(step==="pin_setup") handlePinSetup();
+                      else if(step==="pin_confirm") handlePinConfirm();
+                    }}
+                    type="password" inputMode="numeric" maxLength={8}
+                    placeholder="••••"
+                    className="w-full rounded border border-slate-200 px-3 py-2.5 text-sm font-mono tracking-widest text-center"
+                    autoFocus/>
+                  {step==="pin_setup"&&(
+                    <p className="text-xs mt-1.5" style={{color:"#A09080"}}>4 to 8 digits. You'll need this every time you sign in.</p>
+                  )}
+                </div>
+                {err&&<div className="text-xs font-semibold" style={{color:"#E35205"}}>{err}</div>}
+                <button
+                  onClick={step==="pin_entry"?handlePinEntry:step==="pin_setup"?handlePinSetup:handlePinConfirm}
+                  disabled={(step==="pin_confirm"?pin2.length:pin.length)<4||busy}
+                  className="w-full py-2.5 text-xs font-bold transition disabled:opacity-40"
+                  style={{backgroundColor:"#00A9CE",color:"#fff",borderRadius:"2px",letterSpacing:"0.10em",textTransform:"uppercase",border:"none"}}>
+                  {busy?"Verifying…":step==="pin_entry"?"Sign In →":step==="pin_setup"?"Next →":"Create Account →"}
+                </button>
+                <button onClick={reset} className="w-full text-xs py-1" style={{color:"#A09080",background:"none",border:"none"}}>
+                  ← Back
+                </button>
+              </>
+            )}
           </div>
-          <p className="text-xs text-center mt-4" style={{color:"#6B5744",fontWeight:"300"}}>Your name is saved on this device only.</p>
         </div>
         <p className="text-center text-xs mt-6" style={{color:"#6B5744"}}>© Buffalo Grove Park District</p>
       </div>
@@ -7539,9 +7647,212 @@ function ClubhouseAllocationTool({db,programs,staffName}){
 }
 
 // ─── App Root ─────────────────────────────────────────────────────────────────
+
+// ─── PIN Auth Utilities ───────────────────────────────────────────────────────
+async function hashPin(name, pin) {
+  const msg = (name.toLowerCase().trim() + ":" + pin);
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(msg));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+
+// ─── StaffPinAdmin — manager-only panel to create/reset PINs ─────────────────
+function StaffPinAdmin({db, staffName, programs}) {
+  const [rows, setRows]       = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [msg, setMsg]         = useState(null); // {type:"ok"|"err", text}
+  const [working, setWorking] = useState(null); // name being processed
+  const [newName, setNewName] = useState("");
+  const [newPin,  setNewPin]  = useState("");
+  const [resetTarget, setResetTarget] = useState(null);
+  const [resetPin, setResetPin]       = useState("");
+
+  const allStaff = [...new Set((programs||[]).map(p=>p.staff_name).filter(Boolean))].sort();
+
+  async function load() {
+    setLoading(true);
+    const {data, error} = await db.from("staff_pins").select("staff_name,created_at,updated_at").order("staff_name");
+    if (!error) setRows(data||[]);
+    setLoading(false);
+  }
+
+  useEffect(()=>{ load(); }, []);
+
+  function flash(type, text) {
+    setMsg({type, text});
+    setTimeout(()=>setMsg(null), 4000);
+  }
+
+  async function handleCreate() {
+    if (!newName.trim() || newPin.length < 4) return;
+    setWorking(newName.trim());
+    const hash = await hashPin(newName.trim(), newPin);
+    const {error} = await db.from("staff_pins").upsert({
+      staff_name: newName.trim().toLowerCase(),
+      pin_hash: hash,
+      updated_at: new Date().toISOString()
+    }, {onConflict:"staff_name"});
+    if (error) flash("err", "Failed to create PIN: "+error.message);
+    else { flash("ok", `PIN set for ${newName.trim()}`); setNewName(""); setNewPin(""); await load(); }
+    setWorking(null);
+  }
+
+  async function handleReset(name) {
+    if (resetPin.length < 4) return;
+    setWorking(name);
+    const hash = await hashPin(name, resetPin);
+    const {error} = await db.from("staff_pins").update({
+      pin_hash: hash,
+      updated_at: new Date().toISOString()
+    }).eq("staff_name", name.toLowerCase());
+    if (error) flash("err", "Failed to reset PIN: "+error.message);
+    else { flash("ok", `PIN reset for ${name}`); setResetTarget(null); setResetPin(""); await load(); }
+    setWorking(null);
+  }
+
+  async function handleRevoke(name) {
+    setWorking(name);
+    const {error} = await db.from("staff_pins").delete().eq("staff_name", name.toLowerCase());
+    if (error) flash("err", "Failed to revoke: "+error.message);
+    else { flash("ok", `Access revoked for ${name}. They will be prompted to set a new PIN on next login.`); await load(); }
+    setWorking(null);
+  }
+
+  const pinnedNames = new Set(rows.map(r=>r.staff_name.toLowerCase()));
+  const unpinned = allStaff.filter(n=>!pinnedNames.has(n.toLowerCase()));
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="rounded p-4" style={{background:"#5C462B"}}>
+        <div className="text-xs font-bold uppercase mb-0.5" style={{letterSpacing:"0.12em",color:"rgba(255,255,255,0.6)"}}>Manager Tool</div>
+        <div className="text-lg font-black text-white">Staff Access &amp; PINs</div>
+        <div className="text-xs mt-1" style={{color:"rgba(255,255,255,0.65)"}}>Create, reset, or revoke staff login PINs. PINs are hashed — you cannot see the actual PIN, only set or reset it.</div>
+      </div>
+
+      {msg&&(
+        <div className="rounded px-4 py-3 text-sm font-semibold"
+          style={msg.type==="ok"
+            ? {background:"rgba(132,189,0,0.1)",border:"1px solid rgba(132,189,0,0.3)",color:"#4A7A00"}
+            : {background:"rgba(227,82,5,0.08)",border:"1px solid rgba(227,82,5,0.25)",color:"#A33900"}}>
+          {msg.text}
+        </div>
+      )}
+
+      {/* Create new PIN */}
+      <div className="bg-white rounded p-4 space-y-3" style={{border:"1px solid rgba(92,70,43,0.09)"}}>
+        <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.12em",color:"#5C462B"}}>Set PIN for Staff Member</div>
+        <div className="text-xs" style={{color:"#A09080"}}>Use this when onboarding a new staff member or if someone needs their PIN set by an admin.</div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Staff Name (exact, lowercase)</label>
+            <input value={newName} onChange={e=>setNewName(e.target.value)}
+              list="staff-datalist"
+              placeholder="jane smith"
+              className="w-full rounded border border-slate-200 px-3 py-2 text-sm"/>
+            <datalist id="staff-datalist">
+              {allStaff.map(n=><option key={n} value={n.toLowerCase()}/>)}
+            </datalist>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Initial PIN (4+ digits)</label>
+            <input value={newPin} onChange={e=>setNewPin(e.target.value.replace(/\D/g,"").slice(0,8))}
+              placeholder="e.g. 1234"
+              className="w-full rounded border border-slate-200 px-3 py-2 text-sm font-mono"
+              type="password" inputMode="numeric" maxLength={8}/>
+          </div>
+        </div>
+        {unpinned.length>0&&(
+          <div className="text-xs" style={{color:"#A09080"}}>
+            Staff without a PIN: {unpinned.map(n=>(
+              <button key={n} onClick={()=>setNewName(n.toLowerCase())}
+                className="underline mx-1" style={{color:"#00A9CE"}}>{n}</button>
+            ))}
+          </div>
+        )}
+        <button onClick={handleCreate}
+          disabled={!newName.trim()||newPin.length<4||!!working}
+          className="px-4 py-2 text-xs font-bold rounded text-white disabled:opacity-40 transition"
+          style={{background:"#00A9CE"}}>
+          {working===newName.trim()?"Setting…":"Set PIN →"}
+        </button>
+      </div>
+
+      {/* Active pins table */}
+      <div className="bg-white rounded overflow-hidden" style={{border:"1px solid rgba(92,70,43,0.09)"}}>
+        <div className="px-4 py-2.5 flex items-center justify-between" style={{background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.10)"}}>
+          <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.12em",color:"#5C462B"}}>Active PIN Accounts</div>
+          <button onClick={load} className="text-xs font-semibold" style={{color:"#00A9CE"}}>↻ Refresh</button>
+        </div>
+        {loading?(
+          <div className="px-4 py-8 text-center text-sm text-slate-400">Loading…</div>
+        ):rows.length===0?(
+          <div className="px-4 py-8 text-center text-sm text-slate-400">No PIN accounts yet.</div>
+        ):(
+          <div className="divide-y divide-slate-100">
+            {rows.map(r=>(
+              <div key={r.staff_name} className="px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-700">{r.staff_name}</div>
+                    <div className="text-xs mt-0.5" style={{color:"#A09080"}}>
+                      Created {new Date(r.created_at).toLocaleDateString()}
+                      {r.updated_at!==r.created_at&&<> · Updated {new Date(r.updated_at).toLocaleDateString()}</>}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button onClick={()=>{setResetTarget(r.staff_name);setResetPin("");}}
+                      className="text-xs font-semibold px-3 py-1 rounded border transition"
+                      style={{color:"#5C462B",borderColor:"rgba(92,70,43,0.25)",background:"#fff"}}>
+                      Reset PIN
+                    </button>
+                    <button onClick={()=>handleRevoke(r.staff_name)}
+                      disabled={!!working}
+                      className="text-xs font-semibold px-3 py-1 rounded border transition disabled:opacity-40"
+                      style={{color:"#E35205",borderColor:"rgba(227,82,5,0.3)",background:"#fff"}}>
+                      {working===r.staff_name?"Working…":"Revoke"}
+                    </button>
+                  </div>
+                </div>
+                {resetTarget===r.staff_name&&(
+                  <div className="mt-3 flex gap-2 items-end">
+                    <div className="flex-1">
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">New PIN (4+ digits)</label>
+                      <input value={resetPin} onChange={e=>setResetPin(e.target.value.replace(/\D/g,"").slice(0,8))}
+                        placeholder="new PIN"
+                        className="w-full rounded border border-slate-200 px-3 py-2 text-sm font-mono"
+                        type="password" inputMode="numeric" maxLength={8}/>
+                    </div>
+                    <button onClick={()=>handleReset(r.staff_name)}
+                      disabled={resetPin.length<4||!!working}
+                      className="px-4 py-2 text-xs font-bold rounded text-white disabled:opacity-40"
+                      style={{background:"#00A9CE"}}>
+                      {working===r.staff_name?"Saving…":"Save"}
+                    </button>
+                    <button onClick={()=>{setResetTarget(null);setResetPin("");}}
+                      className="px-3 py-2 text-xs font-semibold"
+                      style={{color:"#A09080"}}>Cancel</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {unpinned.length>0&&(
+        <div className="rounded px-4 py-3 text-xs leading-relaxed" style={{background:"rgba(246,171,0,0.08)",border:"1px solid rgba(246,171,0,0.3)",color:"#8A6000"}}>
+          <span className="font-bold">{unpinned.length} staff member{unpinned.length!==1?"s":""} have programs but no PIN account:</span>{" "}
+          {unpinned.join(", ")}. Use the form above to set their initial PINs.
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 export default function App() {
   const [programs,setPrograms]           = useState([]);
-  const [staffName,setStaffName]         = useState(()=>localStorage.getItem("bgpd_staff_name")||"");
+  const [staffName,setStaffName]         = useState(""); // set by PIN auth
   const [isManager,setIsManager]         = useState(false);
   const [viewAsManager,setViewAsManager] = useState(false);
   const [tab,setTab]                     = useState("dashboard");
@@ -7553,7 +7864,9 @@ export default function App() {
   const [saving,setSaving]                 = useState(false);
   const [error,setError]                   = useState(null);
 
-  const effectiveManager = isManager || viewAsManager;
+  // Managers start in manager view (viewAsManager=true); toggling switches to staff experience
+  // For non-managers, effectiveManager is always false regardless
+  const effectiveManager = isManager && viewAsManager;
   const db = supabase;
 
   const fetchAll = useCallback(async()=>{
@@ -7573,12 +7886,14 @@ export default function App() {
   useEffect(()=>{
     if(staffName){
       const name = staffName.toLowerCase().trim();
-      setIsManager(MANAGER_NAMES.includes(name));
+      const mgr = MANAGER_NAMES.includes(name);
+      setIsManager(mgr);
+      setViewAsManager(mgr); // managers start in manager view
       fetchAll();
     }
   },[staffName,fetchAll]);
 
-  const handleConfirmName = name => { localStorage.setItem("bgpd_staff_name",name); setStaffName(name); };
+  const handleConfirmName = name => { setStaffName(name); };
 
   const handleSaveProgram = async p => {
     setSaving(true); setError(null);
@@ -7656,11 +7971,12 @@ export default function App() {
     {id:"programs",label:"Programs"},
     {id:"history",label:"Multi-Season"},
     {id:"kpi",label:"Guide & Resources"},
+    ...(isManager?[{id:"access",label:"🔑 Staff Access"}]:[]),
   ];
 
   const showingForm = editingProgram||addingProgram;
 
-  if(!staffName) return <StaffSetup onConfirm={handleConfirmName}/>;
+  if(!staffName) return <StaffSetup onConfirm={handleConfirmName} db={db}/>;
 
   return (
     <div className="min-h-screen" style={{background:"#F8F7F4",fontFamily:"'Nunito Sans',Arial,sans-serif"}}>
@@ -7679,12 +7995,12 @@ export default function App() {
               <button onClick={()=>setViewAsManager(v=>!v)}
                 className="text-xs font-bold px-3 py-1.5 rounded border transition"
                 style={viewAsManager?{background:"#5C462B",color:"#fff",borderColor:"#5C462B"}:{background:"#fff",color:"#5C462B",borderColor:"rgba(92,70,43,0.3)"}}>
-                {viewAsManager?"Manager View":"Staff View"}
+                {viewAsManager?"⇄ Staff View":"⇄ Manager View"}
               </button>
             )}
             <div className="text-xs font-semibold" style={{color:"#6B5744"}}>{staffName}</div>
-            <button onClick={()=>{localStorage.removeItem("bgpd_staff_name");setStaffName("");setPrograms([]);setIsManager(false);}}
-              className="text-xs text-slate-400 hover:text-slate-600 underline">Switch</button>
+            <button onClick={()=>{setStaffName("");setPrograms([]);setIsManager(false);setViewAsManager(false);}}
+              className="text-xs text-slate-400 hover:text-slate-600 underline">Sign Out</button>
           </div>
         </div>
         {/* Nav */}
@@ -7760,6 +8076,10 @@ export default function App() {
 
         {tab==="kpi"&&!showingForm&&(
           <Reference isManager={effectiveManager} db={db} programs={programs} staffName={staffName}/>
+        )}
+
+        {tab==="access"&&isManager&&!showingForm&&(
+          <StaffPinAdmin db={db} staffName={staffName} programs={programs}/>
         )}
 
         {showingForm&&(
