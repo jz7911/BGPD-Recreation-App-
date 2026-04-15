@@ -106,6 +106,7 @@ const DB_FIELDS = [
   "pricing_decision","pricing_target_fee","pricing_rationale","pricing_notes","pricing_subsidy","pricing_subsidy_amount",
   "budget_mode","sub_programs","clubhouse_alloc","clubhouse_alloc_act",
   "ant_clubhouse_fee","act_clubhouse_fee",
+  "peer_visible",
 ];
 
 function cleanForDB(p) {
@@ -1529,6 +1530,7 @@ function NeedsAttentionQueue({programs,onEdit}){
 function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   const [filters,setFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
   function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
+  const [capitalPct,setCapitalPct] = useState(5);
   const [collapsed,setCollapsed] = useState({topbottom:true,rpp:true,capacity:true,classmix:true,workload:true,snapshot:true,areabreakdown:true,nps:true});
   function toggleSection(id){setCollapsed(s=>({...s,[id]:!s[id]}));}
   // SectionHeader hoisted to module level — see below ManagerDashboard
@@ -2332,6 +2334,85 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
           <div className="flex items-center gap-3"><Badge status="Needs Redesign"/><span className="text-slate-700">Below 60% fill rate or below 50% cost recovery</span></div>
         </div>
       </div>
+
+      {/* ── Capital Improvement Fund Panel ── */}
+      {kpis.some(p=>p.hasActuals)&&(()=>{
+        const surplusProgs = [...kpis].filter(p=>p.hasActuals&&p.profitLoss>0).sort((a,b)=>b.profitLoss-a.profitLoss);
+        const deficitProgs = kpis.filter(p=>p.hasActuals&&p.profitLoss<0);
+        const totalSurplus = surplusProgs.reduce((a,p)=>a+p.profitLoss,0);
+        const totalDeficit = Math.abs(deficitProgs.reduce((a,p)=>a+p.profitLoss,0));
+        const netPL        = totalSurplus - totalDeficit;
+        const suggested    = Math.max(0, Math.round(netPL * (capitalPct/100)));
+        const maxBar       = surplusProgs.length>0 ? surplusProgs[0].profitLoss : 1;
+        return (
+          <div className="bg-white p-5" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.09)"}}>
+            <div className="flex items-start justify-between flex-wrap gap-3 mb-4">
+              <div>
+                <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.12em",color:"#5C462B"}}>Capital Improvement Fund</div>
+                <div className="text-xs mt-0.5" style={{color:"#A09080"}}>NRPA best practice: allocate a % of net program surplus toward capital reserve</div>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs" style={{color:"#A09080"}}>Allocation rate:</span>
+                {[3,5,10,15].map(pct=>(
+                  <button key={pct} onClick={()=>setCapitalPct(pct)}
+                    className="text-xs font-bold px-2 py-1 rounded border transition"
+                    style={capitalPct===pct?{background:"#5C462B",color:"#fff",borderColor:"#5C462B"}:{background:"#fff",color:"#A09080",borderColor:"rgba(92,70,43,0.2)"}}>
+                    {pct}%
+                  </button>
+                ))}
+                <div className="flex items-center gap-1">
+                  <input type="number" value={capitalPct}
+                    onChange={e=>setCapitalPct(Math.max(0,Math.min(100,parseFloat(e.target.value)||0)))}
+                    className="w-14 text-xs text-center rounded border border-slate-200 px-2 py-1"
+                    style={{MozAppearance:"textfield"}}/>
+                  <span className="text-xs" style={{color:"#A09080"}}>%</span>
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-4">
+              {[
+                {label:"Portfolio Net P/(L)", value:dollar(Math.round(netPL)),        color:netPL>=0?"#84BD00":"#E35205"},
+                {label:"Surplus Programs",    value:surplusProgs.length+" programs",  color:"#84BD00"},
+                {label:"Subsidy Programs",    value:deficitProgs.length+" programs",  color:"#E35205"},
+                {label:"Suggested Allocation",value:netPL>0?dollar(suggested):"—",   color:"#00A9CE"},
+              ].map(({label,value,color})=>(
+                <div key={label} className="rounded p-3" style={{background:"rgba(0,0,0,0.025)",border:"1px solid rgba(0,0,0,0.06)"}}>
+                  <div className="text-xs uppercase font-bold mb-1" style={{letterSpacing:"0.08em",color:"#A09080",fontSize:"10px"}}>{label}</div>
+                  <div className="text-lg font-bold" style={{color}}>{value}</div>
+                </div>
+              ))}
+            </div>
+            {netPL>0?(
+              <div className="space-y-3">
+                {surplusProgs.length>0&&(
+                  <div>
+                    <div className="text-xs font-semibold mb-2" style={{color:"#5C462B"}}>Top surplus contributors</div>
+                    <div className="space-y-1.5">
+                      {surplusProgs.slice(0,5).map(p=>(
+                        <div key={p.id} className="flex items-center gap-3">
+                          <div className="flex-1 text-xs truncate" style={{color:"#5C462B"}}>{p.name}</div>
+                          <div className="w-28 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                            <div className="h-full rounded-full" style={{width:Math.min(100,Math.round(p.profitLoss/maxBar*100))+"%",background:"#84BD00"}}/>
+                          </div>
+                          <div className="text-xs font-mono font-semibold w-20 text-right" style={{color:"#84BD00"}}>{dollar(Math.round(p.profitLoss))}</div>
+                          <div className="text-xs font-mono w-16 text-right" style={{color:"#A09080"}}>→ {dollar(Math.round(p.profitLoss*(capitalPct/100)))}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="rounded px-3 py-2.5 text-xs leading-relaxed" style={{background:"rgba(0,169,206,0.05)",border:"1px solid rgba(0,169,206,0.15)",color:"#5C462B"}}>
+                  <span className="font-bold">NRPA recommendation:</span> A {capitalPct}% allocation rate on your current net surplus generates <span className="font-bold" style={{color:"#00A9CE"}}>{dollar(suggested)}</span> toward capital reserve this cycle. NRPA's Fiscal Health model targets 3–10% of program net revenue annually (CAPRA standard 6.2).
+                </div>
+              </div>
+            ):(
+              <div className="rounded px-3 py-2.5 text-xs leading-relaxed" style={{background:"#FDF0E6",border:"1px solid rgba(227,82,5,0.2)"}}>
+                <span className="font-semibold" style={{color:"#A33900"}}>Portfolio net deficit: {dollar(Math.abs(Math.round(netPL)))}.</span> Capital contribution targets apply when the portfolio achieves net surplus.
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -2725,6 +2806,21 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                   placeholder="Strategy notes, drivers, multi-year context..."
                   value={p.notes||""} onChange={e=>{setP(prev=>({...prev,notes:e.target.value}));setDirty(true);}}/>
               </div>
+              {/* Peer Visibility */}
+              <div className="flex items-center justify-between rounded border border-slate-200 px-4 py-3">
+                <div>
+                  <div className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Visible to Peers</div>
+                  <div className="text-xs text-slate-500 mt-0.5">When on, other staff can see this program. Managers always see everything.</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={()=>{setP(prev=>({...prev,peer_visible:prev.peer_visible===false?true:false}));setDirty(true);}}
+                  className="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors"
+                  style={{background:p.peer_visible===false?"#D1D5DB":"#00A9CE"}}>
+                  <span className="inline-block h-5 w-5 rounded-full bg-white shadow transition-transform"
+                    style={{transform:p.peer_visible===false?"translateX(0)":"translateX(20px)"}}/>
+                </button>
+              </div>
             </div>
           )}
           {sec==="budgeted"&&(
@@ -3116,7 +3212,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
       {canEdit&&(
         <div className="flex gap-3 justify-between">
           <div className="flex gap-2">
-            {!isNew&&<button onClick={()=>setConfirm(true)} className="px-4 py-2 text-sm text-red-500 hover:text-red-700 font-medium">Delete</button>}
+            {!isNew&&isManager&&<button onClick={()=>setConfirm(true)} className="px-4 py-2 text-sm text-red-500 hover:text-red-700 font-medium">Delete</button>}
             {!isNew&&<button onClick={()=>setConfirmArchive(true)}
               className={`px-4 py-2 text-sm font-medium rounded border transition ${p.is_archived?"border-green-300 text-green-700 hover:bg-green-50":"border-slate-200 text-slate-700 hover:bg-gray-200"}`}>
               {p.is_archived?"Restore":"Archive"}
@@ -3169,6 +3265,7 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
 
   const vis = programs
     .filter(p=>showArchived ? !!p.is_archived : !p.is_archived)
+    .filter(p=>isManager || p.staff_name===staffName || p.peer_visible!==false)
     .filter(p=>filters.staff.size===0||filters.staff.has(p.staff_name))
     .filter(p=>filters.area.size===0||filters.area.has(p.area))
     .filter(p=>filters.year.size===0||filters.year.has(toFY(p.year)))
@@ -4999,6 +5096,7 @@ function Reference({isManager,db,programs,staffName}) {
           {id:"review",label:"📋 Program Review"},
           {id:"capacity",label:"🧮 Capacity Calculator"},
           {id:"redesign",label:"🔄 Redesign Ideas"},
+          {id:"allocation",label:"💰 Allocation Calculator"},
           ...(isManager?[{id:"clubhouse",label:"🏫 Clubhouse Allocation"}]:[]),
         ].map(s=>(
           <button key={s.id} onClick={()=>setSec(s.id)}
@@ -5663,7 +5761,11 @@ function Reference({isManager,db,programs,staffName}) {
         </div>
       )}
 
-            {sec==="clubhouse"&&isManager&&(
+            {sec==="allocation"&&(
+        <AllocationCalculator programs={programs} staffName={staffName} isManager={isManager}/>
+      )}
+
+      {sec==="clubhouse"&&isManager&&(
         <ClubhouseAllocationTool db={db} programs={programs} staffName={staffName}/>
       )}
 
@@ -6772,7 +6874,7 @@ export default function App() {
   const [saving,setSaving]                 = useState(false);
   const [error,setError]                   = useState(null);
   const [staffName,setStaffName]           = useState(()=>localStorage.getItem("bgpd_staff_name")||"");
-  const [viewAsManager,setViewAsManager]   = useState(true);
+  const [viewAsManager,setViewAsManager]   = useState(()=>MANAGER_NAMES.includes((localStorage.getItem("bgpd_staff_name")||"").toLowerCase().trim()));
   const isManager = MANAGER_NAMES.includes(staffName.toLowerCase().trim());
   const effectiveManager = isManager && viewAsManager;
 
@@ -6891,7 +6993,7 @@ export default function App() {
         <DupModal program={dupProgram} onConfirm={opts=>handleDuplicate(dupProgram,opts)} onCancel={()=>setDupProgram(null)}/>
       )}
       {showBulkDup&&(
-        <BulkDupModal programs={programs} onConfirm={handleBulkDuplicate} onCancel={()=>setShowBulkDup(false)}/>
+        <BulkDupModal programs={effectiveManager?programs:programs.filter(p=>p.staff_name===staffName)} onConfirm={handleBulkDuplicate} onCancel={()=>setShowBulkDup(false)}/>
       )}
 
       <header style={{backgroundColor:"#ffffff",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>
@@ -6989,6 +7091,184 @@ export default function App() {
     </div>
   );
 }
+// ─── Allocation Calculator ────────────────────────────────────────────────────
+function AllocationCalculator({programs, staffName, isManager}) {
+  const myPrograms = isManager
+    ? programs.filter(p=>!p.is_archived)
+    : programs.filter(p=>!p.is_archived&&p.staff_name===staffName);
+
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [costLines, setCostLines]     = useState([{desc:"",amount:""}]);
+  const [splitMethod, setSplitMethod] = useState("enrollment"); // enrollment | equal | manual
+  const [manualWeights, setManualWeights] = useState({});
+  const [targetField, setTargetField]     = useState("ant_other1");
+  const [applied, setApplied]             = useState(false);
+  const [applying, setApplying]           = useState(false);
+
+  const FIELD_LABELS = {
+    ant_other1:"Other Cost 1 (Budgeted)", ant_other2:"Other Cost 2 (Budgeted)",
+    act_other1:"Other Cost 1 (Actuals)",  act_other2:"Other Cost 2 (Actuals)",
+    ant_personnel:"Personnel (Budgeted)", act_personnel:"Personnel (Actuals)",
+    ant_contractuals:"Contractuals (Budgeted)", act_contractuals:"Contractuals (Actuals)",
+    ant_commodities:"Commodities (Budgeted)", act_commodities:"Commodities (Actuals)",
+  };
+
+  const totalCost = costLines.reduce((a,l)=>a+(parseFloat(l.amount)||0),0);
+  const selected  = myPrograms.filter(p=>selectedIds.has(p.id));
+
+  function toggleProgram(id) {
+    setSelectedIds(prev=>{
+      const n=new Set(prev);
+      n.has(id)?n.delete(id):n.add(id);
+      return n;
+    });
+    setApplied(false);
+  }
+
+  function getAllocation(p) {
+    if(splitMethod==="equal") return selected.length>0 ? totalCost/selected.length : 0;
+    if(splitMethod==="manual") {
+      const w = parseFloat(manualWeights[p.id])||0;
+      const total = selected.reduce((a,s)=>a+(parseFloat(manualWeights[s.id])||0),0);
+      return total>0 ? totalCost*(w/total) : 0;
+    }
+    // enrollment-based
+    const totalEnr = selected.reduce((a,s)=>a+(s.act_enrollment||s.ant_enrollment||0),0);
+    const enr = p.act_enrollment||p.ant_enrollment||0;
+    return totalEnr>0 ? totalCost*(enr/totalEnr) : 0;
+  }
+
+  async function applyAllocations() {
+    if(selected.length===0||totalCost===0) return;
+    setApplying(true);
+    const {supabase} = await import("./supabase.js").catch(()=>({supabase:window.supabase}));
+    for(const p of selected) {
+      const alloc = Math.round(getAllocation(p)*100)/100;
+      const current = parseFloat(p[targetField])||0;
+      await supabase.from("programs").update({[targetField]: current+alloc}).eq("id",p.id);
+    }
+    setApplying(false);
+    setApplied(true);
+  }
+
+  const CARD = {background:"#ffffff",borderRadius:"4px",border:"1px solid rgba(92,70,43,0.09)"};
+
+  return (
+    <div className="space-y-4">
+      <div className="p-4" style={CARD}>
+        <div className="font-bold text-sm mb-1" style={{color:"#5C462B"}}>💰 Allocation Calculator</div>
+        <div className="text-xs" style={{color:"#A09080"}}>Split a shared cost (facility rental, shared instructor, supplies) across multiple programs. The result adds to the selected cost field on each program record.</div>
+      </div>
+
+      {/* Step 1 — Cost lines */}
+      <div className="p-4 space-y-3" style={CARD}>
+        <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B"}}>Step 1 — Enter the shared cost</div>
+        {costLines.map((line,i)=>(
+          <div key={i} className="flex gap-2 items-center">
+            <input className="flex-1 text-sm px-3 py-2 rounded border border-slate-200"
+              placeholder="Description (e.g. Gym rental)"
+              value={line.desc} onChange={e=>{const n=[...costLines];n[i]={...n[i],desc:e.target.value};setCostLines(n);}}/>
+            <input className="w-28 text-sm px-3 py-2 rounded border border-slate-200 font-mono"
+              type="number" placeholder="$0.00" min={0}
+              value={line.amount} onChange={e=>{const n=[...costLines];n[i]={...n[i],amount:e.target.value};setCostLines(n);}}
+              style={{MozAppearance:"textfield"}}/>
+            {costLines.length>1&&<button onClick={()=>setCostLines(costLines.filter((_,j)=>j!==i))}
+              className="text-xs px-2 py-2 font-bold" style={{color:"#E35205",background:"none",border:"none"}}>✕</button>}
+          </div>
+        ))}
+        <div className="flex items-center justify-between">
+          <button onClick={()=>setCostLines([...costLines,{desc:"",amount:""}])}
+            className="text-xs font-semibold" style={{color:"#00A9CE",background:"none",border:"none"}}>
+            + Add cost line
+          </button>
+          {totalCost>0&&<div className="text-sm font-bold" style={{color:"#5C462B"}}>Total: {dollar(totalCost)}</div>}
+        </div>
+      </div>
+
+      {/* Step 2 — Select programs */}
+      <div className="p-4 space-y-3" style={CARD}>
+        <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B"}}>Step 2 — Select programs to split across</div>
+        <div className="space-y-1 max-h-64 overflow-y-auto">
+          {myPrograms.map(p=>(
+            <label key={p.id} className="flex items-center gap-3 px-3 py-2 rounded cursor-pointer hover:bg-slate-50">
+              <input type="checkbox" checked={selectedIds.has(p.id)} onChange={()=>toggleProgram(p.id)}
+                className="rounded border-slate-300"/>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold truncate" style={{color:"#5C462B"}}>{p.name}</div>
+                <div className="text-xs" style={{color:"#A09080"}}>{p.area} · {p.season} FY {toFY(p.year)}</div>
+              </div>
+              {splitMethod==="manual"&&selectedIds.has(p.id)&&(
+                <input type="number" min={0}
+                  className="w-16 text-xs text-center rounded border border-slate-200 px-2 py-1"
+                  placeholder="wt" value={manualWeights[p.id]||""}
+                  onChange={e=>setManualWeights(w=>({...w,[p.id]:e.target.value}))}
+                  style={{MozAppearance:"textfield"}}/>
+              )}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Step 3 — Split method + field */}
+      {selected.length>=2&&totalCost>0&&(
+        <div className="p-4 space-y-4" style={CARD}>
+          <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B"}}>Step 3 — Split method and destination field</div>
+          <div className="flex gap-2 flex-wrap">
+            {[["enrollment","By Enrollment"],["equal","Equal Split"],["manual","Manual Weights"]].map(([val,lbl])=>(
+              <button key={val} onClick={()=>setSplitMethod(val)}
+                className="text-xs font-bold px-3 py-1.5 rounded border transition"
+                style={splitMethod===val?{background:"#5C462B",color:"#fff",borderColor:"#5C462B"}:{background:"#fff",color:"#5C462B",borderColor:"rgba(92,70,43,0.3)"}}>
+                {lbl}
+              </button>
+            ))}
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B"}}>Apply to field</label>
+            <select className="mt-1 w-full text-sm rounded border border-slate-200 px-3 py-2 bg-white"
+              value={targetField} onChange={e=>setTargetField(e.target.value)}>
+              {Object.entries(FIELD_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}
+            </select>
+            <div className="mt-1 text-xs" style={{color:"#A09080"}}>This adds to the existing value in that field on each program record — it does not replace it.</div>
+          </div>
+
+          {/* Results table */}
+          <table className="w-full text-xs">
+            <thead><tr style={{borderBottom:"1px solid rgba(92,70,43,0.09)"}}>
+              <th className="text-left py-1.5 font-semibold" style={{color:"#5C462B"}}>Program</th>
+              <th className="text-right py-1.5 font-semibold" style={{color:"#5C462B"}}>Enrollment</th>
+              <th className="text-right py-1.5 font-semibold" style={{color:"#5C462B"}}>%</th>
+              <th className="text-right py-1.5 font-semibold" style={{color:"#5C462B"}}>Amount</th>
+            </tr></thead>
+            <tbody>
+              {selected.map(p=>{
+                const alloc = getAllocation(p);
+                const pct_val = totalCost>0 ? Math.round(alloc/totalCost*100) : 0;
+                const enr = p.act_enrollment||p.ant_enrollment||0;
+                return (
+                  <tr key={p.id} style={{borderBottom:"1px solid rgba(92,70,43,0.05)"}}>
+                    <td className="py-1.5 font-semibold truncate" style={{color:"#5C462B",maxWidth:"160px"}}>{p.name}</td>
+                    <td className="py-1.5 text-right font-mono" style={{color:"#A09080"}}>{enr}</td>
+                    <td className="py-1.5 text-right font-mono" style={{color:"#A09080"}}>{pct_val}%</td>
+                    <td className="py-1.5 text-right font-mono font-bold" style={{color:"#00A9CE"}}>{dollar(Math.round(alloc*100)/100)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          <button onClick={applyAllocations} disabled={applying||applied}
+            className="w-full py-2.5 text-xs font-bold transition disabled:opacity-50"
+            style={{background:applied?"#84BD00":"#00A9CE",color:"#fff",borderRadius:"2px",border:"none",letterSpacing:"0.10em",textTransform:"uppercase"}}>
+            {applying?"Applying…":applied?`✓ Applied to ${selected.length} programs`:`Apply to ${selected.length} programs`}
+          </button>
+          {applied&&<div className="text-xs text-center" style={{color:"#A09080"}}>Check the <strong>{FIELD_LABELS[targetField]}</strong> field on each program record to verify.</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 function ClubhouseAllocationTool({db,programs,staffName}){
   const SITES = [
     "Country Meadows","Ivy Hall","Kildeer","Kilmer","Longfellow",
