@@ -1335,208 +1335,37 @@ function MultiFilter({filters, onChange, counts}) {
 
 // ─── Dashboard (Staff View — unchanged from original) ─────────────────────────
 function StaffDashboard({programs,staffName,onEdit,onAddProgram,db}) {
-  const myPrograms = programs.filter(p=>!p.is_archived&&p.staff_name===staffName);
-  const kpis       = myPrograms.map(p=>({...p,...calcKPIs(p)}));
-  const allVisible = programs.filter(p=>!p.is_archived&&p.staff_name!==staffName&&p.peer_visible!==false);
+  // Staff view = ManagerDashboard pre-filtered to own programs, manager-only panels hidden
+  const myPeerVisible = programs.filter(p=>
+    !p.is_archived && p.staff_name===staffName && p.peer_visible!==false
+  );
+  const otherVisible  = programs.filter(p=>
+    !p.is_archived && p.staff_name!==staffName && p.peer_visible!==false
+  );
 
-  const healthy  = kpis.filter(p=>p.status==="Healthy").length;
-  const monitor  = kpis.filter(p=>p.status==="Monitor").length;
-  const redesign = kpis.filter(p=>p.status==="Needs Redesign").length;
-  const noActuals= kpis.filter(p=>!p.hasActuals).length;
-  const avgFill  = kpis.length ? kpis.reduce((a,p)=>a+p.fillRate,0)/kpis.length : 0;
-  const avgCR    = kpis.length ? kpis.reduce((a,p)=>a+p.costRecovery,0)/kpis.length : 0;
-
-  const needsAttn = [...kpis]
-    .filter(p=>p.status==="Needs Redesign"||p.status==="Monitor")
-    .sort((a,b)=>a.status!==b.status?(a.status==="Needs Redesign"?-1:1):a.fillRate-b.fillRate);
-
+  // Peer visibility toggle — saves immediately, refreshes via optimistic update
   async function toggleVisible(prog) {
     const next = prog.peer_visible===false ? true : false;
     await db.from("programs").update({peer_visible:next}).eq("id",prog.id);
+    // Force re-render by mutating in place (App will re-fetch on next action)
+    prog.peer_visible = next;
   }
-
-  const CARD = {background:"#ffffff",borderRadius:"4px",border:"1px solid rgba(92,70,43,0.09)"};
-  const HDR  = {background:"#ffffff",borderBottom:"1px solid rgba(92,70,43,0.09)"};
 
   return (
     <div className="space-y-4">
-
-      {/* Welcome */}
-      <div className="p-5" style={{background:"#5C462B",borderRadius:"4px"}}>
-        <div className="text-xs font-bold uppercase mb-1" style={{letterSpacing:"0.12em",color:"rgba(255,255,255,0.55)"}}>Your Dashboard</div>
-        <div className="text-xl font-black text-white" style={{textTransform:"capitalize"}}>{staffName}</div>
-        <div className="text-sm mt-1" style={{color:"rgba(255,255,255,0.65)"}}>
-          {myPrograms.length} active program{myPrograms.length!==1?"s":""}
-          {noActuals>0&&<span className="ml-2 font-semibold" style={{color:"#F6AB00"}}>· {noActuals} need actuals</span>}
-        </div>
+      {/* Visibility note */}
+      <div className="px-4 py-3 text-xs" style={{background:"rgba(0,169,206,0.06)",border:"1px solid rgba(0,169,206,0.15)",borderRadius:"4px",color:"#5C462B"}}>
+        <span className="font-bold">Peer visibility:</span> Your programs are visible to colleagues by default. Open any program → Program Info tab → toggle <span className="font-semibold">Visible to Peers</span> to hide it. {otherVisible.length>0&&<span>{otherVisible.length} program{otherVisible.length!==1?"s":""} from other staff are currently visible to you.</span>}
       </div>
 
-      {/* Status summary */}
-      {kpis.length>0&&(
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            {label:"Healthy",      value:healthy,  color:"#84BD00",bg:"rgba(132,189,0,0.07)"},
-            {label:"Monitor",      value:monitor,  color:"#F6AB00",bg:"rgba(246,171,0,0.07)"},
-            {label:"Needs Review", value:redesign, color:"#E35205",bg:"rgba(227,82,5,0.07)"},
-          ].map(({label,value,color,bg})=>(
-            <div key={label} className="p-4 text-center" style={{...CARD,background:bg,border:`1px solid ${color}22`}}>
-              <div className="text-3xl font-black" style={{color}}>{value}</div>
-              <div className="text-xs font-semibold mt-0.5" style={{color}}>{label}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Needs attention */}
-      {needsAttn.length>0&&(
-        <div className="overflow-hidden" style={{...CARD,borderLeft:"3px solid #E35205"}}>
-          <div className="px-4 py-2.5 flex items-center justify-between" style={HDR}>
-            <div>
-              <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B"}}>Needs Attention</div>
-              <div className="text-xs mt-0.5" style={{color:"#A09080"}}>Update actuals or enter your review notes</div>
-            </div>
-            <div className="flex gap-1.5">
-              {redesign>0&&<span className="text-xs font-bold px-2 py-0.5" style={{background:"rgba(227,82,5,0.10)",color:"#E35205",borderRadius:"20px"}}>{redesign} NR</span>}
-              {monitor>0&&<span className="text-xs font-bold px-2 py-0.5" style={{background:"rgba(246,171,0,0.10)",color:"#B07A00",borderRadius:"20px"}}>{monitor}</span>}
-            </div>
-          </div>
-          <div className="divide-y divide-slate-100">
-            {needsAttn.map(p=>(
-              <div key={p.id} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50">
-                <div className="flex-1 min-w-0">
-                  <button onClick={()=>onEdit(p)} className="font-semibold text-sm hover:underline text-left truncate block" style={{color:"#5C462B"}}>{p.name}</button>
-                  <div className="text-xs mt-0.5" style={{color:"#A09080"}}>{p.area} · {p.season} FY {toFY(p.year)}</div>
-                </div>
-                {p.hasActuals&&<div className="flex gap-3 text-xs font-mono shrink-0">
-                  <div className="text-center"><div className="font-bold" style={{color:p.fillRate>=0.7?"#84BD00":p.fillRate>=0.6?"#F6AB00":"#E35205"}}>{pct(p.fillRate)}</div><div style={{color:"#A09080"}}>Fill</div></div>
-                  <div className="text-center"><div className="font-bold" style={{color:p.costRecovery>=1?"#84BD00":p.costRecovery>=0.5?"#F6AB00":"#E35205"}}>{pct(p.costRecovery)}</div><div style={{color:"#A09080"}}>CR</div></div>
-                </div>}
-                <Badge status={p.status}/>
-                <button onClick={()=>onEdit(p)} className="text-xs font-semibold shrink-0" style={{color:"#00A9CE"}}>Edit →</button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* My programs */}
-      <div className="overflow-hidden" style={{...CARD,borderLeft:"3px solid #00A9CE"}}>
-        <div className="px-4 py-2.5 flex items-center justify-between" style={HDR}>
-          <div>
-            <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B"}}>My Programs</div>
-            <div className="text-xs mt-0.5" style={{color:"#A09080"}}>Toggle the eye icon to control who can see each program</div>
-          </div>
-          <button onClick={onAddProgram}
-            className="text-xs font-bold px-3 py-1.5 transition"
-            style={{background:"#00A9CE",color:"#fff",borderRadius:"2px",border:"none"}}>
-            + Add Program
-          </button>
-        </div>
-
-        {myPrograms.length===0
-          ? <div className="p-8 text-center text-sm" style={{color:"#A09080"}}>
-              No programs yet.{" "}
-              <button onClick={onAddProgram} className="font-semibold underline" style={{color:"#00A9CE"}}>Add your first program.</button>
-            </div>
-          : <div className="divide-y divide-slate-100">
-              {kpis.map(p=>(
-                <div key={p.id} className="flex items-center gap-2 px-4 py-3 hover:bg-slate-50">
-                  {/* Visibility toggle */}
-                  <button
-                    title={p.peer_visible===false?"Hidden from peers — click to make visible":"Visible to peers — click to hide"}
-                    onClick={async()=>{
-                      const next=p.peer_visible===false?true:false;
-                      await db.from("programs").update({peer_visible:next}).eq("id",p.id);
-                      // optimistic update
-                      p.peer_visible=next;
-                    }}
-                    className="shrink-0 text-base"
-                    style={{background:"none",border:"none",cursor:"pointer",opacity:p.peer_visible===false?0.35:1,lineHeight:1}}>
-                    👁
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <button onClick={()=>onEdit(p)} className="font-semibold text-sm hover:underline text-left truncate block" style={{color:"#5C462B"}}>{p.name}</button>
-                    <div className="text-xs mt-0.5" style={{color:"#A09080"}}>
-                      {p.area} · {p.season} FY {toFY(p.year)}
-                      {p.peer_visible===false&&<span className="ml-2 font-semibold" style={{color:"#A09080"}}>· hidden</span>}
-                    </div>
-                  </div>
-                  {!p.hasActuals&&<span className="text-xs font-semibold px-2 py-0.5 shrink-0" style={{background:"rgba(246,171,0,0.10)",color:"#8A6000",borderRadius:"20px"}}>Needs actuals</span>}
-                  {p.hasActuals&&<div className="flex gap-3 text-xs font-mono shrink-0">
-                    <div className="text-center"><div className="font-bold" style={{color:p.fillRate>=0.7?"#84BD00":p.fillRate>=0.6?"#F6AB00":"#E35205"}}>{pct(p.fillRate)}</div><div style={{color:"#A09080"}}>Fill</div></div>
-                    <div className="text-center"><div className="font-bold" style={{color:p.costRecovery>=1?"#84BD00":p.costRecovery>=0.5?"#F6AB00":"#E35205"}}>{pct(p.costRecovery)}</div><div style={{color:"#A09080"}}>CR</div></div>
-                    <div className="text-center"><div className="font-bold" style={{color:p.profitLoss>=0?"#84BD00":"#E35205"}}>{dollar(Math.round(p.profitLoss))}</div><div style={{color:"#A09080"}}>P/(L)</div></div>
-                  </div>}
-                  <Badge status={p.status}/>
-                  <button onClick={()=>onEdit(p)} className="text-xs font-semibold shrink-0" style={{color:"#00A9CE"}}>Edit →</button>
-                </div>
-              ))}
-            </div>
-        }
-      </div>
-
-      {/* Averages */}
-      {kpis.some(p=>p.hasActuals)&&(
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            {label:"Avg Fill Rate",    value:pct(avgFill), color:avgFill>=0.7?"#84BD00":avgFill>=0.6?"#F6AB00":"#E35205", note:"Target: 70%+"},
-            {label:"Avg Cost Recovery",value:pct(avgCR),  color:avgCR>=1?"#84BD00":avgCR>=0.5?"#F6AB00":"#E35205",       note:"Target varies by classification"},
-          ].map(({label,value,color,note})=>(
-            <div key={label} className="p-4" style={CARD}>
-              <div className="text-xs font-bold uppercase mb-1" style={{letterSpacing:"0.10em",color:"#A09080"}}>{label}</div>
-              <div className="text-2xl font-black" style={{color}}>{value}</div>
-              <div className="text-xs mt-0.5" style={{color:"#A09080"}}>{note}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Peer programs — visible programs from other staff */}
-      {allVisible.length>0&&(
-        <div className="overflow-hidden" style={CARD}>
-          <div className="px-4 py-2.5" style={{...HDR,borderLeft:"3px solid #A09080"}}>
-            <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B"}}>Other Staff Programs</div>
-            <div className="text-xs mt-0.5" style={{color:"#A09080"}}>Visible programs from colleagues — view only</div>
-          </div>
-          <div className="divide-y divide-slate-100">
-            {allVisible.slice(0,10).map(p=>{
-              const k=calcKPIs(p);
-              return (
-                <div key={p.id} className="flex items-center gap-3 px-4 py-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-sm truncate" style={{color:"#5C462B"}}>{p.name}</div>
-                    <div className="text-xs mt-0.5" style={{color:"#A09080"}}>{p.staff_name} · {p.area} · {p.season} FY {toFY(p.year)}</div>
-                  </div>
-                  {k.hasActuals&&<div className="flex gap-3 text-xs font-mono shrink-0">
-                    <div className="text-center"><div className="font-bold" style={{color:k.fillRate>=0.7?"#84BD00":k.fillRate>=0.6?"#F6AB00":"#E35205"}}>{pct(k.fillRate)}</div><div style={{color:"#A09080"}}>Fill</div></div>
-                    <div className="text-center"><div className="font-bold" style={{color:k.costRecovery>=1?"#84BD00":k.costRecovery>=0.5?"#F6AB00":"#E35205"}}>{pct(k.costRecovery)}</div><div style={{color:"#A09080"}}>CR</div></div>
-                  </div>}
-                  <Badge status={k.status}/>
-                </div>
-              );
-            })}
-            {allVisible.length>10&&<div className="px-4 py-2 text-xs" style={{color:"#A09080"}}>…and {allVisible.length-10} more in the Programs tab</div>}
-          </div>
-        </div>
-      )}
-
-      {/* Status guide */}
-      <div className="p-4" style={CARD}>
-        <div className="text-xs font-bold uppercase mb-3" style={{letterSpacing:"0.10em",color:"#5C462B"}}>What the Status Means</div>
-        <div className="space-y-2">
-          {[
-            {status:"Healthy",       desc:"70%+ fill rate and meets cost recovery target"},
-            {status:"Monitor",       desc:"Close to targets — watch it next season"},
-            {status:"Needs Redesign",desc:"Below 60% fill or below 50% cost recovery — review needed"},
-          ].map(({status,desc})=>(
-            <div key={status} className="flex items-center gap-3">
-              <Badge status={status}/>
-              <span className="text-xs" style={{color:"#6B5744"}}>{desc}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
+      {/* The full dashboard — filtered to this staff member, manager panels hidden */}
+      <ManagerDashboard
+        programs={programs}
+        staffName={staffName}
+        onEdit={onEdit}
+        onAddProgram={onAddProgram}
+        isStaffView={true}
+      />
     </div>
   );
 }
@@ -1608,8 +1437,8 @@ function NeedsAttentionQueue({programs,onEdit}){
   );
 }
 
-function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
-  const [filters,setFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
+function ManagerDashboard({programs,staffName,onEdit,onAddProgram,isStaffView=false}) {
+  const [filters,setFilters] = useState(()=>({staff:isStaffView?new Set([staffName].filter(Boolean)):new Set(),area:new Set(),season:new Set(),year:new Set()}));
   function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
   const [collapsed,setCollapsed] = useState({topbottom:true,rpp:true,capacity:true,classmix:true,workload:true,snapshot:true,areabreakdown:true,nps:true});
   const [capitalPct,setCapitalPct] = useState(5); // % of net surplus to allocate to capital;
@@ -1817,7 +1646,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
       {/* ── Filters + Export ── */}
       <div className="space-y-2">
         <MultiFilter filters={filters} onChange={onFilterChange}
-          counts={{staff:allStaff,area:allAreas,season:allSeasons,year:allYears}}/>
+          counts={{staff:isStaffView?[]:allStaff,area:allAreas,season:allSeasons,year:allYears}}/>
         <div className="flex gap-2 justify-end">
           <button onClick={()=>exportCSV(vis)} className="text-xs font-semibold px-3 py-2 rounded border border-slate-200 text-slate-700 hover:bg-gray-200 transition whitespace-nowrap">↓ Export CSV</button>
           <button onClick={()=>setShowReport(true)} className="text-xs font-semibold px-3 py-2 rounded transition whitespace-nowrap text-white" style={{backgroundColor:"#00A9CE"}}>⬜ Season Report</button>
@@ -1890,8 +1719,8 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
       </div>
 
       {/* ── Program Snapshot bars ── */}
-      {/* ── FT Staff Allocation — always visible ── */}
-      {ftStaffBudget > 0 && (
+      {/* ── FT Staff Allocation — manager only ── */}
+      {!isStaffView && ftStaffBudget > 0 && (
         <div className="bg-white rounded-lg shadow-sm p-5">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div>
@@ -1944,8 +1773,8 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
         </div>
       )}
 
-      {/* ── Capital Improvement Fund Panel ── */}
-      {kpis.some(p=>p.hasActuals)&&(()=>{
+      {/* ── Capital Improvement Fund Panel — manager only ── */}
+      {!isStaffView && kpis.some(p=>p.hasActuals)&&(()=>{
         const surplusProgs = [...kpis].filter(p=>p.hasActuals&&p.profitLoss>0).sort((a,b)=>b.profitLossLoss-a.profitLossLoss);
         const deficitProgs = kpis.filter(p=>p.hasActuals&&p.profitLoss<0);
         const totalSurplus = surplusProgs.reduce((a,p)=>a+p.profitLoss,0);
@@ -2512,13 +2341,16 @@ function Dashboard({programs,staffName,isManager,onEdit,onAddProgram}) {
 }
 
 // ─── Multi-Season View ────────────────────────────────────────────────────────
-function MultiSeasonView({programs,onEdit}) {
+function MultiSeasonView({programs,onEdit,staffName,isManager}) {
   const [search,setSearch]       = useState("");
   const [showSingle,setShowSingle] = useState(false);
 
   const groups = useMemo(()=>{
     const map = {};
-    programs.filter(p=>!p.is_archived).forEach(p=>{
+    const visible = isManager
+      ? programs.filter(p=>!p.is_archived)
+      : programs.filter(p=>!p.is_archived&&(p.staff_name===staffName||p.peer_visible!==false));
+    visible.forEach(p=>{
       const key = `${(p.name||"").toLowerCase().trim()}__${(p.staff_name||"").toLowerCase().trim()}`;
       if(!map[key]) map[key]={name:p.name,area:p.area,staff:p.staff_name,seasons:[]};
       map[key].seasons.push({...p,...calcKPIs(p)});
@@ -8091,7 +7923,7 @@ export default function App() {
         )}
 
         {tab==="history"&&!showingForm&&(
-          <MultiSeasonView programs={programs} onEdit={p=>{setEditingProgram(p); setTab("programs");}}/>
+          <MultiSeasonView programs={programs} staffName={staffName} isManager={effectiveManager} onEdit={p=>{setEditingProgram(p); setTab("programs");}}/>
         )}
 
         {tab==="kpi"&&!showingForm&&(
