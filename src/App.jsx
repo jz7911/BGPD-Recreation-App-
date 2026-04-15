@@ -106,7 +106,6 @@ const DB_FIELDS = [
   "pricing_decision","pricing_target_fee","pricing_rationale","pricing_notes","pricing_subsidy","pricing_subsidy_amount",
   "budget_mode","sub_programs","clubhouse_alloc","clubhouse_alloc_act",
   "ant_clubhouse_fee","act_clubhouse_fee",
-  "peer_visible",
 ];
 
 function cleanForDB(p) {
@@ -175,7 +174,7 @@ function newProgram(staffName) {
   return {
     name:"", area:last.area||"Youth Sports", season:last.season||"Summer", year:last.year||"25-26",
     classification:last.classification||"Community Driven", service_category:last.service_category||"",
-    trend:"New", nps:0, notes:"", staff_name: staffName||"", waitlist:0, peer_visible:true,
+    trend:"New", nps:0, notes:"", staff_name: staffName||"", waitlist:0,
     ant_capacity:0, ant_enrollment:0, ant_revenue:0,
     ant_personnel:0, ant_commodities:0, ant_contractuals:0,
     ant_other1:0, ant_other2:0, ant_facility_hours:0,
@@ -749,7 +748,7 @@ function Inp({label,type="text",value,onChange,options,min,max,hint,placeholder,
             {options.map(o=><option key={o} value={o}>{o}</option>)}
           </select>
         : type==="number"
-          ? <input className={cls} type="number"
+          ? <input className={cls} style={style} type="number"
               value={localVal!==null ? localVal : (value===0||value==="0" ? "0" : value||"")}
               min={min} max={max}
               placeholder={placeholder||""}
@@ -971,142 +970,33 @@ function BGPDLogo({size=48}){
   );
 }
 
-function StaffSetup({onConfirm, db}) {
-  // Steps: "name" -> "pin_entry" (existing user) | "pin_setup" (new user) | "pin_confirm" (confirm new PIN)
-  const [step, setStep]       = useState("name");
-  const [name, setName]       = useState("");
-  const [pin,  setPin]        = useState("");
-  const [pin2, setPin2]       = useState(""); // confirm
-  const [err,  setErr]        = useState("");
-  const [busy, setBusy]       = useState(false);
-
-  async function handleNameSubmit() {
-    const n = name.trim().toLowerCase();
-    if (!n) return;
-    setBusy(true); setErr("");
-    const {data, error} = await db.from("staff_pins").select("staff_name").eq("staff_name", n).maybeSingle();
-    setBusy(false);
-    // If table doesn't exist yet, fall back to name-only login
-    if (error) { onConfirm(n); return; }
-    if (data) setStep("pin_entry");   // existing user — ask for PIN
-    else      setStep("pin_setup");   // new user — set a PIN
-  }
-
-  async function handlePinEntry() {
-    if (pin.length < 4) { setErr("PIN must be at least 4 digits."); return; }
-    setBusy(true); setErr("");
-    const hash = await hashPin(name.trim().toLowerCase(), pin);
-    const {data, error} = await db.from("staff_pins").select("staff_name").eq("staff_name", name.trim().toLowerCase()).eq("pin_hash", hash).maybeSingle();
-    setBusy(false);
-    if (error || !data) { setErr("Incorrect PIN. Try again."); setPin(""); return; }
-    onConfirm(name.trim().toLowerCase());
-  }
-
-  async function handlePinSetup() {
-    if (pin.length < 4) { setErr("PIN must be at least 4 digits."); return; }
-    setStep("pin_confirm"); setPin2(""); setErr("");
-  }
-
-  async function handlePinConfirm() {
-    if (pin !== pin2) { setErr("PINs don't match. Try again."); setPin2(""); return; }
-    setBusy(true); setErr("");
-    const hash = await hashPin(name.trim().toLowerCase(), pin);
-    const {error} = await db.from("staff_pins").insert({
-      staff_name: name.trim().toLowerCase(),
-      pin_hash: hash,
-      updated_at: new Date().toISOString()
-    });
-    setBusy(false);
-    if (error) { setErr("Could not save PIN. Try again."); return; }
-    onConfirm(name.trim().toLowerCase());
-  }
-
-  function reset() { setStep("name"); setName(""); setPin(""); setPin2(""); setErr(""); }
-
-  const titles = {
-    name:        {h:"Sign In",          sub:"Enter your first and last name"},
-    pin_entry:   {h:"Enter Your PIN",   sub:`Welcome back, ${name}`},
-    pin_setup:   {h:"Create a PIN",     sub:"Choose a 4–8 digit PIN for your account"},
-    pin_confirm: {h:"Confirm Your PIN", sub:"Re-enter your PIN to confirm"},
-  };
-  const {h, sub} = titles[step];
-
+function StaffSetup({onConfirm}) {
+  const [name,setName] = useState("");
   return (
     <div className="min-h-screen flex items-center justify-center p-6"
       style={{background:"#F8F7F4",fontFamily:"'Nunito Sans',Arial,sans-serif"}}>
       <div className="w-full max-w-sm">
+        {/* Brand header */}
         <div className="text-center pb-8">
-          <div className="flex justify-center mb-5"><BGPDLogo size={56}/></div>
+          <div className="flex justify-center mb-5">
+            <BGPDLogo size={56}/>
+          </div>
           <div className="font-bold tracking-widest uppercase" style={{fontSize:"11px",color:"#5C462B",letterSpacing:"0.16em"}}>Buffalo Grove Park District</div>
           <div className="mt-1 text-xs font-bold tracking-widest uppercase" style={{color:"#00A9CE",letterSpacing:"0.14em"}}>Recreation Program Management</div>
         </div>
-
+        {/* Login card */}
         <div style={{background:"#ffffff",border:"1px solid rgba(92,70,43,0.15)",borderRadius:"4px",padding:"2.5rem 2rem"}}>
           <div className="text-center mb-6">
-            <div className="font-bold mb-1" style={{color:"#5C462B",fontSize:"13px",letterSpacing:"0.08em",textTransform:"uppercase"}}>{h}</div>
-            <div className="text-xs" style={{color:"#6B5744",fontWeight:"300"}}>{sub}</div>
+            <div className="font-bold mb-1" style={{color:"#5C462B",fontSize:"13px",letterSpacing:"0.08em",textTransform:"uppercase"}}>Sign In</div>
+            <div className="text-xs" style={{color:"#6B5744",fontWeight:"300"}}>Enter your first and last name to continue</div>
           </div>
-
           <div className="space-y-4">
-            {step==="name"&&(
-              <>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Full Name</label>
-                  <input value={name} onChange={e=>setName(e.target.value)}
-                    onKeyDown={e=>e.key==="Enter"&&name.trim()&&handleNameSubmit()}
-                    placeholder="jane smith"
-                    className="w-full rounded border border-slate-200 px-3 py-2.5 text-sm"
-                    autoComplete="name" autoFocus/>
-                </div>
-                {err&&<div className="text-xs font-semibold" style={{color:"#E35205"}}>{err}</div>}
-                <button onClick={handleNameSubmit} disabled={!name.trim()||busy}
-                  className="w-full py-2.5 text-xs font-bold transition disabled:opacity-40"
-                  style={{backgroundColor:"#00A9CE",color:"#fff",borderRadius:"2px",letterSpacing:"0.10em",textTransform:"uppercase",border:"none"}}>
-                  {busy?"Checking…":"Continue →"}
-                </button>
-              </>
-            )}
-
-            {(step==="pin_entry"||step==="pin_setup"||step==="pin_confirm")&&(
-              <>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
-                    {step==="pin_confirm"?"Confirm PIN":"PIN"}
-                  </label>
-                  <input
-                    value={step==="pin_confirm"?pin2:pin}
-                    onChange={e=>{
-                      const v=e.target.value.replace(/\D/g,"").slice(0,8);
-                      step==="pin_confirm"?setPin2(v):setPin(v);
-                    }}
-                    onKeyDown={e=>{
-                      if(e.key!=="Enter") return;
-                      if(step==="pin_entry") handlePinEntry();
-                      else if(step==="pin_setup") handlePinSetup();
-                      else if(step==="pin_confirm") handlePinConfirm();
-                    }}
-                    type="password" inputMode="numeric" maxLength={8}
-                    placeholder="••••"
-                    className="w-full rounded border border-slate-200 px-3 py-2.5 text-sm font-mono tracking-widest text-center"
-                    autoFocus/>
-                  {step==="pin_setup"&&(
-                    <p className="text-xs mt-1.5" style={{color:"#A09080"}}>4 to 8 digits. You'll need this every time you sign in.</p>
-                  )}
-                </div>
-                {err&&<div className="text-xs font-semibold" style={{color:"#E35205"}}>{err}</div>}
-                <button
-                  onClick={step==="pin_entry"?handlePinEntry:step==="pin_setup"?handlePinSetup:handlePinConfirm}
-                  disabled={(step==="pin_confirm"?pin2.length:pin.length)<4||busy}
-                  className="w-full py-2.5 text-xs font-bold transition disabled:opacity-40"
-                  style={{backgroundColor:"#00A9CE",color:"#fff",borderRadius:"2px",letterSpacing:"0.10em",textTransform:"uppercase",border:"none"}}>
-                  {busy?"Verifying…":step==="pin_entry"?"Sign In →":step==="pin_setup"?"Next →":"Create Account →"}
-                </button>
-                <button onClick={reset} className="w-full text-xs py-1" style={{color:"#A09080",background:"none",border:"none"}}>
-                  ← Back
-                </button>
-              </>
-            )}
+            <Inp label="First & Last Name" value={name} onChange={setName} placeholder="e.g. Jane Smith" required/>
+            <button onClick={()=>name.trim()&&onConfirm(name.trim())} disabled={!name.trim()}
+              className="w-full py-2.5 text-xs font-bold transition disabled:opacity-40"
+              style={{backgroundColor:"#00A9CE",color:"#ffffff",borderRadius:"2px",letterSpacing:"0.10em",textTransform:"uppercase",border:"none"}}>Get Started →</button>
           </div>
+          <p className="text-xs text-center mt-4" style={{color:"#6B5744",fontWeight:"300"}}>Your name is saved on this device only.</p>
         </div>
         <p className="text-center text-xs mt-6" style={{color:"#6B5744"}}>© Buffalo Grove Park District</p>
       </div>
@@ -1334,42 +1224,241 @@ function MultiFilter({filters, onChange, counts}) {
 }
 
 // ─── Dashboard (Staff View — unchanged from original) ─────────────────────────
-function StaffDashboard({programs,staffName,onEdit,onAddProgram,db}) {
-  // Staff view = ManagerDashboard pre-filtered to own programs, manager-only panels hidden
-  const myPeerVisible = programs.filter(p=>
-    !p.is_archived && p.staff_name===staffName && p.peer_visible!==false
-  );
-  const otherVisible  = programs.filter(p=>
-    !p.is_archived && p.staff_name!==staffName && p.peer_visible!==false
-  );
+function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
+  // Default to filtering by own name so staff see their programs immediately
+  const [filters,setFilters] = useState({staff:new Set([staffName].filter(Boolean)),area:new Set(),season:new Set(),year:new Set()});
+  const [dv,setDv]           = useState("summary");
+  const [showReport,setShowReport] = useState(false);
 
-  // Peer visibility toggle — saves immediately, refreshes via optimistic update
-  async function toggleVisible(prog) {
-    const next = prog.peer_visible===false ? true : false;
-    await db.from("programs").update({peer_visible:next}).eq("id",prog.id);
-    // Force re-render by mutating in place (App will re-fetch on next action)
-    prog.peer_visible = next;
-  }
+  function onFilterChange(key, val) { setFilters(f=>({...f,[key]:val})); }
+
+  const allStaff   = [...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
+  const allAreas   = [...new Set(programs.map(p=>p.area))];
+  const allYears   = [...YEARS];
+  const allSeasons = [...SEASONS];
+
+  const vis  = programs
+    .filter(p=>!p.is_archived)
+    .filter(p=>filters.staff.size===0||filters.staff.has(p.staff_name))
+    .filter(p=>filters.area.size===0||filters.area.has(p.area))
+    .filter(p=>filters.year.size===0||filters.year.has(toFY(p.year)))
+    .filter(p=>filters.season.size===0||filters.season.has(p.season));
+
+  const kpis    = vis.map(p=>({...p,...calcKPIs(p)}));
+  const avgFill = kpis.length ? kpis.reduce((a,p)=>a+p.fillRate,0)/kpis.length : 0;
+  const avgCR   = kpis.length ? kpis.reduce((a,p)=>a+p.costRecovery,0)/kpis.length : 0;
+  const surplus = kpis.reduce((a,p)=>a+p.profitLoss,0);
+  const antRev  = kpis.reduce((a,p)=>a+p.antRevenue,0);
+  const actRev  = kpis.reduce((a,p)=>a+p.revenue,0);
+  const antEnr  = vis.reduce((a,p)=>a+(p.ant_enrollment||0),0);
+  const actEnr  = vis.reduce((a,p)=>a+(p.act_enrollment||0),0);
+  const antCost = kpis.reduce((a,p)=>a+p.antTotal,0);
+  const actCost = kpis.reduce((a,p)=>a+p.totalCost,0);
+  const healthy  = kpis.filter(p=>p.status==="Healthy").length;
+  const monitor  = kpis.filter(p=>p.status==="Monitor").length;
+  const redesign = kpis.filter(p=>p.status==="Needs Redesign").length;
+  const low50    = kpis.filter(p=>p.costRecovery<0.5).length;
 
   return (
-    <div className="space-y-4">
-      {/* Visibility note */}
-      <div className="px-4 py-3 text-xs" style={{background:"rgba(0,169,206,0.06)",border:"1px solid rgba(0,169,206,0.15)",borderRadius:"4px",color:"#5C462B"}}>
-        <span className="font-bold">Peer visibility:</span> Your programs are visible to colleagues by default. Open any program → Program Info tab → toggle <span className="font-semibold">Visible to Peers</span> to hide it. {otherVisible.length>0&&<span>{otherVisible.length} program{otherVisible.length!==1?"s":""} from other staff are currently visible to you.</span>}
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <MultiFilter filters={filters} onChange={onFilterChange}
+          counts={{staff:allStaff,area:allAreas,season:allSeasons,year:allYears}}/>
+        <div className="flex gap-2 justify-end">
+          <button onClick={()=>exportCSV(vis)} className="text-xs font-semibold px-3 py-2 rounded border border-slate-200 text-slate-700 hover:bg-gray-200 transition whitespace-nowrap">↓ Export CSV</button>
+          <button onClick={()=>setShowReport(true)} className="text-xs font-semibold px-3 py-2 rounded transition whitespace-nowrap text-white" style={{backgroundColor:"#00A9CE"}}>⬜ Season Report</button>
+        </div>
       </div>
+      {showReport&&(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:"rgba(15,23,42,0.7)"}}>
+          <div className="bg-white rounded shadow-2xl w-full max-w-sm p-6 text-center space-y-4">
+            <div className="text-base font-bold font-semibold">Season Performance Report</div>
+            <div className="text-sm text-slate-700">This will open your browser's print dialog. Choose "Save as PDF" to export.</div>
+            <div className="text-xs text-slate-700">{vis.length} programs with current filters applied</div>
+            <div className="flex gap-3 justify-center pt-2">
+              <button onClick={()=>setShowReport(false)} className="px-4 py-2 text-sm text-slate-700 border border-slate-200 rounded-lg hover:bg-gray-200">Cancel</button>
+              <button onClick={()=>{ setShowReport(false); printSeasonReport(vis, `${[...filters.staff].join(", ")||"All Staff"} · ${[...filters.area].join(", ")||"All Areas"} · ${[...filters.season].join(", ")||"All Seasons"} · ${[...filters.year].map(y=>`FY ${y}`).join(", ")||"All Years"}`); }}
+                className="px-5 py-2 text-sm font-semibold text-white rounded-lg" style={{backgroundColor:"#00A9CE"}}>Save as PDF</button>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <KCard label="Programs"                value={vis.length}      accent="#00A9CE"/>
+        <KCard label="Avg Fill Rate"           value={pct(avgFill)}    accent="#00A9CE"/>
+        <KCard label="Avg Cost Recovery"       value={pct(avgCR)}      accent="#00A9CE"/>
+        <KCard label="Total Net Profit/(Loss)" value={dollar(surplus)} accent={surplus>=0?"#84BD00":"#E35205"}/>
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <KCard label="Healthy"            value={healthy}  sub="programs" accent="#84BD00"/>
+        <KCard label="Monitor"            value={monitor}  sub="programs" accent="#F6AB00"/>
+        <KCard label="Needs Redesign"     value={redesign} sub="programs" accent="#E35205"/>
+        <KCard label="Below 50% Recovery" value={low50}    sub="programs" accent="#f97316"/>
+      </div>
+      <div className="bg-white rounded-lg shadow-sm p-5 space-y-5">
+        <h3 className="font-bold text-slate-800 text-sm">Program Snapshot: Budgeted vs Actual</h3>
+        <PBar label="Total Revenue"      actual={actRev}  budget={antRev}  ff={v=>dollar(v)}/>
+        <PBar label="Total Enrollment"   actual={actEnr}  budget={antEnr}  ff={v=>v.toString()}/>
+        <PBar label="Total Program Cost" actual={actCost} budget={antCost} ff={v=>dollar(v)} inv/>
+      </div>
+      <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 flex-wrap gap-2">
+          <h2 className="font-bold text-slate-800 text-sm">Program Detail</h2>
+          <div className="flex gap-1">
+            {[["summary","Summary"],["variances","Variances"],["progress","Progress"]].map(([v,l])=>(
+              <button key={v} onClick={()=>setDv(v)}
+                className={`text-xs px-3 py-1.5 rounded font-medium transition ${dv===v?"text-white":"bg-gray-200 text-slate-700 hover:bg-slate-200"}`}
+                style={dv===v?{backgroundColor:"#00A9CE"}:{}}>{l}</button>
+            ))}
+          </div>
+        </div>
+        {vis.length===0 ? (
+          <div className="p-8 text-center text-slate-700 text-sm">No programs yet. <button onClick={onAddProgram} className=" font-semibold underline">Add a program.</button></div>
+        ) : dv==="summary" ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="bg-slate-50 text-xs text-slate-700 uppercase tracking-wider">
+                {["Program","Staff","Area","Season","Fill Rate","Cost Recovery","Net P/(L)","Total Cost","Waitlist","Trend","NPS","Status",""].map(h=>(
+                  <th key={h} className="px-3 py-2 text-left font-semibold">{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>{kpis.map((p,i)=>(
+                <tr key={p.id} className={`border-t border-slate-50 hover:bg-gray-200 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
+                  <td className="px-3 py-2.5 font-semibold text-slate-800">
+                    <button onClick={()=>onEdit(p)} className="hover:text-blue-600 hover:underline text-left">{p.name}</button>
+                    {(()=>{
+                      const svt=getSvcTarget(p.service_category,p.costRecovery);
+                      if(!svt||!p.hasActuals||p.costRecovery>=svt.min) return null;
+                      const enrollment=p.act_enrollment||0;
+                      const targetRev=p.totalCost*svt.min;
+                      const currentFee=p.fee>0?p.fee:(enrollment>0?p.revenue/enrollment:null);
+                      const sugFee=enrollment>0?targetRev/enrollment:null;
+                      const gap=sugFee!=null&&currentFee!=null?sugFee-currentFee:null;
+                      if(!gap||gap<=0) return null;
+                      return <span className="ml-2 text-xs font-semibold px-1.5 py-0.5 rounded" style={{background:"#FEF4DC",color:"#8A5E00"}}>+{dollar(Math.ceil(gap))}/person needed</span>;
+                    })()}
+                  </td>
+                  <td className="px-3 py-2.5 text-slate-700 text-xs">{p.staff_name}</td>
+                  <td className="px-3 py-2.5 text-slate-700">{p.area}</td>
+                  <td className="px-3 py-2.5 text-slate-700 whitespace-nowrap">{p.season} FY {toFY(p.year)}</td>
+                  <td className="px-3 py-2.5 font-mono">{pct(p.fillRate)}</td>
+                  <td className="px-3 py-2.5 font-mono">{pct(p.costRecovery)}</td>
+                  <td className={`px-3 py-2.5 font-mono font-semibold ${p.profitLoss>=0?"text-green-700":"text-red-600"}`}>{dollar(p.profitLoss)}</td>
+                  <td className="px-3 py-2.5 font-mono text-slate-700">{dollar(p.totalCost)}</td>
+                  <td className="px-3 py-2.5 text-slate-700">{p.waitlist||0}</td>
+                  <td className="px-3 py-2.5 text-slate-700">{p.trend}</td>
+                  <td className="px-3 py-2.5 font-mono text-xs">
+                    {p.nps>0?<span className="font-bold" style={{color:p.nps>=50?"#84BD00":p.nps>=0?"#F6AB00":"#E35205"}}>{p.nps}</span>:<span className="text-slate-400">—</span>}
+                  </td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">
+                    <Badge status={p.status}/>
+                    
+                  </td>
+                  <td className="px-3 py-2.5"><button onClick={()=>onEdit(p)} className="text-xs text-slate-700 hover:text-slate-800 font-medium">Edit</button></td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        ) : dv==="variances" ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 text-xs text-slate-700 uppercase tracking-wider">
+                  <th className="px-3 py-2 text-left font-semibold">Program</th>
+                  <th className="px-3 py-2 text-center font-semibold" colSpan={3}>Enrollment</th>
+                  <th className="px-3 py-2 text-center font-semibold border-l border-slate-200" colSpan={3}>Revenue</th>
+                  <th className="px-3 py-2 text-center font-semibold border-l border-slate-200" colSpan={3}>Total Cost</th>
+                  <th className="px-3 py-2 text-center font-semibold border-l border-slate-200" colSpan={3}>Cost Recovery</th>
+                  <th className="px-3 py-2 text-center font-semibold border-l border-slate-200" colSpan={3}>Net Profit/(Loss)</th>
+                </tr>
+                <tr className="bg-slate-50 text-xs text-slate-400 uppercase">
+                  <th className="px-3 py-1"/>
+                  <th className="px-2 py-1 text-center">Bud.</th><th className="px-2 py-1 text-center">Actual</th><th className="px-2 py-1 text-center">Var.</th>
+                  <th className="px-2 py-1 text-center border-l border-slate-200">Bud.</th><th className="px-2 py-1 text-center">Actual</th><th className="px-2 py-1 text-center">Var.</th>
+                  <th className="px-2 py-1 text-center border-l border-slate-200">Bud.</th><th className="px-2 py-1 text-center">Actual</th><th className="px-2 py-1 text-center">Var.</th>
+                  <th className="px-2 py-1 text-center border-l border-slate-200">Bud.</th><th className="px-2 py-1 text-center">Actual</th><th className="px-2 py-1 text-center">Var.</th>
+                  <th className="px-2 py-1 text-center border-l border-slate-200">Bud.</th><th className="px-2 py-1 text-center">Actual</th><th className="px-2 py-1 text-center">Var.</th>
+                </tr>
+              </thead>
+              <tbody>{kpis.map((p,i)=>(
+                <tr key={p.id} className={`border-t border-slate-50 hover:bg-gray-200 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
+                  <td className="px-3 py-2.5 font-semibold text-slate-800 whitespace-nowrap">
+                    <button onClick={()=>onEdit(p)} className="hover:text-blue-600 hover:underline text-left">{p.name}</button>
+                    {!p.hasActuals&&!p.is_archived&&(
+                      <span className="ml-2 text-xs px-1.5 py-0.5 rounded font-semibold" style={{background:"#FEF4DC",color:"#8A5E00"}}>Budgeted Only</span>
+                    )}
 
-      {/* The full dashboard — filtered to this staff member, manager panels hidden */}
-      <ManagerDashboard
-        programs={programs}
-        staffName={staffName}
-        onEdit={onEdit}
-        onAddProgram={onAddProgram}
-        isStaffView={true}
-      />
+                    {(()=>{
+                      const svt=getSvcTarget(p.service_category,p.costRecovery);
+                      if(!svt||!p.hasActuals||p.costRecovery>=svt.min) return null;
+                      const enrollment=p.act_enrollment||0;
+                      const targetRev=p.totalCost*svt.min;
+                      const currentFee=p.fee>0?p.fee:(enrollment>0?p.revenue/enrollment:null);
+                      const sugFee=enrollment>0?targetRev/enrollment:null;
+                      const gap=sugFee!=null&&currentFee!=null?sugFee-currentFee:null;
+                      if(!gap||gap<=0) return null;
+                      return <span className="ml-2 text-xs font-semibold px-1.5 py-0.5 rounded" style={{background:"#FAE8D8",color:"#E35205"}}>+{dollar(Math.ceil(gap))}/person needed</span>;
+                    })()}
+                  </td>
+                  <td className="px-2 py-2.5 text-center text-slate-700 font-mono text-xs">{p.ant_enrollment}</td>
+                  <td className="px-2 py-2.5 text-center font-mono text-xs">{p.act_enrollment}</td>
+                  <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varEnr)}`}>{vNum(p.varEnr)}</td>
+                  <td className="px-2 py-2.5 text-center text-slate-700 font-mono text-xs border-l border-slate-100">{dollar(p.antRevenue)}</td>
+                  <td className="px-2 py-2.5 text-center font-mono text-xs">{dollar(p.revenue)}</td>
+                  <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varRev)}`}>{vDollar(p.varRev)}</td>
+                  <td className="px-2 py-2.5 text-center text-slate-700 font-mono text-xs border-l border-slate-100">{dollar(p.antTotal)}</td>
+                  <td className="px-2 py-2.5 text-center font-mono text-xs">{dollar(p.totalCost)}</td>
+                  <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varCost,true)}`}>{vDollar(p.varCost)}</td>
+                  <td className="px-2 py-2.5 text-center text-slate-700 font-mono text-xs border-l border-slate-100">{pct(p.antCR)}</td>
+                  <td className="px-2 py-2.5 text-center font-mono text-xs">{pct(p.costRecovery)}</td>
+                  <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varCR)}`}>{vPct(p.varCR)}</td>
+                  <td className="px-2 py-2.5 text-center text-slate-700 font-mono text-xs border-l border-slate-100">{dollar(p.antProfit)}</td>
+                  <td className="px-2 py-2.5 text-center font-mono text-xs">{dollar(p.profitLoss)}</td>
+                  <td className={`px-2 py-2.5 text-center font-mono text-xs ${vc(p.varProfit)}`}>{vDollar(p.varProfit)}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-4 space-y-5">{kpis.map(p=>(
+            <div key={p.id} className="border border-slate-100 rounded-lg p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <button onClick={()=>onEdit(p)} className="font-semibold text-slate-800 hover:text-blue-600 hover:underline text-left">{p.name}</button>
+                  <div className="text-xs text-slate-700">{p.area} - {p.season} FY {toFY(p.year)}</div>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge status={p.status}/>
+                  
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <PBar label="Enrollment"  actual={p.act_enrollment} budget={p.ant_enrollment} ff={v=>v.toString()}/>
+                <PBar label="Revenue"     actual={p.revenue}        budget={p.antRevenue}      ff={v=>dollar(v)}/>
+                <PBar label="Total Cost"  actual={p.totalCost}      budget={p.antTotal}        ff={v=>dollar(v)} inv/>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <PBar label="Cost Recovery"     actual={p.costRecovery*100} budget={p.antCR*100} ff={v=>`${v.toFixed(1)}%`}/>
+                <PBar label="Net Profit/(Loss)" actual={p.profitLoss}       budget={p.antProfit} ff={v=>dollar(v)}/>
+              </div>
+            </div>
+          ))}</div>
+        )}
+      </div>
+      <div className="bg-white rounded-lg shadow-sm p-4">
+        <h3 className="font-bold text-slate-800 text-sm mb-3">Status Guide</h3>
+        <div className="space-y-2 text-sm">
+          <div className="flex items-center gap-3"><Badge status="Healthy"/><span className="text-slate-700">70%+ fill rate and 100%+ cost recovery</span></div>
+          <div className="flex items-center gap-3"><Badge status="Monitor"/><span className="text-slate-700">60-69.9% fill rate or approaching targets</span></div>
+          <div className="flex items-center gap-3"><Badge status="Needs Redesign"/><span className="text-slate-700">Below 60% fill rate or below 50% cost recovery</span></div>
+        </div>
+      </div>
     </div>
   );
 }
 
+// ─── Dashboard (Manager View — full analytics) ────────────────────────────────
+// ─── Section Header (shared by ManagerDashboard) ─────────────────────────────
 function SectionHeader({id,title,sub,badge,collapsed,onToggle}) {
   const open = !collapsed[id];
   return(
@@ -1437,11 +1526,10 @@ function NeedsAttentionQueue({programs,onEdit}){
   );
 }
 
-function ManagerDashboard({programs,staffName,onEdit,onAddProgram,isStaffView=false}) {
-  const [filters,setFilters] = useState(()=>({staff:isStaffView?new Set([staffName].filter(Boolean)):new Set(),area:new Set(),season:new Set(),year:new Set()}));
+function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
+  const [filters,setFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
   function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
   const [collapsed,setCollapsed] = useState({topbottom:true,rpp:true,capacity:true,classmix:true,workload:true,snapshot:true,areabreakdown:true,nps:true});
-  const [capitalPct,setCapitalPct] = useState(5); // % of net surplus to allocate to capital;
   function toggleSection(id){setCollapsed(s=>({...s,[id]:!s[id]}));}
   // SectionHeader hoisted to module level — see below ManagerDashboard
   const [dv,setDv]           = useState("summary");
@@ -1646,7 +1734,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram,isStaffView=fa
       {/* ── Filters + Export ── */}
       <div className="space-y-2">
         <MultiFilter filters={filters} onChange={onFilterChange}
-          counts={{staff:isStaffView?[]:allStaff,area:allAreas,season:allSeasons,year:allYears}}/>
+          counts={{staff:allStaff,area:allAreas,season:allSeasons,year:allYears}}/>
         <div className="flex gap-2 justify-end">
           <button onClick={()=>exportCSV(vis)} className="text-xs font-semibold px-3 py-2 rounded border border-slate-200 text-slate-700 hover:bg-gray-200 transition whitespace-nowrap">↓ Export CSV</button>
           <button onClick={()=>setShowReport(true)} className="text-xs font-semibold px-3 py-2 rounded transition whitespace-nowrap text-white" style={{backgroundColor:"#00A9CE"}}>⬜ Season Report</button>
@@ -1719,8 +1807,8 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram,isStaffView=fa
       </div>
 
       {/* ── Program Snapshot bars ── */}
-      {/* ── FT Staff Allocation — manager only ── */}
-      {!isStaffView && ftStaffBudget > 0 && (
+      {/* ── FT Staff Allocation — always visible ── */}
+      {ftStaffBudget > 0 && (
         <div className="bg-white rounded-lg shadow-sm p-5">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div>
@@ -1772,92 +1860,6 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram,isStaffView=fa
           </div>
         </div>
       )}
-
-      {/* ── Capital Improvement Fund Panel — manager only ── */}
-      {!isStaffView && kpis.some(p=>p.hasActuals)&&(()=>{
-        const surplusProgs = [...kpis].filter(p=>p.hasActuals&&p.profitLoss>0).sort((a,b)=>b.profitLossLoss-a.profitLossLoss);
-        const deficitProgs = kpis.filter(p=>p.hasActuals&&p.profitLoss<0);
-        const totalSurplus = surplusProgs.reduce((a,p)=>a+p.profitLoss,0);
-        const totalDeficit = Math.abs(deficitProgs.reduce((a,p)=>a+p.profitLoss,0));
-        const netPL        = totalSurplus - totalDeficit;
-        const suggested    = Math.max(0, Math.round(netPL * (capitalPct/100)));
-        const maxBar       = surplusProgs.length>0 ? surplusProgs[0].profit : 1;
-        return (
-          <div className="bg-white p-5" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.09)"}}>
-            {/* Header row */}
-            <div className="flex items-start justify-between flex-wrap gap-3 mb-4">
-              <div>
-                <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.12em",color:"#5C462B"}}>Capital Improvement Fund</div>
-                <div className="text-xs mt-0.5" style={{color:"#A09080"}}>NRPA best practice: allocate a % of net program surplus toward capital reserve</div>
-              </div>
-              {/* Rate selector */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-slate-500">Allocation rate:</span>
-                {[3,5,10,15].map(pct=>(
-                  <button key={pct} onClick={()=>setCapitalPct(pct)}
-                    className="text-xs font-bold px-2 py-1 rounded border transition"
-                    style={capitalPct===pct?{background:"#5C462B",color:"#fff",borderColor:"#5C462B"}:{background:"#fff",color:"#A09080",borderColor:"rgba(92,70,43,0.2)"}}>
-                    {pct}%
-                  </button>
-                ))}
-                <div className="flex items-center gap-1">
-                  <input type="number" value={capitalPct}
-                    onChange={e=>setCapitalPct(Math.max(0,Math.min(100,parseFloat(e.target.value)||0)))}
-                    className="w-14 text-xs text-center rounded border border-slate-200 px-2 py-1"
-                    style={{MozAppearance:"textfield"}}/>
-                  <span className="text-xs text-slate-400">%</span>
-                </div>
-              </div>
-            </div>
-
-            {/* KPI cards */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-4">
-              {[
-                {label:"Portfolio Net P/(L)", value:dollar(Math.round(netPL)),         color:netPL>=0?"#84BD00":"#E35205"},
-                {label:"Surplus Programs",    value:surplusProgs.length+" programs",   color:"#84BD00"},
-                {label:"Subsidy Programs",    value:deficitProgs.length+" programs",   color:"#E35205"},
-                {label:"Suggested Allocation",value:netPL>0?dollar(suggested):"—",    color:"#00A9CE"},
-              ].map(({label,value,color})=>(
-                <div key={label} className="rounded p-3" style={{background:"rgba(0,0,0,0.025)",border:"1px solid rgba(0,0,0,0.06)"}}>
-                  <div className="text-xs uppercase font-bold mb-1" style={{letterSpacing:"0.08em",color:"#A09080",fontSize:"10px"}}>{label}</div>
-                  <div className="text-lg font-bold" style={{color}}>{value}</div>
-                </div>
-              ))}
-            </div>
-
-            {netPL>0?(
-              <div className="space-y-3">
-                {/* Top contributors */}
-                {surplusProgs.length>0&&(
-                  <div>
-                    <div className="text-xs font-semibold text-slate-600 mb-2">Top surplus contributors</div>
-                    <div className="space-y-1.5">
-                      {surplusProgs.slice(0,5).map(p=>(
-                        <div key={p.id} className="flex items-center gap-3">
-                          <div className="flex-1 text-xs text-slate-600 truncate">{p.name}</div>
-                          <div className="w-28 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                            <div className="h-full rounded-full" style={{width:Math.min(100,Math.round(p.profitLoss/maxBar*100))+"%",background:"#84BD00"}}/>
-                          </div>
-                          <div className="text-xs font-mono font-semibold w-20 text-right" style={{color:"#84BD00"}}>{dollar(Math.round(p.profitLoss))}</div>
-                          <div className="text-xs font-mono text-slate-400 w-16 text-right">→ {dollar(Math.round(p.profitLoss*(capitalPct/100)))}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {/* NRPA recommendation */}
-                <div className="rounded px-3 py-2.5 text-xs leading-relaxed" style={{background:"rgba(0,169,206,0.05)",border:"1px solid rgba(0,169,206,0.15)",color:"#5C462B"}}>
-                  <span className="font-bold">NRPA recommendation:</span> A {capitalPct}% allocation rate on your current net surplus generates <span className="font-bold" style={{color:"#00A9CE"}}>{dollar(suggested)}</span> toward capital reserve this cycle. NRPA's Fiscal Health model targets 3–10% of program net revenue annually, building toward a reserve equal to 15–25% of the annual operating budget (CAPRA standard 6.2).
-                </div>
-              </div>
-            ):(
-              <div className="rounded px-3 py-2.5 text-xs leading-relaxed" style={{background:"#FDF0E6",border:"1px solid rgba(227,82,5,0.2)"}}>
-                <span className="font-semibold" style={{color:"#A33900"}}>Portfolio net deficit: {dollar(Math.abs(Math.round(netPL)))}.</span> Capital contribution targets apply when the portfolio achieves net surplus. Focus cost recovery improvements on the highest-deficit programs first — use the Needs Attention queue above.
-              </div>
-            )}
-          </div>
-        );
-      })()}
 
       <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
         <SectionHeader id="snapshot" title="Program Snapshot: Budgeted vs Actual" sub="Portfolio totals — revenue, enrollment, and cost vs. plan" collapsed={collapsed} onToggle={toggleSection}/>
@@ -2341,104 +2343,105 @@ function Dashboard({programs,staffName,isManager,onEdit,onAddProgram}) {
 }
 
 // ─── Multi-Season View ────────────────────────────────────────────────────────
-function MultiSeasonView({programs,onEdit,staffName,isManager}) {
-  const [search,setSearch]       = useState("");
+function MultiSeasonView({programs,onEdit}) {
+  const [search,setSearch] = useState("");
   const [showSingle,setShowSingle] = useState(false);
-
+  const multiCount = (() => {
+    const groups = {};
+    programs.filter(p=>!p.is_archived).forEach(p=>{
+      const k = `${p.name}||${p.staff_name}`;
+      groups[k] = (groups[k]||0)+1;
+    });
+    return Object.values(groups).filter(v=>v>=2).length;
+  })();
   const groups = useMemo(()=>{
     const map = {};
-    const visible = isManager
-      ? programs.filter(p=>!p.is_archived)
-      : programs.filter(p=>!p.is_archived&&(p.staff_name===staffName||p.peer_visible!==false));
-    visible.forEach(p=>{
+    programs.filter(p=>!p.is_archived).forEach(p=>{
       const key = `${(p.name||"").toLowerCase().trim()}__${(p.staff_name||"").toLowerCase().trim()}`;
       if(!map[key]) map[key]={name:p.name,area:p.area,staff:p.staff_name,seasons:[]};
-      map[key].seasons.push({...p,...calcKPIs(p)});
+      const k = calcKPIs(p);
+      map[key].seasons.push({...p,...k});
     });
     return Object.values(map)
       .filter(g=>showSingle||g.seasons.length>1)
       .filter(g=>!search||g.name.toLowerCase().includes(search.toLowerCase())||g.staff?.toLowerCase().includes(search.toLowerCase()))
-      .sort((a,b)=>b.seasons.length!==a.seasons.length?b.seasons.length-a.seasons.length:a.name.localeCompare(b.name));
+      .sort((a,b)=>{
+        if(b.seasons.length!==a.seasons.length) return b.seasons.length-a.seasons.length;
+        return a.name.localeCompare(b.name);
+      });
   },[programs,search,showSingle]);
-
-  const CARD = {background:"#ffffff",borderRadius:"4px",border:"1px solid rgba(92,70,43,0.09)"};
-  const SO   = ["Spring","Summer","Fall","Winter","All Year"];
 
   return (
     <div className="space-y-4">
-      {/* Controls */}
-      <div className="p-4 space-y-3" style={CARD}>
+      {multiCount===0&&(
+        <div className="rounded border border-slate-200 p-5 text-center space-y-2 bg-slate-50">
+          <div className="text-2xl">📅</div>
+          <div className="font-bold text-slate-800 text-sm">Multi-Season View</div>
+          <div className="text-sm text-slate-700 max-w-sm mx-auto">This view groups programs that run across multiple seasons, showing trends over time. It becomes most valuable once you have two or more seasons of data entered. Keep entering programs and come back here next season.</div>
+        </div>
+      )}
+      <div className="bg-white rounded-lg shadow-sm px-4 py-3 space-y-3">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="font-bold text-sm" style={{color:"#5C462B"}}>Multi-Season View</div>
-            <div className="text-xs mt-0.5" style={{color:"#A09080"}}>Programs offered across multiple seasons, matched by name and staff. Sorted most seasons first.</div>
+            <h2 className="font-bold text-slate-800 text-sm">Multi-Season View</h2>
+            <p className="text-xs text-slate-700 mt-0.5">Programs offered in more than one season — matched by name and staff member. Sorted most seasons first.</p>
           </div>
           <button onClick={()=>setShowSingle(s=>!s)}
-            className="text-xs font-bold px-3 py-1.5 transition whitespace-nowrap shrink-0"
-            style={showSingle
-              ?{background:"#00A9CE",color:"#fff",borderRadius:"2px",border:"1px solid #00A9CE"}
-              :{background:"#fff",color:"#5C462B",borderRadius:"2px",border:"1px solid rgba(92,70,43,0.3)"}}>
+            className="text-xs px-3 py-1.5 rounded-lg border transition whitespace-nowrap shrink-0"
+            style={showSingle?{background:"#00A9CE",color:"white",borderColor:"#00A9CE"}:{borderColor:"#e2e8f0",color:"#64748b"}}>
             {showSingle?"Showing all":"Show single-season"}
           </button>
         </div>
-        <input
-          className="w-full text-sm px-3 py-2"
-          style={{border:"1px solid rgba(92,70,43,0.15)",borderRadius:"2px",outline:"none",background:"#fff"}}
-          placeholder="Search by program name or staff..."
-          value={search} onChange={e=>setSearch(e.target.value)}/>
+        <input className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2"
+          placeholder="Search by program name or staff..." value={search} onChange={e=>setSearch(e.target.value)}/>
       </div>
-
       {groups.length===0&&(
-        <div className="p-8 text-center space-y-2" style={CARD}>
-          <div className="text-2xl">📅</div>
-          <div className="font-bold text-sm" style={{color:"#5C462B"}}>No multi-season programs yet</div>
-          <div className="text-sm max-w-sm mx-auto" style={{color:"#A09080"}}>
-            {search?"No programs match your search.":"This view shows programs that appear in more than one season. Keep entering programs and it will populate over time."}
-          </div>
+        <div className="bg-white rounded-lg shadow-sm p-8 text-center text-slate-700 text-sm">
+          {search
+            ? "No matching programs."
+            : showSingle
+              ? "No active programs found."
+              : "No programs with more than one season yet. Try toggling \"Show single-season\" to see all programs."}
         </div>
       )}
-
       {groups.map(g=>(
-        <div key={g.name+g.staff} className="overflow-hidden" style={CARD}>
-          {/* Group header */}
-          <div className="px-4 py-3 flex items-center justify-between" style={{borderBottom:"1px solid rgba(92,70,43,0.09)"}}>
+        <div key={g.name+g.area} className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
             <div>
-              <div className="font-bold text-sm" style={{color:"#5C462B"}}>{g.name}</div>
-              <div className="text-xs mt-0.5" style={{color:"#A09080"}}>{g.area}{g.staff?" · "+g.staff:""}</div>
+              <div className="font-bold text-slate-800">{g.name}</div>
+              <div className="text-xs text-slate-700">{g.area}{g.staff?" — "+g.staff:""}</div>
             </div>
-            <span className="text-xs font-semibold px-2 py-0.5" style={{background:"rgba(0,169,206,0.08)",color:"#00A9CE",borderRadius:"20px"}}>{g.seasons.length} seasons</span>
+            <span className="text-xs text-slate-700">{g.seasons.length} seasons</span>
           </div>
-          {/* Season rows */}
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr style={{background:"rgba(92,70,43,0.03)",borderBottom:"1px solid rgba(92,70,43,0.09)"}}>
-                  {["Season","Fill Rate","Cost Recovery","Net P/(L)","Enrollment","Status","Trend",""].map(h=>(
-                    <th key={h} className="px-4 py-2 text-left font-bold uppercase" style={{letterSpacing:"0.08em",color:"#A09080",fontSize:"10px"}}>{h}</th>
-                  ))}
+            <table className="w-full text-sm">
+              <thead><tr className="bg-slate-50 text-xs text-slate-700 uppercase tracking-wider">
+                <th className="px-4 py-2 text-left font-semibold">Season</th>
+                <th className="px-4 py-2 text-left font-semibold">Fill Rate</th>
+                <th className="px-4 py-2 text-left font-semibold">Cost Recovery</th>
+                <th className="px-4 py-2 text-left font-semibold">Net P/(L)</th>
+                <th className="px-4 py-2 text-left font-semibold">Enrollment</th>
+                <th className="px-4 py-2 text-left font-semibold">Status</th>
+                <th className="px-4 py-2 text-left font-semibold">Trend</th>
+                <th className="px-4 py-2"/>
+              </tr></thead>
+              <tbody>{g.seasons.sort((a,b)=>{
+                const SO=["Spring","Summer","Fall","Winter","All Year"];
+                const ya=toCalYear(a.year),yb=toCalYear(b.year);
+                if(ya!==yb) return ya-yb;
+                return SO.indexOf(a.season)-SO.indexOf(b.season);
+              }).map((s,i)=>(
+                <tr key={s.id} className={`border-t border-slate-50 hover:bg-gray-200 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
+                  <td className="px-4 py-2.5 font-semibold text-slate-800 whitespace-nowrap">{s.season} FY {toFY(s.year)}</td>
+                  <td className="px-4 py-2.5 font-mono text-xs">{pct(s.fillRate)}</td>
+                  <td className="px-4 py-2.5 font-mono text-xs">{pct(s.costRecovery)}</td>
+                  <td className={`px-4 py-2.5 font-mono text-xs font-semibold ${s.profitLoss>=0?"text-green-700":"text-red-600"}`}>{dollar(s.profitLoss)}</td>
+                  <td className="px-4 py-2.5 font-mono text-xs">{s.act_enrollment||0}</td>
+                  <td className="px-4 py-2.5"><Badge status={s.status}/></td>
+                  <td className="px-4 py-2.5 text-slate-700 text-xs">{s.trend}</td>
+                  <td className="px-4 py-2.5"><button onClick={()=>onEdit(s)} className="text-xs text-slate-700 hover:text-slate-800">Edit</button></td>
                 </tr>
-              </thead>
-              <tbody>
-                {g.seasons
-                  .sort((a,b)=>{
-                    const ya=toCalYear(a.year),yb=toCalYear(b.year);
-                    if(ya!==yb) return ya-yb;
-                    return SO.indexOf(a.season)-SO.indexOf(b.season);
-                  })
-                  .map((s,i)=>(
-                    <tr key={s.id} className="hover:bg-slate-50" style={{borderTop:"1px solid rgba(92,70,43,0.05)",background:i%2===0?"#fff":"rgba(92,70,43,0.015)"}}>
-                      <td className="px-4 py-2.5 font-semibold whitespace-nowrap" style={{color:"#5C462B"}}>{s.season} FY {toFY(s.year)}</td>
-                      <td className="px-4 py-2.5 font-mono" style={{color:s.fillRate>=0.7?"#84BD00":s.fillRate>=0.6?"#F6AB00":"#E35205"}}>{pct(s.fillRate)}</td>
-                      <td className="px-4 py-2.5 font-mono" style={{color:s.costRecovery>=1?"#84BD00":s.costRecovery>=0.5?"#F6AB00":"#E35205"}}>{pct(s.costRecovery)}</td>
-                      <td className="px-4 py-2.5 font-mono font-semibold" style={{color:s.profitLoss>=0?"#84BD00":"#E35205"}}>{dollar(s.profitLoss)}</td>
-                      <td className="px-4 py-2.5 font-mono" style={{color:"#5C462B"}}>{s.act_enrollment||0}</td>
-                      <td className="px-4 py-2.5"><Badge status={s.status}/></td>
-                      <td className="px-4 py-2.5" style={{color:"#A09080"}}>{s.trend||"—"}</td>
-                      <td className="px-4 py-2.5"><button onClick={()=>onEdit(s)} className="text-xs font-semibold" style={{color:"#00A9CE"}}>Edit</button></td>
-                    </tr>
-                  ))
-                }
-              </tbody>
+              ))}</tbody>
             </table>
           </div>
         </div>
@@ -2447,6 +2450,17 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
   );
 }
 
+// ─── Program Form ─────────────────────────────────────────────────────────────
+
+
+const CB_COST_CATEGORIES = [
+  "Program Supplies","Office Supplies","Staff Shirts","Kid Shirts",
+  "MIS / Technology","Staffing","Other",
+];
+
+
+
+// ─── Sub-Program / Session Tracker ───────────────────────────────────────────
 function SubProgramTracker({programs,onChange}){
   const [open,setOpen]=useState(false);
   const list=Array.isArray(programs)?programs:[];
@@ -2710,25 +2724,6 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                 <textarea className="mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 resize-none" rows={3}
                   placeholder="Strategy notes, drivers, multi-year context..."
                   value={p.notes||""} onChange={e=>{setP(prev=>({...prev,notes:e.target.value}));setDirty(true);}}/>
-              </div>
-
-              {/* Peer visibility toggle */}
-              <div className="flex items-center justify-between rounded p-3" style={{background:"rgba(92,70,43,0.04)",border:"1px solid rgba(92,70,43,0.12)"}}>
-                <div>
-                  <div className="text-sm font-semibold text-slate-700">Visible to peers</div>
-                  <div className="text-xs text-slate-500 mt-0.5">
-                    {p.peer_visible!==false
-                      ? "Other staff can see this program in their view. Managers always see all programs."
-                      : "Hidden from other staff. Only you and managers can see this program."}
-                  </div>
-                </div>
-                <button onClick={()=>{setP(prev=>({...prev,peer_visible:prev.peer_visible===false?true:false}));setDirty(true);}}
-                  className="ml-4 shrink-0 px-3 py-1.5 text-xs font-bold rounded border transition"
-                  style={p.peer_visible!==false
-                    ?{background:"#EEF5E0",color:"#4A6B00",borderColor:"rgba(132,189,0,0.3)"}
-                    :{background:"#FDF0E6",color:"#A33900",borderColor:"rgba(227,82,5,0.3)"}}>
-                  {p.peer_visible!==false ? "✓ Visible" : "○ Hidden"}
-                </button>
               </div>
             </div>
           )}
@@ -3121,7 +3116,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
       {canEdit&&(
         <div className="flex gap-3 justify-between">
           <div className="flex gap-2">
-            {!isNew&&isManager&&<button onClick={()=>setConfirm(true)} className="px-4 py-2 text-sm text-red-500 hover:text-red-700 font-medium">Delete</button>}
+            {!isNew&&<button onClick={()=>setConfirm(true)} className="px-4 py-2 text-sm text-red-500 hover:text-red-700 font-medium">Delete</button>}
             {!isNew&&<button onClick={()=>setConfirmArchive(true)}
               className={`px-4 py-2 text-sm font-medium rounded border transition ${p.is_archived?"border-green-300 text-green-700 hover:bg-green-50":"border-slate-200 text-slate-700 hover:bg-gray-200"}`}>
               {p.is_archived?"Restore":"Archive"}
@@ -3162,7 +3157,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
 
 // ─── Programs List ────────────────────────────────────────────────────────────
 function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDupSingle}) {
-  const [filters,setFilters] = useState({staff:isManager?new Set():new Set([staffName].filter(Boolean)),area:new Set(),season:new Set(),year:new Set()});
+  const [filters,setFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
   const [search,setSearch]   = useState("");
   const [showArchived,setShowArchived] = useState(false);
   function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
@@ -3174,8 +3169,6 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
 
   const vis = programs
     .filter(p=>showArchived ? !!p.is_archived : !p.is_archived)
-    // Visibility: managers see all; staff see own + peer_visible programs from others
-    .filter(p=>isManager || p.staff_name===staffName || p.peer_visible)
     .filter(p=>filters.staff.size===0||filters.staff.has(p.staff_name))
     .filter(p=>filters.area.size===0||filters.area.has(p.area))
     .filter(p=>filters.year.size===0||filters.year.has(toFY(p.year)))
@@ -3188,10 +3181,12 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="font-bold text-slate-800">{showArchived ? "Archived Programs" : "Active Programs"} ({vis.length})</h2>
         <div className="flex gap-2">
-          <button onClick={onBulkDup}
+          {isManager&&(
+            <button onClick={onBulkDup}
               className="text-xs font-semibold px-3 py-2 rounded border border-slate-200 text-slate-700 hover:bg-gray-200 transition">
               Bulk Season Rollover
             </button>
+          )}
           <button onClick={()=>setShowArchived(s=>!s)}
             className={`text-xs font-semibold px-3 py-2 rounded border transition ${showArchived?"text-white border-transparent":"border-slate-200 text-slate-700 hover:bg-gray-200"}`}
             style={showArchived?{backgroundColor:"#64748b"}:{}}>
@@ -5004,7 +4999,6 @@ function Reference({isManager,db,programs,staffName}) {
           {id:"review",label:"📋 Program Review"},
           {id:"capacity",label:"🧮 Capacity Calculator"},
           {id:"redesign",label:"🔄 Redesign Ideas"},
-          {id:"allocation",label:"💰 Allocation Calculator"},
           ...(isManager?[{id:"clubhouse",label:"🏫 Clubhouse Allocation"}]:[]),
         ].map(s=>(
           <button key={s.id} onClick={()=>setSec(s.id)}
@@ -5069,7 +5063,6 @@ function Reference({isManager,db,programs,staffName}) {
                 {tab:"🧮 Capacity Calculator", sec:"capacity",  desc:"Enter your room size or staff count to get an NRPA/ACSM-backed capacity estimate for any program type."},
                 {tab:"🔄 Redesign Ideas",      sec:"redesign",  desc:"26 research-backed strategies when a program needs a change — with full context and NRPA/IPRA citations."},
                 {tab:"📋 Program Review",      sec:"review",    desc:"The formal review process for Continue, Redesign, or Sunset decisions. Required before any major program change."},
-                {tab:"💰 Allocation Calculator",sec:"allocation",desc:"Split a shared cost across multiple programs proportionally by enrollment, equal split, or custom weights."},
                 {tab:"District Standards",     sec:"standards", desc:"Workload percentages, cost recovery targets, service level targets, and district KPI definitions."},
                 {tab:"Program Types & Guide",  sec:"kpis",      desc:"What each program type means, its default workload %, and how the cost formula applies to it."},
               ].map(r=>(
@@ -5670,17 +5663,7 @@ function Reference({isManager,db,programs,staffName}) {
         </div>
       )}
 
-            {sec==="allocation"&&(
-        <div className="p-5 space-y-5">
-          <AllocationCalculator
-            programs={programs}
-            staffName={staffName}
-            isManager={isManager}
-            db={db}/>
-        </div>
-      )}
-
-      {sec==="clubhouse"&&isManager&&(
+            {sec==="clubhouse"&&isManager&&(
         <ClubhouseAllocationTool db={db} programs={programs} staffName={staffName}/>
       )}
 
@@ -6778,324 +6761,234 @@ function CapacityCalculator() {
   );
 }
 
+export default function App() {
+  const [tab,setTab]                       = useState("dashboard");
+  const [programs,setPrograms]             = useState([]);
+  const [editingProgram,setEditingProgram] = useState(null);
+  const [addingProgram,setAddingProgram]   = useState(false);
+  const [dupProgram,setDupProgram]         = useState(null);
+  const [showBulkDup,setShowBulkDup]       = useState(false);
+  const [loading,setLoading]               = useState(true);
+  const [saving,setSaving]                 = useState(false);
+  const [error,setError]                   = useState(null);
+  const [staffName,setStaffName]           = useState(()=>localStorage.getItem("bgpd_staff_name")||"");
+  const [viewAsManager,setViewAsManager]   = useState(true);
+  const isManager = MANAGER_NAMES.includes(staffName.toLowerCase().trim());
+  const effectiveManager = isManager && viewAsManager;
 
-// ─── Program Allocation Calculator ───────────────────────────────────────────
-// Splits a shared cost across multiple programs proportionally
-function AllocationCalculator({programs, staffName, isManager, db}) {
-  const [season, setSeason]   = useState("all");
-  const [year,   setYear]     = useState("all");
-  const [which,  setWhich]    = useState("budgeted");
-  const [targetField, setTargetField] = useState("other1"); // which cost field to apply to
-  const [costLines, setCostLines] = useState([{id:1, label:"", amount:""}]);
-  const [mode,   setMode]     = useState("enrollment");
-  const [selected, setSelected] = useState({});
-  const [weights,  setWeights]  = useState({});
-  const [result,   setResult]   = useState(null);
-  const [applying, setApplying] = useState(false);
-  const [applyStatus, setApplyStatus] = useState({});
-  const [err, setErr] = useState("");
-  const nextId = useState(2)[0];
-  const [lineCounter, setLineCounter] = useState(2);
-
-  const COST_FIELDS = [
-    {key:"other1",   ant:"ant_other1",   act:"act_other1",   label:"Other Cost 1",   hint:"Budgeted tab → Other Direct Costs field"},
-    {key:"other2",   ant:"ant_other2",   act:"act_other2",   label:"Other Cost 2",   hint:"Budgeted tab → second Other Direct Costs field"},
-    {key:"personnel",ant:"ant_personnel",act:"act_personnel",label:"Personnel",       hint:"Budgeted tab → Personnel field"},
-    {key:"contractuals",ant:"ant_contractuals",act:"act_contractuals",label:"Contractuals",hint:"Budgeted tab → Contractuals field"},
-    {key:"commodities",ant:"ant_commodities",act:"act_commodities",label:"Commodities",hint:"Budgeted tab → Commodities field"},
-  ];
-
-  const myPrograms = isManager ? programs : programs.filter(p=>p.staff_name===staffName);
-  const filtered   = myPrograms.filter(p=>{
-    if(season!=="all"&&p.season!==season) return false;
-    if(year!=="all"&&p.year!==year) return false;
-    return true;
-  });
-  const allSeasons = [...new Set(myPrograms.map(p=>p.season).filter(Boolean))].sort();
-  const allYears   = [...new Set(myPrograms.map(p=>p.year).filter(Boolean))].sort().reverse();
-  const px         = which==="budgeted"?"ant_":"act_";
-  const selProgs   = filtered.filter(p=>selected[p.id]);
-  const totalCost  = costLines.reduce((a,l)=>a+(parseFloat(l.amount)||0),0);
-  const activeCF   = COST_FIELDS.find(f=>f.key===targetField)||COST_FIELDS[0];
-
-  const toggleProg = id=>setSelected(s=>({...s,[id]:!s[id]}));
-  const selAll  = ()=>setSelected(Object.fromEntries(filtered.map(p=>[p.id,true])));
-  const selNone = ()=>setSelected({});
-
-  const addLine = ()=>{
-    setCostLines(prev=>[...prev,{id:lineCounter,label:"",amount:""}]);
-    setLineCounter(n=>n+1);
-  };
-  const removeLine = id=>setCostLines(prev=>prev.filter(l=>l.id!==id));
-  const updateLine = (id,field,val)=>setCostLines(prev=>prev.map(l=>l.id===id?{...l,[field]:val}:l));
-
-  function calculate(){
-    setErr("");
-    if(totalCost<=0){setErr("Enter at least one cost amount.");return;}
-    if(selProgs.length<2){setErr("Select at least 2 programs.");return;}
-    let rows=[];
-    if(mode==="enrollment"){
-      const enrs=selProgs.map(p=>parseFloat(p[px+"enrollment"])||0);
-      const tot=enrs.reduce((a,b)=>a+b,0);
-      if(tot===0){setErr("No enrollment data on selected programs. Try Equal Split or Manual Weights.");return;}
-      rows=selProgs.map((p,i)=>({id:p.id,name:p.name,area:p.area,basis:enrs[i],pct:enrs[i]/tot,amount:(enrs[i]/tot)*totalCost}));
-    } else if(mode==="equal"){
-      rows=selProgs.map(p=>({id:p.id,name:p.name,area:p.area,basis:1,pct:1/selProgs.length,amount:totalCost/selProgs.length}));
-    } else {
-      const wts=selProgs.map(p=>parseFloat(weights[p.id])||0);
-      const tot=wts.reduce((a,b)=>a+b,0);
-      if(tot===0){setErr("Enter at least one weight.");return;}
-      rows=selProgs.map((p,i)=>({id:p.id,name:p.name,area:p.area,basis:wts[i],pct:wts[i]/tot,amount:(wts[i]/tot)*totalCost}));
-    }
-    // Round to cents, fix last row rounding error
-    let allocated=0;
-    rows=rows.map((r,i)=>{
-      const amt=i<rows.length-1?Math.round(r.amount*100)/100:Math.round((totalCost-allocated)*100)/100;
-      allocated+=amt;
-      return {...r,amount:amt};
+  const fetchAll = useCallback(async()=>{
+    setLoading(true);
+    const {data:p, error:fe} = await supabase.from("programs").select("*").order("created_at",{ascending:false});
+    if(fe) setError("Failed to load programs: "+fe.message);
+    // Normalize year format: convert any 4-digit years to YY-YY on load
+    const normalized=(p||[]).map(prog=>{
+      if(prog.year&&/^\d{4}$/.test(String(prog.year))){
+        return {...prog, year:toFY(prog.year)};
+      }
+      return prog;
     });
-    setResult({rows,total:totalCost,lines:costLines.filter(l=>l.label||l.amount),mode,field:activeCF});
-    setApplyStatus({});
-  }
+    setPrograms(normalized); setLoading(false);
+  },[]);
 
-  async function applyAlloc(){
-    if(!result) return;
-    setApplying(true); setErr("");
-    const dbField = which==="budgeted"?result.field.ant:result.field.act;
-    const status={};
-    for(const row of result.rows){
-      try{
-        const prog=programs.find(p=>p.id===row.id);
-        const existing=parseFloat(prog?.[dbField])||0;
-        const newVal=Math.round((existing+row.amount)*100)/100;
-        const{error:e}=await db.from("programs").update({[dbField]:newVal}).eq("id",row.id);
-        status[row.id]=e?"error":"ok";
-        if(e) setErr(prev=>prev+(prev?"\n":"")+row.name+": "+e.message);
-      } catch(ex){status[row.id]="error";}
-    }
-    setApplyStatus(status);
-    setApplying(false);
-  }
+  useEffect(()=>{ if(staffName) fetchAll(); else setLoading(false); },[staffName,fetchAll]);
 
-  const appliedCount=Object.values(applyStatus).filter(v=>v==="ok").length;
+  const handleConfirmName = name => { localStorage.setItem("bgpd_staff_name",name); setStaffName(name); };
+
+  const handleSaveProgram = async p => {
+    setSaving(true); setError(null);
+    try {
+      const data = cleanForDB(p);
+      if(data.id){ const{error:e}=await supabase.from("programs").update(data).eq("id",data.id); if(e) throw e; }
+      else        { const{error:e}=await supabase.from("programs").insert(data);                 if(e) throw e; }
+      await fetchAll(); setEditingProgram(null); setAddingProgram(false); setTab("programs");
+    } catch(e){ setError("Failed to save: "+(e.message||"unknown error")); }
+    setSaving(false);
+  };
+
+  const handleSaveProgramAndStay = async p => {
+    // Saves to DB but does NOT navigate away and does NOT call fetchAll (avoids loading flash)
+    setSaving(true); setError(null);
+    try {
+      const data = cleanForDB(p);
+      if(data.id){
+        const{error:e}=await supabase.from("programs").update(data).eq("id",data.id);
+        if(e) throw e;
+        // Update local programs array in place — no fetchAll needed
+        setPrograms(prev=>prev.map(x=>x.id===data.id?{...x,...data}:x));
+      } else {
+        const{data:inserted,error:e}=await supabase.from("programs").insert(data).select().single();
+        if(e) throw e;
+        if(inserted){
+          setPrograms(prev=>[inserted,...prev]);
+          setEditingProgram(inserted);
+        }
+      }
+    } catch(e){ setError("Failed to save: "+(e.message||"unknown error")); }
+    setSaving(false);
+  };
+
+  const handleDeleteProgram = async id => {
+    setSaving(true);
+    const {error:de}=await supabase.from("programs").delete().eq("id",id);
+    if(de) setError("Failed to delete program: "+de.message);
+    else { await fetchAll(); setEditingProgram(null); setTab("dashboard"); }
+    setSaving(false);
+  };
+
+  const handleArchiveProgram = async (id, archive) => {
+    setSaving(true);
+    const {error:ae}=await supabase.from("programs").update({is_archived: archive}).eq("id", id);
+    if(ae) setError("Failed to archive program: "+ae.message);
+    else { await fetchAll(); setEditingProgram(null); setTab("programs"); }
+    setSaving(false);
+  };
+
+  const handleDuplicate = async (source,{season,year,carry}) => {
+    setSaving(true); setError(null);
+    try {
+      const base = cleanForDB(source);
+      delete base.id; delete base.created_at;
+      const actClear = {act_capacity:0,act_enrollment:0,act_revenue:0,act_personnel:0,act_commodities:0,act_contractuals:0,act_other1:0,act_other2:0,act_facility_hours:0,act_program_type:"",act_custom_workload:0};
+      const antClear = carry ? {} : {ant_capacity:0,ant_enrollment:0,ant_revenue:0,ant_personnel:0,ant_commodities:0,ant_contractuals:0,ant_other1:0,ant_other2:0,ant_facility_hours:0,ant_program_type:"",ant_custom_workload:0};
+      const{error:e}=await supabase.from("programs").insert({...base,...actClear,...antClear,season,year});
+      if(e) throw e;
+      await fetchAll(); setDupProgram(null); setEditingProgram(null); setAddingProgram(false); setTab("programs");
+    } catch(e){ setError("Failed to duplicate: "+(e.message||"unknown error")); }
+    setSaving(false);
+  };
+
+  const handleBulkDuplicate = async ({ids,season,year,carry}) => {
+    setSaving(true); setError(null);
+    try {
+      const sources = programs.filter(p=>ids.includes(p.id));
+      const inserts = sources.map(source=>{
+        const base = cleanForDB(source);
+        delete base.id; delete base.created_at;
+        const actClear = {act_capacity:0,act_enrollment:0,act_revenue:0,act_personnel:0,act_commodities:0,act_contractuals:0,act_other1:0,act_other2:0,act_facility_hours:0,act_program_type:"",act_custom_workload:0};
+        const antClear = carry ? {} : {ant_capacity:0,ant_enrollment:0,ant_revenue:0,ant_personnel:0,ant_commodities:0,ant_contractuals:0,ant_other1:0,ant_other2:0,ant_facility_hours:0,ant_program_type:"",ant_custom_workload:0};
+        return {...base,...actClear,...antClear,season,year};
+      });
+      const{error:e}=await supabase.from("programs").insert(inserts);
+      if(e) throw e;
+      await fetchAll(); setShowBulkDup(false); setTab("programs");
+    } catch(e){ setError("Failed to bulk duplicate: "+(e.message||"unknown error")); }
+    setSaving(false);
+  };
+
+  const tabs = [
+    {id:"dashboard",label:"Dashboard"},
+    {id:"programs",label:"Programs"},
+    {id:"history",label:"Multi-Season"},
+    {id:"kpi",label:"Guide & Resources"},
+  ];
+  const showingForm = editingProgram||addingProgram;
+
+  if(!staffName) return <StaffSetup onConfirm={handleConfirmName}/>;
 
   return (
-    <div className="space-y-5">
-      <div className="rounded p-4" style={{background:"rgba(0,169,206,0.05)",border:"1px solid rgba(0,169,206,0.2)"}}>
-        <div className="text-xs font-bold uppercase mb-1" style={{letterSpacing:"0.10em",color:"#00A9CE"}}>What this does</div>
-        <p className="text-xs text-slate-600 leading-relaxed">Split shared costs — facility rentals, shared instructors, supplies — across multiple programs proportionally. Results apply directly to the cost field you choose on each program record.</p>
-      </div>
-
-      {/* Step 1 — Programs & Period */}
-      <div className="rounded overflow-hidden" style={{border:"1px solid rgba(92,70,43,0.15)"}}>
-        <div className="px-4 py-2.5 text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B",background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>Step 1 — Select Programs & Period</div>
-        <div className="p-4 space-y-3">
-          <div className="grid grid-cols-3 gap-3">
-            {[["Season",season,setSeason,[["all","All Seasons"],...allSeasons.map(s=>[s,s])]],
-              ["Year",year,setYear,[["all","All Years"],...allYears.map(y=>[y,y])]],
-              ["Budget Type",which,setWhich,[["budgeted","Budgeted"],["actual","Actuals"]]]
-            ].map(([lbl,val,setter,opts])=>(
-              <div key={lbl}>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">{lbl}</label>
-                <select value={val} onChange={e=>setter(e.target.value)} className="w-full text-sm rounded border border-slate-200 px-3 py-2 bg-white">
-                  {opts.map(([v,l])=><option key={v} value={v}>{l}</option>)}
-                </select>
-              </div>
-            ))}
-          </div>
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-semibold text-slate-600">Programs to split between</label>
-              <div className="flex gap-3">
-                <button onClick={selAll}  className="text-xs text-slate-400 hover:text-slate-600 underline">All</button>
-                <button onClick={selNone} className="text-xs text-slate-400 hover:text-slate-600 underline">None</button>
-              </div>
-            </div>
-            {filtered.length===0?(
-              <div className="text-xs text-slate-400 py-4 text-center italic">No programs match this filter.</div>
-            ):(
-              <div className="rounded border border-slate-200 divide-y divide-slate-100 overflow-hidden" style={{maxHeight:"220px",overflowY:"auto"}}>
-                {filtered.map(p=>{
-                  const enroll=parseFloat(p[px+"enrollment"])||0;
-                  return (
-                    <label key={p.id} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-slate-50">
-                      <input type="checkbox" checked={!!selected[p.id]} onChange={()=>toggleProg(p.id)} className="shrink-0"/>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold text-slate-700 truncate">{p.name}</div>
-                        <div className="text-xs text-slate-400">{p.area} · {p.season} · {p.staff_name}{enroll?` · Enrollment: ${enroll}`:""}</div>
-                      </div>
-                      {mode==="manual"&&selected[p.id]&&(
-                        <input type="number" value={weights[p.id]||""} onChange={e=>{e.stopPropagation();setWeights(w=>({...w,[p.id]:e.target.value}));}}
-                          onClick={e=>e.preventDefault()} placeholder="weight"
-                          className="w-20 text-sm rounded border border-slate-200 px-2 py-1 shrink-0"/>
-                      )}
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-            <div className="text-xs text-slate-400 mt-1">{selProgs.length} selected</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Step 2 — Costs & Method */}
-      <div className="rounded overflow-hidden" style={{border:"1px solid rgba(92,70,43,0.15)"}}>
-        <div className="px-4 py-2.5 text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B",background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>Step 2 — Enter Costs & Method</div>
-        <div className="p-4 space-y-4">
-
-          {/* Cost lines */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-semibold text-slate-600">Cost line(s)</label>
-              <button onClick={addLine} className="text-xs font-bold px-2 py-1 rounded border transition"
-                style={{color:"#00A9CE",borderColor:"rgba(0,169,206,0.4)",background:"rgba(0,169,206,0.05)"}}>
-                + Add Cost Line
-              </button>
-            </div>
-            <div className="space-y-2">
-              {costLines.map((line,i)=>(
-                <div key={line.id} className="flex gap-2 items-center">
-                  <input type="text" value={line.label} onChange={e=>updateLine(line.id,"label",e.target.value)}
-                    placeholder={i===0?"e.g. Shared facility rental":"e.g. Shared instructor"}
-                    className="flex-1 text-sm rounded border border-slate-200 px-3 py-2"/>
-                  <div className="flex items-center gap-1">
-                    <span className="text-sm text-slate-400">$</span>
-                    <input type="number" value={line.amount} onChange={e=>updateLine(line.id,"amount",e.target.value)}
-                      placeholder="0.00" min="0"
-                      className="w-28 text-sm rounded border border-slate-200 px-3 py-2"/>
-                  </div>
-                  {costLines.length>1&&(
-                    <button onClick={()=>removeLine(line.id)} className="text-slate-300 hover:text-red-400 text-lg font-bold leading-none px-1">×</button>
-                  )}
-                </div>
-              ))}
-            </div>
-            {costLines.length>1&&(
-              <div className="flex justify-end mt-2 pt-2 border-t border-slate-100">
-                <span className="text-xs text-slate-500 font-semibold">Total: </span>
-                <span className="text-xs font-bold ml-1" style={{color:"#5C462B"}}>{dollar(totalCost)}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Target cost field */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Apply result to which cost field?</label>
-            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-              {COST_FIELDS.map(f=>(
-                <button key={f.key} onClick={()=>setTargetField(f.key)}
-                  className="text-left px-3 py-2 rounded border text-xs transition"
-                  style={targetField===f.key
-                    ?{background:"#5C462B",color:"#ffffff",borderColor:"#5C462B"}
-                    :{background:"#ffffff",color:"#6B5744",borderColor:"rgba(92,70,43,0.2)"}}>
-                  <div className="font-bold">{f.label}</div>
-                  <div className="mt-0.5 opacity-70">{f.hint}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Split method */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Split method</label>
-            <div className="flex gap-2">
-              {[["enrollment","By Enrollment"],["equal","Equal Split"],["manual","Manual Weights"]].map(([val,lbl])=>(
-                <button key={val} onClick={()=>setMode(val)}
-                  className="flex-1 py-1.5 text-xs font-bold rounded border transition"
-                  style={mode===val?{background:"#5C462B",color:"#fff",borderColor:"#5C462B"}:{background:"#fff",color:"#A09080",borderColor:"rgba(92,70,43,0.2)"}}>
-                  {lbl}
-                </button>
-              ))}
-            </div>
-            <div className="text-xs text-slate-400 mt-1.5">
-              {mode==="enrollment"?"Proportional to each program's enrollment count — more participants, larger share.":
-               mode==="equal"?"Divides evenly across all selected programs regardless of size.":
-               "Enter a weight next to each selected program above — higher weight = larger share."}
-            </div>
-          </div>
-
-          {err&&<div className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded">{err}</div>}
-          <button onClick={calculate} disabled={selProgs.length<2||totalCost<=0}
-            className="px-4 py-2 text-sm font-bold rounded text-white disabled:opacity-40"
-            style={{background:"#00A9CE"}}>
-            Calculate →
-          </button>
-        </div>
-      </div>
-
-      {/* Step 3 — Results & Apply */}
-      {result&&(
-        <div className="rounded overflow-hidden" style={{border:"1px solid rgba(92,70,43,0.15)"}}>
-          <div className="px-4 py-2.5 text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B",background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>Step 3 — Review & Apply</div>
-          <div className="p-4 space-y-3">
-
-            {/* Cost line summary */}
-            <div className="rounded p-3 space-y-1" style={{background:"rgba(0,0,0,0.025)",border:"1px solid rgba(0,0,0,0.06)"}}>
-              <div className="text-xs font-bold text-slate-600 mb-1.5">Costs being split</div>
-              {result.lines.map((l,i)=>(
-                <div key={i} className="flex justify-between text-xs">
-                  <span className="text-slate-600">{l.label||"Cost "+(i+1)}</span>
-                  <span className="font-semibold text-slate-700">{dollar(parseFloat(l.amount)||0)}</span>
-                </div>
-              ))}
-              <div className="flex justify-between text-xs font-bold pt-1 border-t border-slate-200">
-                <span style={{color:"#5C462B"}}>Total</span>
-                <span style={{color:"#5C462B"}}>{dollar(result.total)}</span>
-              </div>
-            </div>
-
-            {/* Where it goes */}
-            <div className="rounded px-3 py-2.5 text-xs leading-relaxed" style={{background:"rgba(0,169,206,0.05)",border:"1px solid rgba(0,169,206,0.15)"}}>
-              <span className="font-bold" style={{color:"#00A9CE"}}>Where this applies: </span>
-              <span className="text-slate-600">Each program's <strong>{result.field.label}</strong> field on the <strong>{which==="budgeted"?"Budgeted":"Actuals"}</strong> tab. The allocated amount is <strong>added to any existing value</strong> — it does not replace what's already there. You can see and edit it directly in the program form under <strong>{result.field.hint}</strong>.</span>
-            </div>
-
-            {/* Allocation table */}
-            <div className="rounded border border-slate-200 overflow-hidden">
-              <div className="grid gap-0 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-500 uppercase" style={{letterSpacing:"0.07em",gridTemplateColumns:"1fr auto auto"}}>
-                <div>Program</div>
-                <div className="text-right pr-4">Share</div>
-                <div className="text-right">Amount</div>
-              </div>
-              {result.rows.map(row=>(
-                <div key={row.id} className="grid px-3 py-2.5 border-t border-slate-100 items-center gap-0" style={{gridTemplateColumns:"1fr auto auto"}}>
-                  <div>
-                    <div className="text-sm font-semibold text-slate-700">{row.name}</div>
-                    <div className="text-xs text-slate-400">{row.area}</div>
-                  </div>
-                  <div className="text-right pr-4 text-sm text-slate-500">{Math.round(row.pct*100)}%</div>
-                  <div className="text-right font-bold text-sm" style={{color:applyStatus[row.id]==="ok"?"#84BD00":applyStatus[row.id]==="error"?"#E35205":"#5C462B"}}>
-                    {dollar(row.amount)}
-                    {applyStatus[row.id]==="ok"&&<span className="ml-1">✓</span>}
-                    {applyStatus[row.id]==="error"&&<span className="ml-1">✗</span>}
-                  </div>
-                </div>
-              ))}
-              <div className="grid px-3 py-2 bg-slate-50 border-t border-slate-200 font-bold text-sm gap-0" style={{gridTemplateColumns:"1fr auto auto"}}>
-                <div className="text-slate-600">Total</div>
-                <div></div>
-                <div className="text-right" style={{color:"#5C462B"}}>{dollar(result.total)}</div>
-              </div>
-            </div>
-
-            {appliedCount>0&&(
-              <div className="text-xs font-semibold px-3 py-2 rounded" style={{background:"#EEF5E0",color:"#4A6B00"}}>
-                ✓ Applied to {appliedCount} of {result.rows.length} programs — open any program and check the {result.field.label} field on the {which==="budgeted"?"Budgeted":"Actuals"} tab to confirm.
-              </div>
-            )}
-            <button onClick={applyAlloc} disabled={applying||appliedCount===result.rows.length}
-              className="px-4 py-2 text-sm font-bold rounded text-white disabled:opacity-40"
-              style={{background:"#84BD00"}}>
-              {applying?"Applying...":appliedCount===result.rows.length?"✓ Applied":"Apply to Programs"}
-            </button>
-          </div>
-        </div>
+    <div className="min-h-screen" style={{background:"#F8F7F4",fontFamily:"'Nunito Sans',Arial,sans-serif"}}>
+      {dupProgram&&(
+        <DupModal program={dupProgram} onConfirm={opts=>handleDuplicate(dupProgram,opts)} onCancel={()=>setDupProgram(null)}/>
       )}
+      {showBulkDup&&(
+        <BulkDupModal programs={programs} onConfirm={handleBulkDuplicate} onCancel={()=>setShowBulkDup(false)}/>
+      )}
+
+      <header style={{backgroundColor:"#ffffff",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>
+        <div className="max-w-5xl mx-auto flex items-center justify-between px-4" style={{height:"60px"}}>
+          <div className="flex items-center gap-3">
+            <BGPDLogo size={32}/>
+            <div>
+              <div className="font-bold text-sm leading-tight" style={{color:"#5C462B",letterSpacing:"0.08em",textTransform:"uppercase"}}>Buffalo Grove Park District</div>
+              <div className="text-xs font-semibold tracking-widest uppercase" style={{color:"#00A9CE"}}>
+                {staffName}{isManager?(effectiveManager?" · Manager View":" · Staff View"):""}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {isManager&&(
+              <button onClick={()=>setViewAsManager(v=>!v)}
+                className="text-xs font-bold px-3 py-1.5 transition"
+                style={effectiveManager
+                  ? {background:"none",border:"1px solid rgba(0,169,206,0.40)",color:"#00A9CE",borderRadius:"2px"}
+                  : {background:"#00A9CE",border:"1px solid #00A9CE",color:"#ffffff",borderRadius:"2px"}}>
+                {effectiveManager?"⇄ Staff View":"⇄ Manager View"}
+              </button>
+            )}
+            <button onClick={()=>{setAddingProgram(true);setEditingProgram(null);setTab("programs");}}
+              className="text-xs font-bold px-3 py-1.5 transition"
+              style={{background:"#00A9CE",color:"#ffffff",borderRadius:"2px",border:"1px solid #00A9CE"}}>+ Add Program</button>
+            <button onClick={()=>{localStorage.removeItem("bgpd_staff_name");setStaffName("");}}
+              className="text-xs px-2 py-1.5 transition"
+              style={{color:"#6B5744",background:"none",border:"none"}}>Switch</button>
+          </div>
+        </div>
+      </header>
+
+      <nav style={{backgroundColor:"#ffffff",borderBottom:"1px solid rgba(92,70,43,0.10)"}}>
+        <div className="max-w-5xl mx-auto flex gap-0 px-4 overflow-x-auto">
+          {tabs.map(t=>(
+            <button key={t.id} onClick={()=>{setTab(t.id);setEditingProgram(null);setAddingProgram(false);}}
+              className="px-4 py-3 text-xs font-bold whitespace-nowrap transition"
+              style={{
+                letterSpacing:"0.10em",
+                textTransform:"uppercase",
+                borderBottom: tab===t.id ? "2px solid #00A9CE" : "2px solid transparent",
+                color: tab===t.id ? "#00A9CE" : "#A09080",
+                background:"none",
+                borderTop:"none",borderLeft:"none",borderRight:"none"
+              }}>{t.label}</button>
+          ))}
+        </div>
+      </nav>
+
+      <main className="max-w-5xl mx-auto px-4 py-6">
+        {error&&(
+          <div className="mb-4 px-4 py-3 text-sm flex justify-between" style={{background:"#FAE8D8",border:"1px solid rgba(227,82,5,0.2)",color:"#E35205",borderRadius:"4px"}}>
+            {error}<button onClick={()=>setError(null)} className="font-bold ml-4">×</button>
+          </div>
+        )}
+        {loading ? (
+          <div className="text-center py-20" style={{color:"#6B5744",fontFamily:"'Nunito Sans',Arial,sans-serif"}}>Loading programs...</div>
+        ) : (
+          <>
+            {tab==="dashboard"&&!showingForm&&(
+              <Dashboard programs={programs} staffName={staffName} isManager={effectiveManager}
+                onEdit={p=>{setEditingProgram(p);setTab("programs");}}
+                onAddProgram={()=>{setAddingProgram(true);setTab("programs");}}/>
+            )}
+            {tab==="programs"&&!showingForm&&(
+              <ProgramsList
+                programs={programs} isManager={effectiveManager} staffName={staffName}
+                onEdit={setEditingProgram}
+                onAdd={()=>setAddingProgram(true)}
+                onBulkDup={()=>setShowBulkDup(true)}
+                onDupSingle={setDupProgram}/>
+            )}
+            {tab==="programs"&&showingForm&&(
+              <ProgramForm
+                initial={editingProgram||null}
+                staffName={staffName}
+                isManager={effectiveManager}
+                programs={programs}
+                onSave={handleSaveProgram}
+                onSaveAndStay={handleSaveProgramAndStay}
+                onDelete={handleDeleteProgram}
+                onArchive={handleArchiveProgram}
+                onDuplicate={p=>setDupProgram(p)}
+                onCancel={()=>{setEditingProgram(null);setAddingProgram(false);}}
+                saving={saving}/>
+            )}
+            {tab==="history"&&(
+              <MultiSeasonView programs={programs} onEdit={p=>{setEditingProgram(p);setTab("programs");}}/>
+            )}
+            {tab==="kpi"&&<Reference isManager={effectiveManager} db={supabase} programs={programs} staffName={staffName}/>}
+          </>
+        )}
+      </main>
     </div>
   );
 }
-
 function ClubhouseAllocationTool({db,programs,staffName}){
   const SITES = [
     "Country Meadows","Ivy Hall","Kildeer","Kilmer","Longfellow",
@@ -7494,466 +7387,6 @@ function ClubhouseAllocationTool({db,programs,staffName}){
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-// ─── App Root ─────────────────────────────────────────────────────────────────
-
-// ─── PIN Auth Utilities ───────────────────────────────────────────────────────
-async function hashPin(name, pin) {
-  const msg = (name.toLowerCase().trim() + ":" + pin);
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(msg));
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
-}
-
-// ─── StaffPinAdmin — manager-only panel to create/reset PINs ─────────────────
-function StaffPinAdmin({db, staffName, programs}) {
-  const [rows, setRows]       = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [msg, setMsg]         = useState(null); // {type:"ok"|"err", text}
-  const [working, setWorking] = useState(null); // name being processed
-  const [newName, setNewName] = useState("");
-  const [newPin,  setNewPin]  = useState("");
-  const [resetTarget, setResetTarget] = useState(null);
-  const [resetPin, setResetPin]       = useState("");
-
-  const allStaff = [...new Set((programs||[]).map(p=>p.staff_name).filter(Boolean))].sort();
-
-  async function load() {
-    setLoading(true);
-    const {data, error} = await db.from("staff_pins").select("staff_name,created_at,updated_at").order("staff_name");
-    if (!error) setRows(data||[]);
-    setLoading(false);
-  }
-
-  useEffect(()=>{ load(); }, []);
-
-  function flash(type, text) {
-    setMsg({type, text});
-    setTimeout(()=>setMsg(null), 4000);
-  }
-
-  async function handleCreate() {
-    if (!newName.trim() || newPin.length < 4) return;
-    setWorking(newName.trim());
-    const hash = await hashPin(newName.trim(), newPin);
-    const {error} = await db.from("staff_pins").upsert({
-      staff_name: newName.trim().toLowerCase(),
-      pin_hash: hash,
-      updated_at: new Date().toISOString()
-    }, {onConflict:"staff_name"});
-    if (error) flash("err", "Failed to create PIN: "+error.message);
-    else { flash("ok", `PIN set for ${newName.trim()}`); setNewName(""); setNewPin(""); await load(); }
-    setWorking(null);
-  }
-
-  async function handleReset(name) {
-    if (resetPin.length < 4) return;
-    setWorking(name);
-    const hash = await hashPin(name, resetPin);
-    const {error} = await db.from("staff_pins").update({
-      pin_hash: hash,
-      updated_at: new Date().toISOString()
-    }).eq("staff_name", name.toLowerCase());
-    if (error) flash("err", "Failed to reset PIN: "+error.message);
-    else { flash("ok", `PIN reset for ${name}`); setResetTarget(null); setResetPin(""); await load(); }
-    setWorking(null);
-  }
-
-  async function handleRevoke(name) {
-    setWorking(name);
-    const {error} = await db.from("staff_pins").delete().eq("staff_name", name.toLowerCase());
-    if (error) flash("err", "Failed to revoke: "+error.message);
-    else { flash("ok", `Access revoked for ${name}. They will be prompted to set a new PIN on next login.`); await load(); }
-    setWorking(null);
-  }
-
-  const pinnedNames = new Set(rows.map(r=>r.staff_name.toLowerCase()));
-  const unpinned = allStaff.filter(n=>!pinnedNames.has(n.toLowerCase()));
-
-  return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="rounded p-4" style={{background:"#5C462B"}}>
-        <div className="text-xs font-bold uppercase mb-0.5" style={{letterSpacing:"0.12em",color:"rgba(255,255,255,0.6)"}}>Manager Tool</div>
-        <div className="text-lg font-black text-white">Staff Access &amp; PINs</div>
-        <div className="text-xs mt-1" style={{color:"rgba(255,255,255,0.65)"}}>Create, reset, or revoke staff login PINs. PINs are hashed — you cannot see the actual PIN, only set or reset it.</div>
-      </div>
-
-      {msg&&(
-        <div className="rounded px-4 py-3 text-sm font-semibold"
-          style={msg.type==="ok"
-            ? {background:"rgba(132,189,0,0.1)",border:"1px solid rgba(132,189,0,0.3)",color:"#4A7A00"}
-            : {background:"rgba(227,82,5,0.08)",border:"1px solid rgba(227,82,5,0.25)",color:"#A33900"}}>
-          {msg.text}
-        </div>
-      )}
-
-      {/* Create new PIN */}
-      <div className="bg-white rounded p-4 space-y-3" style={{border:"1px solid rgba(92,70,43,0.09)"}}>
-        <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.12em",color:"#5C462B"}}>Set PIN for Staff Member</div>
-        <div className="text-xs" style={{color:"#A09080"}}>Use this when onboarding a new staff member or if someone needs their PIN set by an admin.</div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="sm:col-span-2">
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Staff Name (exact, lowercase)</label>
-            <input value={newName} onChange={e=>setNewName(e.target.value)}
-              list="staff-datalist"
-              placeholder="jane smith"
-              className="w-full rounded border border-slate-200 px-3 py-2 text-sm"/>
-            <datalist id="staff-datalist">
-              {allStaff.map(n=><option key={n} value={n.toLowerCase()}/>)}
-            </datalist>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Initial PIN (4+ digits)</label>
-            <input value={newPin} onChange={e=>setNewPin(e.target.value.replace(/\D/g,"").slice(0,8))}
-              placeholder="e.g. 1234"
-              className="w-full rounded border border-slate-200 px-3 py-2 text-sm font-mono"
-              type="password" inputMode="numeric" maxLength={8}/>
-          </div>
-        </div>
-        {unpinned.length>0&&(
-          <div className="text-xs" style={{color:"#A09080"}}>
-            Staff without a PIN: {unpinned.map(n=>(
-              <button key={n} onClick={()=>setNewName(n.toLowerCase())}
-                className="underline mx-1" style={{color:"#00A9CE"}}>{n}</button>
-            ))}
-          </div>
-        )}
-        <button onClick={handleCreate}
-          disabled={!newName.trim()||newPin.length<4||!!working}
-          className="px-4 py-2 text-xs font-bold rounded text-white disabled:opacity-40 transition"
-          style={{background:"#00A9CE"}}>
-          {working===newName.trim()?"Setting…":"Set PIN →"}
-        </button>
-      </div>
-
-      {/* Active pins table */}
-      <div className="bg-white rounded overflow-hidden" style={{border:"1px solid rgba(92,70,43,0.09)"}}>
-        <div className="px-4 py-2.5 flex items-center justify-between" style={{background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.10)"}}>
-          <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.12em",color:"#5C462B"}}>Active PIN Accounts</div>
-          <button onClick={load} className="text-xs font-semibold" style={{color:"#00A9CE"}}>↻ Refresh</button>
-        </div>
-        {loading?(
-          <div className="px-4 py-8 text-center text-sm text-slate-400">Loading…</div>
-        ):rows.length===0?(
-          <div className="px-4 py-8 text-center text-sm text-slate-400">No PIN accounts yet.</div>
-        ):(
-          <div className="divide-y divide-slate-100">
-            {rows.map(r=>(
-              <div key={r.staff_name} className="px-4 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold text-slate-700">{r.staff_name}</div>
-                    <div className="text-xs mt-0.5" style={{color:"#A09080"}}>
-                      Created {new Date(r.created_at).toLocaleDateString()}
-                      {r.updated_at!==r.created_at&&<> · Updated {new Date(r.updated_at).toLocaleDateString()}</>}
-                    </div>
-                  </div>
-                  <div className="flex gap-2 shrink-0">
-                    <button onClick={()=>{setResetTarget(r.staff_name);setResetPin("");}}
-                      className="text-xs font-semibold px-3 py-1 rounded border transition"
-                      style={{color:"#5C462B",borderColor:"rgba(92,70,43,0.25)",background:"#fff"}}>
-                      Reset PIN
-                    </button>
-                    <button onClick={()=>handleRevoke(r.staff_name)}
-                      disabled={!!working}
-                      className="text-xs font-semibold px-3 py-1 rounded border transition disabled:opacity-40"
-                      style={{color:"#E35205",borderColor:"rgba(227,82,5,0.3)",background:"#fff"}}>
-                      {working===r.staff_name?"Working…":"Revoke"}
-                    </button>
-                  </div>
-                </div>
-                {resetTarget===r.staff_name&&(
-                  <div className="mt-3 flex gap-2 items-end">
-                    <div className="flex-1">
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">New PIN (4+ digits)</label>
-                      <input value={resetPin} onChange={e=>setResetPin(e.target.value.replace(/\D/g,"").slice(0,8))}
-                        placeholder="new PIN"
-                        className="w-full rounded border border-slate-200 px-3 py-2 text-sm font-mono"
-                        type="password" inputMode="numeric" maxLength={8}/>
-                    </div>
-                    <button onClick={()=>handleReset(r.staff_name)}
-                      disabled={resetPin.length<4||!!working}
-                      className="px-4 py-2 text-xs font-bold rounded text-white disabled:opacity-40"
-                      style={{background:"#00A9CE"}}>
-                      {working===r.staff_name?"Saving…":"Save"}
-                    </button>
-                    <button onClick={()=>{setResetTarget(null);setResetPin("");}}
-                      className="px-3 py-2 text-xs font-semibold"
-                      style={{color:"#A09080"}}>Cancel</button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {unpinned.length>0&&(
-        <div className="rounded px-4 py-3 text-xs leading-relaxed" style={{background:"rgba(246,171,0,0.08)",border:"1px solid rgba(246,171,0,0.3)",color:"#8A6000"}}>
-          <span className="font-bold">{unpinned.length} staff member{unpinned.length!==1?"s":""} have programs but no PIN account:</span>{" "}
-          {unpinned.join(", ")}. Use the form above to set their initial PINs.
-        </div>
-      )}
-    </div>
-  );
-}
-
-
-export default function App() {
-  const [programs,setPrograms]           = useState([]);
-  const [staffName,setStaffName]         = useState(""); // set by PIN auth
-  const [isManager,setIsManager]         = useState(false);
-  const [viewAsManager,setViewAsManager] = useState(false);
-  const [tab,setTab]                     = useState("dashboard");
-  const [editingProgram,setEditingProgram] = useState(null);
-  const [addingProgram,setAddingProgram]   = useState(false);
-  const [dupProgram,setDupProgram]         = useState(null);
-  const [showBulkDup,setShowBulkDup]       = useState(false);
-  const [loading,setLoading]               = useState(true);
-  const [saving,setSaving]                 = useState(false);
-  const [error,setError]                   = useState(null);
-
-  // Managers start in manager view (viewAsManager=true); toggling switches to staff experience
-  // For non-managers, effectiveManager is always false regardless
-  const effectiveManager = isManager && viewAsManager;
-  const db = supabase;
-
-  const fetchAll = useCallback(async()=>{
-    setLoading(true);
-    const {data:p, error:fe} = await supabase.from("programs").select("*").order("created_at",{ascending:false});
-    if(fe) setError("Failed to load programs: "+fe.message);
-    const normalized=(p||[]).map(prog=>{
-      if(prog.year&&/^\d{4}$/.test(String(prog.year))){
-        return {...prog, year:toFY(prog.year)};
-      }
-      return prog;
-    });
-    setPrograms(normalized);
-    setLoading(false);
-  },[]);
-
-  useEffect(()=>{
-    if(staffName){
-      const name = staffName.toLowerCase().trim();
-      const mgr = MANAGER_NAMES.includes(name);
-      setIsManager(mgr);
-      setViewAsManager(mgr); // managers start in manager view
-      fetchAll();
-    }
-  },[staffName,fetchAll]);
-
-  const handleConfirmName = name => { setStaffName(name); };
-
-  const handleSaveProgram = async p => {
-    setSaving(true); setError(null);
-    try {
-      const data = cleanForDB(p);
-      if(data.id){ const{error:e}=await supabase.from("programs").update(data).eq("id",data.id); if(e) throw e; }
-      else        { const{error:e}=await supabase.from("programs").insert(data);                 if(e) throw e; }
-      await fetchAll(); setEditingProgram(null); setAddingProgram(false); setTab("programs");
-    } catch(e){ setError("Failed to save: "+(e.message||"unknown error")); }
-    setSaving(false);
-  };
-
-  const handleSaveProgramAndStay = async p => {
-    setSaving(true); setError(null);
-    try {
-      const data = cleanForDB(p);
-      if(data.id){
-        const{error:e}=await supabase.from("programs").update(data).eq("id",data.id);
-        if(e) throw e;
-        setPrograms(prev=>prev.map(x=>x.id===data.id?{...x,...data}:x));
-      } else {
-        const{data:inserted,error:e}=await supabase.from("programs").insert(data).select().single();
-        if(e) throw e;
-        if(inserted){ setPrograms(prev=>[inserted,...prev]); setEditingProgram(inserted); }
-      }
-    } catch(e){ setError("Failed to save: "+(e.message||"unknown error")); }
-    setSaving(false);
-  };
-
-  const handleDeleteProgram = async id => {
-    setSaving(true);
-    const {error:de}=await supabase.from("programs").delete().eq("id",id);
-    if(de) setError("Failed to delete program: "+de.message);
-    else { await fetchAll(); setEditingProgram(null); setTab("dashboard"); }
-    setSaving(false);
-  };
-
-  const handleArchiveProgram = async (id, archive) => {
-    setSaving(true);
-    const {error:ae}=await supabase.from("programs").update({is_archived:archive}).eq("id",id);
-    if(ae) setError("Failed to archive program: "+ae.message);
-    else { await fetchAll(); setEditingProgram(null); setAddingProgram(false); }
-    setSaving(false);
-  };
-
-  const handleBulkDuplicate = async ({ids,season,year,carry}) => {
-    setSaving(true); setError(null);
-    try {
-      const sources = programs.filter(p=>ids.includes(p.id));
-      const dupes = sources.map(p=>{
-        const d = {...p};
-        delete d.id; delete d.created_at;
-        d.season=season; d.year=year;
-        d.trend="New";
-        if(!carry){
-          d.ant_personnel=0;d.ant_commodities=0;d.ant_contractuals=0;
-          d.ant_other1=0;d.ant_other2=0;d.ant_facility_hours=0;
-          d.ant_revenue=0;
-        }
-        d.act_enrollment=0;d.act_revenue=0;d.act_personnel=0;
-        d.act_commodities=0;d.act_contractuals=0;d.act_contractuals=0;
-        d.act_other1=0;d.act_other2=0;d.act_facility_hours=0;
-        d.act_capacity=0;d.waitlist=0;
-        return d;
-      });
-      const {error:e}=await supabase.from("programs").insert(dupes);
-      if(e) throw e;
-      await fetchAll(); setShowBulkDup(false); setTab("programs");
-    } catch(e){ setError("Bulk duplicate failed: "+(e.message||"unknown error")); }
-    setSaving(false);
-  };
-
-  const tabs = [
-    {id:"dashboard",label:"Dashboard"},
-    {id:"programs",label:"Programs"},
-    {id:"history",label:"Multi-Season"},
-    {id:"kpi",label:"Guide & Resources"},
-    ...(isManager?[{id:"access",label:"🔑 Staff Access"}]:[]),
-  ];
-
-  const showingForm = editingProgram||addingProgram;
-
-  if(!staffName) return <StaffSetup onConfirm={handleConfirmName} db={db}/>;
-
-  return (
-    <div className="min-h-screen" style={{background:"#F8F7F4",fontFamily:"'Nunito Sans',Arial,sans-serif"}}>
-      {/* Header */}
-      <div className="bg-white border-b" style={{borderColor:"rgba(92,70,43,0.12)"}}>
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <BGPDLogo size={36}/>
-            <div>
-              <div className="font-black text-sm tracking-tight" style={{color:"#5C462B"}}>Buffalo Grove Park District</div>
-              <div className="text-xs font-semibold" style={{color:"#00A9CE"}}>Recreation Program Dashboard</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            {isManager&&(
-              <button onClick={()=>setViewAsManager(v=>!v)}
-                className="text-xs font-bold px-3 py-1.5 rounded border transition"
-                style={viewAsManager?{background:"#5C462B",color:"#fff",borderColor:"#5C462B"}:{background:"#fff",color:"#5C462B",borderColor:"rgba(92,70,43,0.3)"}}>
-                {viewAsManager?"⇄ Staff View":"⇄ Manager View"}
-              </button>
-            )}
-            <div className="text-xs font-semibold" style={{color:"#6B5744"}}>{staffName}</div>
-            <button onClick={()=>{setStaffName("");setPrograms([]);setIsManager(false);setViewAsManager(false);}}
-              className="text-xs text-slate-400 hover:text-slate-600 underline">Sign Out</button>
-          </div>
-        </div>
-        {/* Nav */}
-        <div className="max-w-5xl mx-auto px-4 flex border-t" style={{borderColor:"rgba(92,70,43,0.08)"}}>
-          {tabs.map(t=>(
-            <button key={t.id} onClick={()=>{setTab(t.id);setEditingProgram(null);setAddingProgram(false);}}
-              className="px-5 py-3 text-sm font-semibold border-b-2 transition"
-              style={tab===t.id?{borderColor:"#00A9CE",color:"#00A9CE"}:{borderColor:"transparent",color:"#A09080"}}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Main */}
-      <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
-        {error&&(
-          <div className="px-4 py-3 text-sm flex justify-between rounded"
-            style={{background:"#FDF0E6",border:"1px solid rgba(227,82,5,0.2)",color:"#E35205"}}>
-            <span>{error}</span>
-            <button onClick={()=>setError(null)} className="font-bold ml-4">×</button>
-          </div>
-        )}
-
-        {loading&&!programs.length&&(
-          <div className="text-center py-16 text-slate-400 text-sm">Loading programs…</div>
-        )}
-
-        {/* Modals */}
-        {dupProgram&&(
-          <DupModal program={dupProgram}
-            onConfirm={async({season,year,carry})=>{
-              setSaving(true);
-              const d={...dupProgram}; delete d.id; delete d.created_at;
-              d.season=season; d.year=year; d.trend="New";
-              if(!carry){d.ant_personnel=0;d.ant_commodities=0;d.ant_contractuals=0;d.ant_other1=0;d.ant_other2=0;d.ant_facility_hours=0;d.ant_revenue=0;}
-              d.act_enrollment=0;d.act_revenue=0;d.act_personnel=0;d.act_commodities=0;d.act_contractuals=0;d.act_other1=0;d.act_other2=0;d.act_facility_hours=0;d.act_capacity=0;d.waitlist=0;
-              const{error:e}=await supabase.from("programs").insert(d);
-              if(e) setError("Duplicate failed: "+e.message);
-              else await fetchAll();
-              setDupProgram(null); setSaving(false);
-            }}
-            onCancel={()=>setDupProgram(null)}/>
-        )}
-        {showBulkDup&&(
-          <BulkDupModal programs={effectiveManager?programs:programs.filter(p=>p.staff_name===staffName)} onConfirm={handleBulkDuplicate} onCancel={()=>setShowBulkDup(false)}/>
-        )}
-
-        {/* Tab content */}
-        {tab==="dashboard"&&!showingForm&&(
-          effectiveManager
-            ? <ManagerDashboard programs={programs} staffName={staffName} isManager={effectiveManager}
-                onEdit={p=>{setEditingProgram(p);}} db={db}/>
-            : <StaffDashboard programs={programs} staffName={staffName} onEdit={p=>{setEditingProgram(p);}} db={db}/>
-        )}
-
-        {tab==="programs"&&!showingForm&&(
-          <ProgramsList
-            programs={programs}
-            isManager={effectiveManager}
-            staffName={staffName}
-            onEdit={p=>{setEditingProgram(p); setAddingProgram(false);}}
-            onAdd={()=>{setAddingProgram(true); setEditingProgram(null);}}
-            onBulkDup={()=>setShowBulkDup(true)}
-            onDupSingle={p=>setDupProgram(p)}
-            onFilterChange={()=>{}}
-          />
-        )}
-
-        {tab==="history"&&!showingForm&&(
-          <MultiSeasonView programs={programs} staffName={staffName} isManager={effectiveManager} onEdit={p=>{setEditingProgram(p); setTab("programs");}}/>
-        )}
-
-        {tab==="kpi"&&!showingForm&&(
-          <Reference isManager={effectiveManager} db={db} programs={programs} staffName={staffName}/>
-        )}
-
-        {tab==="access"&&isManager&&!showingForm&&(
-          <StaffPinAdmin db={db} staffName={staffName} programs={programs}/>
-        )}
-
-        {showingForm&&(
-          <ProgramForm
-            initial={editingProgram||null}
-            staffName={staffName}
-            isManager={effectiveManager}
-            programs={programs}
-            onSave={handleSaveProgram}
-            onSaveAndStay={handleSaveProgramAndStay}
-            onDelete={handleDeleteProgram}
-            onArchive={handleArchiveProgram}
-            onDuplicate={p=>setDupProgram(p)}
-            onCancel={()=>{setEditingProgram(null);setAddingProgram(false);}}
-            saving={saving}/>
-        )}
-
-        {!showingForm&&tab==="programs"&&!loading&&(
-          <ProgramReviewSection db={db} programs={programs} staffName={staffName} isManager={effectiveManager}
-            onEdit={p=>{setEditingProgram(p);}}/>
-        )}
-      </div>
     </div>
   );
 }
