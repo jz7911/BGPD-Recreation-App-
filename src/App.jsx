@@ -986,7 +986,8 @@ function StaffSetup({onConfirm, db}) {
     setBusy(true); setErr("");
     const {data, error} = await db.from("staff_pins").select("staff_name").eq("staff_name", n).maybeSingle();
     setBusy(false);
-    if (error) { setErr("Could not connect. Try again."); return; }
+    // If table doesn't exist yet, fall back to name-only login
+    if (error) { onConfirm(n); return; }
     if (data) setStep("pin_entry");   // existing user — ask for PIN
     else      setStep("pin_setup");   // new user — set a PIN
   }
@@ -1335,7 +1336,8 @@ function MultiFilter({filters, onChange, counts}) {
 // ─── Dashboard (Staff View — unchanged from original) ─────────────────────────
 function StaffDashboard({programs,staffName,onEdit,onAddProgram,db}) {
   const myPrograms = programs.filter(p=>!p.is_archived&&p.staff_name===staffName);
-  const kpis = myPrograms.map(p=>({...p,...calcKPIs(p)}));
+  const kpis       = myPrograms.map(p=>({...p,...calcKPIs(p)}));
+  const allVisible = programs.filter(p=>!p.is_archived&&p.staff_name!==staffName&&p.peer_visible!==false);
 
   const healthy  = kpis.filter(p=>p.status==="Healthy").length;
   const monitor  = kpis.filter(p=>p.status==="Monitor").length;
@@ -1344,23 +1346,27 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram,db}) {
   const avgFill  = kpis.length ? kpis.reduce((a,p)=>a+p.fillRate,0)/kpis.length : 0;
   const avgCR    = kpis.length ? kpis.reduce((a,p)=>a+p.costRecovery,0)/kpis.length : 0;
 
-  // Programs needing attention — Needs Redesign first, then Monitor, sorted by fill rate
   const needsAttn = [...kpis]
     .filter(p=>p.status==="Needs Redesign"||p.status==="Monitor")
-    .sort((a,b)=>{
-      if(a.status!==b.status) return a.status==="Needs Redesign"?-1:1;
-      return a.fillRate-b.fillRate;
-    });
+    .sort((a,b)=>a.status!==b.status?(a.status==="Needs Redesign"?-1:1):a.fillRate-b.fillRate);
+
+  async function toggleVisible(prog) {
+    const next = prog.peer_visible===false ? true : false;
+    await db.from("programs").update({peer_visible:next}).eq("id",prog.id);
+  }
+
+  const CARD = {background:"#ffffff",borderRadius:"4px",border:"1px solid rgba(92,70,43,0.09)"};
+  const HDR  = {background:"#ffffff",borderBottom:"1px solid rgba(92,70,43,0.09)"};
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
 
-      {/* Welcome bar */}
-      <div className="rounded p-5" style={{background:"#5C462B"}}>
-        <div className="text-xs font-bold uppercase mb-1" style={{letterSpacing:"0.12em",color:"rgba(255,255,255,0.6)"}}>Your Dashboard</div>
-        <div className="text-xl font-black text-white">{staffName}</div>
-        <div className="text-sm mt-1" style={{color:"rgba(255,255,255,0.7)"}}>
-          {myPrograms.length} active program{myPrograms.length!==1?"s":""} this view
+      {/* Welcome */}
+      <div className="p-5" style={{background:"#5C462B",borderRadius:"4px"}}>
+        <div className="text-xs font-bold uppercase mb-1" style={{letterSpacing:"0.12em",color:"rgba(255,255,255,0.55)"}}>Your Dashboard</div>
+        <div className="text-xl font-black text-white" style={{textTransform:"capitalize"}}>{staffName}</div>
+        <div className="text-sm mt-1" style={{color:"rgba(255,255,255,0.65)"}}>
+          {myPrograms.length} active program{myPrograms.length!==1?"s":""}
           {noActuals>0&&<span className="ml-2 font-semibold" style={{color:"#F6AB00"}}>· {noActuals} need actuals</span>}
         </div>
       </div>
@@ -1369,48 +1375,42 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram,db}) {
       {kpis.length>0&&(
         <div className="grid grid-cols-3 gap-3">
           {[
-            {label:"Healthy",      value:healthy,  color:"#84BD00", bg:"rgba(132,189,0,0.08)"},
-            {label:"Monitor",      value:monitor,  color:"#F6AB00", bg:"rgba(246,171,0,0.08)"},
-            {label:"Needs Review", value:redesign, color:"#E35205", bg:"rgba(227,82,5,0.08)"},
+            {label:"Healthy",      value:healthy,  color:"#84BD00",bg:"rgba(132,189,0,0.07)"},
+            {label:"Monitor",      value:monitor,  color:"#F6AB00",bg:"rgba(246,171,0,0.07)"},
+            {label:"Needs Review", value:redesign, color:"#E35205",bg:"rgba(227,82,5,0.07)"},
           ].map(({label,value,color,bg})=>(
-            <div key={label} className="rounded p-4 text-center" style={{background:bg,border:`1px solid ${color}33`}}>
-              <div className="text-2xl font-black" style={{color}}>{value}</div>
+            <div key={label} className="p-4 text-center" style={{...CARD,background:bg,border:`1px solid ${color}22`}}>
+              <div className="text-3xl font-black" style={{color}}>{value}</div>
               <div className="text-xs font-semibold mt-0.5" style={{color}}>{label}</div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Needs Attention */}
+      {/* Needs attention */}
       {needsAttn.length>0&&(
-        <div className="rounded overflow-hidden" style={{border:"1px solid rgba(92,70,43,0.12)"}}>
-          <div className="px-4 py-2.5 flex items-center justify-between" style={{background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>
+        <div className="overflow-hidden" style={{...CARD,borderLeft:"3px solid #E35205"}}>
+          <div className="px-4 py-2.5 flex items-center justify-between" style={HDR}>
             <div>
-              <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B"}}>Needs Your Attention</div>
-              <div className="text-xs mt-0.5" style={{color:"#A09080"}}>Programs below target — review and update as needed</div>
+              <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B"}}>Needs Attention</div>
+              <div className="text-xs mt-0.5" style={{color:"#A09080"}}>Update actuals or enter your review notes</div>
             </div>
             <div className="flex gap-1.5">
-              {redesign>0&&<span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{background:"rgba(227,82,5,0.12)",color:"#E35205"}}>{redesign} NR</span>}
-              {monitor>0&&<span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{background:"rgba(246,171,0,0.12)",color:"#B07A00"}}>{monitor} Mon</span>}
+              {redesign>0&&<span className="text-xs font-bold px-2 py-0.5" style={{background:"rgba(227,82,5,0.10)",color:"#E35205",borderRadius:"20px"}}>{redesign} NR</span>}
+              {monitor>0&&<span className="text-xs font-bold px-2 py-0.5" style={{background:"rgba(246,171,0,0.10)",color:"#B07A00",borderRadius:"20px"}}>{monitor}</span>}
             </div>
           </div>
           <div className="divide-y divide-slate-100">
             {needsAttn.map(p=>(
               <div key={p.id} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50">
                 <div className="flex-1 min-w-0">
-                  <button onClick={()=>onEdit(p)} className="font-semibold text-sm text-slate-700 hover:underline text-left truncate block">{p.name}</button>
+                  <button onClick={()=>onEdit(p)} className="font-semibold text-sm hover:underline text-left truncate block" style={{color:"#5C462B"}}>{p.name}</button>
                   <div className="text-xs mt-0.5" style={{color:"#A09080"}}>{p.area} · {p.season} FY {toFY(p.year)}</div>
                 </div>
-                <div className="flex gap-3 text-xs font-mono shrink-0">
-                  <div className="text-center">
-                    <div className="font-bold" style={{color:p.fillRate>=0.7?"#84BD00":p.fillRate>=0.6?"#F6AB00":"#E35205"}}>{pct(p.fillRate)}</div>
-                    <div className="text-slate-400">Fill</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="font-bold" style={{color:p.costRecovery>=1?"#84BD00":p.costRecovery>=0.5?"#F6AB00":"#E35205"}}>{pct(p.costRecovery)}</div>
-                    <div className="text-slate-400">CR</div>
-                  </div>
-                </div>
+                {p.hasActuals&&<div className="flex gap-3 text-xs font-mono shrink-0">
+                  <div className="text-center"><div className="font-bold" style={{color:p.fillRate>=0.7?"#84BD00":p.fillRate>=0.6?"#F6AB00":"#E35205"}}>{pct(p.fillRate)}</div><div style={{color:"#A09080"}}>Fill</div></div>
+                  <div className="text-center"><div className="font-bold" style={{color:p.costRecovery>=1?"#84BD00":p.costRecovery>=0.5?"#F6AB00":"#E35205"}}>{pct(p.costRecovery)}</div><div style={{color:"#A09080"}}>CR</div></div>
+                </div>}
                 <Badge status={p.status}/>
                 <button onClick={()=>onEdit(p)} className="text-xs font-semibold shrink-0" style={{color:"#00A9CE"}}>Edit →</button>
               </div>
@@ -1419,74 +1419,109 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram,db}) {
         </div>
       )}
 
-      {/* All my programs */}
-      <div className="rounded overflow-hidden" style={{border:"1px solid rgba(92,70,43,0.12)"}}>
-        <div className="px-4 py-2.5 flex items-center justify-between" style={{background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>
-          <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B"}}>My Programs</div>
+      {/* My programs */}
+      <div className="overflow-hidden" style={{...CARD,borderLeft:"3px solid #00A9CE"}}>
+        <div className="px-4 py-2.5 flex items-center justify-between" style={HDR}>
+          <div>
+            <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B"}}>My Programs</div>
+            <div className="text-xs mt-0.5" style={{color:"#A09080"}}>Toggle the eye icon to control who can see each program</div>
+          </div>
           <button onClick={onAddProgram}
-            className="text-xs font-bold px-3 py-1 rounded"
-            style={{background:"#00A9CE",color:"#fff"}}>
+            className="text-xs font-bold px-3 py-1.5 transition"
+            style={{background:"#00A9CE",color:"#fff",borderRadius:"2px",border:"none"}}>
             + Add Program
           </button>
         </div>
-        {myPrograms.length===0?(
-          <div className="p-8 text-center text-sm text-slate-400">
-            No programs yet.{" "}
-            <button onClick={onAddProgram} className="font-semibold underline" style={{color:"#00A9CE"}}>Add your first program.</button>
-          </div>
-        ):(
-          <div className="divide-y divide-slate-100">
-            {kpis.map(p=>(
-              <div key={p.id} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50">
-                <div className="flex-1 min-w-0">
-                  <button onClick={()=>onEdit(p)} className="font-semibold text-sm text-slate-700 hover:underline text-left truncate block">{p.name}</button>
-                  <div className="text-xs mt-0.5" style={{color:"#A09080"}}>{p.area} · {p.season} FY {toFY(p.year)}</div>
-                </div>
-                {!p.hasActuals&&(
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0" style={{background:"rgba(246,171,0,0.12)",color:"#8A6000"}}>Budgeted Only</span>
-                )}
-                {p.hasActuals&&(
-                  <div className="flex gap-3 text-xs font-mono shrink-0">
-                    <div className="text-center">
-                      <div className="font-bold" style={{color:p.fillRate>=0.7?"#84BD00":p.fillRate>=0.6?"#F6AB00":"#E35205"}}>{pct(p.fillRate)}</div>
-                      <div className="text-slate-400">Fill</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="font-bold" style={{color:p.costRecovery>=1?"#84BD00":p.costRecovery>=0.5?"#F6AB00":"#E35205"}}>{pct(p.costRecovery)}</div>
-                      <div className="text-slate-400">CR</div>
-                    </div>
-                    <div className="text-center">
-                      <div className={`font-bold ${p.profitLoss>=0?"text-green-600":"text-red-500"}`}>{dollar(Math.round(p.profitLoss))}</div>
-                      <div className="text-slate-400">P/(L)</div>
+
+        {myPrograms.length===0
+          ? <div className="p-8 text-center text-sm" style={{color:"#A09080"}}>
+              No programs yet.{" "}
+              <button onClick={onAddProgram} className="font-semibold underline" style={{color:"#00A9CE"}}>Add your first program.</button>
+            </div>
+          : <div className="divide-y divide-slate-100">
+              {kpis.map(p=>(
+                <div key={p.id} className="flex items-center gap-2 px-4 py-3 hover:bg-slate-50">
+                  {/* Visibility toggle */}
+                  <button
+                    title={p.peer_visible===false?"Hidden from peers — click to make visible":"Visible to peers — click to hide"}
+                    onClick={async()=>{
+                      const next=p.peer_visible===false?true:false;
+                      await db.from("programs").update({peer_visible:next}).eq("id",p.id);
+                      // optimistic update
+                      p.peer_visible=next;
+                    }}
+                    className="shrink-0 text-base"
+                    style={{background:"none",border:"none",cursor:"pointer",opacity:p.peer_visible===false?0.35:1,lineHeight:1}}>
+                    👁
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <button onClick={()=>onEdit(p)} className="font-semibold text-sm hover:underline text-left truncate block" style={{color:"#5C462B"}}>{p.name}</button>
+                    <div className="text-xs mt-0.5" style={{color:"#A09080"}}>
+                      {p.area} · {p.season} FY {toFY(p.year)}
+                      {p.peer_visible===false&&<span className="ml-2 font-semibold" style={{color:"#A09080"}}>· hidden</span>}
                     </div>
                   </div>
-                )}
-                <Badge status={p.status}/>
-                <button onClick={()=>onEdit(p)} className="text-xs font-semibold shrink-0" style={{color:"#00A9CE"}}>Edit →</button>
-              </div>
-            ))}
-          </div>
-        )}
+                  {!p.hasActuals&&<span className="text-xs font-semibold px-2 py-0.5 shrink-0" style={{background:"rgba(246,171,0,0.10)",color:"#8A6000",borderRadius:"20px"}}>Needs actuals</span>}
+                  {p.hasActuals&&<div className="flex gap-3 text-xs font-mono shrink-0">
+                    <div className="text-center"><div className="font-bold" style={{color:p.fillRate>=0.7?"#84BD00":p.fillRate>=0.6?"#F6AB00":"#E35205"}}>{pct(p.fillRate)}</div><div style={{color:"#A09080"}}>Fill</div></div>
+                    <div className="text-center"><div className="font-bold" style={{color:p.costRecovery>=1?"#84BD00":p.costRecovery>=0.5?"#F6AB00":"#E35205"}}>{pct(p.costRecovery)}</div><div style={{color:"#A09080"}}>CR</div></div>
+                    <div className="text-center"><div className="font-bold" style={{color:p.profitLoss>=0?"#84BD00":"#E35205"}}>{dollar(Math.round(p.profitLoss))}</div><div style={{color:"#A09080"}}>P/(L)</div></div>
+                  </div>}
+                  <Badge status={p.status}/>
+                  <button onClick={()=>onEdit(p)} className="text-xs font-semibold shrink-0" style={{color:"#00A9CE"}}>Edit →</button>
+                </div>
+              ))}
+            </div>
+        }
       </div>
 
-      {/* Averages if data exists */}
+      {/* Averages */}
       {kpis.some(p=>p.hasActuals)&&(
         <div className="grid grid-cols-2 gap-3">
-          <div className="rounded p-4" style={{background:"#ffffff",border:"1px solid rgba(92,70,43,0.12)"}}>
-            <div className="text-xs font-bold uppercase mb-1" style={{letterSpacing:"0.10em",color:"#A09080"}}>Avg Fill Rate</div>
-            <div className="text-2xl font-black" style={{color:avgFill>=0.7?"#84BD00":avgFill>=0.6?"#F6AB00":"#E35205"}}>{pct(avgFill)}</div>
-            <div className="text-xs mt-0.5" style={{color:"#A09080"}}>Target: 70%+</div>
+          {[
+            {label:"Avg Fill Rate",    value:pct(avgFill), color:avgFill>=0.7?"#84BD00":avgFill>=0.6?"#F6AB00":"#E35205", note:"Target: 70%+"},
+            {label:"Avg Cost Recovery",value:pct(avgCR),  color:avgCR>=1?"#84BD00":avgCR>=0.5?"#F6AB00":"#E35205",       note:"Target varies by classification"},
+          ].map(({label,value,color,note})=>(
+            <div key={label} className="p-4" style={CARD}>
+              <div className="text-xs font-bold uppercase mb-1" style={{letterSpacing:"0.10em",color:"#A09080"}}>{label}</div>
+              <div className="text-2xl font-black" style={{color}}>{value}</div>
+              <div className="text-xs mt-0.5" style={{color:"#A09080"}}>{note}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Peer programs — visible programs from other staff */}
+      {allVisible.length>0&&(
+        <div className="overflow-hidden" style={CARD}>
+          <div className="px-4 py-2.5" style={{...HDR,borderLeft:"3px solid #A09080"}}>
+            <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B"}}>Other Staff Programs</div>
+            <div className="text-xs mt-0.5" style={{color:"#A09080"}}>Visible programs from colleagues — view only</div>
           </div>
-          <div className="rounded p-4" style={{background:"#ffffff",border:"1px solid rgba(92,70,43,0.12)"}}>
-            <div className="text-xs font-bold uppercase mb-1" style={{letterSpacing:"0.10em",color:"#A09080"}}>Avg Cost Recovery</div>
-            <div className="text-2xl font-black" style={{color:avgCR>=1?"#84BD00":avgCR>=0.5?"#F6AB00":"#E35205"}}>{pct(avgCR)}</div>
-            <div className="text-xs mt-0.5" style={{color:"#A09080"}}>Target varies by classification</div>
+          <div className="divide-y divide-slate-100">
+            {allVisible.slice(0,10).map(p=>{
+              const k=calcKPIs(p);
+              return (
+                <div key={p.id} className="flex items-center gap-3 px-4 py-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-sm truncate" style={{color:"#5C462B"}}>{p.name}</div>
+                    <div className="text-xs mt-0.5" style={{color:"#A09080"}}>{p.staff_name} · {p.area} · {p.season} FY {toFY(p.year)}</div>
+                  </div>
+                  {k.hasActuals&&<div className="flex gap-3 text-xs font-mono shrink-0">
+                    <div className="text-center"><div className="font-bold" style={{color:k.fillRate>=0.7?"#84BD00":k.fillRate>=0.6?"#F6AB00":"#E35205"}}>{pct(k.fillRate)}</div><div style={{color:"#A09080"}}>Fill</div></div>
+                    <div className="text-center"><div className="font-bold" style={{color:k.costRecovery>=1?"#84BD00":k.costRecovery>=0.5?"#F6AB00":"#E35205"}}>{pct(k.costRecovery)}</div><div style={{color:"#A09080"}}>CR</div></div>
+                  </div>}
+                  <Badge status={k.status}/>
+                </div>
+              );
+            })}
+            {allVisible.length>10&&<div className="px-4 py-2 text-xs" style={{color:"#A09080"}}>…and {allVisible.length-10} more in the Programs tab</div>}
           </div>
         </div>
       )}
 
       {/* Status guide */}
-      <div className="rounded p-4" style={{background:"#ffffff",border:"1px solid rgba(92,70,43,0.09)"}}>
+      <div className="p-4" style={CARD}>
         <div className="text-xs font-bold uppercase mb-3" style={{letterSpacing:"0.10em",color:"#5C462B"}}>What the Status Means</div>
         <div className="space-y-2">
           {[
@@ -1496,7 +1531,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram,db}) {
           ].map(({status,desc})=>(
             <div key={status} className="flex items-center gap-3">
               <Badge status={status}/>
-              <span className="text-xs text-slate-600">{desc}</span>
+              <span className="text-xs" style={{color:"#6B5744"}}>{desc}</span>
             </div>
           ))}
         </div>
@@ -2478,104 +2513,100 @@ function Dashboard({programs,staffName,isManager,onEdit,onAddProgram}) {
 
 // ─── Multi-Season View ────────────────────────────────────────────────────────
 function MultiSeasonView({programs,onEdit}) {
-  const [search,setSearch] = useState("");
+  const [search,setSearch]       = useState("");
   const [showSingle,setShowSingle] = useState(false);
-  const multiCount = (() => {
-    const groups = {};
-    programs.filter(p=>!p.is_archived).forEach(p=>{
-      const k = `${p.name}||${p.staff_name}`;
-      groups[k] = (groups[k]||0)+1;
-    });
-    return Object.values(groups).filter(v=>v>=2).length;
-  })();
+
   const groups = useMemo(()=>{
     const map = {};
     programs.filter(p=>!p.is_archived).forEach(p=>{
       const key = `${(p.name||"").toLowerCase().trim()}__${(p.staff_name||"").toLowerCase().trim()}`;
       if(!map[key]) map[key]={name:p.name,area:p.area,staff:p.staff_name,seasons:[]};
-      const k = calcKPIs(p);
-      map[key].seasons.push({...p,...k});
+      map[key].seasons.push({...p,...calcKPIs(p)});
     });
     return Object.values(map)
       .filter(g=>showSingle||g.seasons.length>1)
       .filter(g=>!search||g.name.toLowerCase().includes(search.toLowerCase())||g.staff?.toLowerCase().includes(search.toLowerCase()))
-      .sort((a,b)=>{
-        if(b.seasons.length!==a.seasons.length) return b.seasons.length-a.seasons.length;
-        return a.name.localeCompare(b.name);
-      });
+      .sort((a,b)=>b.seasons.length!==a.seasons.length?b.seasons.length-a.seasons.length:a.name.localeCompare(b.name));
   },[programs,search,showSingle]);
+
+  const CARD = {background:"#ffffff",borderRadius:"4px",border:"1px solid rgba(92,70,43,0.09)"};
+  const SO   = ["Spring","Summer","Fall","Winter","All Year"];
 
   return (
     <div className="space-y-4">
-      {multiCount===0&&(
-        <div className="rounded border border-slate-200 p-5 text-center space-y-2 bg-slate-50">
-          <div className="text-2xl">📅</div>
-          <div className="font-bold text-slate-800 text-sm">Multi-Season View</div>
-          <div className="text-sm text-slate-700 max-w-sm mx-auto">This view groups programs that run across multiple seasons, showing trends over time. It becomes most valuable once you have two or more seasons of data entered. Keep entering programs and come back here next season.</div>
-        </div>
-      )}
-      <div className="bg-white rounded-lg shadow-sm px-4 py-3 space-y-3">
+      {/* Controls */}
+      <div className="p-4 space-y-3" style={CARD}>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="font-bold text-slate-800 text-sm">Multi-Season View</h2>
-            <p className="text-xs text-slate-700 mt-0.5">Programs offered in more than one season — matched by name and staff member. Sorted most seasons first.</p>
+            <div className="font-bold text-sm" style={{color:"#5C462B"}}>Multi-Season View</div>
+            <div className="text-xs mt-0.5" style={{color:"#A09080"}}>Programs offered across multiple seasons, matched by name and staff. Sorted most seasons first.</div>
           </div>
           <button onClick={()=>setShowSingle(s=>!s)}
-            className="text-xs px-3 py-1.5 rounded-lg border transition whitespace-nowrap shrink-0"
-            style={showSingle?{background:"#00A9CE",color:"white",borderColor:"#00A9CE"}:{borderColor:"#e2e8f0",color:"#64748b"}}>
+            className="text-xs font-bold px-3 py-1.5 transition whitespace-nowrap shrink-0"
+            style={showSingle
+              ?{background:"#00A9CE",color:"#fff",borderRadius:"2px",border:"1px solid #00A9CE"}
+              :{background:"#fff",color:"#5C462B",borderRadius:"2px",border:"1px solid rgba(92,70,43,0.3)"}}>
             {showSingle?"Showing all":"Show single-season"}
           </button>
         </div>
-        <input className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2"
-          placeholder="Search by program name or staff..." value={search} onChange={e=>setSearch(e.target.value)}/>
+        <input
+          className="w-full text-sm px-3 py-2"
+          style={{border:"1px solid rgba(92,70,43,0.15)",borderRadius:"2px",outline:"none",background:"#fff"}}
+          placeholder="Search by program name or staff..."
+          value={search} onChange={e=>setSearch(e.target.value)}/>
       </div>
+
       {groups.length===0&&(
-        <div className="bg-white rounded-lg shadow-sm p-8 text-center text-slate-700 text-sm">
-          {search
-            ? "No matching programs."
-            : showSingle
-              ? "No active programs found."
-              : "No programs with more than one season yet. Try toggling \"Show single-season\" to see all programs."}
+        <div className="p-8 text-center space-y-2" style={CARD}>
+          <div className="text-2xl">📅</div>
+          <div className="font-bold text-sm" style={{color:"#5C462B"}}>No multi-season programs yet</div>
+          <div className="text-sm max-w-sm mx-auto" style={{color:"#A09080"}}>
+            {search?"No programs match your search.":"This view shows programs that appear in more than one season. Keep entering programs and it will populate over time."}
+          </div>
         </div>
       )}
+
       {groups.map(g=>(
-        <div key={g.name+g.area} className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
-          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+        <div key={g.name+g.staff} className="overflow-hidden" style={CARD}>
+          {/* Group header */}
+          <div className="px-4 py-3 flex items-center justify-between" style={{borderBottom:"1px solid rgba(92,70,43,0.09)"}}>
             <div>
-              <div className="font-bold text-slate-800">{g.name}</div>
-              <div className="text-xs text-slate-700">{g.area}{g.staff?" — "+g.staff:""}</div>
+              <div className="font-bold text-sm" style={{color:"#5C462B"}}>{g.name}</div>
+              <div className="text-xs mt-0.5" style={{color:"#A09080"}}>{g.area}{g.staff?" · "+g.staff:""}</div>
             </div>
-            <span className="text-xs text-slate-700">{g.seasons.length} seasons</span>
+            <span className="text-xs font-semibold px-2 py-0.5" style={{background:"rgba(0,169,206,0.08)",color:"#00A9CE",borderRadius:"20px"}}>{g.seasons.length} seasons</span>
           </div>
+          {/* Season rows */}
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="bg-slate-50 text-xs text-slate-700 uppercase tracking-wider">
-                <th className="px-4 py-2 text-left font-semibold">Season</th>
-                <th className="px-4 py-2 text-left font-semibold">Fill Rate</th>
-                <th className="px-4 py-2 text-left font-semibold">Cost Recovery</th>
-                <th className="px-4 py-2 text-left font-semibold">Net P/(L)</th>
-                <th className="px-4 py-2 text-left font-semibold">Enrollment</th>
-                <th className="px-4 py-2 text-left font-semibold">Status</th>
-                <th className="px-4 py-2 text-left font-semibold">Trend</th>
-                <th className="px-4 py-2"/>
-              </tr></thead>
-              <tbody>{g.seasons.sort((a,b)=>{
-                const SO=["Spring","Summer","Fall","Winter","All Year"];
-                const ya=toCalYear(a.year),yb=toCalYear(b.year);
-                if(ya!==yb) return ya-yb;
-                return SO.indexOf(a.season)-SO.indexOf(b.season);
-              }).map((s,i)=>(
-                <tr key={s.id} className={`border-t border-slate-50 hover:bg-gray-200 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
-                  <td className="px-4 py-2.5 font-semibold text-slate-800 whitespace-nowrap">{s.season} FY {toFY(s.year)}</td>
-                  <td className="px-4 py-2.5 font-mono text-xs">{pct(s.fillRate)}</td>
-                  <td className="px-4 py-2.5 font-mono text-xs">{pct(s.costRecovery)}</td>
-                  <td className={`px-4 py-2.5 font-mono text-xs font-semibold ${s.profitLoss>=0?"text-green-700":"text-red-600"}`}>{dollar(s.profitLoss)}</td>
-                  <td className="px-4 py-2.5 font-mono text-xs">{s.act_enrollment||0}</td>
-                  <td className="px-4 py-2.5"><Badge status={s.status}/></td>
-                  <td className="px-4 py-2.5 text-slate-700 text-xs">{s.trend}</td>
-                  <td className="px-4 py-2.5"><button onClick={()=>onEdit(s)} className="text-xs text-slate-700 hover:text-slate-800">Edit</button></td>
+            <table className="w-full text-xs">
+              <thead>
+                <tr style={{background:"rgba(92,70,43,0.03)",borderBottom:"1px solid rgba(92,70,43,0.09)"}}>
+                  {["Season","Fill Rate","Cost Recovery","Net P/(L)","Enrollment","Status","Trend",""].map(h=>(
+                    <th key={h} className="px-4 py-2 text-left font-bold uppercase" style={{letterSpacing:"0.08em",color:"#A09080",fontSize:"10px"}}>{h}</th>
+                  ))}
                 </tr>
-              ))}</tbody>
+              </thead>
+              <tbody>
+                {g.seasons
+                  .sort((a,b)=>{
+                    const ya=toCalYear(a.year),yb=toCalYear(b.year);
+                    if(ya!==yb) return ya-yb;
+                    return SO.indexOf(a.season)-SO.indexOf(b.season);
+                  })
+                  .map((s,i)=>(
+                    <tr key={s.id} className="hover:bg-slate-50" style={{borderTop:"1px solid rgba(92,70,43,0.05)",background:i%2===0?"#fff":"rgba(92,70,43,0.015)"}}>
+                      <td className="px-4 py-2.5 font-semibold whitespace-nowrap" style={{color:"#5C462B"}}>{s.season} FY {toFY(s.year)}</td>
+                      <td className="px-4 py-2.5 font-mono" style={{color:s.fillRate>=0.7?"#84BD00":s.fillRate>=0.6?"#F6AB00":"#E35205"}}>{pct(s.fillRate)}</td>
+                      <td className="px-4 py-2.5 font-mono" style={{color:s.costRecovery>=1?"#84BD00":s.costRecovery>=0.5?"#F6AB00":"#E35205"}}>{pct(s.costRecovery)}</td>
+                      <td className="px-4 py-2.5 font-mono font-semibold" style={{color:s.profitLoss>=0?"#84BD00":"#E35205"}}>{dollar(s.profitLoss)}</td>
+                      <td className="px-4 py-2.5 font-mono" style={{color:"#5C462B"}}>{s.act_enrollment||0}</td>
+                      <td className="px-4 py-2.5"><Badge status={s.status}/></td>
+                      <td className="px-4 py-2.5" style={{color:"#A09080"}}>{s.trend||"—"}</td>
+                      <td className="px-4 py-2.5"><button onClick={()=>onEdit(s)} className="text-xs font-semibold" style={{color:"#00A9CE"}}>Edit</button></td>
+                    </tr>
+                  ))
+                }
+              </tbody>
             </table>
           </div>
         </div>
@@ -2584,17 +2615,6 @@ function MultiSeasonView({programs,onEdit}) {
   );
 }
 
-// ─── Program Form ─────────────────────────────────────────────────────────────
-
-
-const CB_COST_CATEGORIES = [
-  "Program Supplies","Office Supplies","Staff Shirts","Kid Shirts",
-  "MIS / Technology","Staffing","Other",
-];
-
-
-
-// ─── Sub-Program / Session Tracker ───────────────────────────────────────────
 function SubProgramTracker({programs,onChange}){
   const [open,setOpen]=useState(false);
   const list=Array.isArray(programs)?programs:[];
