@@ -7212,8 +7212,7 @@ function AllocationCalculator({programs, staffName, isManager, db}) {
         const newVal = Math.round((existing + row.amount)*100)/100;
         const {error:e} = await db.from("programs").update({[targetField]:newVal}).eq("id",row.id);
         status[row.id] = e ? "error" : "ok";
-        if(e) setErr(prev=>prev+(prev?"
-":"")+row.name+": "+e.message);
+        if(e) setErr(prev=>prev+(prev?"\n":"")+row.name+": "+e.message);
       } catch(ex) {
         status[row.id] = "error";
       }
