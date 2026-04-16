@@ -1463,7 +1463,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
                 ))}
               </tr></thead>
               <tbody>{kpis.map((p,i)=>(
-                <tr key={p.id} className={`border-t border-slate-50 hover:bg-gray-200 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
+                <tr key={p.id} className={`border-t border-slate-50 hover:opacity-90 ${p.status==="Needs Redesign"?"bg-red-50":p.status==="Monitor"?"bg-amber-50":"bg-white"}`}>
                   <td className="px-3 py-2.5 font-semibold text-slate-800">
                     <button onClick={()=>onEdit(p)} className="hover:text-blue-600 hover:underline text-left">{p.name}</button>
                     {(()=>{
@@ -2565,6 +2565,8 @@ function Dashboard({programs,staffName,isManager,onEdit,onAddProgram,db}) {
 function MultiSeasonView({programs,onEdit,staffName,isManager}) {
   const [search,setSearch] = useState("");
   const [showSingle,setShowSingle] = useState(false);
+  const [openGroups,setOpenGroups] = useState({});
+  const toggleGroup = key => setOpenGroups(prev=>({...prev,[key]:!prev[key]}));
   const multiCount = (() => {
     const groups = {};
     programs.filter(p=>!p.is_archived&&(isManager||p.staff_name===staffName||p.peer_visible!==false)).forEach(p=>{
@@ -2625,14 +2627,26 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
       )}
       {groups.map(g=>(
         <div key={g.name+g.area} className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
-          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-            <div>
-              <div className="font-bold text-slate-800">{g.name}</div>
-              <div className="text-xs text-slate-700">{g.area}{g.staff?" — "+g.staff:""}</div>
+          <button onClick={()=>toggleGroup(g.name+g.area)}
+            className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-50 transition">
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-slate-800 flex items-center gap-2">
+                {g.name}
+                {(()=>{
+                  const srt=[...g.seasons].sort((a,b)=>toCalYear(b.year)-toCalYear(a.year));
+                  if(srt.length<2) return null;
+                  const diff=srt[0].fillRate-srt[1].fillRate;
+                  if(Math.abs(diff)<0.02) return <span className="text-xs font-bold" style={{color:"#A09080"}}>→</span>;
+                  return diff>0
+                    ? <span className="text-xs font-bold" style={{color:"#84BD00"}}>↑</span>
+                    : <span className="text-xs font-bold" style={{color:"#E35205"}}>↓</span>;
+                })()}
+              </div>
+              <div className="text-xs text-slate-500">{g.area}{g.staff?" — "+g.staff:""} · {g.seasons.length} season{g.seasons.length!==1?"s":""}</div>
             </div>
-            <span className="text-xs text-slate-700">{g.seasons.length} seasons</span>
-          </div>
-          <div className="overflow-x-auto">
+            <span className="text-xs font-bold" style={{color:"#00A9CE"}}>{openGroups[g.name+g.area]?"▲":"▼"}</span>
+          </button>
+          {openGroups[g.name+g.area]&&<div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="bg-slate-50 text-xs text-slate-700 uppercase tracking-wider">
                 <th className="px-4 py-2 text-left font-semibold">Season</th>
@@ -2662,7 +2676,7 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
                 </tr>
               ))}</tbody>
             </table>
-          </div>
+          </div></div>}
         </div>
       ))}
     </div>
@@ -3393,6 +3407,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
 function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDupSingle}) {
   const [filters,setFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
   const [search,setSearch]   = useState("");
+  const [compact,setCompact] = useState(false);
   const [showArchived,setShowArchived] = useState(false);
   function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
 
@@ -3435,6 +3450,11 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
           counts={{staff:allStaff,area:allAreas,season:allSeasons,year:allYears}}/>
         <input className="w-full rounded border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:border-blue-400"
           placeholder="Search programs by name..." value={search} onChange={e=>setSearch(e.target.value)}/>
+          <button onClick={()=>setCompact(v=>!v)}
+            className="text-xs font-bold px-3 py-2 rounded border transition whitespace-nowrap shrink-0"
+            style={compact?{background:"#5C462B",color:"#fff",borderColor:"#5C462B"}:{background:"#fff",color:"#5C462B",borderColor:"rgba(92,70,43,0.3)"}}>
+            {compact?"⊞ Expanded":"⊟ Compact"}
+          </button>
       </div>
       {vis.length===0 ? (
         <div className="bg-white rounded-lg shadow-sm p-12 text-center text-slate-700 text-sm">No programs found.</div>
@@ -3445,16 +3465,16 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
           return (
             <div key={p.id}
               onClick={()=>(isManager||p.staff_name===staffName)?onEdit(p):null}
-              className={`bg-white rounded-lg shadow-sm px-4 py-3 flex items-center justify-between gap-4 transition ${isManager||p.staff_name===staffName?"hover:shadow-md cursor-pointer":"cursor-default"}`}>
+              className={`bg-white flex items-center justify-between transition ${compact?"px-3 py-1.5 border-b border-slate-100 gap-2":"rounded-lg shadow-sm px-4 py-3 gap-4"} ${isManager||p.staff_name===staffName?"cursor-pointer hover:bg-slate-50":"cursor-default opacity-90"}`}>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <div className="font-semibold text-slate-800 truncate">{p.name}</div>
                   {!k.hasActuals&&<span className="text-xs bg-amber-100  px-1.5 py-0.5 rounded font-medium whitespace-nowrap">No actuals</span>}
                   {p.notes&&<span className="text-slate-400 text-xs" title={p.notes}>●</span>}
                 </div>
-                <div className="text-xs text-slate-700">{p.area} - {p.season} FY {toFY(p.year)} - {p.staff_name}
+{!compact&&<div className="text-xs text-slate-700">{p.area} - {p.season} FY {toFY(p.year)} - {p.staff_name}
                   {lastUpdated&&<span className="ml-2 text-slate-400">· Updated {new Date(lastUpdated).toLocaleDateString()}</span>}
-                </div>
+                </div>}
               </div>
               <div className="hidden sm:flex gap-6 text-sm">
                 <div className="text-center"><div className="text-xs text-slate-700">Fill</div><div className="font-mono font-semibold">{pct(k.fillRate)}</div></div>
