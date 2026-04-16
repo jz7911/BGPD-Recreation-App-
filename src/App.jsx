@@ -2562,7 +2562,7 @@ function Dashboard({programs,staffName,isManager,onEdit,onAddProgram,db}) {
 }
 
 // ─── Multi-Season View ────────────────────────────────────────────────────────
-function MultiSeasonView({programs,onEdit}) {
+function MultiSeasonView({programs,onEdit,staffName,isManager}) {
   const [search,setSearch] = useState("");
   const [showSingle,setShowSingle] = useState(false);
   const multiCount = (() => {
@@ -5235,6 +5235,7 @@ function Reference({isManager,db,programs,staffName}) {
           {id:"review",label:"📋 Program Review"},
           {id:"capacity",label:"🧮 Capacity Calculator"},
           {id:"redesign",label:"🔄 Redesign Ideas"},
+          {id:"allocation",label:"💰 Allocation Calculator"},
           ...(isManager?[{id:"clubhouse",label:"🏫 Clubhouse Allocation"}]:[]),
         ].map(s=>(
           <button key={s.id} onClick={()=>setSec(s.id)}
