@@ -1682,8 +1682,11 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   // SectionHeader hoisted to module level — see below ManagerDashboard
   const [dv,setDv]           = useState("summary");
   const [sort,setSort]       = useState({col:"name",dir:1});
-  const [pdSearch,setPdSearch] = useState("");
-  const [pdArea,setPdArea]     = useState("all");
+  const [pdSearch,setPdSearch]   = useState("");
+  const [pdArea,setPdArea]       = useState("all");
+  const [pdStaff,setPdStaff]     = useState("all");
+  const [pdSeason,setPdSeason]   = useState("all");
+  const [pdYear,setPdYear]       = useState("all");
   const [showReport,setShowReport] = useState(false);
 
   const allStaff   = [...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
@@ -1702,13 +1705,16 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
 
   const sortedKpis = useMemo(()=>[...kpis]
     .filter(p=>pdArea==="all"||p.area===pdArea)
+    .filter(p=>pdStaff==="all"||p.staff_name===pdStaff)
+    .filter(p=>pdSeason==="all"||p.season===pdSeason)
+    .filter(p=>pdYear==="all"||toFY(p.year)===pdYear)
     .filter(p=>!pdSearch||p.name.toLowerCase().includes(pdSearch.toLowerCase())||(p.staff_name||"").toLowerCase().includes(pdSearch.toLowerCase()))
     .sort((a,b)=>{
       let av=a[sort.col], bv=b[sort.col];
       if(typeof av==="string") av=av.toLowerCase();
       if(typeof bv==="string") bv=bv.toLowerCase();
       return av<bv?-sort.dir:av>bv?sort.dir:0;
-    }),[kpis,sort,pdSearch,pdArea]);
+    }),[kpis,sort,pdSearch,pdArea,pdStaff,pdSeason,pdYear]);
 
   const toggleSort = col => setSort(s=>s.col===col?{col,dir:-s.dir}:{col,dir:1});
   const sortIcon   = col => sort.col===col?(sort.dir===1?"↑":"↓"):"";
@@ -1797,7 +1803,8 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   // ── Workload by staff ──
   const workloadByStaff = useMemo(()=>{
     const map={};
-    kpis.forEach(p=>{
+    const wlSource = workloadFY==="all" ? kpis : kpis.filter(p=>toFY(p.year)===workloadFY);
+    wlSource.forEach(p=>{
       const name=p.staff_name||"Unknown";
       if(!map[name]) map[name]={name,totalWL:0,count:0};
       const typePct = p.ant_program_type&&p.ant_program_type!=="Custom"
@@ -2329,7 +2336,14 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
           <div className="flex items-center gap-2 flex-wrap">
             <input value={pdSearch} onChange={e=>setPdSearch(e.target.value)}
               placeholder="Search programs or staff…"
-              className="text-xs rounded border border-slate-200 px-2 py-1.5 w-44"/>
+              className="text-xs rounded border border-slate-200 px-2 py-1.5 w-40"/>
+            <select value={pdStaff} onChange={e=>setPdStaff(e.target.value)}
+              className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
+              <option value="all">All Staff</option>
+              {[...new Set(kpis.map(p=>p.staff_name).filter(Boolean))].sort().map(s=>(
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
             <select value={pdArea} onChange={e=>setPdArea(e.target.value)}
               className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
               <option value="all">All Areas</option>
@@ -2337,10 +2351,24 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                 <option key={a} value={a}>{a}</option>
               ))}
             </select>
-            {(pdSearch||pdArea!=="all")&&<button onClick={()=>{setPdSearch("");setPdArea("all");}}
-              className="text-xs px-2 py-1 rounded" style={{color:"#E35205",background:"rgba(227,82,5,0.08)",border:"none"}}>
-              ✕ Clear
-            </button>}
+            <select value={pdSeason} onChange={e=>setPdSeason(e.target.value)}
+              className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
+              <option value="all">All Seasons</option>
+              {["Spring","Summer","Fall","Winter","All Year"].map(s=>(
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+            <select value={pdYear} onChange={e=>setPdYear(e.target.value)}
+              className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
+              <option value="all">All Years</option>
+              {YEARS.map(y=><option key={y} value={y}>FY {y}</option>)}
+            </select>
+            {(pdSearch||pdArea!=="all"||pdStaff!=="all"||pdSeason!=="all"||pdYear!=="all")&&(
+              <button onClick={()=>{setPdSearch("");setPdArea("all");setPdStaff("all");setPdSeason("all");setPdYear("all");}}
+                className="text-xs px-2 py-1 rounded" style={{color:"#E35205",background:"rgba(227,82,5,0.08)",border:"none"}}>
+                ✕ Clear
+              </button>
+            )}
           </div>
           <div className="flex gap-1">
             {[["summary","Summary"],["variances","Variances"],["progress","Progress"]].map(([v,l])=>(
@@ -2610,8 +2638,10 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
   const [search,setSearch] = useState("");
   const [showSingle,setShowSingle] = useState(false);
   const [openGroups,setOpenGroups] = useState({});
-  const [mvArea,setMvArea]   = useState("all");
-  const [mvStaff,setMvStaff] = useState("all");
+  const [mvArea,setMvArea]     = useState("all");
+  const [mvStaff,setMvStaff]   = useState("all");
+  const [mvSeason,setMvSeason] = useState("all");
+  const [mvYear,setMvYear]     = useState("all");
   const toggleGroup = key => setOpenGroups(prev=>({...prev,[key]:!prev[key]}));
   const multiCount = (() => {
     const groups = {};
@@ -2633,12 +2663,14 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
       .filter(g=>showSingle||g.seasons.length>1)
       .filter(g=>mvArea==="all"||g.area===mvArea)
       .filter(g=>mvStaff==="all"||g.staff===mvStaff)
+      .filter(g=>mvSeason==="all"||g.seasons.some(s=>s.season===mvSeason))
+      .filter(g=>mvYear==="all"||g.seasons.some(s=>toFY(s.year)===mvYear))
       .filter(g=>!search||g.name.toLowerCase().includes(search.toLowerCase())||g.staff?.toLowerCase().includes(search.toLowerCase()))
       .sort((a,b)=>{
         if(b.seasons.length!==a.seasons.length) return b.seasons.length-a.seasons.length;
         return a.name.localeCompare(b.name);
       });
-  },[programs,search,showSingle,mvArea,mvStaff]);
+  },[programs,search,showSingle,mvArea,mvStaff,mvSeason,mvYear]);
 
   return (
     <div className="space-y-4">
@@ -2662,13 +2694,6 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
           </button>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <select value={mvArea} onChange={e=>setMvArea(e.target.value)}
-            className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
-            <option value="all">All Areas</option>
-            {[...new Set(programs.filter(p=>!p.is_archived).map(p=>p.area).filter(Boolean))].sort().map(a=>(
-              <option key={a} value={a}>{a}</option>
-            ))}
-          </select>
           {isManager&&<select value={mvStaff} onChange={e=>setMvStaff(e.target.value)}
             className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
             <option value="all">All Staff</option>
@@ -2676,10 +2701,33 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
               <option key={s} value={s}>{s}</option>
             ))}
           </select>}
-          {(mvArea!=="all"||mvStaff!=="all")&&<button onClick={()=>{setMvArea("all");setMvStaff("all");}}
-            className="text-xs px-2 py-1 rounded" style={{color:"#E35205",background:"rgba(227,82,5,0.08)",border:"none"}}>
-            ✕ Clear
-          </button>}
+          <select value={mvArea} onChange={e=>setMvArea(e.target.value)}
+            className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
+            <option value="all">All Areas</option>
+            {[...new Set(programs.filter(p=>!p.is_archived).map(p=>p.area).filter(Boolean))].sort().map(a=>(
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
+          <select value={mvSeason} onChange={e=>setMvSeason(e.target.value)}
+            className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
+            <option value="all">All Seasons</option>
+            {["Spring","Summer","Fall","Winter","All Year"].map(s=>(
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          <select value={mvYear} onChange={e=>setMvYear(e.target.value)}
+            className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
+            <option value="all">All Years</option>
+            {[...new Set(programs.filter(p=>!p.is_archived).map(p=>toFY(p.year)).filter(Boolean))].sort().map(y=>(
+              <option key={y} value={y}>FY {y}</option>
+            ))}
+          </select>
+          {(mvArea!=="all"||mvStaff!=="all"||mvSeason!=="all"||mvYear!=="all")&&(
+            <button onClick={()=>{setMvArea("all");setMvStaff("all");setMvSeason("all");setMvYear("all");}}
+              className="text-xs px-2 py-1 rounded" style={{color:"#E35205",background:"rgba(227,82,5,0.08)",border:"none"}}>
+              ✕ Clear
+            </button>
+          )}
         </div>
         <input className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2"
           placeholder="Search by program name or staff..." value={search} onChange={e=>setSearch(e.target.value)}/>
