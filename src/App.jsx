@@ -1730,11 +1730,12 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   const actEnr   = vis.reduce((a,p)=>a+(p.act_enrollment||0),0);
   const antCost  = kpis.reduce((a,p)=>a+p.antTotal,0);
   const actCost  = kpis.reduce((a,p)=>a+p.totalCost,0);
-  // FT Staff allocation totals across all programs
-  const antFtStaff = kpis.reduce((a,p)=>a+(calcCR(p,"ant_").ftStaff||0),0);
-  const actFtStaff = kpis.reduce((a,p)=>a+(calcCR(p,"act_").ftStaff||0),0);
-  // Unique FT staff count from program records (distinct staff_name values)
-  const ftStaffCount = new Set(vis.map(p=>p.staff_name).filter(Boolean)).size;
+  // FT Staff allocation — filtered by workloadFY same as workload panel
+  const ftKpis     = workloadFY==="all" ? kpis : kpis.filter(p=>toFY(p.year)===workloadFY);
+  const antFtStaff = ftKpis.reduce((a,p)=>a+(calcCR(p,"ant_").ftStaff||0),0);
+  const actFtStaff = ftKpis.reduce((a,p)=>a+(calcCR(p,"act_").ftStaff||0),0);
+  // Unique FT staff count from filtered programs
+  const ftStaffCount = new Set(ftKpis.map(p=>p.staff_name).filter(Boolean)).size;
   const ftStaffBudget = ftStaffCount * FT_ANNUAL_SALARY;
   const ftStaffCap60  = ftStaffBudget * 0.60; // 60% allocation target
   const antFtPct  = ftStaffBudget > 0 ? antFtStaff / ftStaffBudget : 0;
@@ -1969,13 +1970,23 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
 
       {/* ── Program Snapshot bars ── */}
       {/* ── FT Staff Allocation — always visible ── */}
-      {ftStaffBudget > 0 && (
         <div className="bg-white rounded-lg shadow-sm p-5">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div>
-              <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.12em",color:"#5C462B"}}>FT Staff Allocation vs. 60% Target</div>
+              <div className="flex items-center gap-3">
+                <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.12em",color:"#5C462B"}}>FT Staff Allocation vs. 60% Target</div>
+                <select value={workloadFY} onChange={e=>setWorkloadFY(e.target.value)}
+                  className="text-xs rounded border border-slate-200 px-2 py-1 bg-white"
+                  style={{color:"#5C462B"}}>
+                  <option value="all">All Years</option>
+                  {YEARS.map(y=><option key={y} value={y}>FY {y}</option>)}
+                </select>
+              </div>
               <div className="text-xs text-slate-700 mt-0.5">
-                {ftStaffCount} FT staff × ${FT_ANNUAL_SALARY.toLocaleString()} = ${ftStaffBudget.toLocaleString()} total payroll &nbsp;·&nbsp; 60% target = ${Math.round(ftStaffCap60).toLocaleString()}
+                {ftStaffBudget>0
+                  ? <>{ftStaffCount} FT staff × ${FT_ANNUAL_SALARY.toLocaleString()} = ${ftStaffBudget.toLocaleString()} total payroll &nbsp;·&nbsp; 60% target = ${Math.round(ftStaffCap60).toLocaleString()}</>
+                  : <span className="text-slate-400">No program data for {workloadFY==="all"?"this selection":"FY "+workloadFY}</span>
+                }
               </div>
             </div>
             <div className="flex gap-2 flex-wrap">
@@ -2020,7 +2031,6 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
             <div className="text-xs text-slate-700">Bar fills to 100% at the 60% target. Spills red if over.</div>
           </div>
         </div>
-      )}
 
       <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
         <SectionHeader id="snapshot" title="Program Snapshot: Budgeted vs Actual" sub="Portfolio totals — revenue, enrollment, and cost vs. plan" collapsed={collapsed} onToggle={toggleSection}/>
@@ -2270,12 +2280,16 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
 
 
       {/* ── Staff Workload Allocation ── */}
-      {workloadByStaff.length>0&&(
-        <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
+      <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
           <SectionHeader id="workload" title="Staff Workload Allocation"
             sub={`Total FT time — 100% = one full-time salary · ${workloadFY==="all"?"All Years":"FY "+workloadFY}`}
             badge={workloadByStaff.some(s=>s.totalWL>60)?"⚠ Over-allocation flagged":null} collapsed={collapsed} onToggle={toggleSection}/>
           {!collapsed["workload"]&&<div className="p-4 space-y-3">
+            {workloadByStaff.length===0&&(
+              <div className="text-sm text-center py-4" style={{color:"#A09080"}}>
+                No program data for {workloadFY==="all"?"all years":"FY "+workloadFY}. Select a different fiscal year.
+              </div>
+            )}
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-semibold" style={{color:"#A09080"}}>Showing workload for:</span>
               <select value={workloadFY} onChange={e=>setWorkloadFY(e.target.value)}
@@ -2324,7 +2338,6 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
             Bar midpoint = 60% (recommended program allocation ceiling). Amber = 60–75%, Red = over 75%. The remaining ~40% covers meetings, marketing, planning, and strategic work.
           </div>
         </div>
-      )}
 
       {/* ── Program Detail ── */}
       <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
