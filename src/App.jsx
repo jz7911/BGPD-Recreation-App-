@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import PropTypes from "prop-types";
 import { supabase } from "./supabase.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -763,7 +762,7 @@ function Inp({label,type="text",value,onChange,options,min,max,hint,placeholder,
             {options.map(o=><option key={o} value={o}>{o}</option>)}
           </select>
         : type==="number"
-          ? <input className={cls} style={style} type="number"
+          ? <input className={cls} type="number"
               value={localVal!==null ? localVal : (value===0||value==="0" ? "0" : value||"")}
               min={min} max={max}
               placeholder={placeholder||""}
@@ -7003,18 +7002,6 @@ function FYConfigPanel({db, isManager}) {
   );
 }
 
-
-// ─── PropTypes ────────────────────────────────────────────────────────────────
-Badge.propTypes           = { status: PropTypes.string.isRequired };
-KCard.propTypes           = { label: PropTypes.string.isRequired, value: PropTypes.any, sub: PropTypes.string, accent: PropTypes.string, onClick: PropTypes.func, target: PropTypes.string };
-PBar.propTypes            = { label: PropTypes.string.isRequired, actual: PropTypes.number, budget: PropTypes.number, ff: PropTypes.func, inv: PropTypes.bool };
-Inp.propTypes             = { label: PropTypes.string, type: PropTypes.string, value: PropTypes.any, onChange: PropTypes.func, options: PropTypes.array, hint: PropTypes.string, placeholder: PropTypes.string, required: PropTypes.bool, maxLen: PropTypes.number };
-StaffDashboard.propTypes  = { programs: PropTypes.array.isRequired, staffName: PropTypes.string.isRequired, onEdit: PropTypes.func.isRequired, onAddProgram: PropTypes.func };
-ManagerDashboard.propTypes= { programs: PropTypes.array.isRequired, staffName: PropTypes.string.isRequired, onEdit: PropTypes.func.isRequired, onAddProgram: PropTypes.func };
-ProgramForm.propTypes     = { initial: PropTypes.object, staffName: PropTypes.string.isRequired, isManager: PropTypes.bool, programs: PropTypes.array, onSave: PropTypes.func.isRequired, onSaveAndStay: PropTypes.func, onDelete: PropTypes.func, onArchive: PropTypes.func, onDuplicate: PropTypes.func, onCancel: PropTypes.func.isRequired, saving: PropTypes.bool };
-ProgramsList.propTypes    = { programs: PropTypes.array.isRequired, isManager: PropTypes.bool, staffName: PropTypes.string, onEdit: PropTypes.func.isRequired, onAdd: PropTypes.func, onBulkDup: PropTypes.func, onDupSingle: PropTypes.func };
-MultiSeasonView.propTypes = { programs: PropTypes.array.isRequired, onEdit: PropTypes.func.isRequired, staffName: PropTypes.string, isManager: PropTypes.bool };
-ConfirmModal.propTypes    = { message: PropTypes.string.isRequired, onConfirm: PropTypes.func.isRequired, onCancel: PropTypes.func.isRequired, confirmLabel: PropTypes.string, confirmColor: PropTypes.string };
 
 
 export default function App() {
