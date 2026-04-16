@@ -1672,14 +1672,18 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   const [capitalPct,setCapitalPct] = useState(5);
   const [capitalYear,setCapitalYear] = useState("all");
   const [workloadFY,setWorkloadFY]   = useState(()=>{
-    // default to most recent FY from YEARS constant
-    return YEARS.length>0 ? YEARS[0] : "all";
+    const d=new Date();
+    const y=d.getMonth()>=4?d.getFullYear():d.getFullYear()-1;
+    const fy=`${String(y).slice(-2)}-${String(y+1).slice(-2)}`;
+    return YEARS.includes(fy)?fy:(YEARS.length>0?YEARS[YEARS.length-1]:"all");
   });
-  const [collapsed,setCollapsed] = useState({topbottom:true,rpp:true,capacity:true,classmix:true,workload:true,snapshot:true,areabreakdown:true,nps:true,programdetail:false});
+  const [collapsed,setCollapsed] = useState({topbottom:true,rpp:true,capacity:true,classmix:true,workload:true,snapshot:true,areabreakdown:true,nps:true,programdetail:false,highdemand:true});
   function toggleSection(id){setCollapsed(s=>({...s,[id]:!s[id]}));}
   // SectionHeader hoisted to module level — see below ManagerDashboard
   const [dv,setDv]           = useState("summary");
   const [sort,setSort]       = useState({col:"name",dir:1});
+  const [pdSearch,setPdSearch] = useState("");
+  const [pdArea,setPdArea]     = useState("all");
   const [showReport,setShowReport] = useState(false);
 
   const allStaff   = [...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
@@ -1696,12 +1700,15 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
 
   const kpis = useMemo(()=>vis.map(p=>({...p,...calcKPIs(p)})),[vis]);
 
-  const sortedKpis = useMemo(()=>[...kpis].sort((a,b)=>{
-    let av=a[sort.col], bv=b[sort.col];
-    if(typeof av==="string") av=av.toLowerCase();
-    if(typeof bv==="string") bv=bv.toLowerCase();
-    return av<bv?-sort.dir:av>bv?sort.dir:0;
-  }),[kpis,sort]);
+  const sortedKpis = useMemo(()=>[...kpis]
+    .filter(p=>pdArea==="all"||p.area===pdArea)
+    .filter(p=>!pdSearch||p.name.toLowerCase().includes(pdSearch.toLowerCase())||(p.staff_name||"").toLowerCase().includes(pdSearch.toLowerCase()))
+    .sort((a,b)=>{
+      let av=a[sort.col], bv=b[sort.col];
+      if(typeof av==="string") av=av.toLowerCase();
+      if(typeof bv==="string") bv=bv.toLowerCase();
+      return av<bv?-sort.dir:av>bv?sort.dir:0;
+    }),[kpis,sort,pdSearch,pdArea]);
 
   const toggleSort = col => setSort(s=>s.col===col?{col,dir:-s.dir}:{col,dir:1});
   const sortIcon   = col => sort.col===col?(sort.dir===1?"↑":"↓"):"";
@@ -2084,10 +2091,10 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
       {/* ── High Demand Programs (Waitlist) ── */}
       {highDemand.length>0&&(
         <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
-          <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white" style={{backgroundColor:"#00A9CE",color:"#5C462B"}}>
-            High Demand — Programs with Waitlists
-          </div>
-          {highDemand.map((p,i)=>(
+          <SectionHeader id="highdemand" title="High Demand — Programs with Waitlists"
+            sub={`${highDemand.length} program${highDemand.length!==1?"s":""} with active waitlists`}
+            badge={null} collapsed={collapsed} onToggle={toggleSection}/>
+          {!collapsed["highdemand"]&&highDemand.map((p,i)=>(
             <div key={p.id} className={`px-4 py-2.5 flex items-center justify-between gap-4 ${i>0?"border-t border-slate-50":""} hover:bg-gray-200`}>
               <div className="flex-1 min-w-0">
                 <button onClick={()=>onEdit(p)} className="text-sm font-semibold text-slate-800 hover:text-blue-600 hover:underline text-left">{p.name}</button>
@@ -2318,6 +2325,22 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
           <div>
             <h2 className="font-bold text-slate-800 text-sm">Program Detail</h2>
             {dv==="summary"&&<p className="text-xs text-slate-700 mt-0.5">Year-over-year in <span className="font-semibold text-slate-700">vs Prior</span> column · Full trend history in <span className="font-semibold ">Multi-Season</span> tab</p>}
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <input value={pdSearch} onChange={e=>setPdSearch(e.target.value)}
+              placeholder="Search programs or staff…"
+              className="text-xs rounded border border-slate-200 px-2 py-1.5 w-44"/>
+            <select value={pdArea} onChange={e=>setPdArea(e.target.value)}
+              className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
+              <option value="all">All Areas</option>
+              {[...new Set(kpis.map(p=>p.area).filter(Boolean))].sort().map(a=>(
+                <option key={a} value={a}>{a}</option>
+              ))}
+            </select>
+            {(pdSearch||pdArea!=="all")&&<button onClick={()=>{setPdSearch("");setPdArea("all");}}
+              className="text-xs px-2 py-1 rounded" style={{color:"#E35205",background:"rgba(227,82,5,0.08)",border:"none"}}>
+              ✕ Clear
+            </button>}
           </div>
           <div className="flex gap-1">
             {[["summary","Summary"],["variances","Variances"],["progress","Progress"]].map(([v,l])=>(
@@ -2587,6 +2610,8 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
   const [search,setSearch] = useState("");
   const [showSingle,setShowSingle] = useState(false);
   const [openGroups,setOpenGroups] = useState({});
+  const [mvArea,setMvArea]   = useState("all");
+  const [mvStaff,setMvStaff] = useState("all");
   const toggleGroup = key => setOpenGroups(prev=>({...prev,[key]:!prev[key]}));
   const multiCount = (() => {
     const groups = {};
@@ -2606,12 +2631,14 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
     });
     return Object.values(map)
       .filter(g=>showSingle||g.seasons.length>1)
+      .filter(g=>mvArea==="all"||g.area===mvArea)
+      .filter(g=>mvStaff==="all"||g.staff===mvStaff)
       .filter(g=>!search||g.name.toLowerCase().includes(search.toLowerCase())||g.staff?.toLowerCase().includes(search.toLowerCase()))
       .sort((a,b)=>{
         if(b.seasons.length!==a.seasons.length) return b.seasons.length-a.seasons.length;
         return a.name.localeCompare(b.name);
       });
-  },[programs,search,showSingle]);
+  },[programs,search,showSingle,mvArea,mvStaff]);
 
   return (
     <div className="space-y-4">
@@ -2633,6 +2660,26 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
             style={showSingle?{background:"#00A9CE",color:"white",borderColor:"#00A9CE"}:{borderColor:"#e2e8f0",color:"#64748b"}}>
             {showSingle?"Showing all":"Show single-season"}
           </button>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <select value={mvArea} onChange={e=>setMvArea(e.target.value)}
+            className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
+            <option value="all">All Areas</option>
+            {[...new Set(programs.filter(p=>!p.is_archived).map(p=>p.area).filter(Boolean))].sort().map(a=>(
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
+          {isManager&&<select value={mvStaff} onChange={e=>setMvStaff(e.target.value)}
+            className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
+            <option value="all">All Staff</option>
+            {[...new Set(programs.filter(p=>!p.is_archived&&p.staff_name).map(p=>p.staff_name))].sort().map(s=>(
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>}
+          {(mvArea!=="all"||mvStaff!=="all")&&<button onClick={()=>{setMvArea("all");setMvStaff("all");}}
+            className="text-xs px-2 py-1 rounded" style={{color:"#E35205",background:"rgba(227,82,5,0.08)",border:"none"}}>
+            ✕ Clear
+          </button>}
         </div>
         <input className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2"
           placeholder="Search by program name or staff..." value={search} onChange={e=>setSearch(e.target.value)}/>
@@ -3431,7 +3478,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
 function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDupSingle}) {
   const [filters,setFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
   const [search,setSearch]   = useState("");
-  const [compact,setCompact] = useState(false);
+  const [plSort,setPlSort]   = useState("updated"); // updated|name|fill|status
   const [showArchived,setShowArchived] = useState(false);
   function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
 
@@ -3447,7 +3494,17 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
     .filter(p=>filters.area.size===0||filters.area.has(p.area))
     .filter(p=>filters.year.size===0||filters.year.has(toFY(p.year)))
     .filter(p=>filters.season.size===0||filters.season.has(p.season))
-    .filter(p=>!search||p.name.toLowerCase().includes(search.toLowerCase()));
+    .filter(p=>!search||p.name.toLowerCase().includes(search.toLowerCase()))
+    .sort((a,b)=>{
+      if(plSort==="name")    return a.name.localeCompare(b.name);
+      if(plSort==="fill")    return (calcKPIs(b).fillRate||0)-(calcKPIs(a).fillRate||0);
+      if(plSort==="status"){
+        const o={"Needs Redesign":0,"Monitor":1,"Healthy":2};
+        return (o[calcKPIs(a).status]||1)-(o[calcKPIs(b).status]||1);
+      }
+      // default: updated (most recent first via created_at proxy)
+      return new Date(b.created_at||0)-new Date(a.created_at||0);
+    });
   const archivedCount = programs.filter(p=>p.is_archived&&(isManager||p.staff_name===staffName)).length;
 
   return (
@@ -3474,11 +3531,13 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
           counts={{staff:allStaff,area:allAreas,season:allSeasons,year:allYears}}/>
         <input className="w-full rounded border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:border-blue-400"
           placeholder="Search programs by name..." value={search} onChange={e=>setSearch(e.target.value)}/>
-          <button onClick={()=>setCompact(v=>!v)}
-            className="text-xs font-bold px-3 py-2 rounded border transition whitespace-nowrap shrink-0"
-            style={compact?{background:"#5C462B",color:"#fff",borderColor:"#5C462B"}:{background:"#fff",color:"#5C462B",borderColor:"rgba(92,70,43,0.3)"}}>
-            {compact?"⊞ Expanded":"⊟ Compact"}
-          </button>
+          <select value={plSort} onChange={e=>setPlSort(e.target.value)}
+            className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white shrink-0">
+            <option value="updated">Sort: Recent</option>
+            <option value="name">Sort: Name A–Z</option>
+            <option value="fill">Sort: Fill Rate ↓</option>
+            <option value="status">Sort: Needs Attention First</option>
+          </select>
       </div>
       {vis.length===0 ? (
         <div className="bg-white rounded-lg shadow-sm p-12 text-center text-slate-700 text-sm">No programs found.</div>
@@ -3489,17 +3548,17 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
           return (
             <div key={p.id}
               onClick={()=>(isManager||p.staff_name===staffName)?onEdit(p):null}
-              className={`bg-white flex items-center justify-between transition ${compact?"px-3 py-1.5 border-b border-slate-100 gap-2":"rounded-lg shadow-sm px-4 py-3 gap-4"} ${isManager||p.staff_name===staffName?"cursor-pointer hover:bg-slate-50":"cursor-default opacity-90"}`}>
+              className={`bg-white rounded-lg shadow-sm px-4 py-3 flex items-center justify-between gap-4 transition ${isManager||p.staff_name===staffName?"hover:shadow-md cursor-pointer":"cursor-default opacity-90"}`}>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <div className="font-semibold text-slate-800 truncate">{p.name}</div>
                   {!k.hasActuals&&<span className="text-xs bg-amber-100  px-1.5 py-0.5 rounded font-medium whitespace-nowrap">No actuals</span>}
                   {p.notes&&<span className="text-slate-400 text-xs" title={p.notes}>●</span>}
                 </div>
-{!compact&&<div className="text-xs text-slate-700">{p.area} - {p.season} FY {toFY(p.year)} - {p.staff_name}
+<div className="text-xs text-slate-700">{p.area} - {p.season} FY {toFY(p.year)} - {p.staff_name}
                   {lastUpdated&&<span className="ml-2 text-slate-400">· Updated {new Date(lastUpdated).toLocaleDateString()}</span>}
                 </div>
-                }
+                
               </div>
               <div className="hidden sm:flex gap-6 text-sm">
                 <div className="text-center"><div className="text-xs text-slate-700">Fill</div><div className="font-mono font-semibold">{pct(k.fillRate)}</div></div>
