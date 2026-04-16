@@ -985,39 +985,164 @@ function BGPDLogo({size=48}){
   );
 }
 
+// ─── PIN hash helper ─────────────────────────────────────────────────────────
+async function hashPin(name, pin) {
+  const msg = new TextEncoder().encode(name.toLowerCase().trim() + ":" + pin);
+  const buf = await crypto.subtle.digest("SHA-256", msg);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+
+// ─── Staff Setup / PIN Login ──────────────────────────────────────────────────
 function StaffSetup({onConfirm}) {
-  const [name,setName] = useState("");
+  const [step, setStep]   = useState("name");   // name | pin_entry | pin_setup | pin_confirm
+  const [name, setName]   = useState("");
+  const [pin,  setPin]    = useState("");
+  const [pin2, setPin2]   = useState("");
+  const [err,  setErr]    = useState("");
+  const [busy, setBusy]   = useState(false);
+
+  async function handleName() {
+    const n = name.trim().toLowerCase();
+    if(!n) return;
+    setBusy(true); setErr("");
+    try {
+      const {data, error} = await supabase.from("staff_pins")
+        .select("staff_name").eq("staff_name", n).maybeSingle();
+      if(error) {
+        // Table missing or network error — fall back to name-only login
+        onConfirm(name.trim()); return;
+      }
+      setStep(data ? "pin_entry" : "pin_setup");
+    } catch(e) {
+      onConfirm(name.trim()); // graceful fallback
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handlePinEntry() {
+    if(pin.length < 4) { setErr("PIN must be at least 4 digits."); return; }
+    setBusy(true); setErr("");
+    const hash = await hashPin(name.trim().toLowerCase(), pin);
+    const {data, error} = await supabase.from("staff_pins")
+      .select("staff_name")
+      .eq("staff_name", name.trim().toLowerCase())
+      .eq("pin_hash", hash)
+      .maybeSingle();
+    setBusy(false);
+    if(error || !data) { setErr("Incorrect PIN. Try again."); setPin(""); return; }
+    onConfirm(name.trim());
+  }
+
+  async function handlePinSetup() {
+    if(pin.length < 4) { setErr("PIN must be at least 4 digits."); return; }
+    setStep("pin_confirm"); setPin2(""); setErr("");
+  }
+
+  async function handlePinConfirm() {
+    if(pin !== pin2) { setErr("PINs don't match. Try again."); setPin2(""); return; }
+    setBusy(true); setErr("");
+    const hash = await hashPin(name.trim().toLowerCase(), pin);
+    const {error} = await supabase.from("staff_pins").insert({
+      staff_name: name.trim().toLowerCase(),
+      pin_hash:   hash,
+      updated_at: new Date().toISOString(),
+    });
+    setBusy(false);
+    if(error) { setErr("Could not save PIN. Try again."); return; }
+    onConfirm(name.trim());
+  }
+
+  function reset() { setStep("name"); setName(""); setPin(""); setPin2(""); setErr(""); }
+
+  const titles = {
+    name:        { h:"Sign In",           sub:"Enter your first and last name" },
+    pin_entry:   { h:"Enter Your PIN",    sub:`Welcome back, ${name}` },
+    pin_setup:   { h:"Create a PIN",      sub:"Choose a 4–8 digit PIN for your account" },
+    pin_confirm: { h:"Confirm Your PIN",  sub:"Re-enter your PIN to confirm" },
+  };
+  const {h, sub} = titles[step];
+
   return (
     <div className="min-h-screen flex items-center justify-center p-6"
       style={{background:"#F8F7F4",fontFamily:"'Nunito Sans',Arial,sans-serif"}}>
       <div className="w-full max-w-sm">
-        {/* Brand header */}
         <div className="text-center pb-8">
-          <div className="flex justify-center mb-5">
-            <BGPDLogo size={56}/>
-          </div>
+          <div className="flex justify-center mb-5"><BGPDLogo size={56}/></div>
           <div className="font-bold tracking-widest uppercase" style={{fontSize:"11px",color:"#5C462B",letterSpacing:"0.16em"}}>Buffalo Grove Park District</div>
           <div className="mt-1 text-xs font-bold tracking-widest uppercase" style={{color:"#00A9CE",letterSpacing:"0.14em"}}>Recreation Program Management</div>
         </div>
-        {/* Login card */}
         <div style={{background:"#ffffff",border:"1px solid rgba(92,70,43,0.15)",borderRadius:"4px",padding:"2.5rem 2rem"}}>
           <div className="text-center mb-6">
-            <div className="font-bold mb-1" style={{color:"#5C462B",fontSize:"13px",letterSpacing:"0.08em",textTransform:"uppercase"}}>Sign In</div>
-            <div className="text-xs" style={{color:"#6B5744",fontWeight:"300"}}>Enter your first and last name to continue</div>
+            <div className="font-bold mb-1" style={{color:"#5C462B",fontSize:"13px",letterSpacing:"0.08em",textTransform:"uppercase"}}>{h}</div>
+            <div className="text-xs" style={{color:"#6B5744",fontWeight:"300"}}>{sub}</div>
           </div>
           <div className="space-y-4">
-            <Inp label="First & Last Name" value={name} onChange={setName} placeholder="e.g. Jane Smith" required/>
-            <button onClick={()=>name.trim()&&onConfirm(name.trim())} disabled={!name.trim()}
-              className="w-full py-2.5 text-xs font-bold transition disabled:opacity-40"
-              style={{backgroundColor:"#00A9CE",color:"#ffffff",borderRadius:"2px",letterSpacing:"0.10em",textTransform:"uppercase",border:"none"}}>Get Started →</button>
+
+            {step==="name"&&(
+              <>
+                <Inp label="First & Last Name" value={name} onChange={setName}
+                  placeholder="e.g. Jane Smith" required
+                  onKeyDown={e=>e.key==="Enter"&&name.trim()&&handleName()}/>
+                {err&&<div className="text-xs font-semibold" style={{color:"#E35205"}}>{err}</div>}
+                <button onClick={handleName} disabled={!name.trim()||busy}
+                  className="w-full py-2.5 text-xs font-bold transition disabled:opacity-40"
+                  style={{backgroundColor:"#00A9CE",color:"#fff",borderRadius:"2px",letterSpacing:"0.10em",textTransform:"uppercase",border:"none"}}>
+                  {busy?"Checking…":"Continue →"}
+                </button>
+              </>
+            )}
+
+            {(step==="pin_entry"||step==="pin_setup"||step==="pin_confirm")&&(
+              <>
+                <div>
+                  <label className="block text-xs font-semibold uppercase mb-1.5" style={{letterSpacing:"0.10em",color:"#6B5744"}}>
+                    {step==="pin_confirm"?"Confirm PIN":"PIN"}
+                  </label>
+                  <input
+                    type="password" inputMode="numeric" maxLength={8}
+                    placeholder="••••"
+                    value={step==="pin_confirm"?pin2:pin}
+                    onChange={e=>{
+                      const v=e.target.value.replace(/\D/g,"").slice(0,8);
+                      step==="pin_confirm"?setPin2(v):setPin(v);
+                    }}
+                    onKeyDown={e=>{
+                      if(e.key!=="Enter") return;
+                      if(step==="pin_entry")   handlePinEntry();
+                      else if(step==="pin_setup")   handlePinSetup();
+                      else if(step==="pin_confirm") handlePinConfirm();
+                    }}
+                    className="w-full rounded px-3 py-2.5 text-sm font-mono tracking-widest text-center"
+                    style={{border:"1px solid rgba(92,70,43,0.15)",borderRadius:"2px",outline:"none"}}
+                    autoFocus/>
+                  {step==="pin_setup"&&(
+                    <p className="text-xs mt-1.5" style={{color:"#A09080"}}>4 to 8 digits. You'll need this every time you sign in.</p>
+                  )}
+                </div>
+                {err&&<div className="text-xs font-semibold" style={{color:"#E35205"}}>{err}</div>}
+                <button
+                  onClick={step==="pin_entry"?handlePinEntry:step==="pin_setup"?handlePinSetup:handlePinConfirm}
+                  disabled={(step==="pin_confirm"?pin2.length:pin.length)<4||busy}
+                  className="w-full py-2.5 text-xs font-bold transition disabled:opacity-40"
+                  style={{backgroundColor:"#00A9CE",color:"#fff",borderRadius:"2px",letterSpacing:"0.10em",textTransform:"uppercase",border:"none"}}>
+                  {busy?"Verifying…":step==="pin_entry"?"Sign In →":step==="pin_setup"?"Next →":"Create Account →"}
+                </button>
+                <button onClick={reset} className="w-full text-xs py-1"
+                  style={{color:"#A09080",background:"none",border:"none"}}>
+                  ← Back
+                </button>
+              </>
+            )}
+
           </div>
-          <p className="text-xs text-center mt-4" style={{color:"#6B5744",fontWeight:"300"}}>Your name is saved on this device only.</p>
         </div>
         <p className="text-center text-xs mt-6" style={{color:"#6B5744"}}>© Buffalo Grove Park District</p>
       </div>
     </div>
   );
 }
+
 
 // ─── Duplicate Modal ──────────────────────────────────────────────────────────
 function DupModal({program,onConfirm,onCancel}) {
@@ -2431,9 +2556,9 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
 }
 
 // ─── Dashboard router ─────────────────────────────────────────────────────────
-function Dashboard({programs,staffName,isManager,onEdit,onAddProgram}) {
-  if(isManager) return <ManagerDashboard programs={programs} staffName={staffName} onEdit={onEdit} onAddProgram={onAddProgram}/>;
-  return <StaffDashboard programs={programs} staffName={staffName} onEdit={onEdit} onAddProgram={onAddProgram}/>;
+function Dashboard({programs,staffName,isManager,onEdit,onAddProgram,db}) {
+  if(isManager) return <ManagerDashboard programs={programs} staffName={staffName} onEdit={onEdit} onAddProgram={onAddProgram} db={db}/>;
+  return <StaffDashboard programs={programs} staffName={staffName} onEdit={onEdit} onAddProgram={onAddProgram} db={db}/>;
 }
 
 // ─── Multi-Season View ────────────────────────────────────────────────────────
@@ -5775,7 +5900,7 @@ function Reference({isManager,db,programs,staffName}) {
       )}
 
             {sec==="allocation"&&(
-        <AllocationCalculator programs={programs} staffName={staffName} isManager={isManager}/>
+        <AllocationCalculator programs={programs} staffName={staffName} isManager={isManager} db={db}/>
       )}
 
       {sec==="clubhouse"&&isManager&&(
@@ -7004,6 +7129,78 @@ function FYConfigPanel({db, isManager}) {
 
 
 
+// ─── Staff PIN Admin ──────────────────────────────────────────────────────────
+function StaffPinAdmin({db, staffName}) {
+  const [pins,    setPins]    = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busy,    setBusy]    = useState(null);
+  const [msg,     setMsg]     = useState("");
+
+  async function load() {
+    setLoading(true);
+    const {data,error} = await db.from("staff_pins").select("staff_name,created_at,updated_at").order("staff_name");
+    if(!error && data) setPins(data);
+    setLoading(false);
+  }
+
+  useEffect(()=>{ load(); }, []);
+
+  async function resetPin(name) {
+    if(!window.confirm(`Reset PIN for ${name}? They will be prompted to create a new one on next login.`)) return;
+    setBusy(name); setMsg("");
+    const {error} = await db.from("staff_pins").delete().eq("staff_name", name);
+    if(error) setMsg("Error: " + error.message);
+    else { setMsg(`PIN reset for ${name}. They can set a new one on next login.`); await load(); }
+    setBusy(null);
+  }
+
+  const CARD = {background:"#ffffff",borderRadius:"4px",border:"1px solid rgba(92,70,43,0.09)"};
+
+  return (
+    <div className="space-y-4">
+      <div className="p-4" style={CARD}>
+        <div className="font-bold text-sm mb-1" style={{color:"#5C462B"}}>Staff Access</div>
+        <div className="text-xs" style={{color:"#A09080"}}>
+          Staff PINs are set by each person on first login. Use Reset to clear a PIN — the staff member will be prompted to create a new one next time they sign in.
+        </div>
+      </div>
+
+      {msg&&<div className="px-4 py-2 text-xs rounded" style={{background:"rgba(132,189,0,0.08)",color:"#4A6B00",border:"1px solid rgba(132,189,0,0.2)"}}>{msg}</div>}
+
+      <div style={CARD}>
+        <div className="px-4 py-2.5" style={{borderBottom:"1px solid rgba(92,70,43,0.09)"}}>
+          <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B"}}>
+            {loading ? "Loading..." : `${pins.length} staff with PINs set`}
+          </div>
+        </div>
+        {!loading && pins.length === 0 && (
+          <div className="p-6 text-center text-sm" style={{color:"#A09080"}}>
+            No PINs set yet. Staff create their PIN on first login.
+          </div>
+        )}
+        {pins.map(p=>(
+          <div key={p.staff_name} className="flex items-center justify-between px-4 py-3 border-t" style={{borderColor:"rgba(92,70,43,0.06)"}}>
+            <div>
+              <div className="text-sm font-semibold" style={{color:"#5C462B",textTransform:"capitalize"}}>{p.staff_name}</div>
+              <div className="text-xs mt-0.5" style={{color:"#A09080"}}>
+                Set {p.updated_at ? new Date(p.updated_at).toLocaleDateString() : "—"}
+              </div>
+            </div>
+            <button
+              onClick={()=>resetPin(p.staff_name)}
+              disabled={busy===p.staff_name}
+              className="text-xs font-semibold px-3 py-1.5 rounded border transition disabled:opacity-40"
+              style={{color:"#E35205",borderColor:"rgba(227,82,5,0.3)",background:"#fff"}}>
+              {busy===p.staff_name ? "Resetting…" : "Reset PIN"}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
 export default function App() {
   const [tab,setTab]                       = useState("dashboard");
   const [programs,setPrograms]             = useState([]);
@@ -7231,6 +7428,7 @@ export default function App() {
           <>
             {tab==="dashboard"&&!showingForm&&(
               <Dashboard programs={programs} staffName={staffName} isManager={effectiveManager}
+                db={supabase}
                 onEdit={p=>{setEditingProgram(p);setTab("programs");}}
                 onAddProgram={()=>{setAddingProgram(true);setTab("programs");}}/>
             )}
@@ -7257,7 +7455,7 @@ export default function App() {
                 saving={saving}/>
             )}
             {tab==="history"&&(
-              <MultiSeasonView programs={programs} onEdit={p=>{setEditingProgram(p);setTab("programs");}}/>
+              <MultiSeasonView programs={programs} staffName={staffName} isManager={effectiveManager} onEdit={p=>{setEditingProgram(p);setTab("programs");}}/>
             )}
             {tab==="kpi"&&<Reference isManager={effectiveManager} db={supabase} programs={programs} staffName={staffName}/>}
         {tab==="access"&&effectiveManager&&(
