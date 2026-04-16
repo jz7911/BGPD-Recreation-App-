@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "./supabase.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const AREAS = ["Adult General","Adult Sports","Aquatics","Camps","Clubhouse","Dance","Early Childhood","Fitness","Golf Dome","Museum","Performing Arts","Preschool","Rentals","Seniors","Special Events","Youth General","Youth Sports","Other"];
+const AREAS = ["Adult General","Adult Sports","Aquatics","Camps","Clubhouse","Dance","Fitness","Golf Dome","Museum","Performing Arts","Rentals","Seniors","Special Events","Youth General","Youth Sports","Other"];
 const SEASONS = ["Spring","Summer","Fall","Winter","All Year"];
 /* inject no-spinner CSS */
 if(typeof document!=="undefined"){const s=document.createElement("style");s.textContent="input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield}";document.head.appendChild(s);}
@@ -107,6 +107,7 @@ const DB_FIELDS = [
   "budget_mode","sub_programs","clubhouse_alloc","clubhouse_alloc_act",
   "ant_clubhouse_fee","act_clubhouse_fee",
   "peer_visible",
+  "is_deleted","deleted_by","deleted_at",
 ];
 
 function cleanForDB(p) {
@@ -116,7 +117,19 @@ function cleanForDB(p) {
 }
 
 // ─── Calculations ─────────────────────────────────────────────────────────────
+// FY Config lookup — populated from Supabase fy_config table on load
+let _fyConfig = {};
+function getFyConfig(fy) {
+  const cfg = _fyConfig[fy] || {};
+  return {
+    ftSalary:      cfg.ft_salary      || FT_ANNUAL_SALARY,
+    facilityRate:  cfg.facility_rate  || FACILITY_COST_PER_HR,
+    adminOverhead: cfg.admin_overhead || ADMIN_OVERHEAD_RATE,
+  };
+}
+
 function calcCR(p, px) {
+  const {ftSalary, facilityRate, adminOverhead} = getFyConfig(p.year);
   const personnel    = p[px+"personnel"]      || 0;
   const commodities  = p[px+"commodities"]    || 0;
   const contractuals = p[px+"contractuals"]   || 0;
@@ -135,9 +148,9 @@ function calcCR(p, px) {
       ? (PROGRAM_TYPES.find(t => t.label === progType)?.pct || 0)
       : 0;
   const direct   = personnel + commodities + contractuals + other1 + other2 + clubhouseFee;
-  const ao       = direct * ADMIN_OVERHEAD_RATE;
-  const ftStaff  = FT_ANNUAL_SALARY * wlPct;
-  const facility = FACILITY_COST_PER_HR * facHrs;
+  const ao       = direct * adminOverhead;
+  const ftStaff  = ftSalary * wlPct;
+  const facility = facilityRate * facHrs;
   const total    = direct + ao + ftStaff + facility;
   return {
     direct, ao, ftStaff, facility, total, revenue,
@@ -173,7 +186,7 @@ function calcKPIs(p) {
 function newProgram(staffName) {
   const last = getLastUsed(staffName);
   return {
-    name:"", area:last.area||"Youth Sports", season:last.season||"Summer", year:last.year||"25-26",
+    name:"", area:last.area||"Youth Sports", season:last.season||"Summer", year:last.year||(()=>{const d=new Date();const y=d.getMonth()>=4?d.getFullYear():d.getFullYear()-1;return `${String(y).slice(-2)}-${String(y+1).slice(-2)}`;})(),
     classification:last.classification||"Community Driven", service_category:last.service_category||"",
     trend:"New", nps:0, notes:"", staff_name: staffName||"", waitlist:0,
     ant_capacity:0, ant_enrollment:0, ant_revenue:0,
@@ -734,7 +747,7 @@ function PBar({label,actual,budget,ff,inv}) {
   );
 }
 
-function Inp({label,type="text",value,onChange,options,min,max,hint,placeholder,required}) {
+function Inp({label,type="text",value,onChange,options,min,max,hint,placeholder,required,maxLen}) {
   const cls = "w-full px-3 py-2 text-sm focus:outline-none transition bg-white";
   const style = {border:"1px solid rgba(92,70,43,0.15)",borderRadius:"2px"};
   // For number inputs: track a local display string so backspace/delete work freely
@@ -765,6 +778,7 @@ function Inp({label,type="text",value,onChange,options,min,max,hint,placeholder,
           : <input className={cls} style={style} type={type}
               value={value||""}
               placeholder={placeholder||""}
+              maxLength={maxLen||500}
               onChange={e=>onChange(e.target.value)}/>
       }
       {hint&&<span className="text-xs" style={{color:"#6B5744",fontWeight:"300"}}>{hint}</span>}
@@ -1245,7 +1259,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
     .filter(p=>filters.year.size===0||filters.year.has(toFY(p.year)))
     .filter(p=>filters.season.size===0||filters.season.has(p.season));
 
-  const kpis    = vis.map(p=>({...p,...calcKPIs(p)}));
+  const kpis    = useMemo(()=>vis.map(p=>({...p,...calcKPIs(p)})),[vis]);
   const avgFill = kpis.length ? kpis.reduce((a,p)=>a+p.fillRate,0)/kpis.length : 0;
   const avgCR   = kpis.length ? kpis.reduce((a,p)=>a+p.costRecovery,0)/kpis.length : 0;
   const surplus = kpis.reduce((a,p)=>a+p.profitLoss,0);
@@ -2138,7 +2152,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                   {(over||warn)&&flagged.length>0&&(
                     <div className="mt-1.5 text-xs text-slate-700 flex flex-wrap gap-x-3 gap-y-0.5">
                       {flagged.map((pr,i)=>(
-                        <span key={i}>{pr.name} <span className="font-mono font-semibold" style={{color}}>{pr.wlPct.toFixed(1)}%</span></span>
+                        <span key={`_${i}`}>{pr.name} <span className="font-mono font-semibold" style={{color}}>{pr.wlPct.toFixed(1)}%</span></span>
                       ))}
                     </div>
                   )}
@@ -2342,9 +2356,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
         const capKpis      = capitalYear==="all" ? kpis.filter(p=>p.hasActuals) : kpis.filter(p=>p.hasActuals&&toFY(p.year)===capitalYear);
         const surplusProgs = [...capKpis].filter(p=>p.profitLoss>0).sort((a,b)=>b.profitLoss-a.profitLoss);
         const deficitProgs = capKpis.filter(p=>p.profitLoss<0);
-        const totalSurplus = surplusProgs.reduce((a,p)=>a+p.profitLoss,0);
-        const totalDeficit = Math.abs(deficitProgs.reduce((a,p)=>a+p.profitLoss,0));
-        const netPL        = totalSurplus - totalDeficit;
+        const netPL        = surplusProgs.reduce((a,p)=>a+p.profitLoss,0) - Math.abs(deficitProgs.reduce((a,p)=>a+p.profitLoss,0));
         const suggested    = Math.max(0, Math.round(netPL * (capitalPct/100)));
         const maxBar       = surplusProgs.length>0 ? surplusProgs[0].profitLoss : 1;
         return (
@@ -2382,7 +2394,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                 {label:"Portfolio Net P/(L)", value:dollar(Math.round(netPL)),       color:netPL>=0?"#84BD00":"#E35205"},
                 {label:"Surplus Programs",    value:surplusProgs.length+" programs", color:"#84BD00"},
                 {label:"Subsidy Programs",    value:deficitProgs.length+" programs", color:"#E35205"},
-                {label:"Suggested Allocation",value:netPL>0?dollar(suggested):"—",  color:"#00A9CE"},
+                {label:"Suggested Allocation",value:netPL>0?dollar(suggested):"--",  color:"#00A9CE"},
               ].map(({label,value,color})=>(
                 <div key={label} className="rounded p-3" style={{background:"rgba(0,0,0,0.025)",border:"1px solid rgba(0,0,0,0.06)"}}>
                   <div className="text-xs uppercase font-bold mb-1" style={{letterSpacing:"0.08em",color:"#A09080",fontSize:"10px"}}>{label}</div>
@@ -2403,7 +2415,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                   </div>
                 ))}
                 <div className="rounded px-3 py-2.5 text-xs" style={{background:"rgba(0,169,206,0.05)",border:"1px solid rgba(0,169,206,0.15)",color:"#5C462B"}}>
-                  <span className="font-bold">NRPA recommendation:</span> A {capitalPct}% rate generates <span className="font-bold" style={{color:"#00A9CE"}}>{dollar(suggested)}</span> toward capital reserve. NRPA Fiscal Health model targets 3–10% annually (CAPRA 6.2).
+                  <span className="font-bold">NRPA recommendation:</span> A {capitalPct}% rate generates <span className="font-bold" style={{color:"#00A9CE"}}>{dollar(suggested)}</span> toward capital reserve. NRPA Fiscal Health model targets 3-10% annually (CAPRA 6.2).
                 </div>
               </div>
             ):(
@@ -2430,7 +2442,7 @@ function MultiSeasonView({programs,onEdit}) {
   const [showSingle,setShowSingle] = useState(false);
   const multiCount = (() => {
     const groups = {};
-    programs.filter(p=>!p.is_archived).forEach(p=>{
+    programs.filter(p=>!p.is_archived&&(isManager||p.staff_name===staffName||p.peer_visible!==false)).forEach(p=>{
       const k = `${p.name}||${p.staff_name}`;
       groups[k] = (groups[k]||0)+1;
     });
@@ -2805,15 +2817,16 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                 <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Notes</label>
                 <textarea className="mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 resize-none" rows={3}
                   placeholder="Strategy notes, drivers, multi-year context..."
+                  maxLength={2000}
                   value={p.notes||""} onChange={e=>{setP(prev=>({...prev,notes:e.target.value}));setDirty(true);}}/>
+                <div className="text-right text-xs mt-0.5" style={{color:"#A09080"}}>{(p.notes||"").length}/2000</div>
               </div>
               <div className="flex items-center justify-between rounded border border-slate-200 px-4 py-3">
                 <div>
                   <div className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Visible to Peers</div>
                   <div className="text-xs text-slate-500 mt-0.5">When on, other staff can see this program. Managers always see everything.</div>
                 </div>
-                <button
-                  type="button"
+                <button type="button"
                   onClick={()=>{setP(prev=>({...prev,peer_visible:prev.peer_visible===false?true:false}));setDirty(true);}}
                   className="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors"
                   style={{background:p.peer_visible===false?"#D1D5DB":"#00A9CE"}}>
@@ -3178,7 +3191,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
               ):(
                 <div className="space-y-2">
                   {log.map((entry,i)=>(
-                    <div key={i} className="flex gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                    <div key={`_${i}`} className="flex gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
                       <div className="shrink-0 w-1.5 rounded-full bg-amber-400 mt-1" style={{minHeight:"1rem"}}/>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm text-slate-800">{entry.text}</div>
@@ -3305,8 +3318,9 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
           const k = calcKPIs(p);
           const lastUpdated = p.updated_at||p.created_at;
           return (
-            <div key={p.id} onClick={()=>onEdit(p)}
-              className="bg-white rounded-lg shadow-sm px-4 py-3 flex items-center justify-between gap-4 hover:shadow-md transition cursor-pointer">
+            <div key={p.id}
+              onClick={()=>(isManager||p.staff_name===staffName)?onEdit(p):null}
+              className={`bg-white rounded-lg shadow-sm px-4 py-3 flex items-center justify-between gap-4 transition ${isManager||p.staff_name===staffName?"hover:shadow-md cursor-pointer":"cursor-default"}`}>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <div className="font-semibold text-slate-800 truncate">{p.name}</div>
@@ -3679,7 +3693,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   // Programs this person can review: staff see only their own, managers see all
   const reviewablePrograms = isManager
     ? (programs||[])
-    : (programs||[]).filter(p=>p.staff_name?.toLowerCase().trim()===staffName.toLowerCase().trim());
+    : (programs||[]).filter(p=>p.staff_name?.toLowerCase().trim()===staffName.toLowerCase().trim()||p.peer_visible!==false);
 
   // ── Helper sub-components ──────────────────────────────────────────────────
   const inp=(label,key,type="text",opts=null,req=false,hint="")=>(
@@ -4045,7 +4059,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                 <div className="text-xs font-bold uppercase tracking-widest text-slate-700 mb-3">Review History — {r.program_name}</div>
                 <div className="space-y-2">
                   {history.slice(0,5).map((h,i)=>(
-                    <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100 text-xs">
+                    <div key={`_${i}`} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100 text-xs">
                       <span className="px-2 py-0.5 rounded font-bold text-white" style={{background:dcColor[h.decision]||"#64748b"}}>{h.decision}</span>
                       <span className="text-slate-700">{h.season} {h.fy}</span>
                       <span className="text-slate-700">Fill: <span className="font-bold">{h.fill_rate||0}%</span></span>
@@ -4100,7 +4114,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
         {STEPS.map((st,i)=>{
           const done=i<activeStep; const active=i===activeStep;
           return(
-            <button key={i} onClick={()=>setActiveStep(i)}
+            <button key={`_${i}`} onClick={()=>setActiveStep(i)}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap shrink-0"
               style={active?{background:"#00A9CE",color:"white"}:done?{background:"#EEF5E0",color:"#4A6B00"}:{background:"#f1f5f9",color:"#94a3b8"}}>
               <span>{done?"✓":st.icon}</span>{st.label}
@@ -4260,7 +4274,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               <div className="rounded-lg border border-slate-100 overflow-hidden">
                 <div className="px-4 py-2 bg-slate-50 text-xs font-bold text-slate-700 uppercase tracking-widest">Past Reviews — {form.program_name||"this program"}</div>
                 {hist.slice(0,3).map((h,i)=>(
-                  <div key={i} className="px-4 py-2.5 border-t border-slate-50 flex items-center gap-3 text-xs">
+                  <div key={`_${i}`} className="px-4 py-2.5 border-t border-slate-50 flex items-center gap-3 text-xs">
                     <span className="px-2 py-0.5 rounded font-bold text-white" style={{background:dcColor[h.decision]||"#64748b"}}>{h.decision}</span>
                     <span className="text-slate-700">{h.season} {h.fy}</span>
                     <span>Fill: <b>{h.fill_rate||0}%</b></span>
@@ -4955,7 +4969,7 @@ function ProgramGuideSection({isManager,db}){
               {isManager&&<th className="px-4 py-2"/>}
             </tr></thead>
             <tbody>{filtered.map((g,i)=>(
-              <tr key={i} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
+              <tr key={`_${i}`} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
                 <td className="px-4 py-2.5 font-medium text-slate-800">
                   {g.program}
                   {g.custom&&<span className="ml-1.5 text-xs font-semibold text-blue-500">custom</span>}{g.overridden&&<span className="ml-1.5 text-xs font-semibold text-amber-500">edited</span>}
@@ -5006,7 +5020,7 @@ function ProgramGuideSection({isManager,db}){
                   {isManager&&<th className="px-4 py-2"/>}
                 </tr></thead>
                 <tbody>{items.map((g,i)=>(
-                  <tr key={i} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
+                  <tr key={`_${i}`} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
                     <td className="px-4 py-2.5 text-slate-800 font-medium">
                       {g.program}
                       {g.custom&&<span className="ml-1.5 text-xs font-semibold text-blue-500">custom</span>}{g.overridden&&<span className="ml-1.5 text-xs font-semibold text-amber-500">edited</span>}
@@ -5096,7 +5110,6 @@ function Reference({isManager,db,programs,staffName}) {
           {id:"review",label:"📋 Program Review"},
           {id:"capacity",label:"🧮 Capacity Calculator"},
           {id:"redesign",label:"🔄 Redesign Ideas"},
-          {id:"allocation",label:"💰 Allocation Calculator"},
           ...(isManager?[{id:"clubhouse",label:"🏫 Clubhouse Allocation"}]:[]),
         ].map(s=>(
           <button key={s.id} onClick={()=>setSec(s.id)}
@@ -5610,7 +5623,7 @@ function Reference({isManager,db,programs,staffName}) {
                       <div className="p-4">
                         <div className="space-y-1.5 mb-3">
                           {p.expectations.map((e,i)=>(
-                            <div key={i} className="flex gap-2 text-xs text-slate-700">
+                            <div key={`_${i}`} className="flex gap-2 text-xs text-slate-700">
                               <span className="shrink-0 mt-0.5 font-bold" style={{color:p.color}}>›</span>
                               {e}
                             </div>
@@ -5655,7 +5668,7 @@ function Reference({isManager,db,programs,staffName}) {
                     {item:"Innovation pilots",detail:"How are pilots performing? Continue, modify, or sunset?"},
                     {item:"Service offering balance",detail:"Is the portfolio mix still aligned with the district's mission and financial targets?"},
                   ].map((r,i)=>(
-                    <div key={i} className="flex gap-3 p-3 rounded-lg border border-slate-100">
+                    <div key={`_${i}`} className="flex gap-3 p-3 rounded-lg border border-slate-100">
                       <span className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0 mt-0.5" style={{background:"#00A9CE",color:"#5C462B"}}>{i+1}</span>
                       <div>
                         <div className="text-sm font-bold text-slate-800">{r.item}</div>
@@ -5684,7 +5697,7 @@ function Reference({isManager,db,programs,staffName}) {
                         {cond:"Pilot misses targets",     trigger:"End of pilot season",   action:"Modify or sunset — do not carry forward",         color:"#fef9c3"},
                         {cond:"Prime time underutilized", trigger:"Scheduling review",     action:"Reschedule or replace with higher-demand program", color:"#f1f5f9"},
                       ].map((r,i)=>(
-                        <tr key={i} className="border-t border-slate-50" style={{background:r.color}}>
+                        <tr key={`_${i}`} className="border-t border-slate-50" style={{background:r.color}}>
                           <td className="px-4 py-2.5 font-semibold text-slate-800 text-xs">{r.cond}</td>
                           <td className="px-4 py-2.5 text-xs text-slate-700">{r.trigger}</td>
                           <td className="px-4 py-2.5 text-xs text-slate-700 font-medium">{r.action}</td>
@@ -6082,7 +6095,7 @@ function Reference({isManager,db,programs,staffName}) {
                     {when:"If you collected participant feedback",icon:"⭐",color:"#990066",what:"Add your NPS score. Optional but valuable for long-term program tracking."},
                     {when:"Anytime something changes",icon:"✏️",color:"#64748b",what:"Click the program name from the Dashboard or Programs tab and edit it. Every change saves immediately and metrics recalculate right away."},
                   ].map((r,i)=>(
-                    <div key={i} className="flex gap-3 p-4 rounded-lg border border-slate-100">
+                    <div key={`_${i}`} className="flex gap-3 p-4 rounded-lg border border-slate-100">
                       <div className="text-xl shrink-0">{r.icon}</div>
                       <div>
                         <div className="text-xs font-bold uppercase tracking-wide mb-1" style={{color:r.color}}>{r.when}</div>
@@ -6127,7 +6140,7 @@ function Reference({isManager,db,programs,staffName}) {
                   {q:"My program was flagged as Needs Redesign — what do I do?",a:"Open the Program Review, select Redesign as the decision, and a list of redesign ideas will appear based on your program type and what the numbers show. You can also browse the full Redesign Ideas tab in Guide & Resources for 26 detailed strategies with NRPA and IPRA backing."},
                   {q:"What does the Custom program type mean?",a:"Use Custom when none of the 10 standard types fit — for example a multi-site supervisor role or a hybrid program. When you select Custom, type a name for it and enter the workload % that fits your situation."},
                   ].map((r,i)=>(
-                    <div key={i} className="rounded-lg border border-slate-200 overflow-hidden">
+                    <div key={`_${i}`} className="rounded-lg border border-slate-200 overflow-hidden">
                       <div className="px-4 py-3 bg-slate-50 text-sm font-semibold text-slate-800 border-b border-slate-100">{r.q}</div>
                       <div className="px-4 py-3 text-sm text-slate-700">{r.a}</div>
                     </div>
@@ -6184,7 +6197,7 @@ function Reference({isManager,db,programs,staffName}) {
                     {use:"End-of-year reporting",how:"Clear all filters for the full portfolio view. Health Score, Subsidy Burden, and all aggregates show the complete picture. Use Season Report or Export CSV for documentation."},
                     {use:"Pricing review",how:"Revenue per Participant by Area shows which areas generate more revenue per enrolled person. Use this alongside cost recovery targets from District Standards to identify where fees may warrant adjustment."},
                   ].map((r,i)=>(
-                    <div key={i} className="flex gap-3 p-3 rounded-lg border border-slate-100">
+                    <div key={`_${i}`} className="flex gap-3 p-3 rounded-lg border border-slate-100">
                       <div className="shrink-0 mt-0.5"><span className="inline-block bg-slate-800 text-white text-xs font-bold px-2 py-0.5 rounded">{r.use}</span></div>
                       <div className="text-sm text-slate-700">{r.how}</div>
                     </div>
@@ -6264,7 +6277,7 @@ function Reference({isManager,db,programs,staffName}) {
                     {issue:"All programs entered under one name",impact:"Filtering by staff member doesn't work; workload distribution is inaccurate",fix:"Staff name on each program must match exactly how staff logged in. If someone uses 'Joe' in one program and 'Joe Smith' in another, they appear as two different people."},
                     {issue:"Revenue not updated after collection",impact:"Net P/(L) is negative even for financially healthy programs",fix:"Remind staff to update Actual Revenue after all payments are processed — not when registration closes, but after the program ends and final collections are confirmed."},
                   ].map((r,i)=>(
-                    <div key={i} className="rounded-lg border border-slate-100 overflow-hidden">
+                    <div key={`_${i}`} className="rounded-lg border border-slate-100 overflow-hidden">
                       <div className="px-4 py-2.5 bg-red-50 border-b border-red-100 text-xs font-bold text-red-700">⚠ {r.issue}</div>
                       <div className="p-3 grid grid-cols-1 gap-1 sm:grid-cols-2">
                         <div className="text-xs text-slate-700"><span className="font-semibold text-slate-700">Impact: </span>{r.impact}</div>
@@ -6291,7 +6304,7 @@ function Reference({isManager,db,programs,staffName}) {
                     {q:"What's the difference between the FT Staff Allocation panel and the Workload section?",a:"The FT Staff Allocation panel (always visible at the top of the Manager Dashboard) shows total allocated FT salary cost across the portfolio vs. the 60% target — it's the portfolio-level view. The Workload section in the dashboard is a per-program breakdown showing which programs are consuming the most staff time."},
                     {q:"What's the difference between the Dashboard Net P/(L) and what I see in the Admin Fund Performance tab?",a:"The Dashboard P/(L) is at the program-cost level — it includes allocated FT staff cost, overhead, and facility charges. The Fund Performance tab tracks actual fund-level revenue and expenses from your financial system. They measure different things and will not match."},
                   ].map((r,i)=>(
-                    <div key={i} className="rounded-lg border border-slate-200 overflow-hidden">
+                    <div key={`_${i}`} className="rounded-lg border border-slate-200 overflow-hidden">
                       <div className="px-4 py-3 bg-slate-50 text-sm font-semibold text-slate-800 border-b border-slate-100">{r.q}</div>
                       <div className="px-4 py-3 text-sm text-slate-700">{r.a}</div>
                     </div>
@@ -6863,6 +6876,146 @@ function CapacityCalculator() {
   );
 }
 
+// ─── FY Formula Config Panel ────────────────────────────────────────────────
+function FYConfigPanel({db, isManager}) {
+  const [rows,    setRows]    = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving,  setSaving]  = useState(null);
+  const [err,     setErr]     = useState("");
+
+  async function load() {
+    setLoading(true);
+    const {data, error} = await db.from("fy_config").select("*").order("fiscal_year",{ascending:false});
+    if(!error && data) setRows(data);
+    setLoading(false);
+  }
+  useEffect(()=>{ load(); },[]);
+
+  async function saveRow(row) {
+    setSaving(row.fiscal_year); setErr("");
+    const {error} = await db.from("fy_config").upsert({
+      fiscal_year:    row.fiscal_year,
+      ft_salary:      parseFloat(row.ft_salary)      || 97700,
+      facility_rate:  parseFloat(row.facility_rate)  || 3,
+      admin_overhead: parseFloat(row.admin_overhead) || 0.1,
+      updated_by:     row.updated_by || "",
+      updated_at:     new Date().toISOString(),
+    }, {onConflict:"fiscal_year"});
+    if(error) setErr("Save failed: "+error.message);
+    else {
+      _fyConfig[row.fiscal_year] = row;
+      await load();
+    }
+    setSaving(null);
+  }
+
+  function updateRow(fy, field, val) {
+    setRows(prev=>prev.map(r=>r.fiscal_year===fy?{...r,[field]:val}:r));
+  }
+
+  function addYear() {
+    const d = new Date();
+    const y = d.getMonth()>=4?d.getFullYear():d.getFullYear()-1;
+    const fy = `${String(y).slice(-2)}-${String(y+1).slice(-2)}`;
+    if(rows.find(r=>r.fiscal_year===fy)) return;
+    setRows(prev=>[{fiscal_year:fy, ft_salary:97700, facility_rate:3, admin_overhead:0.1, updated_by:""}, ...prev]);
+  }
+
+  if(!isManager) return <div className="p-6 text-sm text-slate-500">Manager access required.</div>;
+
+  const CARD = {background:"#ffffff",borderRadius:"4px",border:"1px solid rgba(92,70,43,0.09)"};
+
+  return (
+    <div className="space-y-4">
+      <div className="p-4" style={CARD}>
+        <div className="font-bold text-sm mb-1" style={{color:"#5C462B"}}>FY Formula Constants</div>
+        <div className="text-xs" style={{color:"#A09080"}}>
+          Set FT annual salary, facility cost rate, and admin overhead per fiscal year.
+          Changing a past year updates historical cost recovery for that year only.
+          Defaults: FT Salary $97,700 - Facility $3/hr - Admin Overhead 10%.
+        </div>
+      </div>
+      {err&&<div className="text-xs px-3 py-2 rounded" style={{background:"#FDF0E6",color:"#E35205"}}>{err}</div>}
+      {loading
+        ? <div className="p-6 text-center text-sm" style={{color:"#A09080"}}>Loading...</div>
+        : (
+          <div style={CARD}>
+            <div className="px-4 py-2.5 flex items-center justify-between" style={{borderBottom:"1px solid rgba(92,70,43,0.09)"}}>
+              <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B"}}>Fiscal Year Config</div>
+              <button onClick={addYear}
+                className="text-xs font-bold px-3 py-1.5 transition"
+                style={{background:"#00A9CE",color:"#fff",borderRadius:"2px",border:"none"}}>
+                + Add Year
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{background:"rgba(92,70,43,0.03)",borderBottom:"1px solid rgba(92,70,43,0.09)"}}>
+                    {["Fiscal Year","FT Annual Salary ($)","Facility Rate ($/hr)","Admin Overhead (%)",""].map(h=>(
+                      <th key={h} className="px-4 py-2.5 text-left font-semibold text-xs uppercase" style={{letterSpacing:"0.08em",color:"#A09080"}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(row=>(
+                    <tr key={row.fiscal_year} className="border-t border-slate-100">
+                      <td className="px-4 py-2.5 font-semibold" style={{color:"#5C462B"}}>FY {row.fiscal_year}</td>
+                      <td className="px-4 py-2.5">
+                        <input type="number" value={row.ft_salary||""} onChange={e=>updateRow(row.fiscal_year,"ft_salary",e.target.value)}
+                          className="w-28 text-sm rounded border border-slate-200 px-2 py-1 font-mono"
+                          style={{MozAppearance:"textfield"}}/>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <input type="number" value={row.facility_rate||""} onChange={e=>updateRow(row.fiscal_year,"facility_rate",e.target.value)}
+                          step="0.50" className="w-20 text-sm rounded border border-slate-200 px-2 py-1 font-mono"
+                          style={{MozAppearance:"textfield"}}/>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <input type="number" value={row.admin_overhead!=null?Math.round(row.admin_overhead*100):""} onChange={e=>updateRow(row.fiscal_year,"admin_overhead",(parseFloat(e.target.value)||0)/100)}
+                          min={0} max={100} className="w-16 text-sm rounded border border-slate-200 px-2 py-1 font-mono"
+                          style={{MozAppearance:"textfield"}}/>
+                        <span className="text-xs ml-1" style={{color:"#A09080"}}>%</span>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <button onClick={()=>saveRow(row)}
+                          disabled={saving===row.fiscal_year}
+                          className="text-xs font-bold px-3 py-1.5 transition disabled:opacity-50"
+                          style={{background:"#84BD00",color:"#fff",borderRadius:"2px",border:"none"}}>
+                          {saving===row.fiscal_year?"Saving...":"Save"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {rows.length===0&&(
+                    <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{color:"#A09080"}}>
+                      No FY config rows yet. Click + Add Year to create one.
+                    </td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      }
+    </div>
+  );
+}
+
+
+// ─── PropTypes ────────────────────────────────────────────────────────────────
+Badge.propTypes           = { status: PropTypes.string.isRequired };
+KCard.propTypes           = { label: PropTypes.string.isRequired, value: PropTypes.any, sub: PropTypes.string, accent: PropTypes.string, onClick: PropTypes.func, target: PropTypes.string };
+PBar.propTypes            = { label: PropTypes.string.isRequired, actual: PropTypes.number, budget: PropTypes.number, ff: PropTypes.func, inv: PropTypes.bool };
+Inp.propTypes             = { label: PropTypes.string, type: PropTypes.string, value: PropTypes.any, onChange: PropTypes.func, options: PropTypes.array, hint: PropTypes.string, placeholder: PropTypes.string, required: PropTypes.bool, maxLen: PropTypes.number };
+StaffDashboard.propTypes  = { programs: PropTypes.array.isRequired, staffName: PropTypes.string.isRequired, onEdit: PropTypes.func.isRequired, onAddProgram: PropTypes.func };
+ManagerDashboard.propTypes= { programs: PropTypes.array.isRequired, staffName: PropTypes.string.isRequired, onEdit: PropTypes.func.isRequired, onAddProgram: PropTypes.func };
+ProgramForm.propTypes     = { initial: PropTypes.object, staffName: PropTypes.string.isRequired, isManager: PropTypes.bool, programs: PropTypes.array, onSave: PropTypes.func.isRequired, onSaveAndStay: PropTypes.func, onDelete: PropTypes.func, onArchive: PropTypes.func, onDuplicate: PropTypes.func, onCancel: PropTypes.func.isRequired, saving: PropTypes.bool };
+ProgramsList.propTypes    = { programs: PropTypes.array.isRequired, isManager: PropTypes.bool, staffName: PropTypes.string, onEdit: PropTypes.func.isRequired, onAdd: PropTypes.func, onBulkDup: PropTypes.func, onDupSingle: PropTypes.func };
+MultiSeasonView.propTypes = { programs: PropTypes.array.isRequired, onEdit: PropTypes.func.isRequired, staffName: PropTypes.string, isManager: PropTypes.bool };
+ConfirmModal.propTypes    = { message: PropTypes.string.isRequired, onConfirm: PropTypes.func.isRequired, onCancel: PropTypes.func.isRequired, confirmLabel: PropTypes.string, confirmColor: PropTypes.string };
+
+
 export default function App() {
   const [tab,setTab]                       = useState("dashboard");
   const [programs,setPrograms]             = useState([]);
@@ -6878,18 +7031,43 @@ export default function App() {
   const isManager = MANAGER_NAMES.includes(staffName.toLowerCase().trim());
   const effectiveManager = isManager && viewAsManager;
 
-  const fetchAll = useCallback(async()=>{
+  const fetchAll = useCallback(async(attempt=1)=>{
     setLoading(true);
-    const {data:p, error:fe} = await supabase.from("programs").select("*").order("created_at",{ascending:false});
-    if(fe) setError("Failed to load programs: "+fe.message);
-    // Normalize year format: convert any 4-digit years to YY-YY on load
-    const normalized=(p||[]).map(prog=>{
-      if(prog.year&&/^\d{4}$/.test(String(prog.year))){
-        return {...prog, year:toFY(prog.year)};
+    setError(null);
+    const timeout = new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout")),10000));
+    try {
+      const [{data:p, error:fe}, {data:cfgData}] = await Promise.race([
+        Promise.all([
+          supabase.from("programs").select("*").order("created_at",{ascending:false}),
+          supabase.from("fy_config").select("*"),
+        ]),
+        timeout.then(()=>{ throw new Error("timeout"); })
+      ]);
+      if(fe) throw fe;
+      if(cfgData) {
+        _fyConfig = {};
+        cfgData.forEach(row=>{ _fyConfig[row.fiscal_year] = row; });
       }
-      return prog;
-    });
-    setPrograms(normalized); setLoading(false);
+      const normalized=(p||[])
+        .filter(prog=>!prog.is_deleted)
+        .map(prog=>{
+          if(prog.year&&/^\d{4}$/.test(String(prog.year))){
+            return {...prog, year:toFY(prog.year)};
+          }
+          return prog;
+        });
+      setPrograms(normalized.filter(p=>!p.is_deleted));
+    } catch(err) {
+      if(attempt < 3) {
+        setTimeout(()=>fetchAll(attempt+1), 2000*attempt);
+      } else {
+        setError(err.message==="timeout"
+          ? "Could not reach the database. Check your connection and try again."
+          : "Failed to load programs: "+err.message);
+      }
+    } finally {
+      setLoading(false);
+    }
   },[]);
 
   useEffect(()=>{ if(staffName) fetchAll(); else setLoading(false); },[staffName,fetchAll]);
@@ -6931,7 +7109,12 @@ export default function App() {
 
   const handleDeleteProgram = async id => {
     setSaving(true);
-    const {error:de}=await supabase.from("programs").delete().eq("id",id);
+    const {error:de}=await supabase.from("programs").update({
+      is_deleted: true,
+      deleted_by: staffName,
+      deleted_at: new Date().toISOString(),
+      is_archived: true,
+    }).eq("id",id);
     if(de) setError("Failed to delete program: "+de.message);
     else { await fetchAll(); setEditingProgram(null); setTab("dashboard"); }
     setSaving(false);
@@ -6982,6 +7165,10 @@ export default function App() {
     {id:"programs",label:"Programs"},
     {id:"history",label:"Multi-Season"},
     {id:"kpi",label:"Guide & Resources"},
+    ...(effectiveManager?[
+      {id:"access",label:"Staff Access"},
+      {id:"config",label:"Formula Config"},
+    ]:[]),
   ];
   const showingForm = editingProgram||addingProgram;
 
@@ -7085,6 +7272,12 @@ export default function App() {
               <MultiSeasonView programs={programs} onEdit={p=>{setEditingProgram(p);setTab("programs");}}/>
             )}
             {tab==="kpi"&&<Reference isManager={effectiveManager} db={supabase} programs={programs} staffName={staffName}/>}
+        {tab==="access"&&effectiveManager&&(
+          <StaffPinAdmin db={supabase} staffName={staffName} programs={programs}/>
+        )}
+        {tab==="config"&&effectiveManager&&(
+          <FYConfigPanel db={supabase} isManager={effectiveManager}/>
+        )}
           </>
         )}
       </main>
@@ -7093,17 +7286,17 @@ export default function App() {
 }
 // ─── Allocation Calculator ────────────────────────────────────────────────────
 function AllocationCalculator({programs, staffName, isManager}) {
-  const [season, setSeason]     = useState("all");
-  const [year,   setYear]       = useState("all");
-  const [which,  setWhich]      = useState("budgeted");
+  const [season, setSeason]       = useState("all");
+  const [year,   setYear]         = useState("all");
+  const [which,  setWhich]        = useState("budgeted");
   const [costLines, setCostLines] = useState([{desc:"",amount:"",category:"other1"}]);
-  const [mode,   setMode]       = useState("enrollment");
-  const [selected, setSelected] = useState({});
-  const [weights,  setWeights]  = useState({});
-  const [result,   setResult]   = useState(null);
-  const [applying, setApplying] = useState(false);
+  const [mode,   setMode]         = useState("enrollment");
+  const [selected, setSelected]   = useState({});
+  const [weights,  setWeights]    = useState({});
+  const [result,   setResult]     = useState(null);
+  const [applying, setApplying]   = useState(false);
   const [applyStatus, setApplyStatus] = useState({});
-  const [err, setErr]           = useState("");
+  const [err, setErr]             = useState("");
 
   const CATEGORIES = [
     {id:"other1",      label:"Other Cost 1"},
@@ -7112,52 +7305,41 @@ function AllocationCalculator({programs, staffName, isManager}) {
     {id:"contractuals",label:"Contractuals"},
     {id:"commodities", label:"Commodities"},
   ];
-
-  // Derive DB field from budget type + category per line
   const getField = (category) => (which === "budgeted" ? "ant_" : "act_") + category;
-
   const myPrograms = isManager
     ? programs.filter(p=>!p.is_archived)
     : programs.filter(p=>!p.is_archived && p.staff_name === staffName);
-
   const filtered = myPrograms.filter(p =>
     (season === "all" || p.season === season) &&
     (year   === "all" || p.year   === year)
   );
-
   const allSeasons = [...new Set(myPrograms.map(p=>p.season).filter(Boolean))].sort();
   const allYears   = [...new Set(myPrograms.map(p=>p.year).filter(Boolean))].sort().reverse();
-  const px         = which === "budgeted" ? "ant_" : "act_";
-
+  const px = which === "budgeted" ? "ant_" : "act_";
   const toggleProg = id => { setSelected(s=>({...s,[id]:!s[id]})); setResult(null); setApplyStatus({}); };
-  const selAll     = () => { setSelected(Object.fromEntries(filtered.map(p=>[p.id,true]))); setResult(null); setApplyStatus({}); };
-  const selNone    = () => { setSelected({}); setResult(null); setApplyStatus({}); };
-
+  const selAll  = () => { setSelected(Object.fromEntries(filtered.map(p=>[p.id,true]))); setResult(null); setApplyStatus({}); };
+  const selNone = () => { setSelected({}); setResult(null); setApplyStatus({}); };
   const selectedProgs = filtered.filter(p=>selected[p.id]);
-  const totalCost     = costLines.reduce((a,l)=>a+(parseFloat(l.amount)||0), 0);
+  const totalCost = costLines.reduce((a,l)=>a+(parseFloat(l.amount)||0), 0);
 
   function calculate() {
     setErr("");
-    if(totalCost <= 0)            { setErr("Enter a cost amount."); return; }
-    if(selectedProgs.length < 2)  { setErr("Select at least 2 programs."); return; }
-
+    if(totalCost <= 0)           { setErr("Enter a cost amount."); return; }
+    if(selectedProgs.length < 2) { setErr("Select at least 2 programs."); return; }
     let rows = [];
     if(mode === "enrollment") {
-      const enrs      = selectedProgs.map(p=>parseFloat(p[px+"enrollment"])||0);
-      const totalEnr  = enrs.reduce((a,b)=>a+b,0);
+      const enrs     = selectedProgs.map(p=>parseFloat(p[px+"enrollment"])||0);
+      const totalEnr = enrs.reduce((a,b)=>a+b,0);
       if(totalEnr===0) { setErr("No enrollment data. Try Equal Split or Manual Weights."); return; }
       rows = selectedProgs.map((p,i)=>({id:p.id,name:p.name,area:p.area,pct:enrs[i]/totalEnr}));
     } else if(mode === "equal") {
       rows = selectedProgs.map(p=>({id:p.id,name:p.name,area:p.area,pct:1/selectedProgs.length}));
     } else {
-      const wts      = selectedProgs.map(p=>parseFloat(weights[p.id])||0);
-      const totalWt  = wts.reduce((a,b)=>a+b,0);
+      const wts    = selectedProgs.map(p=>parseFloat(weights[p.id])||0);
+      const totalWt = wts.reduce((a,b)=>a+b,0);
       if(totalWt===0) { setErr("Enter at least one weight."); return; }
       rows = selectedProgs.map((p,i)=>({id:p.id,name:p.name,area:p.area,pct:wts[i]/totalWt}));
     }
-
-    // For each cost line, compute the per-program amount
-    // Then round correctly (last row gets remainder per line)
     const activeCostLines = costLines.filter(l=>parseFloat(l.amount)>0);
     const rowsWithAmounts = rows.map(row=>({
       ...row,
@@ -7167,16 +7349,13 @@ function AllocationCalculator({programs, staffName, isManager}) {
         field:    getField(line.category),
         amount:   Math.round(row.pct * parseFloat(line.amount) * 100) / 100,
       })),
-      totalAmount: activeCostLines.reduce((a,line)=>a + Math.round(row.pct*parseFloat(line.amount)*100)/100, 0),
+      totalAmount: activeCostLines.reduce((a,line)=>a+Math.round(row.pct*parseFloat(line.amount)*100)/100, 0),
     }));
-
-    // Fix rounding on last row per cost line
     activeCostLines.forEach((line,li)=>{
       const lineTotal = parseFloat(line.amount);
       const sumExLast = rowsWithAmounts.slice(0,-1).reduce((a,r)=>a+r.lines[li].amount,0);
       rowsWithAmounts[rowsWithAmounts.length-1].lines[li].amount = Math.round((lineTotal-sumExLast)*100)/100;
     });
-
     setResult({rows:rowsWithAmounts, totalCost, costLines:activeCostLines, mode});
     setApplyStatus({});
   }
@@ -7185,12 +7364,10 @@ function AllocationCalculator({programs, staffName, isManager}) {
     if(!result) return;
     setApplying(true); setErr("");
     const db = supabase;
-
     const status = {};
     for(const row of result.rows) {
       try {
         const prog = programs.find(p=>p.id===row.id);
-        // Build a single update object with all field changes for this row
         const update = {};
         for(const line of row.lines) {
           const existing = parseFloat(prog?.[line.field])||0;
@@ -7214,14 +7391,12 @@ function AllocationCalculator({programs, staffName, isManager}) {
     <div className="space-y-5">
       <div className="rounded p-4" style={{background:"rgba(0,169,206,0.05)",border:"1px solid rgba(0,169,206,0.2)"}}>
         <div className="text-xs font-bold uppercase mb-1" style={{letterSpacing:"0.10em",color:"#00A9CE"}}>What this does</div>
-        <p className="text-xs leading-relaxed" style={{color:"#5C462B"}}>Split shared costs across multiple programs. Each cost line can go to a different field — e.g. instructor cost to Personnel, supplies to Commodities. Results add to the existing value on each program record.</p>
+        <p className="text-xs leading-relaxed" style={{color:"#5C462B"}}>Split shared costs across multiple programs. Each cost line can go to a different field. Results add to existing values on each program record.</p>
       </div>
 
-      {/* Step 1: Programs + filters */}
+      {/* Step 1 */}
       <div className="rounded" style={{border:"1px solid rgba(92,70,43,0.15)"}}>
-        <div className="px-4 py-2.5 text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B",background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>
-          Step 1 — Select Programs
-        </div>
+        <div className="px-4 py-2.5 text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B",background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>Step 1 - Select Programs</div>
         <div className="p-4 space-y-3">
           <div className="grid grid-cols-3 gap-3">
             <div>
@@ -7255,14 +7430,14 @@ function AllocationCalculator({programs, staffName, isManager}) {
               </div>
             </div>
             {filtered.length===0
-              ? <div className="text-xs text-center py-4 text-slate-400">No programs match this filter.</div>
+              ? <div className="text-xs text-center py-4" style={{color:"#A09080"}}>No programs match this filter.</div>
               : <div className="border border-slate-200 rounded overflow-hidden divide-y divide-slate-100 max-h-52 overflow-y-auto">
                   {filtered.map(p=>(
                     <label key={p.id} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-slate-50">
                       <input type="checkbox" checked={!!selected[p.id]} onChange={()=>toggleProg(p.id)} className="shrink-0"/>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-semibold truncate" style={{color:"#5C462B"}}>{p.name}</div>
-                        <div className="text-xs" style={{color:"#A09080"}}>{p.area} · {p.season} · Enr: {p[px+"enrollment"]||"—"}</div>
+                        <div className="text-xs" style={{color:"#A09080"}}>{p.area} - {p.season} - Enr: {p[px+"enrollment"]||"--"}</div>
                       </div>
                       {mode==="manual"&&selected[p.id]&&(
                         <input type="number" value={weights[p.id]||""} onChange={e=>setWeights(w=>({...w,[p.id]:e.target.value}))}
@@ -7279,33 +7454,27 @@ function AllocationCalculator({programs, staffName, isManager}) {
         </div>
       </div>
 
-      {/* Step 2: Cost lines with per-line field selector */}
+      {/* Step 2 */}
       <div className="rounded" style={{border:"1px solid rgba(92,70,43,0.15)"}}>
-        <div className="px-4 py-2.5 text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B",background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>
-          Step 2 — Cost Lines & Split Method
-        </div>
+        <div className="px-4 py-2.5 text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B",background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>Step 2 - Cost Lines & Split Method</div>
         <div className="p-4 space-y-4">
-          {/* Cost lines */}
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-2">Cost line(s) — each line can go to a different field</label>
+            <label className="block text-xs font-semibold text-slate-600 mb-2">Cost lines - each line can go to a different field</label>
             {costLines.map((line,i)=>(
-              <div key={i} className="mb-3 p-3 rounded" style={{background:"rgba(92,70,43,0.03)",border:"1px solid rgba(92,70,43,0.08)"}}>
+              <div key={`cl-${i}`} className="mb-3 p-3 rounded" style={{background:"rgba(92,70,43,0.03)",border:"1px solid rgba(92,70,43,0.08)"}}>
                 <div className="flex gap-2 items-center mb-2">
-                  <input type="text" value={line.desc}
-                    onChange={e=>{const n=[...costLines];n[i]={...n[i],desc:e.target.value};setCostLines(n);}}
+                  <input type="text" value={line.desc} onChange={e=>{const n=[...costLines];n[i]={...n[i],desc:e.target.value};setCostLines(n);}}
                     placeholder="Description (e.g. Shared instructor)"
                     className="flex-1 text-sm rounded border border-slate-200 px-3 py-2"/>
-                  <input type="number" value={line.amount}
-                    onChange={e=>{const n=[...costLines];n[i]={...n[i],amount:e.target.value};setCostLines(n);setResult(null);}}
+                  <input type="number" value={line.amount} onChange={e=>{const n=[...costLines];n[i]={...n[i],amount:e.target.value};setCostLines(n);setResult(null);}}
                     placeholder="$0.00" min={0}
                     className="w-28 text-sm rounded border border-slate-200 px-3 py-2 font-mono"
                     style={{MozAppearance:"textfield"}}/>
                   {costLines.length>1&&<button onClick={()=>{setCostLines(costLines.filter((_,j)=>j!==i));setResult(null);}}
-                    className="text-xs font-bold px-1 shrink-0" style={{color:"#E35205",background:"none",border:"none"}}>✕</button>}
+                    className="text-xs font-bold px-1 shrink-0" style={{color:"#E35205",background:"none",border:"none"}}>x</button>}
                 </div>
-                {/* Field selector — 5 buttons, budget type already set above */}
                 <div className="flex gap-1.5 flex-wrap items-center">
-                  <span className="text-xs mr-1" style={{color:"#A09080"}}>→ {budgetLabel}:</span>
+                  <span className="text-xs mr-1" style={{color:"#A09080"}}>to {budgetLabel}:</span>
                   {CATEGORIES.map(cat=>(
                     <button key={cat.id} onClick={()=>{const n=[...costLines];n[i]={...n[i],category:cat.id};setCostLines(n);}}
                       className="px-2.5 py-1 text-xs font-semibold rounded border transition"
@@ -7326,8 +7495,6 @@ function AllocationCalculator({programs, staffName, isManager}) {
               {totalCost>0&&<div className="text-sm font-bold" style={{color:"#5C462B"}}>Total: {dollar(totalCost)}</div>}
             </div>
           </div>
-
-          {/* Split method */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5">Split method</label>
             <div className="flex gap-2">
@@ -7339,44 +7506,33 @@ function AllocationCalculator({programs, staffName, isManager}) {
                 </button>
               ))}
             </div>
-            <div className="text-xs mt-1" style={{color:"#A09080"}}>
-              {mode==="enrollment"?"Splits each cost line proportionally to program enrollment.":
-               mode==="equal"?"Divides each cost line evenly across all selected programs.":
-               "Enter a weight per program above — higher weight = larger share."}
-            </div>
           </div>
-
           {err&&<div className="text-xs px-3 py-2 rounded" style={{background:"#FDF0E6",color:"#E35205"}}>{err}</div>}
           <button onClick={calculate} disabled={selectedProgs.length<2||totalCost<=0}
             className="px-4 py-2 text-sm font-bold rounded text-white disabled:opacity-40"
             style={{background:"#00A9CE"}}>
-            Calculate →
+            Calculate
           </button>
         </div>
       </div>
 
-      {/* Step 3: Results */}
+      {/* Step 3 */}
       {result&&(
         <div className="rounded" style={{border:"1px solid rgba(92,70,43,0.15)"}}>
-          <div className="px-4 py-2.5 text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B",background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>
-            Step 3 — Review & Apply
-          </div>
+          <div className="px-4 py-2.5 text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B",background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>Step 3 - Review & Apply</div>
           <div className="p-4 space-y-3">
-            {/* Summary of what will be applied */}
-            <div className="space-y-1">
+            <div className="space-y-1 mb-2">
               {result.costLines.map((line,i)=>(
-                <div key={i} className="flex items-center gap-2 text-xs">
+                <div key={`sum-${i}`} className="flex items-center gap-2 text-xs">
                   <span className="font-semibold" style={{color:"#5C462B"}}>{line.desc||"Cost line "+(i+1)}</span>
                   <span style={{color:"#A09080"}}>{dollar(parseFloat(line.amount))}</span>
-                  <span style={{color:"#A09080"}}>→</span>
+                  <span style={{color:"#A09080"}}>to</span>
                   <span className="font-semibold px-2 py-0.5 rounded" style={{background:"rgba(0,169,206,0.08)",color:"#00A9CE"}}>
-                    {CATEGORIES.find(c=>c.id===line.category)?.label} ({budgetLabel})
+                    {CATEGORIES.find(ca=>ca.id===line.category)?.label} ({budgetLabel})
                   </span>
                 </div>
               ))}
             </div>
-
-            {/* Results table */}
             <div className="border border-slate-200 rounded overflow-hidden overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
@@ -7384,7 +7540,7 @@ function AllocationCalculator({programs, staffName, isManager}) {
                     <th className="px-3 py-2 text-left font-bold uppercase" style={{letterSpacing:"0.08em",color:"#A09080"}}>Program</th>
                     <th className="px-3 py-2 text-right font-bold uppercase" style={{letterSpacing:"0.08em",color:"#A09080"}}>Share</th>
                     {result.costLines.map((line,i)=>(
-                      <th key={i} className="px-3 py-2 text-right font-bold uppercase whitespace-nowrap" style={{letterSpacing:"0.08em",color:"#A09080"}}>
+                      <th key={`th-${i}`} className="px-3 py-2 text-right font-bold uppercase whitespace-nowrap" style={{letterSpacing:"0.08em",color:"#A09080"}}>
                         {line.desc||"Line "+(i+1)}
                       </th>
                     ))}
@@ -7397,15 +7553,15 @@ function AllocationCalculator({programs, staffName, isManager}) {
                       <td className="px-3 py-2.5 font-semibold" style={{color:"#5C462B"}}>{row.name}</td>
                       <td className="px-3 py-2.5 text-right" style={{color:"#A09080"}}>{Math.round(row.pct*100)}%</td>
                       {row.lines.map((line,i)=>(
-                        <td key={i} className="px-3 py-2.5 text-right font-mono font-semibold"
+                        <td key={`td-${i}`} className="px-3 py-2.5 text-right font-mono font-semibold"
                           style={{color:applyStatus[row.id]==="ok"?"#84BD00":applyStatus[row.id]==="error"?"#E35205":"#5C462B"}}>
                           {dollar(line.amount)}
                         </td>
                       ))}
                       <td className="px-3 py-2.5 text-right font-mono font-bold" style={{color:applyStatus[row.id]==="ok"?"#84BD00":applyStatus[row.id]==="error"?"#E35205":"#5C462B"}}>
                         {dollar(row.totalAmount)}
-                        {applyStatus[row.id]==="ok"&&<span className="ml-1">✓</span>}
-                        {applyStatus[row.id]==="error"&&<span className="ml-1">✗</span>}
+                        {applyStatus[row.id]==="ok"&&<span className="ml-1">ok</span>}
+                        {applyStatus[row.id]==="error"&&<span className="ml-1">!</span>}
                       </td>
                     </tr>
                   ))}
@@ -7413,23 +7569,22 @@ function AllocationCalculator({programs, staffName, isManager}) {
                     <td className="px-3 py-2" style={{color:"#5C462B"}}>Total</td>
                     <td></td>
                     {result.costLines.map((line,i)=>(
-                      <td key={i} className="px-3 py-2 text-right font-mono" style={{color:"#5C462B"}}>{dollar(parseFloat(line.amount))}</td>
+                      <td key={`tot-${i}`} className="px-3 py-2 text-right font-mono" style={{color:"#5C462B"}}>{dollar(parseFloat(line.amount))}</td>
                     ))}
                     <td className="px-3 py-2 text-right font-mono" style={{color:"#5C462B"}}>{dollar(result.totalCost)}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
-
             {appliedCount>0&&(
               <div className="text-xs font-semibold px-3 py-2 rounded" style={{background:"rgba(132,189,0,0.08)",color:"#4A6B00"}}>
-                ✓ Applied to {appliedCount} of {result.rows.length} programs on the {budgetLabel} tab.
+                Applied to {appliedCount} of {result.rows.length} programs on the {budgetLabel} tab.
               </div>
             )}
             <button onClick={applyAlloc} disabled={applying||appliedCount===result.rows.length}
               className="px-4 py-2 text-sm font-bold rounded text-white disabled:opacity-40"
               style={{background:"#84BD00"}}>
-              {applying?"Applying…":appliedCount===result.rows.length?"✓ Applied":"Apply to Programs"}
+              {applying?"Applying...":appliedCount===result.rows.length?"Applied":"Apply to Programs"}
             </button>
           </div>
         </div>
