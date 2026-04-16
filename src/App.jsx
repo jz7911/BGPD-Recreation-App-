@@ -2676,7 +2676,8 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
                 </tr>
               ))}</tbody>
             </table>
-          </div></div>}
+          </div>
+          </div>}
         </div>
       ))}
     </div>
@@ -3112,7 +3113,8 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                       <span className="ml-2 text-xs opacity-75" style={{color:onTarget?"#4A6B00":"#8A5E00"}}>Actual: {pct(k.costRecovery)}</span>
                       {!onTarget&&<span className="ml-2 text-xs font-medium" style={{color:"#8A5E00"}}>— {isManager?"See Pricing tab for fee analysis":"Below target"}</span>}
                     </div>
-                    {p.fee>0&&<div className="text-right"><div className="text-xs text-slate-700">Current fee</div><div className="font-bold text-slate-800">{dollar(p.fee)}/person</div></div>}
+                    {p.fee>0&&<div className="text-right"><div className="text-xs text-slate-700">Current fee</div><div className="font-bold text-slate-800">{dollar(p.fee)}/person</div>
+                    </div>}
                   </div>
                 );
               })()}
@@ -4383,7 +4385,8 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                       <span>CR: <b>{Math.round((mk.costRecovery||0)*100)}%</b></span>
                       <span>Revenue: <b>{dollar(matchedProgram.act_revenue||0)}</b></span>
                       <span>Direct Costs: <b>{dollar(dc)}</b></span>
-                      {matchedProgram.act_enrollment>0&&<span>Enrolled: <b>{matchedProgram.act_enrollment}/{matchedProgram.act_capacity}</b></span>}
+                      {matchedProgram.act_enrollment>0&&<span>Enrolled: <b>{matchedProgram.act_enrollment}/{matchedProgram.act_capacity}</b>
+                      </span>}
                       <span className="text-blue-500">All fields pre-filled ↓</span>
                     </div>
                   </div>
@@ -4409,7 +4412,8 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                 <div className="flex gap-6 text-sm">
                   <div><span className="text-slate-700">Fill Rate: </span><span className="font-bold text-slate-800">{prior.fill_rate}%</span></div>
                   <div><span className="text-slate-700">Cost Recovery: </span><span className="font-bold text-slate-800">{prior.cost_recovery}%</span></div>
-                  {prior.enrollment&&<div><span className="text-slate-700">Enrollment: </span><span className="font-bold text-slate-800">{prior.enrollment}</span></div>}
+                  {prior.enrollment&&<div><span className="text-slate-700">Enrollment: </span><span className="font-bold text-slate-800">{prior.enrollment}</span>
+                  </div>}
                 </div>
               </div>
             )}
