@@ -1366,7 +1366,7 @@ function MultiFilter({filters, onChange, counts}) {
 // ─── Dashboard (Staff View — unchanged from original) ─────────────────────────
 function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
   // Default to filtering by own name so staff see their programs immediately
-  const [filters,setFilters] = useState({staff:new Set([staffName].filter(Boolean)),area:new Set(),season:new Set(),year:new Set()});
+  const [filters,setFilters] = useState(()=>{const fy=(()=>{const d=new Date();const y=d.getMonth()>=4?d.getFullYear():d.getFullYear()-1;return `${String(y).slice(-2)}-${String(y+1).slice(-2)}`;})();return {staff:new Set([staffName].filter(Boolean)),area:new Set(),season:new Set(),year:new Set(YEARS.includes(fy)?[fy]:[])}});
   const [dv,setDv]           = useState("summary");
   const [showReport,setShowReport] = useState(false);
 
@@ -1667,7 +1667,7 @@ function NeedsAttentionQueue({programs,onEdit}){
 }
 
 function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
-  const [filters,setFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
+  const [filters,setFilters] = useState(()=>{const fy=(()=>{const d=new Date();const y=d.getMonth()>=4?d.getFullYear():d.getFullYear()-1;return `${String(y).slice(-2)}-${String(y+1).slice(-2)}`;})();return {staff:new Set(),area:new Set(),season:new Set(),year:new Set(YEARS.includes(fy)?[fy]:[])}});
   function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
   const [capitalPct,setCapitalPct] = useState(5);
   const [capitalYear,setCapitalYear] = useState("all");
