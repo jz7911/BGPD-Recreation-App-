@@ -1307,7 +1307,7 @@ function MultiFilter({filters, onChange, counts}) {
 
   function label(key) {
     const sel = filters[key];
-    if (sel.size === 0) return LABELS[key];
+    if (sel.size === 0) return key==='year' ? 'All Years' : LABELS[key];
     if (sel.size === 1) {
       const v = [...sel][0];
       return key === 'year' ? `FY ${v}` : v;
@@ -1332,6 +1332,17 @@ function MultiFilter({filters, onChange, counts}) {
           </button>
           {open === key && (
             <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded shadow-sm z-30 min-w-48 py-1 max-h-64 overflow-y-auto">
+              {key==='year'&&(
+                <button onClick={()=>onChange('year',new Set())}
+                  className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-left hover:bg-gray-200 transition border-b border-slate-100"
+                  style={{color:filters.year.size===0?'#00A9CE':'#374151'}}>
+                  <span className="w-4 h-4 rounded border flex items-center justify-center shrink-0 text-xs"
+                    style={filters.year.size===0?{background:'#00A9CE',borderColor:'#00A9CE',color:'white'}:{borderColor:'#d1d5db'}}>
+                    {filters.year.size===0?'✓':''}
+                  </span>
+                  <span className={filters.year.size===0?'font-semibold':''}>All Years</span>
+                </button>
+              )}
               {counts[key].map(opt => {
                 const sel = filters[key].has(opt);
                 const disp = key === 'year' ? `FY ${opt}` : opt;
