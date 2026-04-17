@@ -1383,7 +1383,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
     const currentFY=(()=>{const d=new Date();const y=d.getMonth()>=4?d.getFullYear():d.getFullYear()-1;return `${String(y).slice(-2)}-${String(y+1).slice(-2)}`;})();
     const years=[...new Set(programs.filter(p=>!p.is_archived&&p.staff_name===staffName).map(p=>toFY(p.year)).filter(Boolean))].sort().reverse();
     const defaultFY = years.includes(currentFY) ? currentFY : (years[0]||currentFY);
-    setFilters(f=>{...f,year:new Set([defaultFY])});
+    setFilters(f=>({...f,year:new Set([defaultFY])}));
   },[]); 
   const [dv,setDv]           = useState("summary");
   const [showReport,setShowReport] = useState(false);
@@ -1693,7 +1693,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
     const years=[...new Set(programs.filter(p=>!p.is_archived).map(p=>toFY(p.year)).filter(Boolean))].sort().reverse();
     // Default to current calendar FY if it has data; otherwise latest year with data
     const defaultFY = years.includes(currentFY) ? currentFY : (years[0]||currentFY);
-    setFilters(f=>{...f,year:new Set([defaultFY])});
+    setFilters(f=>({...f,year:new Set([defaultFY])}));
   },[]); 
   function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
   const [capitalPct,setCapitalPct] = useState(5);
