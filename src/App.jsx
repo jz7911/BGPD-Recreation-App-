@@ -6786,8 +6786,34 @@ function getRedesignSuggestions(programType, fillRate, costRecovery, area, decis
 }
 
 // ─── Capacity Calculator Component ───────────────────────────────────────────
+const BGPD_FACILITIES = {
+  "Alcott Community Center": {
+    "A":1123,"B":1127,"C":810,"D":810,"E":809,"F":801,"G":810,"H":809,"I":808,"J":809,
+    "LMR":1004,"26":777,"24":778,"6":810,"7":810,"8":823,"9":814,"10":1196,"11":1192,"10-11":2423
+  },
+  "Adriane Johnson Amphitheater": {"Stage":1717,"Green Room":475},
+  "Golf Community Learning Center": {"Open Turf":29732,"Lobby - Dome":6716,"Lobby - Main Building":333},
+  "Fitness Center": {
+    "Yoga Studio":829,"Mind Body Studio":1539,"Mat Studio":910,"Pilates / Reformer Studio":1032,
+    "Multi-Purpose Room":1886,"Group X Room":2715,"Gym":6864,"Conference Room":484,
+    "Spin Room":888,"Boxing Area":196,"Training Room":969
+  },
+  "Nature Classroom": {"Exterior Shelter":562,"Classroom":492},
+  "Spray N' Play": {"Party Area 1 (Red Canopy)":986,"Party Area 2 (Blue Canopy)":1635,"Party Area 3 (Green Canopy)":728},
+  "Amphitheater Concessions Building": {"Concessions":280},
+  "Drazner Park Facility": {"Classroom":860},
+  "Willow Stream Concessions Building": {"Concessions":431,"Exterior Shelter":617},
+  "Community Arts Center": {
+    "Atrium":948,"Stage":2608,"Theater":4304,"3":1022,"4":925,"5":1033,"6":1021,"7":684,
+    "18":539,"19":1435,"20":1980,"21":1404,"20-21 (Full MPR)":3384
+  },
+  "Raupp Museum": {"Lower Gallery":1115,"Main Gallery":2211,"Crossroads Gallery":966}
+};
+
 function CapacityCalculator() {
   const [progType, setProgType] = useState("");
+  const [facility, setFacility] = useState("");
+  const [room, setRoom]         = useState("");
   const [sqft, setSqft]         = useState("");
   const [courts, setCourts]     = useState("");
   const [campers, setCampers]   = useState("");
@@ -6990,9 +7016,30 @@ function CapacityCalculator() {
               {needsSqft&&(
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Room / Space Size (sq ft)</label>
-                  <input type="number" value={sqft} onChange={e=>setSqft(e.target.value)}
-                    placeholder="e.g. 1200"
-                    className="w-full text-sm rounded border border-slate-200 px-3 py-2"/>
+                  <div className="flex gap-2 mb-1">
+                    <select value={facility} onChange={e=>{setFacility(e.target.value);setRoom("");setSqft("");}}
+                      className="flex-1 text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
+                      <option value="">Select facility…</option>
+                      {Object.keys(BGPD_FACILITIES).map(f=><option key={f} value={f}>{f}</option>)}
+                    </select>
+                  </div>
+                  {facility&&(
+                    <div className="flex gap-2 mb-1">
+                      <select value={room} onChange={e=>{setRoom(e.target.value);setSqft(e.target.value?String(BGPD_FACILITIES[facility][e.target.value]):"");}}
+                        className="w-full text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
+                        <option value="">Select room…</option>
+                        {Object.keys(BGPD_FACILITIES[facility]).map(r=>(
+                          <option key={r} value={r}>{r} — {BGPD_FACILITIES[facility][r].toLocaleString()} sq ft</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <input type="number" value={sqft} onChange={e=>{setSqft(e.target.value);setFacility("");setRoom("");}}
+                      placeholder={facility&&room?"Auto-filled — or type to override":"e.g. 1200"}
+                      className="flex-1 text-sm rounded border border-slate-200 px-3 py-2"/>
+                    {room&&<span className="text-xs shrink-0" style={{color:"#84BD00"}}>✓ {room}</span>}
+                  </div>
                 </div>
               )}
               {needsCourts&&(
@@ -7057,9 +7104,30 @@ function CapacityCalculator() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Indoor Space (sq ft, optional)</label>
-                <input type="number" value={sqft} onChange={e=>setSqft(e.target.value)}
-                  placeholder="e.g. 2000"
-                  className="w-full text-sm rounded border border-slate-200 px-3 py-2"/>
+                <div className="flex gap-2 mb-1">
+                  <select value={facility} onChange={e=>{setFacility(e.target.value);setRoom("");setSqft("");}}
+                    className="flex-1 text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
+                    <option value="">Select facility…</option>
+                    {Object.keys(BGPD_FACILITIES).map(f=><option key={f} value={f}>{f}</option>)}
+                  </select>
+                </div>
+                {facility&&(
+                  <div className="flex gap-2 mb-1">
+                    <select value={room} onChange={e=>{setRoom(e.target.value);setSqft(e.target.value?String(BGPD_FACILITIES[facility][e.target.value]):"");}}
+                      className="w-full text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
+                      <option value="">Select room…</option>
+                      {Object.keys(BGPD_FACILITIES[facility]).map(r=>(
+                        <option key={r} value={r}>{r} — {BGPD_FACILITIES[facility][r].toLocaleString()} sq ft</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <input type="number" value={sqft} onChange={e=>{setSqft(e.target.value);setFacility("");setRoom("");}}
+                    placeholder={facility&&room?"Auto-filled — or type to override":"e.g. 2000"}
+                    className="flex-1 text-sm rounded border border-slate-200 px-3 py-2"/>
+                  {room&&<span className="text-xs shrink-0" style={{color:"#84BD00"}}>✓ {room}</span>}
+                </div>
               </div>
             </div>
           )}
