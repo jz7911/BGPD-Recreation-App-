@@ -1377,7 +1377,12 @@ function MultiFilter({filters, onChange, counts}) {
 // ─── Dashboard (Staff View — unchanged from original) ─────────────────────────
 function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
   // Default to filtering by own name so staff see their programs immediately
-  const [filters,setFilters] = useState(()=>{const fy=(()=>{const d=new Date();const y=d.getMonth()>=4?d.getFullYear():d.getFullYear()-1;return `${String(y).slice(-2)}-${String(y+1).slice(-2)}`;})();return {staff:new Set([staffName].filter(Boolean)),area:new Set(),season:new Set(),year:new Set(YEARS.includes(fy)?[fy]:[])}});
+  const [filters,setFilters] = useState({staff:new Set([staffName].filter(Boolean)),area:new Set(),season:new Set(),year:new Set()});
+  useEffect(()=>{
+    if(!programs.length) return;
+    const years=[...new Set(programs.filter(p=>!p.is_archived&&p.staff_name===staffName).map(p=>toFY(p.year)).filter(Boolean))].sort().reverse();
+    if(years.length) setFilters(f=>({...f,year:new Set([years[0]])}));
+  },[]);
   const [dv,setDv]           = useState("summary");
   const [showReport,setShowReport] = useState(false);
 
@@ -1678,16 +1683,17 @@ function NeedsAttentionQueue({programs,onEdit}){
 }
 
 function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
-  const [filters,setFilters] = useState(()=>{const fy=(()=>{const d=new Date();const y=d.getMonth()>=4?d.getFullYear():d.getFullYear()-1;return `${String(y).slice(-2)}-${String(y+1).slice(-2)}`;})();return {staff:new Set(),area:new Set(),season:new Set(),year:new Set(YEARS.includes(fy)?[fy]:[])}});
+  const [filters,setFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
+  // Default to latest year that has actual program data once programs load
+  useEffect(()=>{
+    if(!programs.length) return;
+    const years=[...new Set(programs.filter(p=>!p.is_archived).map(p=>toFY(p.year)).filter(Boolean))].sort().reverse();
+    if(years.length) setFilters(f=>({...f,year:new Set([years[0]])}));
+  },[]);
   function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
   const [capitalPct,setCapitalPct] = useState(5);
   const [capitalYear,setCapitalYear] = useState("all");
-  const [workloadFY,setWorkloadFY]   = useState(()=>{
-    const d=new Date();
-    const y=d.getMonth()>=4?d.getFullYear():d.getFullYear()-1;
-    const fy=`${String(y).slice(-2)}-${String(y+1).slice(-2)}`;
-    return YEARS.includes(fy)?fy:(YEARS.length>0?YEARS[YEARS.length-1]:"all");
-  });
+
   const [collapsed,setCollapsed] = useState({topbottom:true,rpp:true,capacity:true,classmix:true,workload:true,snapshot:true,areabreakdown:true,nps:true,programdetail:false,highdemand:true});
   function toggleSection(id){setCollapsed(s=>({...s,[id]:!s[id]}));}
   // SectionHeader hoisted to module level — see below ManagerDashboard
@@ -1697,7 +1703,6 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   const [pdArea,setPdArea]       = useState("all");
   const [pdStaff,setPdStaff]     = useState("all");
   const [pdSeason,setPdSeason]   = useState("all");
-  const [pdYear,setPdYear]       = useState("all");
   const [showReport,setShowReport] = useState(false);
 
   const allStaff   = [...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
@@ -1718,14 +1723,13 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
     .filter(p=>pdArea==="all"||p.area===pdArea)
     .filter(p=>pdStaff==="all"||p.staff_name===pdStaff)
     .filter(p=>pdSeason==="all"||p.season===pdSeason)
-    .filter(p=>pdYear==="all"||toFY(p.year)===pdYear)
     .filter(p=>!pdSearch||p.name.toLowerCase().includes(pdSearch.toLowerCase())||(p.staff_name||"").toLowerCase().includes(pdSearch.toLowerCase()))
     .sort((a,b)=>{
       let av=a[sort.col], bv=b[sort.col];
       if(typeof av==="string") av=av.toLowerCase();
       if(typeof bv==="string") bv=bv.toLowerCase();
       return av<bv?-sort.dir:av>bv?sort.dir:0;
-    }),[kpis,sort,pdSearch,pdArea,pdStaff,pdSeason,pdYear]);
+    }),[kpis,sort,pdSearch,pdArea,pdStaff,pdSeason]);
 
   const toggleSort = col => setSort(s=>s.col===col?{col,dir:-s.dir}:{col,dir:1});
   const sortIcon   = col => sort.col===col?(sort.dir===1?"↑":"↓"):"";
@@ -1741,12 +1745,10 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   const actEnr   = vis.reduce((a,p)=>a+(p.act_enrollment||0),0);
   const antCost  = kpis.reduce((a,p)=>a+p.antTotal,0);
   const actCost  = kpis.reduce((a,p)=>a+p.totalCost,0);
-  // FT Staff allocation — filtered by workloadFY same as workload panel
-  const ftKpis     = workloadFY==="all" ? kpis : kpis.filter(p=>toFY(p.year)===workloadFY);
-  const antFtStaff = ftKpis.reduce((a,p)=>a+(calcCR(p,"ant_").ftStaff||0),0);
-  const actFtStaff = ftKpis.reduce((a,p)=>a+(calcCR(p,"act_").ftStaff||0),0);
-  // Unique FT staff count from filtered programs
-  const ftStaffCount = new Set(ftKpis.map(p=>p.staff_name).filter(Boolean)).size;
+  // FT Staff allocation — kpis already filtered by filters.year via vis
+  const antFtStaff = kpis.reduce((a,p)=>a+(calcCR(p,"ant_").ftStaff||0),0);
+  const actFtStaff = kpis.reduce((a,p)=>a+(calcCR(p,"act_").ftStaff||0),0);
+  const ftStaffCount = new Set(kpis.map(p=>p.staff_name).filter(Boolean)).size;
   const ftStaffBudget = ftStaffCount * FT_ANNUAL_SALARY;
   const ftStaffCap60  = ftStaffBudget * 0.60; // 60% allocation target
   const antFtPct  = ftStaffBudget > 0 ? antFtStaff / ftStaffBudget : 0;
@@ -1790,8 +1792,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   const revPerPart  = totalActEnr>0 ? actRev/totalActEnr : 0;
   const rppByArea   = useMemo(()=>{
     const map={};
-    const wlSource = workloadFY==="all" ? kpis : kpis.filter(p=>toFY(p.year)===workloadFY);
-    wlSource.forEach(p=>{
+    kpis.forEach(p=>{
       const enr=p.act_enrollment||0; const rev=p.revenue||0;
       if(!map[p.area]) map[p.area]={area:p.area,rev:0,enr:0};
       map[p.area].rev+=rev; map[p.area].enr+=enr;
@@ -1815,8 +1816,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   // ── Workload by staff ──
   const workloadByStaff = useMemo(()=>{
     const map={};
-    const wlSource = workloadFY==="all" ? kpis : kpis.filter(p=>toFY(p.year)===workloadFY);
-    wlSource.forEach(p=>{
+    kpis.forEach(p=>{
       const name=p.staff_name||"Unknown";
       if(!map[name]) map[name]={name,totalWL:0,count:0};
       const typePct = p.ant_program_type&&p.ant_program_type!=="Custom"
@@ -1830,7 +1830,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
       map[name].programs.push({name:p.name,wlPct,type:p.ant_program_type||"Custom"});
     });
     return Object.values(map).sort((a,b)=>b.totalWL-a.totalWL);
-  },[kpis,workloadFY]);
+  },[kpis])
 
   // ── Classification mix ──
   const classMix = useMemo(()=>{
@@ -1984,19 +1984,11 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
         <div className="bg-white rounded-lg shadow-sm p-5">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div>
-              <div className="flex items-center gap-3">
-                <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.12em",color:"#5C462B"}}>FT Staff Allocation vs. 60% Target</div>
-                <select value={workloadFY} onChange={e=>setWorkloadFY(e.target.value)}
-                  className="text-xs rounded border border-slate-200 px-2 py-1 bg-white"
-                  style={{color:"#5C462B"}}>
-                  <option value="all">All Years</option>
-                  {YEARS.map(y=><option key={y} value={y}>FY {y}</option>)}
-                </select>
-              </div>
+              <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.12em",color:"#5C462B"}}>FT Staff Allocation vs. 60% Target</div>
               <div className="text-xs text-slate-700 mt-0.5">
                 {ftStaffBudget>0
                   ? <>{ftStaffCount} FT staff × ${FT_ANNUAL_SALARY.toLocaleString()} = ${ftStaffBudget.toLocaleString()} total payroll &nbsp;·&nbsp; 60% target = ${Math.round(ftStaffCap60).toLocaleString()}</>
-                  : <span className="text-slate-400">No program data for {workloadFY==="all"?"this selection":"FY "+workloadFY}</span>
+                  : <span className="text-slate-400">No program data for selected year(s)</span>
                 }
               </div>
             </div>
@@ -2293,23 +2285,14 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
       {/* ── Staff Workload Allocation ── */}
       <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
           <SectionHeader id="workload" title="Staff Workload Allocation"
-            sub={`Total FT time — 100% = one full-time salary · ${workloadFY==="all"?"All Years":"FY "+workloadFY}`}
+            sub="Total FT time across all programs — 100% = one full-time salary"
             badge={workloadByStaff.some(s=>s.totalWL>60)?"⚠ Over-allocation flagged":null} collapsed={collapsed} onToggle={toggleSection}/>
           {!collapsed["workload"]&&<div className="p-4 space-y-3">
             {workloadByStaff.length===0&&(
               <div className="text-sm text-center py-4" style={{color:"#A09080"}}>
-                No program data for {workloadFY==="all"?"all years":"FY "+workloadFY}. Select a different fiscal year.
+                No program data for the selected year(s). Use the Year filter above to change the view.
               </div>
             )}
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-semibold" style={{color:"#A09080"}}>Showing workload for:</span>
-              <select value={workloadFY} onChange={e=>setWorkloadFY(e.target.value)}
-                className="text-xs rounded border border-slate-200 px-2 py-1 bg-white"
-                style={{color:"#5C462B"}}>
-                <option value="all">All Years</option>
-                {YEARS.map(y=><option key={y} value={y}>FY {y}</option>)}
-              </select>
-            </div>
             {workloadByStaff.map(s=>{
               const over = s.totalWL>75;
               const warn = s.totalWL>60&&!over;
@@ -2382,13 +2365,9 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
-            <select value={pdYear} onChange={e=>setPdYear(e.target.value)}
-              className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
-              <option value="all">All Years</option>
-              {YEARS.map(y=><option key={y} value={y}>FY {y}</option>)}
-            </select>
-            {(pdSearch||pdArea!=="all"||pdStaff!=="all"||pdSeason!=="all"||pdYear!=="all")&&(
-              <button onClick={()=>{setPdSearch("");setPdArea("all");setPdStaff("all");setPdSeason("all");setPdYear("all");}}
+
+            {(pdSearch||pdArea!=="all"||pdStaff!=="all"||pdSeason!=="all")&&(
+              <button onClick={()=>{setPdSearch("");setPdArea("all");setPdStaff("all");setPdSeason("all");}}
                 className="text-xs px-2 py-1 rounded" style={{color:"#E35205",background:"rgba(227,82,5,0.08)",border:"none"}}>
                 ✕ Clear
               </button>
