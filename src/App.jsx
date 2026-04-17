@@ -1380,9 +1380,11 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
   const [filters,setFilters] = useState({staff:new Set([staffName].filter(Boolean)),area:new Set(),season:new Set(),year:new Set()});
   useEffect(()=>{
     if(!programs.length) return;
+    const currentFY=(()=>{const d=new Date();const y=d.getMonth()>=4?d.getFullYear():d.getFullYear()-1;return `${String(y).slice(-2)}-${String(y+1).slice(-2)}`;})();
     const years=[...new Set(programs.filter(p=>!p.is_archived&&p.staff_name===staffName).map(p=>toFY(p.year)).filter(Boolean))].sort().reverse();
-    if(years.length) setFilters(f=>({...f,year:new Set([years[0]])}));
-  },[]);
+    const defaultFY = years.includes(currentFY) ? currentFY : (years[0]||currentFY);
+    setFilters(f=>{...f,year:new Set([defaultFY])});
+  },[]); 
   const [dv,setDv]           = useState("summary");
   const [showReport,setShowReport] = useState(false);
 
@@ -1687,9 +1689,12 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   // Default to latest year that has actual program data once programs load
   useEffect(()=>{
     if(!programs.length) return;
+    const currentFY=(()=>{const d=new Date();const y=d.getMonth()>=4?d.getFullYear():d.getFullYear()-1;return `${String(y).slice(-2)}-${String(y+1).slice(-2)}`;})();
     const years=[...new Set(programs.filter(p=>!p.is_archived).map(p=>toFY(p.year)).filter(Boolean))].sort().reverse();
-    if(years.length) setFilters(f=>({...f,year:new Set([years[0]])}));
-  },[]);
+    // Default to current calendar FY if it has data; otherwise latest year with data
+    const defaultFY = years.includes(currentFY) ? currentFY : (years[0]||currentFY);
+    setFilters(f=>{...f,year:new Set([defaultFY])});
+  },[]); 
   function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
   const [capitalPct,setCapitalPct] = useState(5);
   const [capitalYear,setCapitalYear] = useState("all");
@@ -1882,8 +1887,9 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   },[kpis,programs]);
 
   // ── Top/Bottom performers ──
-  const byFill   = [...kpis].sort((a,b)=>b.fillRate-a.fillRate);
-  const byCR     = [...kpis].sort((a,b)=>b.costRecovery-a.costRecovery);
+  const withActuals = kpis.filter(p=>p.hasActuals);
+  const byFill   = [...withActuals].sort((a,b)=>b.fillRate-a.fillRate);
+  const byCR     = [...withActuals].sort((a,b)=>b.costRecovery-a.costRecovery);
   const top3Fill = byFill.slice(0,3);
   const bot3Fill = byFill.slice(-3).reverse();
   const top3CR   = byCR.slice(0,3);
