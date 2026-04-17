@@ -2654,7 +2654,7 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
   const toggleGroup = key => setOpenGroups(prev=>({...prev,[key]:!prev[key]}));
   const multiCount = (() => {
     const groups = {};
-    programs.filter(p=>!p.is_archived&&(isManager||p.staff_name===staffName||p.peer_visible!==false)).forEach(p=>{
+    programs.filter(p=>!p.is_deleted&&(isManager||p.staff_name===staffName||p.peer_visible!==false)).forEach(p=>{
       const k = `${p.name}||${p.staff_name}`;
       groups[k] = (groups[k]||0)+1;
     });
@@ -2662,11 +2662,11 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
   })();
   const groups = useMemo(()=>{
     const map = {};
-    programs.filter(p=>!p.is_archived).forEach(p=>{
+    programs.filter(p=>!p.is_deleted).forEach(p=>{
       const key = `${(p.name||"").toLowerCase().trim()}__${(p.staff_name||"").toLowerCase().trim()}`;
       if(!map[key]) map[key]={name:p.name,area:p.area,staff:p.staff_name,seasons:[]};
       const k = calcKPIs(p);
-      map[key].seasons.push({...p,...k});
+      map[key].seasons.push({...p,...k,_archived:!!p.is_archived});
     });
     return Object.values(map)
       .filter(g=>showSingle||g.seasons.length>1)
@@ -2706,14 +2706,14 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
           {isManager&&<select value={mvStaff} onChange={e=>setMvStaff(e.target.value)}
             className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
             <option value="all">All Staff</option>
-            {[...new Set(programs.filter(p=>!p.is_archived&&p.staff_name).map(p=>p.staff_name))].sort().map(s=>(
+            {[...new Set(programs.filter(p=>!p.is_deleted&&p.staff_name).map(p=>p.staff_name))].sort().map(s=>(
               <option key={s} value={s}>{s}</option>
             ))}
           </select>}
           <select value={mvArea} onChange={e=>setMvArea(e.target.value)}
             className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
             <option value="all">All Areas</option>
-            {[...new Set(programs.filter(p=>!p.is_archived).map(p=>p.area).filter(Boolean))].sort().map(a=>(
+            {[...new Set(programs.filter(p=>!p.is_deleted).map(p=>p.area).filter(Boolean))].sort().map(a=>(
               <option key={a} value={a}>{a}</option>
             ))}
           </select>
@@ -2727,7 +2727,7 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
           <select value={mvYear} onChange={e=>setMvYear(e.target.value)}
             className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
             <option value="all">All Years</option>
-            {[...new Set(programs.filter(p=>!p.is_archived).map(p=>toFY(p.year)).filter(Boolean))].sort().map(y=>(
+            {[...new Set(programs.filter(p=>!p.is_deleted).map(p=>toFY(p.year)).filter(Boolean))].sort().map(y=>(
               <option key={y} value={y}>FY {y}</option>
             ))}
           </select>
@@ -2757,6 +2757,7 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
             <div className="flex-1 min-w-0">
               <div className="font-bold text-slate-800 flex items-center gap-2">
                 {g.name}
+                {g.seasons.every(s=>s._archived)&&<span className="text-xs font-normal px-1.5 py-0.5 rounded" style={{background:"#f1f5f9",color:"#64748b"}}>All archived</span>}
                 {(()=>{
                   const srt=[...g.seasons].sort((a,b)=>toCalYear(b.year)-toCalYear(a.year));
                   if(srt.length<2) return null;
@@ -2790,7 +2791,10 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
                 return SO.indexOf(a.season)-SO.indexOf(b.season);
               }).map((s,i)=>(
                 <tr key={s.id} className={`border-t border-slate-50 hover:bg-gray-200 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
-                  <td className="px-4 py-2.5 font-semibold text-slate-800 whitespace-nowrap">{s.season} FY {toFY(s.year)}</td>
+                  <td className="px-4 py-2.5 font-semibold text-slate-800 whitespace-nowrap">
+                    {s.season} FY {toFY(s.year)}
+                    {s._archived&&<span className="ml-1.5 text-xs font-normal px-1.5 py-0.5 rounded" style={{background:"#f1f5f9",color:"#64748b"}}>Archived</span>}
+                  </td>
                   <td className="px-4 py-2.5 font-mono text-xs">{pct(s.fillRate)}</td>
                   <td className="px-4 py-2.5 font-mono text-xs">{pct(s.costRecovery)}</td>
                   <td className={`px-4 py-2.5 font-mono text-xs font-semibold ${s.profitLoss>=0?"text-green-700":"text-red-600"}`}>{dollar(s.profitLoss)}</td>
@@ -3535,6 +3539,14 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
 function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDupSingle}) {
   const [filters,setFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
   const [search,setSearch]   = useState("");
+  useEffect(()=>{
+    if(!programs.length) return;
+    const d=new Date(); const y=d.getMonth()>=4?d.getFullYear():d.getFullYear()-1;
+    const currentFY=`${String(y).slice(-2)}-${String(y+1).slice(-2)}`;
+    const years=[...new Set(programs.filter(p=>!p.is_archived).map(p=>toFY(p.year)).filter(Boolean))].sort().reverse();
+    const defaultFY=years.includes(currentFY)?currentFY:(years[0]||currentFY);
+    setFilters(f=>({...f,year:new Set([defaultFY])}));
+  },[]);
   const [plSort,setPlSort]   = useState("updated"); // updated|name|fill|status
   const [showArchived,setShowArchived] = useState(false);
   function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
