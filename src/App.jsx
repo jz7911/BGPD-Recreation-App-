@@ -1711,7 +1711,7 @@ function NeedsAttentionQueue({programs,onEdit}){
 }
 
 function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
-  const [filters,setFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
+  const [filters,setFilters] = useState(()=>({staff:new Set(),area:new Set(),season:new Set(),year:returnToYear?new Set([returnToYear]):new Set()}));
   // Default to latest year that has actual program data once programs load
   useEffect(()=>{
     if(!programs.length) return;
@@ -3568,18 +3568,20 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
   const [search,setSearch]   = useState("");
   useEffect(()=>{
     if(!programs.length) return;
+    // Only set default FY if no year already selected (e.g. first load with no returnToYear)
     if(returnToYear) {
-      // Restore the year of the program we just came from
-      setFilters(f=>({...f,year:new Set([returnToYear])}));
       if(onReturnToYearConsumed) onReturnToYearConsumed();
       return;
     }
-    const d=new Date(); const y=d.getMonth()>=4?d.getFullYear():d.getFullYear()-1;
-    const currentFY=`${String(y).slice(-2)}-${String(y+1).slice(-2)}`;
-    const years=[...new Set(programs.filter(p=>!p.is_archived).map(p=>toFY(p.year)).filter(Boolean))].sort().reverse();
-    const defaultFY=years.includes(currentFY)?currentFY:(years[0]||currentFY);
-    setFilters(f=>({...f,year:new Set([defaultFY])}));
-  },[returnToYear]);
+    setFilters(f=>{
+      if(f.year.size>0) return f; // already has a year set from returnToYear init
+      const d=new Date(); const y=d.getMonth()>=4?d.getFullYear():d.getFullYear()-1;
+      const currentFY=`${String(y).slice(-2)}-${String(y+1).slice(-2)}`;
+      const years=[...new Set(programs.filter(p=>!p.is_archived).map(p=>toFY(p.year)).filter(Boolean))].sort().reverse();
+      const defaultFY=years.includes(currentFY)?currentFY:(years[0]||currentFY);
+      return {...f,year:new Set([defaultFY])};
+    });
+  },[programs,returnToYear]);
   const [plSort,setPlSort]   = useState("updated"); // updated|name|fill|status
   const [showArchived,setShowArchived] = useState(false);
   function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
