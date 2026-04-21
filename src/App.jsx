@@ -91,7 +91,7 @@ const DB_FIELDS = [
   "id","created_at",
   "name","area","season","year","classification","service_category",
   "trend","nps","notes","staff_name","waitlist",
-  "ant_capacity","ant_enrollment","ant_revenue","ant_revenue2","act_revenue2","revenue2_label",
+  "ant_capacity","ant_enrollment","ant_revenue","ant_revenue2","act_revenue2","revenue2_label","ant_revenue3","act_revenue3","revenue3_label",
   "ant_personnel","ant_commodities","ant_contractuals",
   "ant_other1","ant_other2","ant_facility_hours",
   "ant_program_type","ant_custom_workload","ant_custom_type_label",
@@ -139,7 +139,7 @@ function calcCR(p, px) {
   const facHrs       = p[px+"facility_hours"] || 0;
   const progType     = p[px+"program_type"]   || "";
   const customWL     = p[px+"custom_workload"]|| 0;
-  const revenue      = (p[px+"revenue"]||0) + (p[px+"revenue2"]||0);
+  const revenue      = (p[px+"revenue"]||0) + (p[px+"revenue2"]||0) + (p[px+"revenue3"]||0);
   const enrollment   = p[px+"enrollment"]     || 0;
   const capacity     = p[px+"capacity"]       || 0;
   const wlPct = parseFloat(customWL) > 0
@@ -820,7 +820,7 @@ function CostPanel({px,p,set,isManager=false}) {
           <div className="flex items-center gap-1">
             <input
               className="text-xs font-semibold text-slate-700 uppercase tracking-wide bg-transparent border-b border-dashed border-gray-200 focus:border-blue-400 focus:outline-none w-full"
-              value={p.revenue2_label||"Additional Revenue"}
+              value={p.revenue2_label!==undefined?p.revenue2_label:"Additional Revenue"}
               onChange={e=>set("revenue2_label")(e.target.value)}
               placeholder="Additional Revenue"
               title="Click to rename this revenue line"
@@ -828,6 +828,19 @@ function CostPanel({px,p,set,isManager=false}) {
             <span className="text-xs text-slate-700 shrink-0">($)</span>
           </div>
           <input type="number" min={0} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-300" value={p[px+"revenue2"]||""} onChange={e=>set(px+"revenue2")(parseFloat(e.target.value)||0)} placeholder="0"/>
+        </div>
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-1">
+            <input
+              className="text-xs font-semibold text-slate-700 uppercase tracking-wide bg-transparent border-b border-dashed border-gray-200 focus:border-blue-400 focus:outline-none w-full"
+              value={p.revenue3_label!==undefined?p.revenue3_label:"Additional Revenue 2"}
+              onChange={e=>set("revenue3_label")(e.target.value)}
+              placeholder="Additional Revenue 2"
+              title="Click to rename this revenue line"
+            />
+            <span className="text-xs text-slate-700 shrink-0">($)</span>
+          </div>
+          <input type="number" min={0} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-300" value={p[px+"revenue3"]||""} onChange={e=>set(px+"revenue3")(parseFloat(e.target.value)||0)} placeholder="0"/>
         </div>
       </div>
       <div>
@@ -840,7 +853,7 @@ function CostPanel({px,p,set,isManager=false}) {
             <div className="flex items-center gap-1">
               <input
                 className="text-xs font-semibold text-slate-700 uppercase tracking-wide bg-transparent border-b border-dashed border-gray-200 focus:border-blue-400 focus:outline-none w-full"
-                value={p.other1_label||"Other Direct Costs"}
+                value={p.other1_label!==undefined?p.other1_label:"Other Direct Costs"}
                 onChange={e=>set("other1_label")(e.target.value)}
                 placeholder="Other Direct Costs"
                 title="Click to rename this cost line"
@@ -853,7 +866,7 @@ function CostPanel({px,p,set,isManager=false}) {
             <div className="flex items-center gap-1">
               <input
                 className="text-xs font-semibold text-slate-700 uppercase tracking-wide bg-transparent border-b border-dashed border-gray-200 focus:border-blue-400 focus:outline-none w-full"
-                value={p.other2_label||"Other Direct Costs 2"}
+                value={p.other2_label!==undefined?p.other2_label:"Other Direct Costs 2"}
                 onChange={e=>set("other2_label")(e.target.value)}
                 placeholder="Other Direct Costs 2"
                 title="Click to rename this cost line"
@@ -2918,7 +2931,7 @@ function SubProgramTracker({programs,onChange}){
 }
 
 function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndStay,onDelete,onArchive,onDuplicate,onCancel,saving}) {
-  const [p,setP]             = useState(()=> initial ? {...cleanForDB(initial), decision_log: initial.decision_log||[], other1_label: initial.other1_label||"Other Direct Costs", other2_label: initial.other2_label||"Other Direct Costs 2"} : newProgram(staffName));
+  const [p,setP]             = useState(()=> initial ? {...cleanForDB(initial), decision_log: initial.decision_log||[], other1_label: initial.other1_label!==undefined?initial.other1_label:"Other Direct Costs", other2_label: initial.other2_label!==undefined?initial.other2_label:"Other Direct Costs 2"} : newProgram(staffName));
   const set                  = k => v => setP(prev=>({...prev,[k]:v}));
   const [sec,setSec]         = useState("info");
   const [confirm,setConfirm]         = useState(false);
