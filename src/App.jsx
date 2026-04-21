@@ -3563,17 +3563,23 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
 }
 
 // ─── Programs List ────────────────────────────────────────────────────────────
-function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDupSingle}) {
+function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDupSingle,returnToYear,onReturnToYearConsumed}) {
   const [filters,setFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
   const [search,setSearch]   = useState("");
   useEffect(()=>{
     if(!programs.length) return;
+    if(returnToYear) {
+      // Restore the year of the program we just came from
+      setFilters(f=>({...f,year:new Set([returnToYear])}));
+      if(onReturnToYearConsumed) onReturnToYearConsumed();
+      return;
+    }
     const d=new Date(); const y=d.getMonth()>=4?d.getFullYear():d.getFullYear()-1;
     const currentFY=`${String(y).slice(-2)}-${String(y+1).slice(-2)}`;
     const years=[...new Set(programs.filter(p=>!p.is_archived).map(p=>toFY(p.year)).filter(Boolean))].sort().reverse();
     const defaultFY=years.includes(currentFY)?currentFY:(years[0]||currentFY);
     setFilters(f=>({...f,year:new Set([defaultFY])}));
-  },[]);
+  },[returnToYear]);
   const [plSort,setPlSort]   = useState("updated"); // updated|name|fill|status
   const [showArchived,setShowArchived] = useState(false);
   function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
@@ -7494,6 +7500,7 @@ export default function App() {
   const [loading,setLoading]               = useState(true);
   const [saving,setSaving]                 = useState(false);
   const [savedFlash,setSavedFlash]         = useState(false);
+  const [returnToYear,setReturnToYear]     = useState(null);
   const [error,setError]                   = useState(null);
   const [staffName,setStaffName]           = useState(()=>localStorage.getItem("bgpd_staff_name")||"");
   const [viewAsManager,setViewAsManager]   = useState(()=>MANAGER_NAMES.includes((localStorage.getItem("bgpd_staff_name")||"").toLowerCase().trim()));
@@ -7562,7 +7569,7 @@ export default function App() {
         if(e) throw e;
         await fetchAll();
         setAddingProgram(false);
-        if(inserted){ setEditingProgram(inserted); setTab("programs"); }
+        if(inserted){ setReturnToYear(toFY(inserted.year)); setEditingProgram(inserted); setTab("programs"); }
         else { setEditingProgram(null); setTab("programs"); }
       }
     } catch(e){ setError("Failed to save: "+(e.message||"unknown error")); }
@@ -7737,7 +7744,9 @@ export default function App() {
                 onEdit={setEditingProgram}
                 onAdd={()=>setAddingProgram(true)}
                 onBulkDup={()=>setShowBulkDup(true)}
-                onDupSingle={setDupProgram}/>
+                onDupSingle={setDupProgram}
+                returnToYear={returnToYear}
+                onReturnToYearConsumed={()=>setReturnToYear(null)}/>
             )}
             {tab==="programs"&&showingForm&&(
               <ProgramForm
@@ -7750,7 +7759,7 @@ export default function App() {
                 onDelete={handleDeleteProgram}
                 onArchive={handleArchiveProgram}
                 onDuplicate={p=>setDupProgram(p)}
-                onCancel={()=>{setEditingProgram(null);setAddingProgram(false);}}
+                onCancel={()=>{if(editingProgram?.year) setReturnToYear(toFY(editingProgram.year));setEditingProgram(null);setAddingProgram(false);}}
                 saving={saving}
                 savedFlash={savedFlash}/>
             )}
