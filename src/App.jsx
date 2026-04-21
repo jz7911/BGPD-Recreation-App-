@@ -3564,7 +3564,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
 }
 
 // ─── Programs List ────────────────────────────────────────────────────────────
-function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDupSingle,returnToYear,onReturnToYearConsumed}) {
+function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDupSingle,onBulkArchive,onBulkDelete,returnToYear,onReturnToYearConsumed}) {
   const [filters,setFilters] = useState(()=>({staff:new Set(),area:new Set(),season:new Set(),year:returnToYear?new Set([returnToYear]):new Set()}));
   const [search,setSearch]   = useState("");
   // Set year filter on mount — use returnToYear if coming back from edit, else default FY
@@ -3577,6 +3577,10 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
     if(returnToYear && onReturnToYearConsumed) onReturnToYearConsumed();
   },[]);
   const [plSort,setPlSort]   = useState("updated"); // updated|name|fill|status
+  const [selected,setSelected] = useState(new Set()); // selected program ids for bulk actions
+  const toggleSelect = id => setSelected(s=>{const n=new Set(s);n.has(id)?n.delete(id):n.add(id);return n;});
+  const selectAll  = ids => setSelected(new Set(ids));
+  const clearSelect = () => setSelected(new Set());
   const [showArchived,setShowArchived] = useState(false);
   function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
 
@@ -3636,17 +3640,55 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
             <option value="fill">Sort: Fill Rate ↓</option>
             <option value="status">Sort: Needs Attention First</option>
           </select>
+          {vis.length>0&&(
+            <button onClick={()=>selected.size===vis.length?clearSelect():selectAll(vis.map(p=>p.id))}
+              className="text-xs font-semibold px-3 py-1.5 rounded border shrink-0 transition"
+              style={selected.size===vis.length
+                ?{background:"#00A9CE",color:"#fff",borderColor:"#00A9CE"}
+                :{background:"#fff",color:"#5C462B",borderColor:"rgba(92,70,43,0.3)"}}>
+              {selected.size===vis.length?"✓ All selected":"Select All"}
+            </button>
+          )}
       </div>
+      {selected.size>0&&(
+        <div className="bg-white rounded-lg shadow-sm px-4 py-3 flex items-center gap-3 flex-wrap" style={{border:"2px solid #00A9CE"}}>
+          <span className="text-sm font-semibold" style={{color:"#00A9CE"}}>{selected.size} selected</span>
+          {!showArchived&&onBulkArchive&&(
+            <button onClick={()=>{onBulkArchive([...selected],true);clearSelect();}}
+              className="text-xs font-semibold px-3 py-1.5 rounded border transition"
+              style={{borderColor:"#64748b",color:"#64748b"}}>
+              Archive Selected
+            </button>
+          )}
+          {showArchived&&onBulkArchive&&(
+            <button onClick={()=>{onBulkArchive([...selected],false);clearSelect();}}
+              className="text-xs font-semibold px-3 py-1.5 rounded border transition"
+              style={{borderColor:"#84BD00",color:"#84BD00"}}>
+              Restore Selected
+            </button>
+          )}
+          {showArchived&&isManager&&onBulkDelete&&(
+            <button onClick={()=>{if(window.confirm(`Permanently delete ${selected.size} program${selected.size!==1?"s":""}? This cannot be undone.`)){onBulkDelete([...selected]);clearSelect();}}}
+              className="text-xs font-semibold px-3 py-1.5 rounded border transition"
+              style={{borderColor:"#E35205",color:"#E35205"}}>
+              Delete Selected
+            </button>
+          )}
+          <button onClick={clearSelect}
+            className="text-xs text-slate-500 hover:text-slate-700 ml-auto">✕ Clear</button>
+        </div>
+      )}
       {vis.length===0 ? (
         <div className="bg-white rounded-lg shadow-sm p-12 text-center text-slate-700 text-sm">No programs found.</div>
       ) : (
         <div className="space-y-2">{vis.map(p=>{
           const k = calcKPIs(p);
           const lastUpdated = p.updated_at||p.created_at;
+          const isSelected = selected.has(p.id);
           return (
             <div key={p.id}
-              onClick={()=>(isManager||p.staff_name===staffName)?onEdit(p):null}
-              className={`bg-white rounded-lg shadow-sm px-4 py-3 flex items-center justify-between gap-4 transition ${isManager||p.staff_name===staffName?"hover:shadow-md cursor-pointer":"cursor-default opacity-90"}`}>
+              onClick={e=>{if(e.target.type==="checkbox") return; (isManager||p.staff_name===staffName)?onEdit(p):null;}}
+              className={`bg-white rounded-lg shadow-sm px-4 py-3 flex items-center justify-between gap-4 transition ${isSelected?"ring-2 ring-teal-400":""} ${isManager||p.staff_name===staffName?"hover:shadow-md cursor-pointer":"cursor-default opacity-90"}`}>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <div className="font-semibold text-slate-800 truncate">{p.name}</div>
@@ -7601,7 +7643,7 @@ export default function App() {
       is_archived: true,
     }).eq("id",id);
     if(de) setError("Failed to delete program: "+de.message);
-    else { await fetchAll(); setEditingProgram(null); setTab("dashboard"); }
+    else { await fetchAll(); if(id) setReturnToYear(toFY(programs.find(p=>p.id===id)?.year||"")); setEditingProgram(null); setAddingProgram(false); setTab("programs"); }
     setSaving(false);
   };
 
@@ -7609,7 +7651,25 @@ export default function App() {
     setSaving(true);
     const {error:ae}=await supabase.from("programs").update({is_archived: archive}).eq("id", id);
     if(ae) setError("Failed to archive program: "+ae.message);
-    else { await fetchAll(); setEditingProgram(null); setTab("programs"); }
+    else { await fetchAll(); setEditingProgram(null); setAddingProgram(false); setTab("programs"); }
+    setSaving(false);
+  };
+
+  const handleBulkArchive = async (ids, archive) => {
+    setSaving(true);
+    const {error}=await supabase.from("programs").update({is_archived: archive}).in("id", ids);
+    if(error) setError("Failed to bulk "+(archive?"archive":"restore")+": "+error.message);
+    else await fetchAll();
+    setSaving(false);
+  };
+
+  const handleBulkDelete = async ids => {
+    setSaving(true);
+    const {error}=await supabase.from("programs").update({
+      is_deleted:true, deleted_by:staffName, deleted_at:new Date().toISOString(), is_archived:true
+    }).in("id", ids);
+    if(error) setError("Failed to bulk delete: "+error.message);
+    else await fetchAll();
     setSaving(false);
   };
 
@@ -7739,6 +7799,8 @@ export default function App() {
                 onAdd={()=>setAddingProgram(true)}
                 onBulkDup={()=>setShowBulkDup(true)}
                 onDupSingle={setDupProgram}
+                onBulkArchive={handleBulkArchive}
+                onBulkDelete={handleBulkDelete}
                 returnToYear={returnToYear}
                 onReturnToYearConsumed={()=>setReturnToYear(null)}/>
             )}
