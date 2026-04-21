@@ -3640,17 +3640,17 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
             <option value="fill">Sort: Fill Rate ↓</option>
             <option value="status">Sort: Needs Attention First</option>
           </select>
-          {vis.length>0&&(
-            <button onClick={()=>selected.size===vis.length?clearSelect():selectAll(vis.map(p=>p.id))}
+          {isManager&&vis.length>0&&(
+            <button onClick={()=>{selectAll(vis.map(p=>p.id));if(selected.size===vis.length)clearSelect();}}
               className="text-xs font-semibold px-3 py-1.5 rounded border shrink-0 transition"
               style={selected.size===vis.length
                 ?{background:"#00A9CE",color:"#fff",borderColor:"#00A9CE"}
                 :{background:"#fff",color:"#5C462B",borderColor:"rgba(92,70,43,0.3)"}}>
-              {selected.size===vis.length?"✓ All selected":"Select All"}
+              {selected.size===vis.length&&vis.length>0?"✓ All selected":"Select All"}
             </button>
           )}
       </div>
-      {selected.size>0&&(
+      {isManager&&selected.size>0&&(
         <div className="bg-white rounded-lg shadow-sm px-4 py-3 flex items-center gap-3 flex-wrap" style={{border:"2px solid #00A9CE"}}>
           <span className="text-sm font-semibold" style={{color:"#00A9CE"}}>{selected.size} selected</span>
           {!showArchived&&onBulkArchive&&(
@@ -3689,10 +3689,12 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
             <div key={p.id}
               onClick={e=>{if(e.target.type==="checkbox") return; (isManager||p.staff_name===staffName)?onEdit(p):null;}}
               className={`bg-white rounded-lg shadow-sm px-4 py-3 flex items-center justify-between gap-4 transition ${isSelected?"ring-2 ring-teal-400":""} ${isManager||p.staff_name===staffName?"hover:shadow-md cursor-pointer":"cursor-default opacity-90"}`}>
-              <input type="checkbox" checked={isSelected}
-                onClick={e=>e.stopPropagation()}
-                onChange={()=>toggleSelect(p.id)}
-                className="shrink-0 w-4 h-4 cursor-pointer accent-teal-500"/>
+              {isManager&&(
+                <input type="checkbox" checked={isSelected}
+                  onClick={e=>e.stopPropagation()}
+                  onChange={()=>toggleSelect(p.id)}
+                  className="shrink-0 w-4 h-4 cursor-pointer accent-teal-500"/>
+              )}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <div className="font-semibold text-slate-800 truncate">{p.name}</div>
