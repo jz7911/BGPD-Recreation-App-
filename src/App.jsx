@@ -3590,7 +3590,7 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
   const allSeasons = [...SEASONS];
 
   const vis = programs
-    .filter(p=>showArchived ? !!p.is_archived : !p.is_archived)
+    .filter(p=>showArchived ? (!!p.is_archived&&!p.is_deleted) : (!p.is_archived&&!p.is_deleted))
     .filter(p=>isManager || p.staff_name===staffName || p.peer_visible!==false)
     .filter(p=>filters.staff.size===0||filters.staff.has(p.staff_name))
     .filter(p=>filters.area.size===0||filters.area.has(p.area))
@@ -3607,7 +3607,7 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
       // default: updated (most recent first via created_at proxy)
       return new Date(b.created_at||0)-new Date(a.created_at||0);
     });
-  const archivedCount = programs.filter(p=>p.is_archived&&(isManager||p.staff_name===staffName)).length;
+  const archivedCount = programs.filter(p=>p.is_archived&&!p.is_deleted&&(isManager||p.staff_name===staffName)).length;
 
   return (
     <div className="space-y-4">
