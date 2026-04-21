@@ -1711,7 +1711,7 @@ function NeedsAttentionQueue({programs,onEdit}){
 }
 
 function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
-  const [filters,setFilters] = useState(()=>({staff:new Set(),area:new Set(),season:new Set(),year:returnToYear?new Set([returnToYear]):new Set()}));
+  const [filters,setFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
   // Default to latest year that has actual program data once programs load
   useEffect(()=>{
     if(!programs.length) return;
@@ -3567,19 +3567,15 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
 function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDupSingle,returnToYear,onReturnToYearConsumed}) {
   const [filters,setFilters] = useState(()=>({staff:new Set(),area:new Set(),season:new Set(),year:returnToYear?new Set([returnToYear]):new Set()}));
   const [search,setSearch]   = useState("");
+  // Set year filter on mount — use returnToYear if coming back from edit, else default FY
   useEffect(()=>{
-    if(onReturnToYearConsumed && returnToYear) onReturnToYearConsumed();
-    if(returnToYear || !programs.length) return;
-    // No returnToYear — set default FY only on first load (empty year set)
-    setFilters(f=>{
-      if(f.year.size>0) return f;
+    const fy = returnToYear || (()=>{
       const d=new Date(); const y=d.getMonth()>=4?d.getFullYear():d.getFullYear()-1;
-      const currentFY=`${String(y).slice(-2)}-${String(y+1).slice(-2)}`;
-      const years=[...new Set(programs.filter(p=>!p.is_archived).map(p=>toFY(p.year)).filter(Boolean))].sort().reverse();
-      const defaultFY=years.includes(currentFY)?currentFY:(years[0]||currentFY);
-      return {...f,year:new Set([defaultFY])};
-    });
-  },[programs,returnToYear]);
+      return `${String(y).slice(-2)}-${String(y+1).slice(-2)}`;
+    })();
+    setFilters(f=>({...f,year:new Set([fy])}));
+    if(returnToYear && onReturnToYearConsumed) onReturnToYearConsumed();
+  },[]);
   const [plSort,setPlSort]   = useState("updated"); // updated|name|fill|status
   const [showArchived,setShowArchived] = useState(false);
   function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
