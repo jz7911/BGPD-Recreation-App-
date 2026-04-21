@@ -7546,9 +7546,19 @@ export default function App() {
     setSaving(true); setError(null);
     try {
       const data = cleanForDB(p);
-      if(data.id){ const{error:e}=await supabase.from("programs").update(data).eq("id",data.id); if(e) throw e; }
-      else        { const{error:e}=await supabase.from("programs").insert(data);                 if(e) throw e; }
-      await fetchAll(); setEditingProgram(null); setAddingProgram(false); setTab("programs");
+      if(data.id){
+        const{error:e}=await supabase.from("programs").update(data).eq("id",data.id);
+        if(e) throw e;
+        await fetchAll(); setEditingProgram(null); setAddingProgram(false); setTab("programs");
+      } else {
+        const{data:inserted,error:e}=await supabase.from("programs").insert(data).select().single();
+        if(e) throw e;
+        await fetchAll();
+        setAddingProgram(false);
+        // Open the newly saved program for editing
+        if(inserted){ setEditingProgram(inserted); setTab("programs"); }
+        else { setEditingProgram(null); setTab("programs"); }
+      }
     } catch(e){ setError("Failed to save: "+(e.message||"unknown error")); }
     setSaving(false);
   };
