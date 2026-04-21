@@ -3689,6 +3689,10 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
             <div key={p.id}
               onClick={e=>{if(e.target.type==="checkbox") return; (isManager||p.staff_name===staffName)?onEdit(p):null;}}
               className={`bg-white rounded-lg shadow-sm px-4 py-3 flex items-center justify-between gap-4 transition ${isSelected?"ring-2 ring-teal-400":""} ${isManager||p.staff_name===staffName?"hover:shadow-md cursor-pointer":"cursor-default opacity-90"}`}>
+              <input type="checkbox" checked={isSelected}
+                onClick={e=>e.stopPropagation()}
+                onChange={()=>toggleSelect(p.id)}
+                className="shrink-0 w-4 h-4 cursor-pointer accent-teal-500"/>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <div className="font-semibold text-slate-800 truncate">{p.name}</div>
@@ -7366,12 +7370,15 @@ function FYConfigPanel({db, isManager}) {
     setRows(prev=>prev.map(r=>r.fiscal_year===fy?{...r,[field]:val}:r));
   }
 
-  function addYear() {
-    const d = new Date();
-    const y = d.getMonth()>=4?d.getFullYear():d.getFullYear()-1;
-    const fy = `${String(y).slice(-2)}-${String(y+1).slice(-2)}`;
-    if(rows.find(r=>r.fiscal_year===fy)) return;
-    setRows(prev=>[{fiscal_year:fy, ft_salary:97700, facility_rate:3, admin_overhead:0.1, updated_by:""}, ...prev]);
+  const availableYears = YEARS.filter(y=>!rows.find(r=>r.fiscal_year===y));
+
+  function addYear(fy) {
+    if(!fy || rows.find(r=>r.fiscal_year===fy)) return;
+    setRows(prev=>[{fiscal_year:fy, ft_salary:97700, facility_rate:3, admin_overhead:0.1, updated_by:"", _isNew:true}, ...prev]);
+  }
+
+  function cancelRow(fy) {
+    setRows(prev=>prev.filter(r=>r.fiscal_year!==fy));
   }
 
   if(!isManager) return <div className="p-6 text-sm text-slate-500">Manager access required.</div>;
@@ -7395,11 +7402,17 @@ function FYConfigPanel({db, isManager}) {
           <div style={CARD}>
             <div className="px-4 py-2.5 flex items-center justify-between" style={{borderBottom:"1px solid rgba(92,70,43,0.09)"}}>
               <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B"}}>Fiscal Year Config</div>
-              <button onClick={addYear}
-                className="text-xs font-bold px-3 py-1.5 transition"
-                style={{background:"#00A9CE",color:"#fff",borderRadius:"2px",border:"none"}}>
-                + Add Year
-              </button>
+              <div className="flex items-center gap-2">
+                {availableYears.length>0
+                  ? <select defaultValue="" onChange={e=>{if(e.target.value){addYear(e.target.value);e.target.value="";}}}
+                      className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white"
+                      style={{color:"#5C462B"}}>
+                      <option value="">+ Add Year…</option>
+                      {availableYears.map(y=><option key={y} value={y}>FY {y}</option>)}
+                    </select>
+                  : <span className="text-xs" style={{color:"#A09080"}}>All years configured</span>
+                }
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -7413,7 +7426,10 @@ function FYConfigPanel({db, isManager}) {
                 <tbody>
                   {rows.map(row=>(
                     <tr key={row.fiscal_year} className="border-t border-slate-100">
-                      <td className="px-4 py-2.5 font-semibold" style={{color:"#5C462B"}}>FY {row.fiscal_year}</td>
+                      <td className="px-4 py-2.5 font-semibold" style={{color:"#5C462B"}}>
+                        FY {row.fiscal_year}
+                        {row._isNew&&<span className="ml-1.5 text-xs font-normal px-1.5 py-0.5 rounded" style={{background:"#E6F6FB",color:"#00A9CE"}}>New</span>}
+                      </td>
                       <td className="px-4 py-2.5">
                         <input type="number" value={row.ft_salary||""} onChange={e=>updateRow(row.fiscal_year,"ft_salary",e.target.value)}
                           className="w-28 text-sm rounded border border-slate-200 px-2 py-1 font-mono"
@@ -7431,12 +7447,21 @@ function FYConfigPanel({db, isManager}) {
                         <span className="text-xs ml-1" style={{color:"#A09080"}}>%</span>
                       </td>
                       <td className="px-4 py-2.5">
-                        <button onClick={()=>saveRow(row)}
-                          disabled={saving===row.fiscal_year}
-                          className="text-xs font-bold px-3 py-1.5 transition disabled:opacity-50"
-                          style={{background:"#84BD00",color:"#fff",borderRadius:"2px",border:"none"}}>
-                          {saving===row.fiscal_year?"Saving...":"Save"}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button onClick={()=>saveRow(row)}
+                            disabled={saving===row.fiscal_year}
+                            className="text-xs font-bold px-3 py-1.5 transition disabled:opacity-50"
+                            style={{background:"#84BD00",color:"#fff",borderRadius:"2px",border:"none"}}>
+                            {saving===row.fiscal_year?"Saving...":"Save"}
+                          </button>
+                          {row._isNew&&(
+                            <button onClick={()=>cancelRow(row.fiscal_year)}
+                              className="text-xs font-bold px-2 py-1.5 transition"
+                              style={{background:"none",border:"1px solid #E35205",color:"#E35205",borderRadius:"2px"}}>
+                              ✕
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
