@@ -3607,7 +3607,7 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
       // default: updated (most recent first via created_at proxy)
       return new Date(b.created_at||0)-new Date(a.created_at||0);
     });
-  const archivedCount = programs.filter(p=>p.is_archived&&!p.is_deleted&&(isManager||p.staff_name===staffName)).length;
+  const archivedCount = programs.filter(p=>p.is_archived&&!p.is_deleted&&(isManager||p.staff_name===staffName)&&(filters.year.size===0||filters.year.has(toFY(p.year)))).length;
 
   return (
     <div className="space-y-4">
