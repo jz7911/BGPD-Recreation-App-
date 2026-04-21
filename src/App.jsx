@@ -2930,7 +2930,7 @@ function SubProgramTracker({programs,onChange}){
   );
 }
 
-function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndStay,onDelete,onArchive,onDuplicate,onCancel,saving,savedFlash=false}) {
+function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndStay,onDelete,onArchive,onDuplicate,onCancel,saving}) {
   const [p,setP]             = useState(()=> initial ? {...cleanForDB(initial), decision_log: initial.decision_log||[], other1_label: initial.other1_label!==undefined?initial.other1_label:"Other Direct Costs", other2_label: initial.other2_label!==undefined?initial.other2_label:"Other Direct Costs 2"} : newProgram(staffName));
   const set                  = k => v => setP(prev=>({...prev,[k]:v}));
   const [sec,setSec]         = useState("info");
@@ -3553,7 +3553,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
               <button onClick={handleSave} disabled={!p.name||saving}
                 title="Save (Ctrl+S)"
                 className="px-5 py-2 text-sm font-semibold text-white rounded disabled:opacity-40"
-                style={{backgroundColor:savedFlash?"#84BD00":"#00A9CE",transition:"background-color 0.3s"}}>{saving?"Saving...":savedFlash?"✓ Saved":isNew?"Save Program":"Update Program"}</button>
+                style={{backgroundColor:"#00A9CE"}}>{saving?"Saving...":isNew?"Save Program":"Update Program"}</button>
             </div>
           </div>
         </div>
@@ -7499,7 +7499,6 @@ export default function App() {
   const [showBulkDup,setShowBulkDup]       = useState(false);
   const [loading,setLoading]               = useState(true);
   const [saving,setSaving]                 = useState(false);
-  const [savedFlash,setSavedFlash]         = useState(false);
   const [returnToYear,setReturnToYear]     = useState(null);
   const [error,setError]                   = useState(null);
   const [staffName,setStaffName]           = useState(()=>localStorage.getItem("bgpd_staff_name")||"");
@@ -7555,16 +7554,14 @@ export default function App() {
     try {
       const data = cleanForDB(p);
       if(data.id){
-        // Existing program — stay in form, flash "✓ Saved"
+        // Existing program — navigate back to list filtered to this program's FY
         const{error:e}=await supabase.from("programs").update(data).eq("id",data.id);
         if(e) throw e;
         await fetchAll();
-        setPrograms(prev=>prev.map(x=>x.id===data.id?{...x,...data}:x));
-        setEditingProgram(prev=>prev?{...prev,...data}:prev);
-        setSavedFlash(true);
-        setTimeout(()=>setSavedFlash(false), 2000);
+        setReturnToYear(toFY(data.year));
+        setEditingProgram(null); setAddingProgram(false); setTab("programs");
       } else {
-        // New program — insert and open the new record
+        // New program — insert and open the new record for editing
         const{data:inserted,error:e}=await supabase.from("programs").insert(data).select().single();
         if(e) throw e;
         await fetchAll();
@@ -7760,8 +7757,7 @@ export default function App() {
                 onArchive={handleArchiveProgram}
                 onDuplicate={p=>setDupProgram(p)}
                 onCancel={()=>{if(editingProgram?.year) setReturnToYear(toFY(editingProgram.year));setEditingProgram(null);setAddingProgram(false);}}
-                saving={saving}
-                savedFlash={savedFlash}/>
+                saving={saving}/>
             )}
             {tab==="history"&&(
               <MultiSeasonView programs={programs} staffName={staffName} isManager={effectiveManager} onEdit={p=>{setEditingProgram(p);setTab("programs");}}/>
