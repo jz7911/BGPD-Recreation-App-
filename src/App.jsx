@@ -3620,7 +3620,7 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
               Bulk Season Rollover
             </button>
           )}
-          <button onClick={()=>setShowArchived(s=>!s)}
+          <button onClick={()=>{setShowArchived(s=>!s);clearSelect();}}
             className={`text-xs font-semibold px-3 py-2 rounded border transition ${showArchived?"text-white border-transparent":"border-slate-200 text-slate-700 hover:bg-gray-200"}`}
             style={showArchived?{backgroundColor:"#64748b"}:{}}>
             📦 {showArchived?"← Active Programs":`Archived (${archivedCount})`}
