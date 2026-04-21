@@ -7963,7 +7963,8 @@ function AllocationCalculator({programs, staffName, isManager}) {
                     className="w-28 text-sm rounded border border-slate-200 px-3 py-2 font-mono"
                     style={{MozAppearance:"textfield"}}/>
                   {costLines.length>1&&<button onClick={()=>{setCostLines(costLines.filter((_,j)=>j!==i));setResult(null);}}
-                    className="text-xs font-bold px-1 shrink-0" style={{color:"#E35205",background:"none",border:"none"}}>x</button>}
+                    className="text-xs font-bold px-1 shrink-0" style={{color:"#E35205",background:"none",border:"none"}}>x</button>
+                  }
                 </div>
                 <div className="flex gap-1.5 flex-wrap items-center">
                   <span className="text-xs mr-1" style={{color:"#A09080"}}>to {budgetLabel}:</span>
