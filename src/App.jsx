@@ -2249,7 +2249,8 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
               </table>
             </div>
           )}
-        </>}
+        </>
+        }
         </div>
       )}
 
@@ -3564,17 +3565,14 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
 
 // ─── Programs List ────────────────────────────────────────────────────────────
 function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDupSingle,returnToYear,onReturnToYearConsumed}) {
-  const [filters,setFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
+  const [filters,setFilters] = useState(()=>({staff:new Set(),area:new Set(),season:new Set(),year:returnToYear?new Set([returnToYear]):new Set()}));
   const [search,setSearch]   = useState("");
   useEffect(()=>{
-    if(!programs.length) return;
-    // Only set default FY if no year already selected (e.g. first load with no returnToYear)
-    if(returnToYear) {
-      if(onReturnToYearConsumed) onReturnToYearConsumed();
-      return;
-    }
+    if(onReturnToYearConsumed && returnToYear) onReturnToYearConsumed();
+    if(returnToYear || !programs.length) return;
+    // No returnToYear — set default FY only on first load (empty year set)
     setFilters(f=>{
-      if(f.year.size>0) return f; // already has a year set from returnToYear init
+      if(f.year.size>0) return f;
       const d=new Date(); const y=d.getMonth()>=4?d.getFullYear():d.getFullYear()-1;
       const currentFY=`${String(y).slice(-2)}-${String(y+1).slice(-2)}`;
       const years=[...new Set(programs.filter(p=>!p.is_archived).map(p=>toFY(p.year)).filter(Boolean))].sort().reverse();
@@ -4369,7 +4367,8 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                   <Row k="Pilot Goal" v={r.pilot_goal||null}/>
                   <Row k="Met Enrollment?" v={r.met_enrollment?"Yes":"No"}/>
                   <Row k="Met Financial?" v={r.met_financial?"Yes":"No"}/>
-                </>}
+                </>
+                }
                 <Note label="Adaptations Made" val={r.adaptation_made}/>
                 <Note label="Future Potential" val={r.future_potential}/>
                 <Note label="Innovation Notes" val={r.innovation_notes}/>
