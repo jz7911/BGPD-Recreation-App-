@@ -91,7 +91,7 @@ const DB_FIELDS = [
   "id","created_at",
   "name","area","season","year","classification","service_category",
   "trend","nps","notes","staff_name","waitlist",
-  "ant_capacity","ant_enrollment","ant_revenue",
+  "ant_capacity","ant_enrollment","ant_revenue","ant_revenue2","act_revenue2","revenue2_label",
   "ant_personnel","ant_commodities","ant_contractuals",
   "ant_other1","ant_other2","ant_facility_hours",
   "ant_program_type","ant_custom_workload","ant_custom_type_label",
@@ -139,7 +139,7 @@ function calcCR(p, px) {
   const facHrs       = p[px+"facility_hours"] || 0;
   const progType     = p[px+"program_type"]   || "";
   const customWL     = p[px+"custom_workload"]|| 0;
-  const revenue      = p[px+"revenue"]        || 0;
+  const revenue      = (p[px+"revenue"]||0) + (p[px+"revenue2"]||0);
   const enrollment   = p[px+"enrollment"]     || 0;
   const capacity     = p[px+"capacity"]       || 0;
   const wlPct = parseFloat(customWL) > 0
@@ -816,6 +816,19 @@ function CostPanel({px,p,set,isManager=false}) {
         <Inp label="Capacity"    type="number" value={p[px+"capacity"]}   onChange={set(px+"capacity")}   min={0}/>
         <Inp label="Enrollment"  type="number" value={p[px+"enrollment"]} onChange={set(px+"enrollment")} min={0}/>
         <Inp label="Revenue ($)" type="number" value={p[px+"revenue"]}    onChange={set(px+"revenue")}    min={0}/>
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-1">
+            <input
+              className="text-xs font-semibold text-slate-700 uppercase tracking-wide bg-transparent border-b border-dashed border-gray-200 focus:border-blue-400 focus:outline-none w-full"
+              value={p.revenue2_label||"Additional Revenue"}
+              onChange={e=>set("revenue2_label")(e.target.value)}
+              placeholder="Additional Revenue"
+              title="Click to rename this revenue line"
+            />
+            <span className="text-xs text-slate-700 shrink-0">($)</span>
+          </div>
+          <input type="number" min={0} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-300" value={p[px+"revenue2"]||""} onChange={e=>set(px+"revenue2")(parseFloat(e.target.value)||0)} placeholder="0"/>
+        </div>
       </div>
       <div>
         <div className="text-xs font-bold text-slate-700 uppercase tracking-widest mb-3">Direct Costs</div>
@@ -919,7 +932,7 @@ function CostPanel({px,p,set,isManager=false}) {
                       type="number" min={0} max={100}
                       className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:border-blue-400 bg-white transition"
                       style={{MozAppearance:"textfield"}}
-                      value={p[px+"custom_workload_display"]!==undefined ? p[px+"custom_workload_display"] : (p[px+"custom_workload"]??typePct)}
+                      value={p[px+"custom_workload_display"]!==undefined ? p[px+"custom_workload_display"] : (p[px+"custom_workload"]||typePct)}
                       onChange={e=>{
                         const raw=e.target.value;
                         // Store raw string so user can type/delete freely
@@ -2918,14 +2931,14 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
   const staffTotalWL = useMemo(()=>{
     if(!isManager||!p.staff_name) return 0;
     return programs
-      .filter(prog=>!prog.is_archived&&prog.staff_name===p.staff_name&&prog.id!==p.id)
+      .filter(prog=>!prog.is_archived&&prog.staff_name===p.staff_name&&prog.id!==p.id&&toFY(prog.year)===toFY(p.year))
       .reduce((sum,prog)=>{
         const cust=parseFloat(prog.ant_custom_workload)||0;
         const typePct=prog.ant_program_type&&prog.ant_program_type!=="Custom"
           ? (PROGRAM_TYPES.find(t=>t.label===prog.ant_program_type)?.pct||0)*100 : 0;
         return sum+(cust>0?cust:typePct);
       },0);
-  },[programs,p.staff_name,p.id]);
+  },[programs,p.staff_name,p.id,p.year]);
 
   const thisWL = parseFloat(p.ant_custom_workload)>0
     ? parseFloat(p.ant_custom_workload)
@@ -3515,7 +3528,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                       saveLastUsed(staffName,{area:p.area,season:p.season,year:p.year,classification:p.classification,service_category:p.service_category,program_type:p.ant_program_type});
                       setDirty(false);
                       setSec(next);
-                      if(onSaveAndStay) onSaveAndStay(p);
+                      if(onSaveAndStay && !isNew) onSaveAndStay(p);
                     }}
                     disabled={!p.name}
                     className="px-4 py-2 text-sm font-semibold border rounded disabled:opacity-40"
