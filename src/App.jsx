@@ -2722,7 +2722,8 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
             {[...new Set(programs.filter(p=>!p.is_deleted&&p.staff_name).map(p=>p.staff_name))].sort().map(s=>(
               <option key={s} value={s}>{s}</option>
             ))}
-          </select>}
+          </select>
+          }
           <select value={mvArea} onChange={e=>setMvArea(e.target.value)}
             className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
             <option value="all">All Areas</option>
