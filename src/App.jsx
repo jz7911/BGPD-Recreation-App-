@@ -975,7 +975,7 @@ function CostPanel({px,p,set,isManager=false}) {
       <div className="rounded-lg p-4 space-y-3" style={{background:rBg,border:`1px solid ${rBd}`}}>
         <div className="text-xs font-bold uppercase tracking-widest" style={{color:isAnt?"#00A9CE":"#64748b"}}>Calculated Results</div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 text-sm">
-          {[["Direct Costs",dollar(c.direct)],["Admin Overhead (10%)",dollar(c.ao)],["Allocated FT Staff",dollar(c.ftStaff)],
+          {[["Total Costs",dollar(c.direct)],["Admin Overhead (10%)",dollar(c.ao)],["Allocated FT Staff",dollar(c.ftStaff)],
             ["Allocated Facility",dollar(c.facility)],["Total Program Cost",dollar(c.total)],["Fill Rate",pct(c.fillRate)]].map(([l,v])=>(
             <div key={l}><div className={`text-xs ${lc}`}>{l}</div><div className={`font-bold ${vc2}`}>{v}</div></div>
           ))}
@@ -3818,9 +3818,8 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
     const match=reviewablePrograms.find(p=>p.name?.toLowerCase()===name.toLowerCase());
     if(match){
       const kpis=calcKPIs(match);
+      const cr=calcCR(match,"act_"); // use full cost calculation including FT staff, facility, overhead
       setMatchedProgram(match);
-      // direct costs = sum of all actual cost lines
-      const directCosts=(match.act_personnel||0)+(match.act_commodities||0)+(match.act_contractuals||0)+(match.act_other1||0)+(match.act_other2||0);
       setForm(prev=>({
         ...prev,
         program_name:name,
@@ -3831,9 +3830,9 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
         // calculated metrics
         fill_rate:kpis.fillRate?Math.round(kpis.fillRate*100):"",
         cost_recovery:kpis.costRecovery?Math.round(kpis.costRecovery*100):"",
-        // actuals — financial
-        revenue:match.act_revenue||"",
-        direct_costs:directCosts||"",
+        // actuals — financial (full cost including FT staff, facility, admin overhead)
+        revenue:Math.round(cr.revenue)||"",
+        direct_costs:Math.round(cr.total)||"",
         // actuals — participation
         enrollment:match.act_enrollment||"",
         capacity:match.act_capacity||"",
@@ -4362,7 +4361,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               <div>
                 <div className="text-xs font-bold uppercase tracking-widest text-slate-700 mb-2">💰 Financial</div>
                 <Row k="Revenue" v={r.revenue?`$${Number(r.revenue).toLocaleString()}`:null}/>
-                <Row k="Direct Costs" v={r.direct_costs?`$${Number(r.direct_costs).toLocaleString()}`:null}/>
+                <Row k="Total Costs" v={r.direct_costs?`$${Number(r.direct_costs).toLocaleString()}`:null}/>
                 <Row k="Cost Recovery" v={r.cost_recovery?`${r.cost_recovery}%`:null}/>
                 <Row k="Prior CR" v={r.prior_cr?`${r.prior_cr}%`:null}/>
                 <Row k="Classification" v={r.classification}/>
@@ -4614,7 +4613,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                       <span>Fill: <b>{Math.round((mk.fillRate||0)*100)}%</b></span>
                       <span>CR: <b>{Math.round((mk.costRecovery||0)*100)}%</b></span>
                       <span>Revenue: <b>{dollar(matchedProgram.act_revenue||0)}</b></span>
-                      <span>Direct Costs: <b>{dollar(dc)}</b></span>
+                      <span>Total Costs: <b>{dollar(dc)}</b></span>
                       {matchedProgram.act_enrollment>0&&<span>Enrolled: <b>{matchedProgram.act_enrollment}/{matchedProgram.act_capacity}</b>
                       </span>
                       }
@@ -4674,7 +4673,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
             <div className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">💰 Financial Stewardship <span className="text-xs font-normal text-red-500 ml-2">Required Pillar</span></div>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               {inp("Revenue ($)","revenue","number")}
-              {inp("Direct Costs ($)","direct_costs","number")}
+              {inp("Total Costs ($)","direct_costs","number")}
               {inp("Cost Recovery (%)","cost_recovery","number")}
               {inp("Prior Season CR (%)","prior_cr","number","",false,"Last season's cost recovery for comparison")}
             </div>
