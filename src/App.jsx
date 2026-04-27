@@ -4036,8 +4036,12 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   }
   function startEdit(r){
     setEditRow(r);
+    // Recalculate financial fields from current program data rather than stale saved values
+    const prog = (reviewablePrograms||[]).find(p=>p.name?.toLowerCase()===r.program_name?.toLowerCase());
+    const freshCR = prog ? calcCR(prog,"act_") : null;
     setForm({...emptyForm,...r,
-      revenue:r.revenue||"",direct_costs:r.direct_costs||"",
+      revenue:freshCR?Math.round(freshCR.revenue)||"":r.revenue||"",
+      direct_costs:freshCR?Math.round(freshCR.total)||"":r.direct_costs||"",
       cost_recovery:r.cost_recovery||"",prior_cr:r.prior_cr||"",
       fill_rate:r.fill_rate||"",prior_fill_rate:r.prior_fill_rate||"",
       cancellation_rate:r.cancellation_rate||"",
@@ -4605,14 +4609,14 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               </datalist>
               {matchedProgram&&(()=>{
                 const mk=calcKPIs(matchedProgram);
-                const dc=(matchedProgram.act_personnel||0)+(matchedProgram.act_commodities||0)+(matchedProgram.act_contractuals||0)+(matchedProgram.act_other1||0)+(matchedProgram.act_other2||0);
+                const crPrev=calcCR(matchedProgram,"act_"); const dc=crPrev.total;
                 return(
                   <div className="mt-1.5 px-3 py-2 rounded-lg bg-blue-50 border border-blue-100 text-xs text-blue-700 space-y-1">
                     <div className="flex flex-wrap gap-x-3 gap-y-0.5 items-center">
                       <span className="font-bold">✓ Matched —</span>
                       <span>Fill: <b>{Math.round((mk.fillRate||0)*100)}%</b></span>
                       <span>CR: <b>{Math.round((mk.costRecovery||0)*100)}%</b></span>
-                      <span>Revenue: <b>{dollar(matchedProgram.act_revenue||0)}</b></span>
+                      <span>Revenue: <b>{dollar(crPrev.revenue)}</b></span>
                       <span>Total Costs: <b>{dollar(dc)}</b></span>
                       {matchedProgram.act_enrollment>0&&<span>Enrolled: <b>{matchedProgram.act_enrollment}/{matchedProgram.act_capacity}</b>
                       </span>
