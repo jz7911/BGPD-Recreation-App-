@@ -2510,7 +2510,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                   <th className="px-2 py-1 text-center border-l border-slate-200">Bud.</th><th className="px-2 py-1 text-center">Actual</th><th className="px-2 py-1 text-center">Var.</th>
                 </tr>
               </thead>
-              <tbody>{kpis.map((p,i)=>(
+              <tbody>{sortedKpis.map((p,i)=>(
                 <tr key={p.id} className={`border-t border-slate-50 hover:bg-gray-200 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
                   <td className="px-3 py-2.5 font-semibold text-slate-800 whitespace-nowrap">
                     <button onClick={()=>onEdit(p)} className="hover:text-blue-600 hover:underline text-left">{p.name}</button>
