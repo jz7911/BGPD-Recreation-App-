@@ -5498,7 +5498,7 @@ function Reference({isManager,db,programs,staffName}) {
           {id:"capacity",label:"🧮 Capacity Calculator"},
           {id:"redesign",label:"🔄 Redesign Ideas"},
           {id:"allocation",label:"💰 Allocation Calculator"},
-          ...(isManager?[{id:"clubhouse",label:"🏫 Clubhouse Allocation"}]:[]),
+          {id:"clubhouse",label:"🏫 Clubhouse Allocation"},
         ].map(s=>(
           <button key={s.id} onClick={()=>setSec(s.id)}
             className={`px-5 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition ${sec===s.id?"font-semibold":"border-transparent text-slate-700 hover:text-slate-700"}`}
@@ -6172,7 +6172,7 @@ function Reference({isManager,db,programs,staffName}) {
         <AllocationCalculator programs={programs} staffName={staffName} isManager={isManager} db={db}/>
       )}
 
-      {sec==="clubhouse"&&isManager&&(
+      {sec==="clubhouse"&&(
         <ClubhouseAllocationTool db={db} programs={programs} staffName={staffName}/>
       )}
 
