@@ -1752,8 +1752,6 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
 
   useEffect(()=>{
-    if(onReturnToYearConsumed && returnToYear) onReturnToYearConsumed();
-    if(returnToYear){setFilters(f=>({...f,year:new Set([returnToYear])}));return;}
     if(!programs.length) return;
     setFilters(f=>{
       if(f.year.size>0) return f;
@@ -1763,7 +1761,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
       const defaultFY=years.includes(currentFY)?currentFY:(years[0]||currentFY);
       return {...f,year:new Set([defaultFY])};
     });
-  },[programs,returnToYear]);
+  },[programs]);
   const [capitalPct,setCapitalPct] = useState(5);
   const [capitalYear,setCapitalYear] = useState("all");
 
