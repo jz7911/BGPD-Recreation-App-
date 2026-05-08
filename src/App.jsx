@@ -7467,7 +7467,6 @@ export default function App() {
   if(!staffName) return <StaffSetup onConfirm={handleConfirmName}/>;
 
   return (
-    <ErrorBoundary>
     <div className="min-h-screen" style={{background:"#F8F7F4",fontFamily:"'Nunito Sans',Arial,sans-serif"}}>
       {dupProgram&&(
         <DupModal program={dupProgram} onConfirm={opts=>handleDuplicate(dupProgram,opts)} onCancel={()=>setDupProgram(null)}/>
@@ -7579,7 +7578,6 @@ export default function App() {
         )}
       </main>
     </div>
-    </ErrorBoundary>
   );
 }
 // ─── Staff PIN Admin ──────────────────────────────────────────────────────────
