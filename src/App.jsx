@@ -142,6 +142,7 @@ function calcCR(p, px) {
   const revenue      = (p[px+"revenue"]||0) + (p[px+"revenue2"]||0) + (p[px+"revenue3"]||0);
   const enrollment   = p[px+"enrollment"]     || 0;
   const capacity     = p[px+"capacity"]       || 0;
+  // wlPct = total program workload % (cost is based on full program workload, split is just attribution)
   const wlPct = parseFloat(customWL) > 0
     ? parseFloat(customWL) / 100
     : progType && progType !== "Custom"
@@ -1896,11 +1897,10 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
     kpis.forEach(p=>{
       const typePct=p.ant_program_type&&p.ant_program_type!=="Custom"?(PROGRAM_TYPES.find(t=>t.label===p.ant_program_type)?.pct||0)*100:0;
       const coWL=parseFloat(p.co_staff_workload_pct)||0;
-      // ant_custom_workload already stores the primary staff's net workload (after co-staff split)
-      // If no custom workload set, fall back to program type % minus co-staff share
-      const primaryWL=parseFloat(p.ant_custom_workload)>0
-        ? parseFloat(p.ant_custom_workload)
-        : Math.max(0, typePct - coWL);
+      // Total workload = ant_custom_workload (or typePct). Split between primary and co-staff.
+      // Primary gets (total - co_staff share), co-staff gets co_staff_workload_pct.
+      const totalWL=parseFloat(p.ant_custom_workload)>0 ? parseFloat(p.ant_custom_workload) : typePct;
+      const primaryWL=Math.max(0, totalWL - coWL);
       addEntry(p.staff_name||"Unknown",primaryWL,p.name,p.ant_program_type);
       if(p.co_staff_name&&coWL>0) addEntry(p.co_staff_name,coWL,p.name+" (co-staff)",p.ant_program_type);
     });
@@ -2894,9 +2894,10 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
         const cust=parseFloat(prog.ant_custom_workload)||0;
         const typePct=prog.ant_program_type&&prog.ant_program_type!=="Custom"
           ? (PROGRAM_TYPES.find(t=>t.label===prog.ant_program_type)?.pct||0)*100 : 0;
-        const baseWL = cust>0?cust:typePct;
-        if(isCoStaff) return sum+(parseFloat(prog.co_staff_workload_pct)||0);
-        return sum+baseWL;
+        const totalWL = cust>0?cust:typePct;
+        const coShare = parseFloat(prog.co_staff_workload_pct)||0;
+        if(isCoStaff) return sum+coShare;
+        return sum+Math.max(0, totalWL - coShare);
       },0);
   },[programs,p.staff_name,p.id,p.year]);
 
@@ -3040,8 +3041,8 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                 {p.co_staff_name&&(
                   <Inp label="Co-Staff Workload Split (%)" type="number" min={0} max={100}
                     value={p.co_staff_workload_pct||""}
-                    onChange={v=>{const pct=parseFloat(v)||0;setField("co_staff_workload_pct")(pct);const typePct=p.ant_program_type&&p.ant_program_type!=="Custom"?(PROGRAM_TYPES.find(t=>t.label===p.ant_program_type)?.pct||0)*100:0;const base=parseFloat(p.ant_custom_workload)||typePct;if(base>0)setField("ant_custom_workload")(Math.max(0,base-pct));}}
-                    hint={`Primary: ${Math.max(0,(parseFloat(p.ant_custom_workload)||0)).toFixed(1)}% · Co-staff: ${parseFloat(p.co_staff_workload_pct)||0}%`}/>
+                    onChange={v=>{const pct=parseFloat(v)||0;setField("co_staff_workload_pct")(pct);}}
+                    hint={(()=>{const total=parseFloat(p.ant_custom_workload)||(p.ant_program_type&&p.ant_program_type!=="Custom"?(PROGRAM_TYPES.find(t=>t.label===p.ant_program_type)?.pct||0)*100:0);const coShare=parseFloat(p.co_staff_workload_pct)||0;const primaryShare=Math.max(0,total-coShare);return `${p.staff_name||"Primary"}: ${primaryShare.toFixed(1)}% · ${p.co_staff_name}: ${coShare.toFixed(1)}% · Total program: ${total.toFixed(1)}%`;})()}/>
                 )}
                 <Inp label="Area"                value={p.area}                 onChange={setField("area")}              options={AREAS}/>
                 <div>
