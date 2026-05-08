@@ -1018,7 +1018,7 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-───────
+
 function BGPDLogo({size=48}){
   // Inline SVG recreation of BGPD logo: bison silhouette in a sky-blue circle
   return(
