@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "./supabase.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -90,7 +90,7 @@ function saveLastUsed(staffName, patch) {
 const DB_FIELDS = [
   "id","created_at",
   "name","area","season","year","classification","service_category",
-  "trend","nps","notes","staff_name","waitlist",
+  "trend","nps","notes","staff_name","co_staff_name","co_staff_workload_pct","waitlist",
   "ant_capacity","ant_enrollment","ant_revenue","ant_revenue2","act_revenue2","revenue2_label","ant_revenue3","act_revenue3","revenue3_label",
   "ant_personnel","ant_commodities","ant_contractuals",
   "ant_other1","ant_other2","ant_facility_hours",
@@ -205,6 +205,7 @@ function newProgram(staffName) {
     pricing_decision:"",pricing_target_fee:0,pricing_rationale:"",pricing_notes:"",pricing_subsidy:null,pricing_subsidy_amount:0,
     budget_mode:"seasonal",sub_programs:[],clubhouse_alloc:null,clubhouse_alloc_act:null,
     ant_clubhouse_fee:0,act_clubhouse_fee:0,
+    co_staff_name:"",co_staff_workload_pct:0,
   };
 }
 
@@ -990,7 +991,34 @@ function CostPanel({px,p,set,isManager=false}) {
   );
 }
 
-// ─── Staff Setup ──────────────────────────────────────────────────────────────
+// ─── Staff Setup ───────────────────────────────────────────────────────
+// ─── Error Boundary (catches render crashes) ─────────────────────────────────
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(err) { return { error: err }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{padding:"40px",fontFamily:"sans-serif",maxWidth:"600px",margin:"0 auto"}}>
+          <h2 style={{color:"#E35205"}}>Something went wrong</h2>
+          <p style={{color:"#555",marginTop:"8px"}}>The app crashed with this error:</p>
+          <pre style={{background:"#f5f5f5",padding:"16px",borderRadius:"4px",overflow:"auto",fontSize:"13px",marginTop:"12px",color:"#333"}}>
+            {this.state.error.message}
+            {"\n\n"}
+            {this.state.error.stack}
+          </pre>
+          <button onClick={()=>window.location.reload()} 
+            style={{marginTop:"16px",padding:"8px 16px",background:"#00A9CE",color:"white",border:"none",borderRadius:"4px",cursor:"pointer"}}>
+            Reload
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+───────
 function BGPDLogo({size=48}){
   // Inline SVG recreation of BGPD logo: bison silhouette in a sky-blue circle
   return(
@@ -1722,6 +1750,20 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
     setFilters(f=>({...f,year:new Set([defaultFY])}));
   },[]); 
   function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
+
+  useEffect(()=>{
+    if(onReturnToYearConsumed && returnToYear) onReturnToYearConsumed();
+    if(returnToYear){setFilters(f=>({...f,year:new Set([returnToYear])}));return;}
+    if(!programs.length) return;
+    setFilters(f=>{
+      if(f.year.size>0) return f;
+      const d=new Date(); const y=d.getMonth()>=4?d.getFullYear():d.getFullYear()-1;
+      const currentFY=`${String(y).slice(-2)}-${String(y+1).slice(-2)}`;
+      const years=[...new Set(programs.filter(p=>!p.is_archived).map(p=>toFY(p.year)).filter(Boolean))].sort().reverse();
+      const defaultFY=years.includes(currentFY)?currentFY:(years[0]||currentFY);
+      return {...f,year:new Set([defaultFY])};
+    });
+  },[programs,returnToYear]);
   const [capitalPct,setCapitalPct] = useState(5);
   const [capitalYear,setCapitalYear] = useState("all");
 
@@ -1847,18 +1889,19 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   // ── Workload by staff ──
   const workloadByStaff = useMemo(()=>{
     const map={};
-    kpis.forEach(p=>{
-      const name=p.staff_name||"Unknown";
-      if(!map[name]) map[name]={name,totalWL:0,count:0};
-      const typePct = p.ant_program_type&&p.ant_program_type!=="Custom"
-        ? (PROGRAM_TYPES.find(t=>t.label===p.ant_program_type)?.pct||0)*100
-        : 0;
-      const wlPct = parseFloat(p.ant_custom_workload)>0
-        ? parseFloat(p.ant_custom_workload)
-        : typePct;
+    const addEntry=(name,wlPct,progName,type)=>{
+      if(!name) return;
+      if(!map[name]) map[name]={name,totalWL:0,count:0,programs:[]};
       map[name].totalWL+=wlPct; map[name].count++;
-      if(!map[name].programs) map[name].programs=[];
-      map[name].programs.push({name:p.name,wlPct,type:p.ant_program_type||"Custom"});
+      map[name].programs.push({name:progName,wlPct,type:type||"Custom"});
+    };
+    kpis.forEach(p=>{
+      const typePct=p.ant_program_type&&p.ant_program_type!=="Custom"?(PROGRAM_TYPES.find(t=>t.label===p.ant_program_type)?.pct||0)*100:0;
+      const baseWL=parseFloat(p.ant_custom_workload)>0?parseFloat(p.ant_custom_workload):typePct;
+      const coWL=parseFloat(p.co_staff_workload_pct)||0;
+      const primaryWL=coWL>0?Math.max(0,baseWL-coWL):baseWL;
+      addEntry(p.staff_name||"Unknown",primaryWL,p.name,p.ant_program_type);
+      if(p.co_staff_name&&coWL>0) addEntry(p.co_staff_name,coWL,p.name+" (co-staff)",p.ant_program_type);
     });
     return Object.values(map).sort((a,b)=>b.totalWL-a.totalWL);
   },[kpis])
@@ -1913,9 +1956,8 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   },[kpis,programs]);
 
   // ── Top/Bottom performers ──
-  const withActuals = kpis.filter(p=>p.hasActuals);
-  const byFill   = [...withActuals].sort((a,b)=>b.fillRate-a.fillRate);
-  const byCR     = [...withActuals].sort((a,b)=>b.costRecovery-a.costRecovery);
+  const byFill   = [...kpis].sort((a,b)=>b.fillRate-a.fillRate);
+  const byCR     = [...kpis].sort((a,b)=>b.costRecovery-a.costRecovery);
   const top3Fill = byFill.slice(0,3);
   const bot3Fill = byFill.slice(-3).reverse();
   const top3CR   = byCR.slice(0,3);
@@ -2013,15 +2055,13 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
 
       {/* ── Program Snapshot bars ── */}
       {/* ── FT Staff Allocation — always visible ── */}
+      {ftStaffBudget > 0 && (
         <div className="bg-white rounded-lg shadow-sm p-5">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div>
               <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.12em",color:"#5C462B"}}>FT Staff Allocation vs. 60% Target</div>
               <div className="text-xs text-slate-700 mt-0.5">
-                {ftStaffBudget>0
-                  ? <>{ftStaffCount} FT staff × ${FT_ANNUAL_SALARY.toLocaleString()} = ${ftStaffBudget.toLocaleString()} total payroll &nbsp;·&nbsp; 60% target = ${Math.round(ftStaffCap60).toLocaleString()}</>
-                  : <span className="text-slate-400">No program data for selected year(s)</span>
-                }
+                {ftStaffCount} FT staff × ${FT_ANNUAL_SALARY.toLocaleString()} = ${ftStaffBudget.toLocaleString()} total payroll &nbsp;·&nbsp; 60% target = ${Math.round(ftStaffCap60).toLocaleString()}
               </div>
             </div>
             <div className="flex gap-2 flex-wrap">
@@ -2066,6 +2106,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
             <div className="text-xs text-slate-700">Bar fills to 100% at the 60% target. Spills red if over.</div>
           </div>
         </div>
+      )}
 
       <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
         <SectionHeader id="snapshot" title="Program Snapshot: Budgeted vs Actual" sub="Portfolio totals — revenue, enrollment, and cost vs. plan" collapsed={collapsed} onToggle={toggleSection}/>
@@ -2143,10 +2184,10 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
       {/* ── High Demand Programs (Waitlist) ── */}
       {highDemand.length>0&&(
         <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
-          <SectionHeader id="highdemand" title="High Demand — Programs with Waitlists"
-            sub={`${highDemand.length} program${highDemand.length!==1?"s":""} with active waitlists`}
-            badge={null} collapsed={collapsed} onToggle={toggleSection}/>
-          {!collapsed["highdemand"]&&highDemand.map((p,i)=>(
+          <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white" style={{backgroundColor:"#00A9CE",color:"#5C462B"}}>
+            High Demand — Programs with Waitlists
+          </div>
+          {highDemand.map((p,i)=>(
             <div key={p.id} className={`px-4 py-2.5 flex items-center justify-between gap-4 ${i>0?"border-t border-slate-50":""} hover:bg-gray-200`}>
               <div className="flex-1 min-w-0">
                 <button onClick={()=>onEdit(p)} className="text-sm font-semibold text-slate-800 hover:text-blue-600 hover:underline text-left">{p.name}</button>
@@ -2249,8 +2290,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
               </table>
             </div>
           )}
-        </>
-        }
+        </>}
         </div>
       )}
 
@@ -2316,16 +2356,12 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
 
 
       {/* ── Staff Workload Allocation ── */}
-      <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
+      {workloadByStaff.length>0&&(
+        <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
           <SectionHeader id="workload" title="Staff Workload Allocation"
             sub="Total FT time across all programs — 100% = one full-time salary"
             badge={workloadByStaff.some(s=>s.totalWL>60)?"⚠ Over-allocation flagged":null} collapsed={collapsed} onToggle={toggleSection}/>
           {!collapsed["workload"]&&<div className="p-4 space-y-3">
-            {workloadByStaff.length===0&&(
-              <div className="text-sm text-center py-4" style={{color:"#A09080"}}>
-                No program data for the selected year(s). Use the Year filter above to change the view.
-              </div>
-            )}
             {workloadByStaff.map(s=>{
               const over = s.totalWL>75;
               const warn = s.totalWL>60&&!over;
@@ -2352,7 +2388,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                   {(over||warn)&&flagged.length>0&&(
                     <div className="mt-1.5 text-xs text-slate-700 flex flex-wrap gap-x-3 gap-y-0.5">
                       {flagged.map((pr,i)=>(
-                        <span key={`_${i}`}>{pr.name} <span className="font-mono font-semibold" style={{color}}>{pr.wlPct.toFixed(1)}%</span></span>
+                        <span key={i}>{pr.name} <span className="font-mono font-semibold" style={{color}}>{pr.wlPct.toFixed(1)}%</span></span>
                       ))}
                     </div>
                   )}
@@ -2365,6 +2401,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
             Bar midpoint = 60% (recommended program allocation ceiling). Amber = 60–75%, Red = over 75%. The remaining ~40% covers meetings, marketing, planning, and strategic work.
           </div>
         </div>
+      )}
 
       {/* ── Program Detail ── */}
       <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
@@ -2372,39 +2409,6 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
           <div>
             <h2 className="font-bold text-slate-800 text-sm">Program Detail</h2>
             {dv==="summary"&&<p className="text-xs text-slate-700 mt-0.5">Year-over-year in <span className="font-semibold text-slate-700">vs Prior</span> column · Full trend history in <span className="font-semibold ">Multi-Season</span> tab</p>}
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <input value={pdSearch} onChange={e=>setPdSearch(e.target.value)}
-              placeholder="Search programs or staff…"
-              className="text-xs rounded border border-slate-200 px-2 py-1.5 w-40"/>
-            <select value={pdStaff} onChange={e=>setPdStaff(e.target.value)}
-              className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
-              <option value="all">All Staff</option>
-              {[...new Set(kpis.map(p=>p.staff_name).filter(Boolean))].sort().map(s=>(
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-            <select value={pdArea} onChange={e=>setPdArea(e.target.value)}
-              className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
-              <option value="all">All Areas</option>
-              {[...new Set(kpis.map(p=>p.area).filter(Boolean))].sort().map(a=>(
-                <option key={a} value={a}>{a}</option>
-              ))}
-            </select>
-            <select value={pdSeason} onChange={e=>setPdSeason(e.target.value)}
-              className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
-              <option value="all">All Seasons</option>
-              {["Spring","Summer","Fall","Winter","All Year"].map(s=>(
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-
-            {(pdSearch||pdArea!=="all"||pdStaff!=="all"||pdSeason!=="all")&&(
-              <button onClick={()=>{setPdSearch("");setPdArea("all");setPdStaff("all");setPdSeason("all");}}
-                className="text-xs px-2 py-1 rounded" style={{color:"#E35205",background:"rgba(227,82,5,0.08)",border:"none"}}>
-                ✕ Clear
-              </button>
-            )}
           </div>
           <div className="flex gap-1">
             {[["summary","Summary"],["variances","Variances"],["progress","Progress"]].map(([v,l])=>(
@@ -2582,17 +2586,16 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
           <div className="flex items-center gap-3"><Badge status="Needs Redesign"/><span className="text-slate-700">Below 60% fill rate or below 50% cost recovery</span></div>
         </div>
       </div>
-
       {/* Capital Improvement Fund Panel */}
       {kpis.some(p=>p.hasActuals)&&(()=>{
-        const capYears     = ["all",...[...new Set(kpis.filter(p=>p.hasActuals).map(p=>toFY(p.year)))].sort().reverse()];
-        const capKpis      = capitalYear==="all" ? kpis.filter(p=>p.hasActuals) : kpis.filter(p=>p.hasActuals&&toFY(p.year)===capitalYear);
-        const surplusProgs = [...capKpis].filter(p=>p.profitLoss>0).sort((a,b)=>b.profitLoss-a.profitLoss);
-        const deficitProgs = capKpis.filter(p=>p.profitLoss<0);
-        const netPL        = surplusProgs.reduce((a,p)=>a+p.profitLoss,0) - Math.abs(deficitProgs.reduce((a,p)=>a+p.profitLoss,0));
-        const suggested    = Math.max(0, Math.round(netPL * (capitalPct/100)));
-        const maxBar       = surplusProgs.length>0 ? surplusProgs[0].profitLoss : 1;
-        return (
+        const capYears=["all",...[...new Set(kpis.filter(p=>p.hasActuals).map(p=>toFY(p.year)))].sort().reverse()];
+        const capKpis=capitalYear==="all"?kpis.filter(p=>p.hasActuals):kpis.filter(p=>p.hasActuals&&toFY(p.year)===capitalYear);
+        const surplusProgs=[...capKpis].filter(p=>p.profitLoss>0).sort((a,b)=>b.profitLoss-a.profitLoss);
+        const deficitProgs=capKpis.filter(p=>p.profitLoss<0);
+        const netPL=surplusProgs.reduce((a,p)=>a+p.profitLoss,0)-Math.abs(deficitProgs.reduce((a,p)=>a+p.profitLoss,0));
+        const suggested=Math.max(0,Math.round(netPL*(capitalPct/100)));
+        const maxBar=surplusProgs.length>0?surplusProgs[0].profitLoss:1;
+        return(
           <div className="bg-white p-5" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.09)"}}>
             <div className="flex items-start justify-between flex-wrap gap-3 mb-4">
               <div>
@@ -2616,18 +2619,17 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                   <span className="text-xs" style={{color:"#A09080"}}>%</span>
                 </div>
                 <select value={capitalYear} onChange={e=>setCapitalYear(e.target.value)}
-                  className="text-xs rounded border border-slate-200 px-2 py-1 bg-white"
-                  style={{color:"#5C462B"}}>
+                  className="text-xs rounded border border-slate-200 px-2 py-1 bg-white" style={{color:"#5C462B"}}>
                   {capYears.map(y=><option key={y} value={y}>{y==="all"?"All Years":"FY "+y}</option>)}
                 </select>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-4">
               {[
-                {label:"Portfolio Net P/(L)", value:dollar(Math.round(netPL)),       color:netPL>=0?"#84BD00":"#E35205"},
-                {label:"Surplus Programs",    value:surplusProgs.length+" programs", color:"#84BD00"},
-                {label:"Subsidy Programs",    value:deficitProgs.length+" programs", color:"#E35205"},
-                {label:"Suggested Allocation",value:netPL>0?dollar(suggested):"--",  color:"#00A9CE"},
+                {label:"Portfolio Net P/(L)",value:dollar(Math.round(netPL)),color:netPL>=0?"#84BD00":"#E35205"},
+                {label:"Surplus Programs",value:surplusProgs.length+" programs",color:"#84BD00"},
+                {label:"Subsidy Programs",value:deficitProgs.length+" programs",color:"#E35205"},
+                {label:"Suggested Allocation",value:netPL>0?dollar(suggested):"--",color:"#00A9CE"},
               ].map(({label,value,color})=>(
                 <div key={label} className="rounded p-3" style={{background:"rgba(0,0,0,0.025)",border:"1px solid rgba(0,0,0,0.06)"}}>
                   <div className="text-xs uppercase font-bold mb-1" style={{letterSpacing:"0.08em",color:"#A09080",fontSize:"10px"}}>{label}</div>
@@ -2648,7 +2650,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                   </div>
                 ))}
                 <div className="rounded px-3 py-2.5 text-xs" style={{background:"rgba(0,169,206,0.05)",border:"1px solid rgba(0,169,206,0.15)",color:"#5C462B"}}>
-                  <span className="font-bold">NRPA recommendation:</span> A {capitalPct}% rate generates <span className="font-bold" style={{color:"#00A9CE"}}>{dollar(suggested)}</span> toward capital reserve. NRPA Fiscal Health model targets 3-10% annually (CAPRA 6.2).
+                  <span className="font-bold">NRPA recommendation:</span> A {capitalPct}% rate generates <span className="font-bold" style={{color:"#00A9CE"}}>{dollar(suggested)}</span> toward capital reserve (CAPRA 6.2).
                 </div>
               </div>
             ):(
@@ -2664,24 +2666,18 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
 }
 
 // ─── Dashboard router ─────────────────────────────────────────────────────────
-function Dashboard({programs,staffName,isManager,onEdit,onAddProgram,db}) {
-  if(isManager) return <ManagerDashboard programs={programs} staffName={staffName} onEdit={onEdit} onAddProgram={onAddProgram} db={db}/>;
-  return <StaffDashboard programs={programs} staffName={staffName} onEdit={onEdit} onAddProgram={onAddProgram} db={db}/>;
+function Dashboard({programs,staffName,isManager,onEdit,onAddProgram}) {
+  if(isManager) return <ManagerDashboard programs={programs} staffName={staffName} onEdit={onEdit} onAddProgram={onAddProgram}/>;
+  return <StaffDashboard programs={programs} staffName={staffName} onEdit={onEdit} onAddProgram={onAddProgram}/>;
 }
 
 // ─── Multi-Season View ────────────────────────────────────────────────────────
-function MultiSeasonView({programs,onEdit,staffName,isManager}) {
+function MultiSeasonView({programs,onEdit}) {
   const [search,setSearch] = useState("");
   const [showSingle,setShowSingle] = useState(false);
-  const [openGroups,setOpenGroups] = useState({});
-  const [mvArea,setMvArea]     = useState("all");
-  const [mvStaff,setMvStaff]   = useState("all");
-  const [mvSeason,setMvSeason] = useState("all");
-  const [mvYear,setMvYear]     = useState("all");
-  const toggleGroup = key => setOpenGroups(prev=>({...prev,[key]:!prev[key]}));
   const multiCount = (() => {
     const groups = {};
-    programs.filter(p=>!p.is_deleted&&(isManager||p.staff_name===staffName||p.peer_visible!==false)).forEach(p=>{
+    programs.filter(p=>!p.is_archived).forEach(p=>{
       const k = `${p.name}||${p.staff_name}`;
       groups[k] = (groups[k]||0)+1;
     });
@@ -2689,24 +2685,20 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
   })();
   const groups = useMemo(()=>{
     const map = {};
-    programs.filter(p=>!p.is_deleted).forEach(p=>{
+    programs.filter(p=>!p.is_archived).forEach(p=>{
       const key = `${(p.name||"").toLowerCase().trim()}__${(p.staff_name||"").toLowerCase().trim()}`;
       if(!map[key]) map[key]={name:p.name,area:p.area,staff:p.staff_name,seasons:[]};
       const k = calcKPIs(p);
-      map[key].seasons.push({...p,...k,_archived:!!p.is_archived});
+      map[key].seasons.push({...p,...k});
     });
     return Object.values(map)
       .filter(g=>showSingle||g.seasons.length>1)
-      .filter(g=>mvArea==="all"||g.area===mvArea)
-      .filter(g=>mvStaff==="all"||g.staff===mvStaff)
-      .filter(g=>mvSeason==="all"||g.seasons.some(s=>s.season===mvSeason))
-      .filter(g=>mvYear==="all"||g.seasons.some(s=>toFY(s.year)===mvYear))
       .filter(g=>!search||g.name.toLowerCase().includes(search.toLowerCase())||g.staff?.toLowerCase().includes(search.toLowerCase()))
       .sort((a,b)=>{
         if(b.seasons.length!==a.seasons.length) return b.seasons.length-a.seasons.length;
         return a.name.localeCompare(b.name);
       });
-  },[programs,search,showSingle,mvArea,mvStaff,mvSeason,mvYear]);
+  },[programs,search,showSingle]);
 
   return (
     <div className="space-y-4">
@@ -2729,43 +2721,6 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
             {showSingle?"Showing all":"Show single-season"}
           </button>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          {isManager&&<select value={mvStaff} onChange={e=>setMvStaff(e.target.value)}
-            className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
-            <option value="all">All Staff</option>
-            {[...new Set(programs.filter(p=>!p.is_deleted&&p.staff_name).map(p=>p.staff_name))].sort().map(s=>(
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-          }
-          <select value={mvArea} onChange={e=>setMvArea(e.target.value)}
-            className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
-            <option value="all">All Areas</option>
-            {[...new Set(programs.filter(p=>!p.is_deleted).map(p=>p.area).filter(Boolean))].sort().map(a=>(
-              <option key={a} value={a}>{a}</option>
-            ))}
-          </select>
-          <select value={mvSeason} onChange={e=>setMvSeason(e.target.value)}
-            className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
-            <option value="all">All Seasons</option>
-            {["Spring","Summer","Fall","Winter","All Year"].map(s=>(
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-          <select value={mvYear} onChange={e=>setMvYear(e.target.value)}
-            className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
-            <option value="all">All Years</option>
-            {[...new Set(programs.filter(p=>!p.is_deleted).map(p=>toFY(p.year)).filter(Boolean))].sort().map(y=>(
-              <option key={y} value={y}>FY {y}</option>
-            ))}
-          </select>
-          {(mvArea!=="all"||mvStaff!=="all"||mvSeason!=="all"||mvYear!=="all")&&(
-            <button onClick={()=>{setMvArea("all");setMvStaff("all");setMvSeason("all");setMvYear("all");}}
-              className="text-xs px-2 py-1 rounded" style={{color:"#E35205",background:"rgba(227,82,5,0.08)",border:"none"}}>
-              ✕ Clear
-            </button>
-          )}
-        </div>
         <input className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2"
           placeholder="Search by program name or staff..." value={search} onChange={e=>setSearch(e.target.value)}/>
       </div>
@@ -2780,27 +2735,14 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
       )}
       {groups.map(g=>(
         <div key={g.name+g.area} className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
-          <button onClick={()=>toggleGroup(g.name+g.area)}
-            className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-50 transition">
-            <div className="flex-1 min-w-0">
-              <div className="font-bold text-slate-800 flex items-center gap-2">
-                {g.name}
-                {g.seasons.every(s=>s._archived)&&<span className="text-xs font-normal px-1.5 py-0.5 rounded" style={{background:"#f1f5f9",color:"#64748b"}}>All archived</span>}
-                {(()=>{
-                  const srt=[...g.seasons].sort((a,b)=>toCalYear(b.year)-toCalYear(a.year));
-                  if(srt.length<2) return null;
-                  const diff=srt[0].fillRate-srt[1].fillRate;
-                  if(Math.abs(diff)<0.02) return <span className="text-xs font-bold" style={{color:"#A09080"}}>→</span>;
-                  return diff>0
-                    ? <span className="text-xs font-bold" style={{color:"#84BD00"}}>↑</span>
-                    : <span className="text-xs font-bold" style={{color:"#E35205"}}>↓</span>;
-                })()}
-              </div>
-              <div className="text-xs text-slate-500">{g.area}{g.staff?" — "+g.staff:""} · {g.seasons.length} season{g.seasons.length!==1?"s":""}</div>
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+            <div>
+              <div className="font-bold text-slate-800">{g.name}</div>
+              <div className="text-xs text-slate-700">{g.area}{g.staff?" — "+g.staff:""}</div>
             </div>
-            <span className="text-xs font-bold" style={{color:"#00A9CE"}}>{openGroups[g.name+g.area]?"▲":"▼"}</span>
-          </button>
-          <div className="overflow-x-auto" style={{display:openGroups[g.name+g.area]?"block":"none"}}>
+            <span className="text-xs text-slate-700">{g.seasons.length} seasons</span>
+          </div>
+          <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="bg-slate-50 text-xs text-slate-700 uppercase tracking-wider">
                 <th className="px-4 py-2 text-left font-semibold">Season</th>
@@ -2819,10 +2761,7 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
                 return SO.indexOf(a.season)-SO.indexOf(b.season);
               }).map((s,i)=>(
                 <tr key={s.id} className={`border-t border-slate-50 hover:bg-gray-200 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
-                  <td className="px-4 py-2.5 font-semibold text-slate-800 whitespace-nowrap">
-                    {s.season} FY {toFY(s.year)}
-                    {s._archived&&<span className="ml-1.5 text-xs font-normal px-1.5 py-0.5 rounded" style={{background:"#f1f5f9",color:"#64748b"}}>Archived</span>}
-                  </td>
+                  <td className="px-4 py-2.5 font-semibold text-slate-800 whitespace-nowrap">{s.season} FY {toFY(s.year)}</td>
                   <td className="px-4 py-2.5 font-mono text-xs">{pct(s.fillRate)}</td>
                   <td className="px-4 py-2.5 font-mono text-xs">{pct(s.costRecovery)}</td>
                   <td className={`px-4 py-2.5 font-mono text-xs font-semibold ${s.profitLoss>=0?"text-green-700":"text-red-600"}`}>{dollar(s.profitLoss)}</td>
@@ -2932,7 +2871,7 @@ function SubProgramTracker({programs,onChange}){
 }
 
 function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndStay,onDelete,onArchive,onDuplicate,onCancel,saving}) {
-  const [p,setP]             = useState(()=> initial ? {...cleanForDB(initial), decision_log: initial.decision_log||[], other1_label: initial.other1_label!==undefined?initial.other1_label:"Other Direct Costs", other2_label: initial.other2_label!==undefined?initial.other2_label:"Other Direct Costs 2"} : newProgram(staffName));
+  const [p,setP]             = useState(()=> initial ? {...cleanForDB(initial), decision_log: initial.decision_log||[], other1_label: initial.other1_label||"Other Direct Costs", other2_label: initial.other2_label||"Other Direct Costs 2"} : newProgram(staffName));
   const set                  = k => v => setP(prev=>({...prev,[k]:v}));
   const [sec,setSec]         = useState("info");
   const [confirm,setConfirm]         = useState(false);
@@ -2946,12 +2885,17 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
   const staffTotalWL = useMemo(()=>{
     if(!isManager||!p.staff_name) return 0;
     return programs
-      .filter(prog=>!prog.is_archived&&prog.staff_name===p.staff_name&&prog.id!==p.id&&toFY(prog.year)===toFY(p.year))
+      .filter(prog=>!prog.is_archived&&prog.id!==p.id&&toFY(prog.year)===toFY(p.year))
       .reduce((sum,prog)=>{
+        const isPrimary = prog.staff_name===p.staff_name;
+        const isCoStaff = prog.co_staff_name===p.staff_name;
+        if(!isPrimary&&!isCoStaff) return sum;
         const cust=parseFloat(prog.ant_custom_workload)||0;
         const typePct=prog.ant_program_type&&prog.ant_program_type!=="Custom"
           ? (PROGRAM_TYPES.find(t=>t.label===prog.ant_program_type)?.pct||0)*100 : 0;
-        return sum+(cust>0?cust:typePct);
+        const baseWL = cust>0?cust:typePct;
+        if(isCoStaff) return sum+(parseFloat(prog.co_staff_workload_pct)||0);
+        return sum+baseWL;
       },0);
   },[programs,p.staff_name,p.id,p.year]);
 
@@ -3091,6 +3035,13 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Inp label="Program Name"        value={p.name}                 onChange={setField("name")}              required placeholder="e.g. Youth Basketball"/>
                 <Inp label="Staff Member"        value={p.staff_name}           onChange={setField("staff_name")}        required placeholder="Your name"/>
+                <Inp label="Co-Staff (optional)" value={p.co_staff_name||""}    onChange={setField("co_staff_name")}     placeholder="Second staff member"/>
+                {p.co_staff_name&&(
+                  <Inp label="Co-Staff Workload Split (%)" type="number" min={0} max={100}
+                    value={p.co_staff_workload_pct||""}
+                    onChange={v=>{const pct=parseFloat(v)||0;setField("co_staff_workload_pct")(pct);const typePct=p.ant_program_type&&p.ant_program_type!=="Custom"?(PROGRAM_TYPES.find(t=>t.label===p.ant_program_type)?.pct||0)*100:0;const base=parseFloat(p.ant_custom_workload)||typePct;if(base>0)setField("ant_custom_workload")(Math.max(0,base-pct));}}
+                    hint={`Primary: ${Math.max(0,(parseFloat(p.ant_custom_workload)||0)).toFixed(1)}% · Co-staff: ${parseFloat(p.co_staff_workload_pct)||0}%`}/>
+                )}
                 <Inp label="Area"                value={p.area}                 onChange={setField("area")}              options={AREAS}/>
                 <div>
                   <Inp label="Season"              value={p.season}               onChange={v=>{setField("season")(v);setField("budget_mode")(v==="All Year"?"annual":"seasonal");}}  options={SEASONS}/>
@@ -3113,22 +3064,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                 <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Notes</label>
                 <textarea className="mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 resize-none" rows={3}
                   placeholder="Strategy notes, drivers, multi-year context..."
-                  maxLength={2000}
                   value={p.notes||""} onChange={e=>{setP(prev=>({...prev,notes:e.target.value}));setDirty(true);}}/>
-                <div className="text-right text-xs mt-0.5" style={{color:"#A09080"}}>{(p.notes||"").length}/2000</div>
-              </div>
-              <div className="flex items-center justify-between rounded border border-slate-200 px-4 py-3">
-                <div>
-                  <div className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Visible to Peers</div>
-                  <div className="text-xs text-slate-500 mt-0.5">When on, other staff can see this program. Managers always see everything.</div>
-                </div>
-                <button type="button"
-                  onClick={()=>{setP(prev=>({...prev,peer_visible:prev.peer_visible===false?true:false}));setDirty(true);}}
-                  className="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors"
-                  style={{background:p.peer_visible===false?"#D1D5DB":"#00A9CE"}}>
-                  <span className="inline-block h-5 w-5 rounded-full bg-white shadow transition-transform"
-                    style={{transform:p.peer_visible===false?"translateX(0)":"translateX(20px)"}}/>
-                </button>
               </div>
             </div>
           )}
@@ -3269,9 +3205,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                       <span className="ml-2 text-xs opacity-75" style={{color:onTarget?"#4A6B00":"#8A5E00"}}>Actual: {pct(k.costRecovery)}</span>
                       {!onTarget&&<span className="ml-2 text-xs font-medium" style={{color:"#8A5E00"}}>— {isManager?"See Pricing tab for fee analysis":"Below target"}</span>}
                     </div>
-                    {p.fee>0&&<div className="text-right"><div className="text-xs text-slate-700">Current fee</div><div className="font-bold text-slate-800">{dollar(p.fee)}/person</div>
-                    </div>
-                    }
+                    {p.fee>0&&<div className="text-right"><div className="text-xs text-slate-700">Current fee</div><div className="font-bold text-slate-800">{dollar(p.fee)}/person</div></div>}
                   </div>
                 );
               })()}
@@ -3489,7 +3423,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
               ):(
                 <div className="space-y-2">
                   {log.map((entry,i)=>(
-                    <div key={`_${i}`} className="flex gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                    <div key={i} className="flex gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
                       <div className="shrink-0 w-1.5 rounded-full bg-amber-400 mt-1" style={{minHeight:"1rem"}}/>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm text-slate-800">{entry.text}</div>
@@ -3523,7 +3457,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
       {canEdit&&(
         <div className="flex gap-3 justify-between">
           <div className="flex gap-2">
-            {!isNew&&isManager&&<button onClick={()=>setConfirm(true)} className="px-4 py-2 text-sm text-red-500 hover:text-red-700 font-medium">Delete</button>}
+            {!isNew&&<button onClick={()=>setConfirm(true)} className="px-4 py-2 text-sm text-red-500 hover:text-red-700 font-medium">Delete</button>}
             {!isNew&&<button onClick={()=>setConfirmArchive(true)}
               className={`px-4 py-2 text-sm font-medium rounded border transition ${p.is_archived?"border-green-300 text-green-700 hover:bg-green-50":"border-slate-200 text-slate-700 hover:bg-gray-200"}`}>
               {p.is_archived?"Restore":"Archive"}
@@ -3565,23 +3499,14 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
 
 // ─── Programs List ────────────────────────────────────────────────────────────
 function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDupSingle,onBulkArchive,onBulkDelete,returnToYear,onReturnToYearConsumed}) {
-  const [filters,setFilters] = useState(()=>({staff:new Set(),area:new Set(),season:new Set(),year:returnToYear?new Set([returnToYear]):new Set()}));
+  const [filters,setFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
   const [search,setSearch]   = useState("");
-  // Set year filter on mount — use returnToYear if coming back from edit, else default FY
-  useEffect(()=>{
-    const fy = returnToYear || (()=>{
-      const d=new Date(); const y=d.getMonth()>=4?d.getFullYear():d.getFullYear()-1;
-      return `${String(y).slice(-2)}-${String(y+1).slice(-2)}`;
-    })();
-    setFilters(f=>({...f,year:new Set([fy])}));
-    if(returnToYear && onReturnToYearConsumed) onReturnToYearConsumed();
-  },[]);
-  const [plSort,setPlSort]   = useState("updated"); // updated|name|fill|status
-  const [selected,setSelected] = useState(new Set()); // selected program ids for bulk actions
+  const [showArchived,setShowArchived] = useState(false);
+  const [plSort,setPlSort]   = useState("updated");
+  const [selected,setSelected] = useState(new Set());
   const toggleSelect = id => setSelected(s=>{const n=new Set(s);n.has(id)?n.delete(id):n.add(id);return n;});
   const selectAll  = ids => setSelected(new Set(ids));
   const clearSelect = () => setSelected(new Set());
-  const [showArchived,setShowArchived] = useState(false);
   function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
 
   const allStaff   = [...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
@@ -3591,22 +3516,11 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
 
   const vis = programs
     .filter(p=>showArchived ? (!!p.is_archived&&!p.is_deleted) : (!p.is_archived&&!p.is_deleted))
-    .filter(p=>isManager || p.staff_name===staffName || p.peer_visible!==false)
     .filter(p=>filters.staff.size===0||filters.staff.has(p.staff_name))
     .filter(p=>filters.area.size===0||filters.area.has(p.area))
     .filter(p=>filters.year.size===0||filters.year.has(toFY(p.year)))
     .filter(p=>filters.season.size===0||filters.season.has(p.season))
-    .filter(p=>!search||p.name.toLowerCase().includes(search.toLowerCase()))
-    .sort((a,b)=>{
-      if(plSort==="name")    return a.name.localeCompare(b.name);
-      if(plSort==="fill")    return (calcKPIs(b).fillRate||0)-(calcKPIs(a).fillRate||0);
-      if(plSort==="status"){
-        const o={"Needs Redesign":0,"Monitor":1,"Healthy":2};
-        return (o[calcKPIs(a).status]||1)-(o[calcKPIs(b).status]||1);
-      }
-      // default: updated (most recent first via created_at proxy)
-      return new Date(b.created_at||0)-new Date(a.created_at||0);
-    });
+    .filter(p=>!search||p.name.toLowerCase().includes(search.toLowerCase()));
   const archivedCount = programs.filter(p=>p.is_archived&&!p.is_deleted&&(isManager||p.staff_name===staffName)&&(filters.year.size===0||filters.year.has(toFY(p.year)))).length;
 
   return (
@@ -3633,49 +3547,33 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
           counts={{staff:allStaff,area:allAreas,season:allSeasons,year:allYears}}/>
         <input className="w-full rounded border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:border-blue-400"
           placeholder="Search programs by name..." value={search} onChange={e=>setSearch(e.target.value)}/>
-          <select value={plSort} onChange={e=>setPlSort(e.target.value)}
-            className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white shrink-0">
-            <option value="updated">Sort: Recent</option>
-            <option value="name">Sort: Name A–Z</option>
-            <option value="fill">Sort: Fill Rate ↓</option>
-            <option value="status">Sort: Needs Attention First</option>
-          </select>
-          {isManager&&vis.length>0&&(
-            <button onClick={()=>{selectAll(vis.map(p=>p.id));if(selected.size===vis.length)clearSelect();}}
-              className="text-xs font-semibold px-3 py-1.5 rounded border shrink-0 transition"
-              style={selected.size===vis.length
-                ?{background:"#00A9CE",color:"#fff",borderColor:"#00A9CE"}
-                :{background:"#fff",color:"#5C462B",borderColor:"rgba(92,70,43,0.3)"}}>
-              {selected.size===vis.length&&vis.length>0?"✓ All selected":"Select All"}
-            </button>
-          )}
       </div>
-      {isManager&&selected.size>0&&(
+      {selected.size>0&&(
         <div className="bg-white rounded-lg shadow-sm px-4 py-3 flex items-center gap-3 flex-wrap" style={{border:"2px solid #00A9CE"}}>
           <span className="text-sm font-semibold" style={{color:"#00A9CE"}}>{selected.size} selected</span>
           {!showArchived&&onBulkArchive&&(
-            <button onClick={()=>{onBulkArchive([...selected],true);clearSelect();}}
-              className="text-xs font-semibold px-3 py-1.5 rounded border transition"
-              style={{borderColor:"#64748b",color:"#64748b"}}>
+            <button onClick={()=>{
+              const ids=isManager?[...selected]:[...selected].filter(id=>vis.find(p=>p.id===id)?.staff_name===staffName);
+              if(ids.length) onBulkArchive(ids,true); clearSelect();
+            }} className="text-xs font-semibold px-3 py-1.5 rounded border transition" style={{borderColor:"#64748b",color:"#64748b"}}>
               Archive Selected
             </button>
           )}
           {showArchived&&onBulkArchive&&(
-            <button onClick={()=>{onBulkArchive([...selected],false);clearSelect();}}
-              className="text-xs font-semibold px-3 py-1.5 rounded border transition"
-              style={{borderColor:"#84BD00",color:"#84BD00"}}>
+            <button onClick={()=>{
+              const ids=isManager?[...selected]:[...selected].filter(id=>vis.find(p=>p.id===id)?.staff_name===staffName);
+              if(ids.length) onBulkArchive(ids,false); clearSelect();
+            }} className="text-xs font-semibold px-3 py-1.5 rounded border transition" style={{borderColor:"#84BD00",color:"#84BD00"}}>
               Restore Selected
             </button>
           )}
           {showArchived&&isManager&&onBulkDelete&&(
             <button onClick={()=>{if(window.confirm(`Permanently delete ${selected.size} program${selected.size!==1?"s":""}? This cannot be undone.`)){onBulkDelete([...selected]);clearSelect();}}}
-              className="text-xs font-semibold px-3 py-1.5 rounded border transition"
-              style={{borderColor:"#E35205",color:"#E35205"}}>
+              className="text-xs font-semibold px-3 py-1.5 rounded border transition" style={{borderColor:"#E35205",color:"#E35205"}}>
               Delete Selected
             </button>
           )}
-          <button onClick={clearSelect}
-            className="text-xs text-slate-500 hover:text-slate-700 ml-auto">✕ Clear</button>
+          <button onClick={clearSelect} className="text-xs text-slate-500 hover:text-slate-700 ml-auto">✕ Clear</button>
         </div>
       )}
       {vis.length===0 ? (
@@ -3689,7 +3587,7 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
             <div key={p.id}
               onClick={e=>{if(e.target.type==="checkbox") return; (isManager||p.staff_name===staffName)?onEdit(p):null;}}
               className={`bg-white rounded-lg shadow-sm px-4 py-3 flex items-center justify-between gap-4 transition ${isSelected?"ring-2 ring-teal-400":""} ${isManager||p.staff_name===staffName?"hover:shadow-md cursor-pointer":"cursor-default opacity-90"}`}>
-              {isManager&&(
+              {(isManager||p.staff_name===staffName)&&(
                 <input type="checkbox" checked={isSelected}
                   onClick={e=>e.stopPropagation()}
                   onChange={()=>toggleSelect(p.id)}
@@ -3701,10 +3599,9 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
                   {!k.hasActuals&&<span className="text-xs bg-amber-100  px-1.5 py-0.5 rounded font-medium whitespace-nowrap">No actuals</span>}
                   {p.notes&&<span className="text-slate-400 text-xs" title={p.notes}>●</span>}
                 </div>
-<div className="text-xs text-slate-700">{p.area} - {p.season} FY {toFY(p.year)} - {p.staff_name}
+                <div className="text-xs text-slate-700">{p.area} - {p.season} FY {toFY(p.year)} - {p.staff_name}
                   {lastUpdated&&<span className="ml-2 text-slate-400">· Updated {new Date(lastUpdated).toLocaleDateString()}</span>}
                 </div>
-                
               </div>
               <div className="hidden sm:flex gap-6 text-sm">
                 <div className="text-center"><div className="text-xs text-slate-700">Fill</div><div className="font-mono font-semibold">{pct(k.fillRate)}</div></div>
@@ -3818,19 +3715,17 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
     const match=reviewablePrograms.find(p=>p.name?.toLowerCase()===name.toLowerCase());
     if(match){
       const kpis=calcKPIs(match);
-      const cr=calcCR(match,"act_"); // use full cost calculation including FT staff, facility, overhead
+      const cr=calcCR(match,"act_");
       setMatchedProgram(match);
       setForm(prev=>({
         ...prev,
         program_name:name,
-        supervisor:prev.supervisor||match.staff_name||"",  // only fill if blank
+        supervisor:prev.supervisor||match.staff_name||"",
         area:match.area||prev.area,
         season:match.season||prev.season,
         classification:match.classification||prev.classification,
-        // calculated metrics
         fill_rate:kpis.fillRate?Math.round(kpis.fillRate*100):"",
         cost_recovery:kpis.costRecovery?Math.round(kpis.costRecovery*100):"",
-        // actuals — financial (full cost including FT staff, facility, admin overhead)
         revenue:Math.round(cr.revenue)||"",
         direct_costs:Math.round(cr.total)||"",
         // actuals — participation
@@ -4036,9 +3931,8 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   }
   function startEdit(r){
     setEditRow(r);
-    // Recalculate financial fields from current program data rather than stale saved values
-    const prog = (reviewablePrograms||[]).find(p=>p.name?.toLowerCase()===r.program_name?.toLowerCase());
-    const freshCR = prog ? calcCR(prog,"act_") : null;
+    const prog=(reviewablePrograms||[]).find(p=>p.name?.toLowerCase()===r.program_name?.toLowerCase());
+    const freshCR=prog?calcCR(prog,"act_"):null;
     setForm({...emptyForm,...r,
       revenue:freshCR?Math.round(freshCR.revenue)||"":r.revenue||"",
       direct_costs:freshCR?Math.round(freshCR.total)||"":r.direct_costs||"",
@@ -4071,7 +3965,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   // Programs this person can review: staff see only their own, managers see all
   const reviewablePrograms = isManager
     ? (programs||[])
-    : (programs||[]).filter(p=>p.staff_name?.toLowerCase().trim()===staffName.toLowerCase().trim()||p.peer_visible!==false);
+    : (programs||[]).filter(p=>p.staff_name?.toLowerCase().trim()===staffName.toLowerCase().trim());
 
   // ── Helper sub-components ──────────────────────────────────────────────────
   const inp=(label,key,type="text",opts=null,req=false,hint="")=>(
@@ -4365,7 +4259,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               <div>
                 <div className="text-xs font-bold uppercase tracking-widest text-slate-700 mb-2">💰 Financial</div>
                 <Row k="Revenue" v={r.revenue?`$${Number(r.revenue).toLocaleString()}`:null}/>
-                <Row k="Total Costs" v={r.direct_costs?`$${Number(r.direct_costs).toLocaleString()}`:null}/>
+                <Row k="Direct Costs" v={r.direct_costs?`$${Number(r.direct_costs).toLocaleString()}`:null}/>
                 <Row k="Cost Recovery" v={r.cost_recovery?`${r.cost_recovery}%`:null}/>
                 <Row k="Prior CR" v={r.prior_cr?`${r.prior_cr}%`:null}/>
                 <Row k="Classification" v={r.classification}/>
@@ -4414,8 +4308,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                   <Row k="Pilot Goal" v={r.pilot_goal||null}/>
                   <Row k="Met Enrollment?" v={r.met_enrollment?"Yes":"No"}/>
                   <Row k="Met Financial?" v={r.met_financial?"Yes":"No"}/>
-                </>
-                }
+                </>}
                 <Note label="Adaptations Made" val={r.adaptation_made}/>
                 <Note label="Future Potential" val={r.future_potential}/>
                 <Note label="Innovation Notes" val={r.innovation_notes}/>
@@ -4438,7 +4331,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                 <div className="text-xs font-bold uppercase tracking-widest text-slate-700 mb-3">Review History — {r.program_name}</div>
                 <div className="space-y-2">
                   {history.slice(0,5).map((h,i)=>(
-                    <div key={`_${i}`} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100 text-xs">
+                    <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100 text-xs">
                       <span className="px-2 py-0.5 rounded font-bold text-white" style={{background:dcColor[h.decision]||"#64748b"}}>{h.decision}</span>
                       <span className="text-slate-700">{h.season} {h.fy}</span>
                       <span className="text-slate-700">Fill: <span className="font-bold">{h.fill_rate||0}%</span></span>
@@ -4493,7 +4386,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
         {STEPS.map((st,i)=>{
           const done=i<activeStep; const active=i===activeStep;
           return(
-            <button key={`_${i}`} onClick={()=>setActiveStep(i)}
+            <button key={i} onClick={()=>setActiveStep(i)}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap shrink-0"
               style={active?{background:"#00A9CE",color:"white"}:done?{background:"#EEF5E0",color:"#4A6B00"}:{background:"#f1f5f9",color:"#94a3b8"}}>
               <span>{done?"✓":st.icon}</span>{st.label}
@@ -4609,18 +4502,16 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               </datalist>
               {matchedProgram&&(()=>{
                 const mk=calcKPIs(matchedProgram);
-                const crPrev=calcCR(matchedProgram,"act_"); const dc=crPrev.total;
+                const dc=(matchedProgram.act_personnel||0)+(matchedProgram.act_commodities||0)+(matchedProgram.act_contractuals||0)+(matchedProgram.act_other1||0)+(matchedProgram.act_other2||0);
                 return(
                   <div className="mt-1.5 px-3 py-2 rounded-lg bg-blue-50 border border-blue-100 text-xs text-blue-700 space-y-1">
                     <div className="flex flex-wrap gap-x-3 gap-y-0.5 items-center">
                       <span className="font-bold">✓ Matched —</span>
                       <span>Fill: <b>{Math.round((mk.fillRate||0)*100)}%</b></span>
                       <span>CR: <b>{Math.round((mk.costRecovery||0)*100)}%</b></span>
-                      <span>Revenue: <b>{dollar(crPrev.revenue)}</b></span>
-                      <span>Total Costs: <b>{dollar(dc)}</b></span>
-                      {matchedProgram.act_enrollment>0&&<span>Enrolled: <b>{matchedProgram.act_enrollment}/{matchedProgram.act_capacity}</b>
-                      </span>
-                      }
+                      <span>Revenue: <b>{dollar(matchedProgram.act_revenue||0)}</b></span>
+                      <span>Direct Costs: <b>{dollar(dc)}</b></span>
+                      {matchedProgram.act_enrollment>0&&<span>Enrolled: <b>{matchedProgram.act_enrollment}/{matchedProgram.act_capacity}</b></span>}
                       <span className="text-blue-500">All fields pre-filled ↓</span>
                     </div>
                   </div>
@@ -4646,9 +4537,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                 <div className="flex gap-6 text-sm">
                   <div><span className="text-slate-700">Fill Rate: </span><span className="font-bold text-slate-800">{prior.fill_rate}%</span></div>
                   <div><span className="text-slate-700">Cost Recovery: </span><span className="font-bold text-slate-800">{prior.cost_recovery}%</span></div>
-                  {prior.enrollment&&<div><span className="text-slate-700">Enrollment: </span><span className="font-bold text-slate-800">{prior.enrollment}</span>
-                  </div>
-                  }
+                  {prior.enrollment&&<div><span className="text-slate-700">Enrollment: </span><span className="font-bold text-slate-800">{prior.enrollment}</span></div>}
                 </div>
               </div>
             )}
@@ -4658,7 +4547,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               <div className="rounded-lg border border-slate-100 overflow-hidden">
                 <div className="px-4 py-2 bg-slate-50 text-xs font-bold text-slate-700 uppercase tracking-widest">Past Reviews — {form.program_name||"this program"}</div>
                 {hist.slice(0,3).map((h,i)=>(
-                  <div key={`_${i}`} className="px-4 py-2.5 border-t border-slate-50 flex items-center gap-3 text-xs">
+                  <div key={i} className="px-4 py-2.5 border-t border-slate-50 flex items-center gap-3 text-xs">
                     <span className="px-2 py-0.5 rounded font-bold text-white" style={{background:dcColor[h.decision]||"#64748b"}}>{h.decision}</span>
                     <span className="text-slate-700">{h.season} {h.fy}</span>
                     <span>Fill: <b>{h.fill_rate||0}%</b></span>
@@ -4677,7 +4566,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
             <div className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">💰 Financial Stewardship <span className="text-xs font-normal text-red-500 ml-2">Required Pillar</span></div>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               {inp("Revenue ($)","revenue","number")}
-              {inp("Total Costs ($)","direct_costs","number")}
+              {inp("Direct Costs ($)","direct_costs","number")}
               {inp("Cost Recovery (%)","cost_recovery","number")}
               {inp("Prior Season CR (%)","prior_cr","number","",false,"Last season's cost recovery for comparison")}
             </div>
@@ -5354,7 +5243,7 @@ function ProgramGuideSection({isManager,db}){
               {isManager&&<th className="px-4 py-2"/>}
             </tr></thead>
             <tbody>{filtered.map((g,i)=>(
-              <tr key={`_${i}`} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
+              <tr key={i} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
                 <td className="px-4 py-2.5 font-medium text-slate-800">
                   {g.program}
                   {g.custom&&<span className="ml-1.5 text-xs font-semibold text-blue-500">custom</span>}{g.overridden&&<span className="ml-1.5 text-xs font-semibold text-amber-500">edited</span>}
@@ -5406,7 +5295,7 @@ function ProgramGuideSection({isManager,db}){
                   {isManager&&<th className="px-4 py-2"/>}
                 </tr></thead>
                 <tbody>{items.map((g,i)=>(
-                  <tr key={`_${i}`} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
+                  <tr key={i} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
                     <td className="px-4 py-2.5 text-slate-800 font-medium">
                       {g.program}
                       {g.custom&&<span className="ml-1.5 text-xs font-semibold text-blue-500">custom</span>}{g.overridden&&<span className="ml-1.5 text-xs font-semibold text-amber-500">edited</span>}
@@ -5499,6 +5388,7 @@ function Reference({isManager,db,programs,staffName}) {
           {id:"redesign",label:"🔄 Redesign Ideas"},
           {id:"allocation",label:"💰 Allocation Calculator"},
           {id:"clubhouse",label:"🏫 Clubhouse Allocation"},
+          ...(isManager?[{id:"fyconfig",label:"⚙️ Formula Config"}]:[]),
         ].map(s=>(
           <button key={s.id} onClick={()=>setSec(s.id)}
             className={`px-5 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition ${sec===s.id?"font-semibold":"border-transparent text-slate-700 hover:text-slate-700"}`}
@@ -6017,7 +5907,7 @@ function Reference({isManager,db,programs,staffName}) {
                       <div className="p-4">
                         <div className="space-y-1.5 mb-3">
                           {p.expectations.map((e,i)=>(
-                            <div key={`_${i}`} className="flex gap-2 text-xs text-slate-700">
+                            <div key={i} className="flex gap-2 text-xs text-slate-700">
                               <span className="shrink-0 mt-0.5 font-bold" style={{color:p.color}}>›</span>
                               {e}
                             </div>
@@ -6062,7 +5952,7 @@ function Reference({isManager,db,programs,staffName}) {
                     {item:"Innovation pilots",detail:"How are pilots performing? Continue, modify, or sunset?"},
                     {item:"Service offering balance",detail:"Is the portfolio mix still aligned with the district's mission and financial targets?"},
                   ].map((r,i)=>(
-                    <div key={`_${i}`} className="flex gap-3 p-3 rounded-lg border border-slate-100">
+                    <div key={i} className="flex gap-3 p-3 rounded-lg border border-slate-100">
                       <span className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0 mt-0.5" style={{background:"#00A9CE",color:"#5C462B"}}>{i+1}</span>
                       <div>
                         <div className="text-sm font-bold text-slate-800">{r.item}</div>
@@ -6091,7 +5981,7 @@ function Reference({isManager,db,programs,staffName}) {
                         {cond:"Pilot misses targets",     trigger:"End of pilot season",   action:"Modify or sunset — do not carry forward",         color:"#fef9c3"},
                         {cond:"Prime time underutilized", trigger:"Scheduling review",     action:"Reschedule or replace with higher-demand program", color:"#f1f5f9"},
                       ].map((r,i)=>(
-                        <tr key={`_${i}`} className="border-t border-slate-50" style={{background:r.color}}>
+                        <tr key={i} className="border-t border-slate-50" style={{background:r.color}}>
                           <td className="px-4 py-2.5 font-semibold text-slate-800 text-xs">{r.cond}</td>
                           <td className="px-4 py-2.5 text-xs text-slate-700">{r.trigger}</td>
                           <td className="px-4 py-2.5 text-xs text-slate-700 font-medium">{r.action}</td>
@@ -6171,9 +6061,11 @@ function Reference({isManager,db,programs,staffName}) {
             {sec==="allocation"&&(
         <AllocationCalculator programs={programs} staffName={staffName} isManager={isManager} db={db}/>
       )}
-
       {sec==="clubhouse"&&(
         <ClubhouseAllocationTool db={db} programs={programs} staffName={staffName}/>
+      )}
+      {sec==="fyconfig"&&isManager&&(
+        <FYConfigPanel db={db} isManager={isManager}/>
       )}
 
       {sec==="training"&&(
@@ -6489,7 +6381,7 @@ function Reference({isManager,db,programs,staffName}) {
                     {when:"If you collected participant feedback",icon:"⭐",color:"#990066",what:"Add your NPS score. Optional but valuable for long-term program tracking."},
                     {when:"Anytime something changes",icon:"✏️",color:"#64748b",what:"Click the program name from the Dashboard or Programs tab and edit it. Every change saves immediately and metrics recalculate right away."},
                   ].map((r,i)=>(
-                    <div key={`_${i}`} className="flex gap-3 p-4 rounded-lg border border-slate-100">
+                    <div key={i} className="flex gap-3 p-4 rounded-lg border border-slate-100">
                       <div className="text-xl shrink-0">{r.icon}</div>
                       <div>
                         <div className="text-xs font-bold uppercase tracking-wide mb-1" style={{color:r.color}}>{r.when}</div>
@@ -6534,7 +6426,7 @@ function Reference({isManager,db,programs,staffName}) {
                   {q:"My program was flagged as Needs Redesign — what do I do?",a:"Open the Program Review, select Redesign as the decision, and a list of redesign ideas will appear based on your program type and what the numbers show. You can also browse the full Redesign Ideas tab in Guide & Resources for 26 detailed strategies with NRPA and IPRA backing."},
                   {q:"What does the Custom program type mean?",a:"Use Custom when none of the 10 standard types fit — for example a multi-site supervisor role or a hybrid program. When you select Custom, type a name for it and enter the workload % that fits your situation."},
                   ].map((r,i)=>(
-                    <div key={`_${i}`} className="rounded-lg border border-slate-200 overflow-hidden">
+                    <div key={i} className="rounded-lg border border-slate-200 overflow-hidden">
                       <div className="px-4 py-3 bg-slate-50 text-sm font-semibold text-slate-800 border-b border-slate-100">{r.q}</div>
                       <div className="px-4 py-3 text-sm text-slate-700">{r.a}</div>
                     </div>
@@ -6591,7 +6483,7 @@ function Reference({isManager,db,programs,staffName}) {
                     {use:"End-of-year reporting",how:"Clear all filters for the full portfolio view. Health Score, Subsidy Burden, and all aggregates show the complete picture. Use Season Report or Export CSV for documentation."},
                     {use:"Pricing review",how:"Revenue per Participant by Area shows which areas generate more revenue per enrolled person. Use this alongside cost recovery targets from District Standards to identify where fees may warrant adjustment."},
                   ].map((r,i)=>(
-                    <div key={`_${i}`} className="flex gap-3 p-3 rounded-lg border border-slate-100">
+                    <div key={i} className="flex gap-3 p-3 rounded-lg border border-slate-100">
                       <div className="shrink-0 mt-0.5"><span className="inline-block bg-slate-800 text-white text-xs font-bold px-2 py-0.5 rounded">{r.use}</span></div>
                       <div className="text-sm text-slate-700">{r.how}</div>
                     </div>
@@ -6671,7 +6563,7 @@ function Reference({isManager,db,programs,staffName}) {
                     {issue:"All programs entered under one name",impact:"Filtering by staff member doesn't work; workload distribution is inaccurate",fix:"Staff name on each program must match exactly how staff logged in. If someone uses 'Joe' in one program and 'Joe Smith' in another, they appear as two different people."},
                     {issue:"Revenue not updated after collection",impact:"Net P/(L) is negative even for financially healthy programs",fix:"Remind staff to update Actual Revenue after all payments are processed — not when registration closes, but after the program ends and final collections are confirmed."},
                   ].map((r,i)=>(
-                    <div key={`_${i}`} className="rounded-lg border border-slate-100 overflow-hidden">
+                    <div key={i} className="rounded-lg border border-slate-100 overflow-hidden">
                       <div className="px-4 py-2.5 bg-red-50 border-b border-red-100 text-xs font-bold text-red-700">⚠ {r.issue}</div>
                       <div className="p-3 grid grid-cols-1 gap-1 sm:grid-cols-2">
                         <div className="text-xs text-slate-700"><span className="font-semibold text-slate-700">Impact: </span>{r.impact}</div>
@@ -6698,7 +6590,7 @@ function Reference({isManager,db,programs,staffName}) {
                     {q:"What's the difference between the FT Staff Allocation panel and the Workload section?",a:"The FT Staff Allocation panel (always visible at the top of the Manager Dashboard) shows total allocated FT salary cost across the portfolio vs. the 60% target — it's the portfolio-level view. The Workload section in the dashboard is a per-program breakdown showing which programs are consuming the most staff time."},
                     {q:"What's the difference between the Dashboard Net P/(L) and what I see in the Admin Fund Performance tab?",a:"The Dashboard P/(L) is at the program-cost level — it includes allocated FT staff cost, overhead, and facility charges. The Fund Performance tab tracks actual fund-level revenue and expenses from your financial system. They measure different things and will not match."},
                   ].map((r,i)=>(
-                    <div key={`_${i}`} className="rounded-lg border border-slate-200 overflow-hidden">
+                    <div key={i} className="rounded-lg border border-slate-200 overflow-hidden">
                       <div className="px-4 py-3 bg-slate-50 text-sm font-semibold text-slate-800 border-b border-slate-100">{r.q}</div>
                       <div className="px-4 py-3 text-sm text-slate-700">{r.a}</div>
                     </div>
@@ -6868,33 +6760,130 @@ function getRedesignSuggestions(programType, fillRate, costRecovery, area, decis
 
 // ─── Capacity Calculator Component ───────────────────────────────────────────
 const BGPD_FACILITIES = {
-  "Alcott Community Center": {
-    "A":1123,"B":1127,"C":810,"D":810,"E":809,"F":801,"G":810,"H":809,"I":808,"J":809,
-    "LMR":1004,"26":777,"24":778,"6":810,"7":810,"8":823,"9":814,"10":1196,"11":1192,"10-11":2423
-  },
+  "Alcott Community Center": {"A":1123,"B":1127,"C":810,"D":810,"E":809,"F":801,"G":810,"H":809,"I":808,"J":809,"LMR":1004,"26":777,"24":778,"6":810,"7":810,"8":823,"9":814,"10":1196,"11":1192,"10-11":2423},
   "Adriane Johnson Amphitheater": {"Stage":1717,"Green Room":475},
   "Golf Community Learning Center": {"Open Turf":29732,"Lobby - Dome":6716,"Lobby - Main Building":333},
-  "Fitness Center": {
-    "Yoga Studio":829,"Mind Body Studio":1539,"Mat Studio":910,"Pilates / Reformer Studio":1032,
-    "Multi-Purpose Room":1886,"Group X Room":2715,"Gym":6864,"Conference Room":484,
-    "Spin Room":888,"Boxing Area":196,"Training Room":969
-  },
+  "Fitness Center": {"Yoga Studio":829,"Mind Body Studio":1539,"Mat Studio":910,"Pilates / Reformer Studio":1032,"Multi-Purpose Room":1886,"Group X Room":2715,"Gym":6864,"Conference Room":484,"Spin Room":888,"Boxing Area":196,"Training Room":969},
   "Nature Classroom": {"Exterior Shelter":562,"Classroom":492},
   "Spray N' Play": {"Party Area 1 (Red Canopy)":986,"Party Area 2 (Blue Canopy)":1635,"Party Area 3 (Green Canopy)":728},
   "Amphitheater Concessions Building": {"Concessions":280},
   "Drazner Park Facility": {"Classroom":860},
   "Willow Stream Concessions Building": {"Concessions":431,"Exterior Shelter":617},
-  "Community Arts Center": {
-    "Atrium":948,"Stage":2608,"Theater":4304,"3":1022,"4":925,"5":1033,"6":1021,"7":684,
-    "18":539,"19":1435,"20":1980,"21":1404,"20-21 (Full MPR)":3384
-  },
+  "Community Arts Center": {"Atrium":948,"Stage":2608,"Theater":4304,"3":1022,"4":925,"5":1033,"6":1021,"7":684,"18":539,"19":1435,"20":1980,"21":1404,"20-21 (Full MPR)":3384},
   "Raupp Museum": {"Lower Gallery":1115,"Main Gallery":2211,"Crossroads Gallery":966}
 };
+function FYConfigPanel({db,isManager}){
+  const [rows,setRows]=useState([]);
+  const [saving,setSaving]=useState(null);
+  const [loaded,setLoaded]=useState(false);
+
+  useEffect(()=>{
+    db.from("fy_config").select("*").order("fiscal_year",{ascending:false}).then(({data})=>{
+      setRows(data||[]);
+      setLoaded(true);
+    });
+  },[]);
+
+  const availableYears=YEARS.filter(y=>!rows.find(r=>r.fiscal_year===y));
+
+  function addYear(fy){
+    if(!fy||rows.find(r=>r.fiscal_year===fy)) return;
+    setRows(prev=>[{fiscal_year:fy,ft_salary:97700,facility_rate:3,admin_overhead:0.1,updated_by:"",_isNew:true},...prev]);
+  }
+  function cancelRow(fy){setRows(prev=>prev.filter(r=>r.fiscal_year!==fy));}
+
+  function updateRow(fy,field,val){
+    setRows(prev=>prev.map(r=>r.fiscal_year===fy?{...r,[field]:val}:r));
+  }
+
+  async function saveRow(row){
+    setSaving(row.fiscal_year);
+    const payload={fiscal_year:row.fiscal_year,ft_salary:parseFloat(row.ft_salary)||97700,facility_rate:parseFloat(row.facility_rate)||3,admin_overhead:parseFloat(row.admin_overhead)||0.1};
+    const{error}=await db.from("fy_config").upsert(payload,{onConflict:"fiscal_year"});
+    if(!error){
+      setRows(prev=>prev.map(r=>r.fiscal_year===row.fiscal_year?{...r,...payload,_isNew:false}:r));
+      // Refresh global config
+      const{data}=await db.from("fy_config").select("*");
+      if(data) data.forEach(cfg=>{_fyConfig[cfg.fiscal_year]=cfg;});
+    }
+    setSaving(null);
+  }
+
+  if(!loaded) return <div className="p-6 text-sm text-slate-500">Loading formula config…</div>;
+
+  return(
+    <div className="p-5 space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <div className="text-xs font-bold uppercase tracking-widest" style={{color:"#5C462B"}}>Formula Configuration</div>
+          <div className="text-xs mt-0.5" style={{color:"#A09080"}}>Set FT salary, facility rate, and overhead % per fiscal year. Used in all cost recovery calculations.</div>
+        </div>
+        <div className="flex items-center gap-2">
+          {availableYears.length>0
+            ?<select defaultValue="" onChange={e=>{if(e.target.value){addYear(e.target.value);e.target.value="";}}}
+                className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white" style={{color:"#5C462B"}}>
+                <option value="">+ Add Year…</option>
+                {availableYears.map(y=><option key={y} value={y}>FY {y}</option>)}
+              </select>
+            :<span className="text-xs" style={{color:"#A09080"}}>All years configured</span>}
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+              <th className="px-4 py-2.5 text-left">Fiscal Year</th>
+              <th className="px-4 py-2.5 text-left">FT Annual Salary ($)</th>
+              <th className="px-4 py-2.5 text-left">Facility Rate ($/hr)</th>
+              <th className="px-4 py-2.5 text-left">Admin Overhead (%)</th>
+              <th className="px-4 py-2.5 text-left">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(row=>(
+              <tr key={row.fiscal_year} className="border-t border-slate-100 hover:bg-slate-50">
+                <td className="px-4 py-2.5 font-semibold" style={{color:"#5C462B"}}>
+                  FY {row.fiscal_year}
+                  {row._isNew&&<span className="ml-1.5 text-xs font-normal px-1.5 py-0.5 rounded" style={{background:"#E6F6FB",color:"#00A9CE"}}>New</span>}
+                </td>
+                <td className="px-4 py-2.5">
+                  <input type="number" value={row.ft_salary||""} onChange={e=>updateRow(row.fiscal_year,"ft_salary",e.target.value)}
+                    className="w-28 text-sm rounded border border-slate-200 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-300"/>
+                </td>
+                <td className="px-4 py-2.5">
+                  <input type="number" value={row.facility_rate||""} onChange={e=>updateRow(row.fiscal_year,"facility_rate",e.target.value)}
+                    className="w-20 text-sm rounded border border-slate-200 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-300"/>
+                </td>
+                <td className="px-4 py-2.5">
+                  <input type="number" value={row.admin_overhead!==undefined?parseFloat((row.admin_overhead*100).toFixed(1)):""} onChange={e=>updateRow(row.fiscal_year,"admin_overhead",(parseFloat(e.target.value)||0)/100)}
+                    className="w-20 text-sm rounded border border-slate-200 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-300"/>
+                </td>
+                <td className="px-4 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <button onClick={()=>saveRow(row)} disabled={saving===row.fiscal_year}
+                      className="text-xs font-bold px-3 py-1.5 transition disabled:opacity-50"
+                      style={{background:"#84BD00",color:"#fff",borderRadius:"2px",border:"none"}}>
+                      {saving===row.fiscal_year?"Saving...":"Save"}
+                    </button>
+                    {row._isNew&&(
+                      <button onClick={()=>cancelRow(row.fiscal_year)}
+                        className="text-xs font-bold px-2 py-1.5 transition"
+                        style={{background:"none",border:"1px solid #E35205",color:"#E35205",borderRadius:"2px"}}>✕</button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {rows.length===0&&<div className="py-8 text-center text-sm text-slate-400">No fiscal years configured yet. Add one above.</div>}
+      </div>
+    </div>
+  );
+}
 
 function CapacityCalculator() {
   const [progType, setProgType] = useState("");
-  const [facility, setFacility] = useState("");
-  const [room, setRoom]         = useState("");
   const [sqft, setSqft]         = useState("");
   const [courts, setCourts]     = useState("");
   const [campers, setCampers]   = useState("");
@@ -7097,30 +7086,9 @@ function CapacityCalculator() {
               {needsSqft&&(
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Room / Space Size (sq ft)</label>
-                  <div className="flex gap-2 mb-1">
-                    <select value={facility} onChange={e=>{setFacility(e.target.value);setRoom("");setSqft("");}}
-                      className="flex-1 text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
-                      <option value="">Select facility…</option>
-                      {Object.keys(BGPD_FACILITIES).map(f=><option key={f} value={f}>{f}</option>)}
-                    </select>
-                  </div>
-                  {facility&&(
-                    <div className="flex gap-2 mb-1">
-                      <select value={room} onChange={e=>{setRoom(e.target.value);setSqft(e.target.value?String(BGPD_FACILITIES[facility][e.target.value]):"");}}
-                        className="w-full text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
-                        <option value="">Select room…</option>
-                        {Object.keys(BGPD_FACILITIES[facility]).map(r=>(
-                          <option key={r} value={r}>{r} — {BGPD_FACILITIES[facility][r].toLocaleString()} sq ft</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2">
-                    <input type="number" value={sqft} onChange={e=>{setSqft(e.target.value);setFacility("");setRoom("");}}
-                      placeholder={facility&&room?"Auto-filled — or type to override":"e.g. 1200"}
-                      className="flex-1 text-sm rounded border border-slate-200 px-3 py-2"/>
-                    {room&&<span className="text-xs shrink-0" style={{color:"#84BD00"}}>✓ {room}</span>}
-                  </div>
+                  <input type="number" value={sqft} onChange={e=>setSqft(e.target.value)}
+                    placeholder="e.g. 1200"
+                    className="w-full text-sm rounded border border-slate-200 px-3 py-2"/>
                 </div>
               )}
               {needsCourts&&(
@@ -7185,30 +7153,9 @@ function CapacityCalculator() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Indoor Space (sq ft, optional)</label>
-                <div className="flex gap-2 mb-1">
-                  <select value={facility} onChange={e=>{setFacility(e.target.value);setRoom("");setSqft("");}}
-                    className="flex-1 text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
-                    <option value="">Select facility…</option>
-                    {Object.keys(BGPD_FACILITIES).map(f=><option key={f} value={f}>{f}</option>)}
-                  </select>
-                </div>
-                {facility&&(
-                  <div className="flex gap-2 mb-1">
-                    <select value={room} onChange={e=>{setRoom(e.target.value);setSqft(e.target.value?String(BGPD_FACILITIES[facility][e.target.value]):"");}}
-                      className="w-full text-xs rounded border border-slate-200 px-2 py-1.5 bg-white">
-                      <option value="">Select room…</option>
-                      {Object.keys(BGPD_FACILITIES[facility]).map(r=>(
-                        <option key={r} value={r}>{r} — {BGPD_FACILITIES[facility][r].toLocaleString()} sq ft</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                <div className="flex items-center gap-2">
-                  <input type="number" value={sqft} onChange={e=>{setSqft(e.target.value);setFacility("");setRoom("");}}
-                    placeholder={facility&&room?"Auto-filled — or type to override":"e.g. 2000"}
-                    className="flex-1 text-sm rounded border border-slate-200 px-3 py-2"/>
-                  {room&&<span className="text-xs shrink-0" style={{color:"#84BD00"}}>✓ {room}</span>}
-                </div>
+                <input type="number" value={sqft} onChange={e=>setSqft(e.target.value)}
+                  placeholder="e.g. 2000"
+                  className="w-full text-sm rounded border border-slate-200 px-3 py-2"/>
               </div>
             </div>
           )}
@@ -7338,227 +7285,6 @@ function CapacityCalculator() {
   );
 }
 
-// ─── FY Formula Config Panel ────────────────────────────────────────────────
-function FYConfigPanel({db, isManager}) {
-  const [rows,    setRows]    = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [saving,  setSaving]  = useState(null);
-  const [err,     setErr]     = useState("");
-
-  async function load() {
-    setLoading(true);
-    const {data, error} = await db.from("fy_config").select("*").order("fiscal_year",{ascending:false});
-    if(!error && data) setRows(data);
-    setLoading(false);
-  }
-  useEffect(()=>{ load(); },[]);
-
-  async function saveRow(row) {
-    setSaving(row.fiscal_year); setErr("");
-    const {error} = await db.from("fy_config").upsert({
-      fiscal_year:    row.fiscal_year,
-      ft_salary:      parseFloat(row.ft_salary)      || 97700,
-      facility_rate:  parseFloat(row.facility_rate)  || 3,
-      admin_overhead: parseFloat(row.admin_overhead) || 0.1,
-      updated_by:     row.updated_by || "",
-      updated_at:     new Date().toISOString(),
-    }, {onConflict:"fiscal_year"});
-    if(error) setErr("Save failed: "+error.message);
-    else {
-      _fyConfig[row.fiscal_year] = row;
-      await load();
-    }
-    setSaving(null);
-  }
-
-  function updateRow(fy, field, val) {
-    setRows(prev=>prev.map(r=>r.fiscal_year===fy?{...r,[field]:val}:r));
-  }
-
-  const availableYears = YEARS.filter(y=>!rows.find(r=>r.fiscal_year===y));
-
-  function addYear(fy) {
-    if(!fy || rows.find(r=>r.fiscal_year===fy)) return;
-    setRows(prev=>[{fiscal_year:fy, ft_salary:97700, facility_rate:3, admin_overhead:0.1, updated_by:"", _isNew:true}, ...prev]);
-  }
-
-  function cancelRow(fy) {
-    setRows(prev=>prev.filter(r=>r.fiscal_year!==fy));
-  }
-
-  if(!isManager) return <div className="p-6 text-sm text-slate-500">Manager access required.</div>;
-
-  const CARD = {background:"#ffffff",borderRadius:"4px",border:"1px solid rgba(92,70,43,0.09)"};
-
-  return (
-    <div className="space-y-4">
-      <div className="p-4" style={CARD}>
-        <div className="font-bold text-sm mb-1" style={{color:"#5C462B"}}>FY Formula Constants</div>
-        <div className="text-xs" style={{color:"#A09080"}}>
-          Set FT annual salary, facility cost rate, and admin overhead per fiscal year.
-          Changing a past year updates historical cost recovery for that year only.
-          Defaults: FT Salary $97,700 - Facility $3/hr - Admin Overhead 10%.
-        </div>
-      </div>
-      {err&&<div className="text-xs px-3 py-2 rounded" style={{background:"#FDF0E6",color:"#E35205"}}>{err}</div>}
-      {loading
-        ? <div className="p-6 text-center text-sm" style={{color:"#A09080"}}>Loading...</div>
-        : (
-          <div style={CARD}>
-            <div className="px-4 py-2.5 flex items-center justify-between" style={{borderBottom:"1px solid rgba(92,70,43,0.09)"}}>
-              <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B"}}>Fiscal Year Config</div>
-              <div className="flex items-center gap-2">
-                {availableYears.length>0
-                  ? <select defaultValue="" onChange={e=>{if(e.target.value){addYear(e.target.value);e.target.value="";}}}
-                      className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white"
-                      style={{color:"#5C462B"}}>
-                      <option value="">+ Add Year…</option>
-                      {availableYears.map(y=><option key={y} value={y}>FY {y}</option>)}
-                    </select>
-                  : <span className="text-xs" style={{color:"#A09080"}}>All years configured</span>
-                }
-              </div>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr style={{background:"rgba(92,70,43,0.03)",borderBottom:"1px solid rgba(92,70,43,0.09)"}}>
-                    {["Fiscal Year","FT Annual Salary ($)","Facility Rate ($/hr)","Admin Overhead (%)",""].map(h=>(
-                      <th key={h} className="px-4 py-2.5 text-left font-semibold text-xs uppercase" style={{letterSpacing:"0.08em",color:"#A09080"}}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map(row=>(
-                    <tr key={row.fiscal_year} className="border-t border-slate-100">
-                      <td className="px-4 py-2.5 font-semibold" style={{color:"#5C462B"}}>
-                        FY {row.fiscal_year}
-                        {row._isNew&&<span className="ml-1.5 text-xs font-normal px-1.5 py-0.5 rounded" style={{background:"#E6F6FB",color:"#00A9CE"}}>New</span>}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <input type="number" value={row.ft_salary||""} onChange={e=>updateRow(row.fiscal_year,"ft_salary",e.target.value)}
-                          className="w-28 text-sm rounded border border-slate-200 px-2 py-1 font-mono"
-                          style={{MozAppearance:"textfield"}}/>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <input type="number" value={row.facility_rate||""} onChange={e=>updateRow(row.fiscal_year,"facility_rate",e.target.value)}
-                          step="0.50" className="w-20 text-sm rounded border border-slate-200 px-2 py-1 font-mono"
-                          style={{MozAppearance:"textfield"}}/>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <input type="number" value={row.admin_overhead!=null?Math.round(row.admin_overhead*100):""} onChange={e=>updateRow(row.fiscal_year,"admin_overhead",(parseFloat(e.target.value)||0)/100)}
-                          min={0} max={100} className="w-16 text-sm rounded border border-slate-200 px-2 py-1 font-mono"
-                          style={{MozAppearance:"textfield"}}/>
-                        <span className="text-xs ml-1" style={{color:"#A09080"}}>%</span>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <div className="flex items-center gap-2">
-                          <button onClick={()=>saveRow(row)}
-                            disabled={saving===row.fiscal_year}
-                            className="text-xs font-bold px-3 py-1.5 transition disabled:opacity-50"
-                            style={{background:"#84BD00",color:"#fff",borderRadius:"2px",border:"none"}}>
-                            {saving===row.fiscal_year?"Saving...":"Save"}
-                          </button>
-                          {row._isNew&&(
-                            <button onClick={()=>cancelRow(row.fiscal_year)}
-                              className="text-xs font-bold px-2 py-1.5 transition"
-                              style={{background:"none",border:"1px solid #E35205",color:"#E35205",borderRadius:"2px"}}>
-                              ✕
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {rows.length===0&&(
-                    <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{color:"#A09080"}}>
-                      No FY config rows yet. Click + Add Year to create one.
-                    </td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )
-      }
-    </div>
-  );
-}
-
-
-
-// ─── Staff PIN Admin ──────────────────────────────────────────────────────────
-function StaffPinAdmin({db, staffName}) {
-  const [pins,    setPins]    = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [busy,    setBusy]    = useState(null);
-  const [msg,     setMsg]     = useState("");
-
-  async function load() {
-    setLoading(true);
-    const {data,error} = await db.from("staff_pins").select("staff_name,created_at,updated_at").order("staff_name");
-    if(!error && data) setPins(data);
-    setLoading(false);
-  }
-
-  useEffect(()=>{ load(); }, []);
-
-  async function resetPin(name) {
-    if(!window.confirm(`Reset PIN for ${name}? They will be prompted to create a new one on next login.`)) return;
-    setBusy(name); setMsg("");
-    const {error} = await db.from("staff_pins").delete().eq("staff_name", name);
-    if(error) setMsg("Error: " + error.message);
-    else { setMsg(`PIN reset for ${name}. They can set a new one on next login.`); await load(); }
-    setBusy(null);
-  }
-
-  const CARD = {background:"#ffffff",borderRadius:"4px",border:"1px solid rgba(92,70,43,0.09)"};
-
-  return (
-    <div className="space-y-4">
-      <div className="p-4" style={CARD}>
-        <div className="font-bold text-sm mb-1" style={{color:"#5C462B"}}>Staff Access</div>
-        <div className="text-xs" style={{color:"#A09080"}}>
-          Staff PINs are set by each person on first login. Use Reset to clear a PIN — the staff member will be prompted to create a new one next time they sign in.
-        </div>
-      </div>
-
-      {msg&&<div className="px-4 py-2 text-xs rounded" style={{background:"rgba(132,189,0,0.08)",color:"#4A6B00",border:"1px solid rgba(132,189,0,0.2)"}}>{msg}</div>}
-
-      <div style={CARD}>
-        <div className="px-4 py-2.5" style={{borderBottom:"1px solid rgba(92,70,43,0.09)"}}>
-          <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B"}}>
-            {loading ? "Loading..." : `${pins.length} staff with PINs set`}
-          </div>
-        </div>
-        {!loading && pins.length === 0 && (
-          <div className="p-6 text-center text-sm" style={{color:"#A09080"}}>
-            No PINs set yet. Staff create their PIN on first login.
-          </div>
-        )}
-        {pins.map(p=>(
-          <div key={p.staff_name} className="flex items-center justify-between px-4 py-3 border-t" style={{borderColor:"rgba(92,70,43,0.06)"}}>
-            <div>
-              <div className="text-sm font-semibold" style={{color:"#5C462B",textTransform:"capitalize"}}>{p.staff_name}</div>
-              <div className="text-xs mt-0.5" style={{color:"#A09080"}}>
-                Set {p.updated_at ? new Date(p.updated_at).toLocaleDateString() : "—"}
-              </div>
-            </div>
-            <button
-              onClick={()=>resetPin(p.staff_name)}
-              disabled={busy===p.staff_name}
-              className="text-xs font-semibold px-3 py-1.5 rounded border transition disabled:opacity-40"
-              style={{color:"#E35205",borderColor:"rgba(227,82,5,0.3)",background:"#fff"}}>
-              {busy===p.staff_name ? "Resetting…" : "Reset PIN"}
-            </button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-
 export default function App() {
   const [tab,setTab]                       = useState("dashboard");
   const [programs,setPrograms]             = useState([]);
@@ -7571,7 +7297,7 @@ export default function App() {
   const [returnToYear,setReturnToYear]     = useState(null);
   const [error,setError]                   = useState(null);
   const [staffName,setStaffName]           = useState(()=>localStorage.getItem("bgpd_staff_name")||"");
-  const [viewAsManager,setViewAsManager]   = useState(()=>MANAGER_NAMES.includes((localStorage.getItem("bgpd_staff_name")||"").toLowerCase().trim()));
+  const [viewAsManager,setViewAsManager]   = useState(()=>MANAGER_NAMES.includes((localStorage.getItem("bgpd_staff_name")||"" ).toLowerCase().trim()));
   const isManager = MANAGER_NAMES.includes(staffName.toLowerCase().trim());
   const effectiveManager = isManager && viewAsManager;
 
@@ -7623,18 +7349,14 @@ export default function App() {
     try {
       const data = cleanForDB(p);
       if(data.id){
-        // Existing program — navigate back to list filtered to this program's FY
         const{error:e}=await supabase.from("programs").update(data).eq("id",data.id);
         if(e) throw e;
-        await fetchAll();
-        setReturnToYear(toFY(data.year));
+        await fetchAll(); setReturnToYear(toFY(data.year));
         setEditingProgram(null); setAddingProgram(false); setTab("programs");
       } else {
-        // New program — insert and open the new record for editing
         const{data:inserted,error:e}=await supabase.from("programs").insert(data).select().single();
         if(e) throw e;
-        await fetchAll();
-        setAddingProgram(false);
+        await fetchAll(); setAddingProgram(false);
         if(inserted){ setReturnToYear(toFY(inserted.year)); setEditingProgram(inserted); setTab("programs"); }
         else { setEditingProgram(null); setTab("programs"); }
       }
@@ -7666,12 +7388,7 @@ export default function App() {
 
   const handleDeleteProgram = async id => {
     setSaving(true);
-    const {error:de}=await supabase.from("programs").update({
-      is_deleted: true,
-      deleted_by: staffName,
-      deleted_at: new Date().toISOString(),
-      is_archived: true,
-    }).eq("id",id);
+    const {error:de}=await supabase.from("programs").delete().eq("id",id);
     if(de) setError("Failed to delete program: "+de.message);
     else { await fetchAll(); if(id) setReturnToYear(toFY(programs.find(p=>p.id===id)?.year||"")); setEditingProgram(null); setAddingProgram(false); setTab("programs"); }
     setSaving(false);
@@ -7750,12 +7467,13 @@ export default function App() {
   if(!staffName) return <StaffSetup onConfirm={handleConfirmName}/>;
 
   return (
+    <ErrorBoundary>
     <div className="min-h-screen" style={{background:"#F8F7F4",fontFamily:"'Nunito Sans',Arial,sans-serif"}}>
       {dupProgram&&(
         <DupModal program={dupProgram} onConfirm={opts=>handleDuplicate(dupProgram,opts)} onCancel={()=>setDupProgram(null)}/>
       )}
       {showBulkDup&&(
-        <BulkDupModal programs={effectiveManager?programs:programs.filter(p=>p.staff_name===staffName)} onConfirm={handleBulkDuplicate} onCancel={()=>setShowBulkDup(false)}/>
+        <BulkDupModal programs={programs} onConfirm={handleBulkDuplicate} onCancel={()=>setShowBulkDup(false)}/>
       )}
 
       <header style={{backgroundColor:"#ffffff",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>
@@ -7818,7 +7536,6 @@ export default function App() {
           <>
             {tab==="dashboard"&&!showingForm&&(
               <Dashboard programs={programs} staffName={staffName} isManager={effectiveManager}
-                db={supabase}
                 onEdit={p=>{setEditingProgram(p);setTab("programs");}}
                 onAddProgram={()=>{setAddingProgram(true);setTab("programs");}}/>
             )}
@@ -7849,21 +7566,84 @@ export default function App() {
                 saving={saving}/>
             )}
             {tab==="history"&&(
-              <MultiSeasonView programs={programs} staffName={staffName} isManager={effectiveManager} onEdit={p=>{setEditingProgram(p);setTab("programs");}}/>
+              <MultiSeasonView programs={programs} onEdit={p=>{setEditingProgram(p);setTab("programs");}}/>
             )}
             {tab==="kpi"&&<Reference isManager={effectiveManager} db={supabase} programs={programs} staffName={staffName}/>}
-        {tab==="access"&&effectiveManager&&(
-          <StaffPinAdmin db={supabase} staffName={staffName} programs={programs}/>
-        )}
-        {tab==="config"&&effectiveManager&&(
-          <FYConfigPanel db={supabase} isManager={effectiveManager}/>
-        )}
+            {tab==="access"&&effectiveManager&&(
+              <StaffPinAdmin db={supabase} staffName={staffName} programs={programs}/>
+            )}
+            {tab==="config"&&effectiveManager&&(
+              <FYConfigPanel db={supabase} isManager={effectiveManager}/>
+            )}
           </>
         )}
       </main>
     </div>
   );
 }
+// ─── Staff PIN Admin ──────────────────────────────────────────────────────────
+function StaffPinAdmin({db, staffName}) {
+  const [pins,    setPins]    = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busy,    setBusy]    = useState(null);
+  const [msg,     setMsg]     = useState("");
+
+  async function load() {
+    setLoading(true);
+    const {data,error} = await db.from("staff_pins").select("staff_name,created_at,updated_at").order("staff_name");
+    if(!error && data) setPins(data);
+    setLoading(false);
+  }
+  useEffect(()=>{ load(); }, []);
+
+  async function resetPin(name) {
+    if(!window.confirm(`Reset PIN for ${name}? They will be prompted to create a new one on next login.`)) return;
+    setBusy(name); setMsg("");
+    const {error} = await db.from("staff_pins").delete().eq("staff_name", name);
+    if(error) setMsg("Error: " + error.message);
+    else { setMsg(`PIN reset for ${name}. They can set a new one on next login.`); await load(); }
+    setBusy(null);
+  }
+
+  const CARD = {background:"#ffffff",borderRadius:"4px",border:"1px solid rgba(92,70,43,0.09)"};
+
+  return (
+    <div className="space-y-4">
+      <div className="p-4" style={CARD}>
+        <div className="font-bold text-sm mb-1" style={{color:"#5C462B"}}>Staff Access</div>
+        <div className="text-xs" style={{color:"#A09080"}}>
+          Staff PINs are set by each person on first login. Use Reset to clear a PIN — the staff member will be prompted to create a new one next time they sign in.
+        </div>
+      </div>
+      {msg&&<div className="px-4 py-2 text-xs rounded" style={{background:"rgba(132,189,0,0.08)",color:"#4A6B00",border:"1px solid rgba(132,189,0,0.2)"}}>{msg}</div>}
+      <div style={CARD}>
+        <div className="px-4 py-2.5" style={{borderBottom:"1px solid rgba(92,70,43,0.09)"}}>
+          <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B"}}>
+            {loading ? "Loading..." : `${pins.length} staff with PINs set`}
+          </div>
+        </div>
+        {!loading && pins.length === 0 && (
+          <div className="p-6 text-center text-sm" style={{color:"#A09080"}}>No PINs set yet. Staff create their PIN on first login.</div>
+        )}
+        {pins.map(p=>(
+          <div key={p.staff_name} className="flex items-center justify-between px-4 py-3 border-t" style={{borderColor:"rgba(92,70,43,0.06)"}}>
+            <div>
+              <div className="text-sm font-semibold" style={{color:"#5C462B",textTransform:"capitalize"}}>{p.staff_name}</div>
+              <div className="text-xs mt-0.5" style={{color:"#A09080"}}>Set {p.updated_at ? new Date(p.updated_at).toLocaleDateString() : "—"}</div>
+            </div>
+            <button onClick={()=>resetPin(p.staff_name)} disabled={busy===p.staff_name}
+              className="text-xs font-semibold px-3 py-1.5 rounded border transition disabled:opacity-40"
+              style={{color:"#E35205",borderColor:"rgba(227,82,5,0.3)",background:"#fff"}}>
+              {busy===p.staff_name ? "Resetting…" : "Reset PIN"}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
 // ─── Allocation Calculator ────────────────────────────────────────────────────
 function AllocationCalculator({programs, staffName, isManager}) {
   const [season, setSeason]       = useState("all");
@@ -7901,6 +7681,7 @@ function AllocationCalculator({programs, staffName, isManager}) {
   const selNone = () => { setSelected({}); setResult(null); setApplyStatus({}); };
   const selectedProgs = filtered.filter(p=>selected[p.id]);
   const totalCost = costLines.reduce((a,l)=>a+(parseFloat(l.amount)||0), 0);
+  const budgetLabel = which === "budgeted" ? "Budgeted" : "Actuals";
 
   function calculate() {
     setErr("");
@@ -7924,10 +7705,8 @@ function AllocationCalculator({programs, staffName, isManager}) {
     const rowsWithAmounts = rows.map(row=>({
       ...row,
       lines: activeCostLines.map(line=>({
-        desc:     line.desc,
-        category: line.category,
-        field:    getField(line.category),
-        amount:   Math.round(row.pct * parseFloat(line.amount) * 100) / 100,
+        desc:line.desc, category:line.category, field:getField(line.category),
+        amount:Math.round(row.pct * parseFloat(line.amount) * 100) / 100,
       })),
       totalAmount: activeCostLines.reduce((a,line)=>a+Math.round(row.pct*parseFloat(line.amount)*100)/100, 0),
     }));
@@ -7956,18 +7735,15 @@ function AllocationCalculator({programs, staffName, isManager}) {
         const {error:e} = await db.from("programs").update(update).eq("id",row.id);
         status[row.id] = e ? "error" : "ok";
         if(e) setErr(prev=>prev+(prev?"\n":"")+row.name+": "+e.message);
-      } catch(ex) {
-        status[row.id] = "error";
-      }
+      } catch(ex) { status[row.id] = "error"; }
     }
     setApplyStatus(status);
     setApplying(false);
   }
 
   const appliedCount = Object.values(applyStatus).filter(v=>v==="ok").length;
-  const budgetLabel  = which === "budgeted" ? "Budgeted" : "Actuals";
 
-  return (
+  return(
     <div className="space-y-5">
       <div className="rounded p-4" style={{background:"rgba(0,169,206,0.05)",border:"1px solid rgba(0,169,206,0.2)"}}>
         <div className="text-xs font-bold uppercase mb-1" style={{letterSpacing:"0.10em",color:"#00A9CE"}}>What this does</div>
@@ -8039,29 +7815,24 @@ function AllocationCalculator({programs, staffName, isManager}) {
         <div className="px-4 py-2.5 text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B",background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>Step 2 - Cost Lines & Split Method</div>
         <div className="p-4 space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-2">Cost lines - each line can go to a different field</label>
+            <label className="block text-xs font-semibold text-slate-600 mb-2">Cost lines</label>
             {costLines.map((line,i)=>(
               <div key={`cl-${i}`} className="mb-3 p-3 rounded" style={{background:"rgba(92,70,43,0.03)",border:"1px solid rgba(92,70,43,0.08)"}}>
                 <div className="flex gap-2 items-center mb-2">
                   <input type="text" value={line.desc} onChange={e=>{const n=[...costLines];n[i]={...n[i],desc:e.target.value};setCostLines(n);}}
-                    placeholder="Description (e.g. Shared instructor)"
-                    className="flex-1 text-sm rounded border border-slate-200 px-3 py-2"/>
+                    placeholder="Description" className="flex-1 text-sm rounded border border-slate-200 px-3 py-2"/>
                   <input type="number" value={line.amount} onChange={e=>{const n=[...costLines];n[i]={...n[i],amount:e.target.value};setCostLines(n);setResult(null);}}
-                    placeholder="$0.00" min={0}
-                    className="w-28 text-sm rounded border border-slate-200 px-3 py-2 font-mono"
+                    placeholder="$0.00" min={0} className="w-28 text-sm rounded border border-slate-200 px-3 py-2 font-mono"
                     style={{MozAppearance:"textfield"}}/>
                   {costLines.length>1&&<button onClick={()=>{setCostLines(costLines.filter((_,j)=>j!==i));setResult(null);}}
-                    className="text-xs font-bold px-1 shrink-0" style={{color:"#E35205",background:"none",border:"none"}}>x</button>
-                  }
+                    className="text-xs font-bold px-1 shrink-0" style={{color:"#E35205",background:"none",border:"none"}}>x</button>}
                 </div>
                 <div className="flex gap-1.5 flex-wrap items-center">
                   <span className="text-xs mr-1" style={{color:"#A09080"}}>to {budgetLabel}:</span>
                   {CATEGORIES.map(cat=>(
                     <button key={cat.id} onClick={()=>{const n=[...costLines];n[i]={...n[i],category:cat.id};setCostLines(n);}}
                       className="px-2.5 py-1 text-xs font-semibold rounded border transition"
-                      style={line.category===cat.id
-                        ?{background:"#5C462B",color:"#fff",borderColor:"#5C462B"}
-                        :{background:"#fff",color:"#A09080",borderColor:"rgba(92,70,43,0.25)"}}>
+                      style={line.category===cat.id?{background:"#5C462B",color:"#fff",borderColor:"#5C462B"}:{background:"#fff",color:"#A09080",borderColor:"rgba(92,70,43,0.25)"}}>
                       {cat.label}
                     </button>
                   ))}
@@ -8070,9 +7841,7 @@ function AllocationCalculator({programs, staffName, isManager}) {
             ))}
             <div className="flex items-center justify-between">
               <button onClick={()=>setCostLines([...costLines,{desc:"",amount:"",category:"other1"}])}
-                className="text-xs font-semibold" style={{color:"#00A9CE",background:"none",border:"none"}}>
-                + Add cost line
-              </button>
+                className="text-xs font-semibold" style={{color:"#00A9CE",background:"none",border:"none"}}>+ Add cost line</button>
               {totalCost>0&&<div className="text-sm font-bold" style={{color:"#5C462B"}}>Total: {dollar(totalCost)}</div>}
             </div>
           </div>
@@ -8090,8 +7859,7 @@ function AllocationCalculator({programs, staffName, isManager}) {
           </div>
           {err&&<div className="text-xs px-3 py-2 rounded" style={{background:"#FDF0E6",color:"#E35205"}}>{err}</div>}
           <button onClick={calculate} disabled={selectedProgs.length<2||totalCost<=0}
-            className="px-4 py-2 text-sm font-bold rounded text-white disabled:opacity-40"
-            style={{background:"#00A9CE"}}>
+            className="px-4 py-2 text-sm font-bold rounded text-white disabled:opacity-40" style={{background:"#00A9CE"}}>
             Calculate
           </button>
         </div>
@@ -8102,18 +7870,6 @@ function AllocationCalculator({programs, staffName, isManager}) {
         <div className="rounded" style={{border:"1px solid rgba(92,70,43,0.15)"}}>
           <div className="px-4 py-2.5 text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#5C462B",background:"#F0EBE3",borderBottom:"1px solid rgba(92,70,43,0.12)"}}>Step 3 - Review & Apply</div>
           <div className="p-4 space-y-3">
-            <div className="space-y-1 mb-2">
-              {result.costLines.map((line,i)=>(
-                <div key={`sum-${i}`} className="flex items-center gap-2 text-xs">
-                  <span className="font-semibold" style={{color:"#5C462B"}}>{line.desc||"Cost line "+(i+1)}</span>
-                  <span style={{color:"#A09080"}}>{dollar(parseFloat(line.amount))}</span>
-                  <span style={{color:"#A09080"}}>to</span>
-                  <span className="font-semibold px-2 py-0.5 rounded" style={{background:"rgba(0,169,206,0.08)",color:"#00A9CE"}}>
-                    {CATEGORIES.find(ca=>ca.id===line.category)?.label} ({budgetLabel})
-                  </span>
-                </div>
-              ))}
-            </div>
             <div className="border border-slate-200 rounded overflow-hidden overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
@@ -8141,30 +7897,20 @@ function AllocationCalculator({programs, staffName, isManager}) {
                       ))}
                       <td className="px-3 py-2.5 text-right font-mono font-bold" style={{color:applyStatus[row.id]==="ok"?"#84BD00":applyStatus[row.id]==="error"?"#E35205":"#5C462B"}}>
                         {dollar(row.totalAmount)}
-                        {applyStatus[row.id]==="ok"&&<span className="ml-1">ok</span>}
-                        {applyStatus[row.id]==="error"&&<span className="ml-1">!</span>}
+                        {applyStatus[row.id]==="ok"&&<span className="ml-1">✓</span>}
                       </td>
                     </tr>
                   ))}
-                  <tr className="border-t border-slate-200 font-bold" style={{background:"#F0EBE3"}}>
-                    <td className="px-3 py-2" style={{color:"#5C462B"}}>Total</td>
-                    <td></td>
-                    {result.costLines.map((line,i)=>(
-                      <td key={`tot-${i}`} className="px-3 py-2 text-right font-mono" style={{color:"#5C462B"}}>{dollar(parseFloat(line.amount))}</td>
-                    ))}
-                    <td className="px-3 py-2 text-right font-mono" style={{color:"#5C462B"}}>{dollar(result.totalCost)}</td>
-                  </tr>
                 </tbody>
               </table>
             </div>
             {appliedCount>0&&(
               <div className="text-xs font-semibold px-3 py-2 rounded" style={{background:"rgba(132,189,0,0.08)",color:"#4A6B00"}}>
-                Applied to {appliedCount} of {result.rows.length} programs on the {budgetLabel} tab.
+                Applied to {appliedCount} of {result.rows.length} programs.
               </div>
             )}
             <button onClick={applyAlloc} disabled={applying||appliedCount===result.rows.length}
-              className="px-4 py-2 text-sm font-bold rounded text-white disabled:opacity-40"
-              style={{background:"#84BD00"}}>
+              className="px-4 py-2 text-sm font-bold rounded text-white disabled:opacity-40" style={{background:"#84BD00"}}>
               {applying?"Applying...":appliedCount===result.rows.length?"Applied":"Apply to Programs"}
             </button>
           </div>
@@ -8575,4 +8321,5 @@ function ClubhouseAllocationTool({db,programs,staffName}){
       )}
     </div>
   );
+    </ErrorBoundary>
 }
