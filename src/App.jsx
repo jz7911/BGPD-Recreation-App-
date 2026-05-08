@@ -7579,6 +7579,7 @@ export default function App() {
         )}
       </main>
     </div>
+    </ErrorBoundary>
   );
 }
 // ─── Staff PIN Admin ──────────────────────────────────────────────────────────
@@ -7917,6 +7918,7 @@ function AllocationCalculator({programs, staffName, isManager}) {
         </div>
       )}
     </div>
+    </ErrorBoundary>
   );
 }
 
