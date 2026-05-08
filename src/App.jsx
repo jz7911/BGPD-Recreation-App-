@@ -1895,9 +1895,12 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
     };
     kpis.forEach(p=>{
       const typePct=p.ant_program_type&&p.ant_program_type!=="Custom"?(PROGRAM_TYPES.find(t=>t.label===p.ant_program_type)?.pct||0)*100:0;
-      const baseWL=parseFloat(p.ant_custom_workload)>0?parseFloat(p.ant_custom_workload):typePct;
       const coWL=parseFloat(p.co_staff_workload_pct)||0;
-      const primaryWL=coWL>0?Math.max(0,baseWL-coWL):baseWL;
+      // ant_custom_workload already stores the primary staff's net workload (after co-staff split)
+      // If no custom workload set, fall back to program type % minus co-staff share
+      const primaryWL=parseFloat(p.ant_custom_workload)>0
+        ? parseFloat(p.ant_custom_workload)
+        : Math.max(0, typePct - coWL);
       addEntry(p.staff_name||"Unknown",primaryWL,p.name,p.ant_program_type);
       if(p.co_staff_name&&coWL>0) addEntry(p.co_staff_name,coWL,p.name+" (co-staff)",p.ant_program_type);
     });
