@@ -7916,7 +7916,6 @@ function AllocationCalculator({programs, staffName, isManager}) {
         </div>
       )}
     </div>
-    </ErrorBoundary>
   );
 }
 
@@ -8321,5 +8320,4 @@ function ClubhouseAllocationTool({db,programs,staffName}){
       )}
     </div>
   );
-    </ErrorBoundary>
 }
