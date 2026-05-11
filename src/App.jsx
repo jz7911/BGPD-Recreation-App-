@@ -2705,6 +2705,11 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
   const [filterYear,setFilterYear]   = useState(new Set());
   const [showSingle,setShowSingle]   = useState(false);
   const [msvOpen,setMsvOpen]         = useState(null);
+  const [expandedGroups,setExpandedGroups] = useState(new Set());
+  const [expandedAreas,setExpandedAreas]   = useState(new Set());
+
+  function toggleGroup(key){ setExpandedGroups(p=>{const n=new Set(p);n.has(key)?n.delete(key):n.add(key);return n;}); }
+  function toggleArea(area){ setExpandedAreas(p=>{const n=new Set(p);n.has(area)?n.delete(area):n.add(area);return n;}); }
 
   function toggleMSV(setter,val){
     setter(prev=>{ const n=new Set(prev); n.has(val)?n.delete(val):n.add(val); return n; });
@@ -2829,48 +2834,109 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
               : "No programs with more than one season yet. Try toggling \"Show single-season\" to see all programs."}
         </div>
       )}
-      {groups.map(g=>(
-        <div key={g.name+g.area} className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
-          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-            <div>
-              <div className="font-bold text-slate-800">{g.name}</div>
-              <div className="text-xs text-slate-700">{g.area}{g.staff?" — "+g.staff:""}</div>
+      {(()=>{
+        // Group programs by area for parent accordions
+        const byArea = {};
+        groups.forEach(g=>{
+          const area = g.area||"Other";
+          if(!byArea[area]) byArea[area]=[];
+          byArea[area].push(g);
+        });
+        const areaKeys = Object.keys(byArea).sort();
+        return areaKeys.map(area=>{
+          const areaGroups = byArea[area];
+          const areaOpen   = expandedAreas.has(area);
+          const totalSeasons = areaGroups.reduce((a,g)=>a+g.seasons.length,0);
+          return(
+            <div key={area} className="rounded overflow-hidden" style={{border:"1px solid rgba(92,70,43,0.2)"}}>
+              {/* Area header */}
+              <button onClick={()=>toggleArea(area)}
+                className="w-full px-4 py-3 flex items-center justify-between text-left transition hover:bg-slate-50"
+                style={{background:"#F5F2EF"}}>
+                <div className="flex items-center gap-3">
+                  <span className="font-bold text-slate-800 text-sm">{area}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{background:"rgba(92,70,43,0.1)",color:"#5C462B"}}>
+                    {areaGroups.length} program{areaGroups.length!==1?"s":""}
+                  </span>
+                  <span className="text-xs text-slate-500">{totalSeasons} season{totalSeasons!==1?"s":""} total</span>
+                </div>
+                <span className="text-slate-500 text-xs font-bold" style={{transform:areaOpen?"rotate(180deg)":"rotate(0deg)",display:"inline-block",transition:"transform .2s"}}>▼</span>
+              </button>
+              {/* Programs within area */}
+              {areaOpen&&(
+                <div className="divide-y divide-slate-100">
+                  {areaGroups.map(g=>{
+                    const gKey = g.name+"__"+(g.staff||"");
+                    const gOpen = expandedGroups.has(gKey);
+                    const latestSeason = [...g.seasons].sort((a,b)=>{
+                      const ya=toCalYear(a.year),yb=toCalYear(b.year);
+                      if(ya!==yb) return yb-ya;
+                      const SO=["All Year","Winter","Fall","Summer","Spring"];
+                      return SO.indexOf(a.season)-SO.indexOf(b.season);
+                    })[0];
+                    return(
+                      <div key={gKey} className="bg-white">
+                        {/* Program header row — always visible */}
+                        <button onClick={()=>toggleGroup(gKey)}
+                          className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-50 transition">
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <span className="font-semibold text-slate-800 text-sm">{g.name}</span>
+                            {g.staff&&<span className="text-xs text-slate-500">{g.staff}</span>}
+                            <span className="text-xs px-2 py-0.5 rounded-full" style={{background:"rgba(0,169,206,0.1)",color:"#007A99"}}>
+                              {g.seasons.length} season{g.seasons.length!==1?"s":""}
+                            </span>
+                            {latestSeason&&(
+                              <span className="text-xs font-mono text-slate-600">
+                                Latest: {latestSeason.season} FY {toFY(latestSeason.year)}
+                                {latestSeason.costRecovery!=null&&<span className="ml-2 font-semibold" style={{color:latestSeason.costRecovery>=1?"#84BD00":latestSeason.costRecovery>=0.6?"#F6AB00":"#E35205"}}>{pct(latestSeason.costRecovery)} CR</span>}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-slate-400 text-xs shrink-0 ml-2" style={{transform:gOpen?"rotate(180deg)":"rotate(0deg)",display:"inline-block",transition:"transform .2s"}}>▼</span>
+                        </button>
+                        {/* Season detail table — shown when expanded */}
+                        {gOpen&&(
+                          <div className="overflow-x-auto border-t border-slate-100">
+                            <table className="w-full text-sm">
+                              <thead><tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+                                <th className="px-4 py-2 text-left font-semibold">Season</th>
+                                <th className="px-4 py-2 text-left font-semibold">Fill Rate</th>
+                                <th className="px-4 py-2 text-left font-semibold">Cost Recovery</th>
+                                <th className="px-4 py-2 text-left font-semibold">Net P/(L)</th>
+                                <th className="px-4 py-2 text-left font-semibold">Enrollment</th>
+                                <th className="px-4 py-2 text-left font-semibold">Status</th>
+                                <th className="px-4 py-2 text-left font-semibold">Trend</th>
+                                <th className="px-4 py-2"/>
+                              </tr></thead>
+                              <tbody>{[...g.seasons].sort((a,b)=>{
+                                const SO=["Spring","Summer","Fall","Winter","All Year"];
+                                const ya=toCalYear(a.year),yb=toCalYear(b.year);
+                                if(ya!==yb) return ya-yb;
+                                return SO.indexOf(a.season)-SO.indexOf(b.season);
+                              }).map((s,i)=>(
+                                <tr key={s.id} className={`border-t border-slate-50 hover:bg-gray-100 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
+                                  <td className="px-4 py-2.5 font-semibold text-slate-800 whitespace-nowrap">{s.season} FY {toFY(s.year)}</td>
+                                  <td className="px-4 py-2.5 font-mono text-xs">{pct(s.fillRate)}</td>
+                                  <td className="px-4 py-2.5 font-mono text-xs">{pct(s.costRecovery)}</td>
+                                  <td className={`px-4 py-2.5 font-mono text-xs font-semibold ${s.profitLoss>=0?"text-green-700":"text-red-600"}`}>{dollar(s.profitLoss)}</td>
+                                  <td className="px-4 py-2.5 font-mono text-xs">{s.act_enrollment||0}</td>
+                                  <td className="px-4 py-2.5"><Badge status={s.status}/></td>
+                                  <td className="px-4 py-2.5 text-slate-700 text-xs">{s.trend}</td>
+                                  <td className="px-4 py-2.5"><button onClick={()=>onEdit(s)} className="text-xs text-slate-700 hover:text-slate-800">Edit</button></td>
+                                </tr>
+                              ))}</tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-            <span className="text-xs text-slate-700">{g.seasons.length} seasons</span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="bg-slate-50 text-xs text-slate-700 uppercase tracking-wider">
-                <th className="px-4 py-2 text-left font-semibold">Season</th>
-                <th className="px-4 py-2 text-left font-semibold">Fill Rate</th>
-                <th className="px-4 py-2 text-left font-semibold">Cost Recovery</th>
-                <th className="px-4 py-2 text-left font-semibold">Net P/(L)</th>
-                <th className="px-4 py-2 text-left font-semibold">Enrollment</th>
-                <th className="px-4 py-2 text-left font-semibold">Status</th>
-                <th className="px-4 py-2 text-left font-semibold">Trend</th>
-                <th className="px-4 py-2"/>
-              </tr></thead>
-              <tbody>{g.seasons.sort((a,b)=>{
-                const SO=["Spring","Summer","Fall","Winter","All Year"];
-                const ya=toCalYear(a.year),yb=toCalYear(b.year);
-                if(ya!==yb) return ya-yb;
-                return SO.indexOf(a.season)-SO.indexOf(b.season);
-              }).map((s,i)=>(
-                <tr key={s.id} className={`border-t border-slate-50 hover:bg-gray-200 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
-                  <td className="px-4 py-2.5 font-semibold text-slate-800 whitespace-nowrap">{s.season} FY {toFY(s.year)}</td>
-                  <td className="px-4 py-2.5 font-mono text-xs">{pct(s.fillRate)}</td>
-                  <td className="px-4 py-2.5 font-mono text-xs">{pct(s.costRecovery)}</td>
-                  <td className={`px-4 py-2.5 font-mono text-xs font-semibold ${s.profitLoss>=0?"text-green-700":"text-red-600"}`}>{dollar(s.profitLoss)}</td>
-                  <td className="px-4 py-2.5 font-mono text-xs">{s.act_enrollment||0}</td>
-                  <td className="px-4 py-2.5"><Badge status={s.status}/></td>
-                  <td className="px-4 py-2.5 text-slate-700 text-xs">{s.trend}</td>
-                  <td className="px-4 py-2.5"><button onClick={()=>onEdit(s)} className="text-xs text-slate-700 hover:text-slate-800">Edit</button></td>
-                </tr>
-              ))}</tbody>
-            </table>
-          </div>
-        </div>
-      ))}
+          );
+        });
+      })()}
     </div>
   );
 }
