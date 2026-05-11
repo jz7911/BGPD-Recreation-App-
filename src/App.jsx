@@ -2702,23 +2702,16 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
   const [search,setSearch] = useState("");
   const [filterStaff,setFilterStaff] = useState("");
   const [filterArea,setFilterArea]   = useState("");
-  const [filterYears,setFilterYears] = useState(new Set());
+  const [filterYear,setFilterYear]   = useState("");
   const [showSingle,setShowSingle] = useState(false);
-  const multiCount = (() => {
-    const groups = {};
-    programs.filter(p=>!p.is_archived).forEach(p=>{
-      const k = `${p.name}||${p.staff_name}`;
-      groups[k] = (groups[k]||0)+1;
-    });
-    return Object.values(groups).filter(v=>v>=2).length;
-  })();
+
   const allStaffMSV  = [...new Set(programs.filter(p=>!p.is_archived&&p.staff_name).map(p=>p.staff_name))].sort();
   const allAreasMSV  = [...new Set(programs.filter(p=>!p.is_archived&&p.area).map(p=>p.area))].sort();
   const allYearsMSV  = [...new Set(programs.filter(p=>!p.is_archived&&p.year).map(p=>toFY(p.year)))].sort().reverse();
   const filteredProgs = programs.filter(p=>
     (!filterStaff || p.staff_name===filterStaff) &&
     (!filterArea  || p.area===filterArea) &&
-    (filterYears.size===0 || filterYears.has(toFY(p.year))) &&
+    (!filterYear || toFY(p.year)===filterYear) &&
     (!search      || p.name.toLowerCase().includes(search.toLowerCase()))
   );
 
@@ -2732,20 +2725,19 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
     });
     return Object.values(map)
       .filter(g=>showSingle||g.seasons.length>1)
-      .filter(g=>!search||g.name.toLowerCase().includes(search.toLowerCase())||g.staff?.toLowerCase().includes(search.toLowerCase()))
       .sort((a,b)=>{
         if(b.seasons.length!==a.seasons.length) return b.seasons.length-a.seasons.length;
         return a.name.localeCompare(b.name);
       });
-  },[filteredProgs,filterStaff,filterArea,filterYears,search,showSingle]);
+  },[filteredProgs,filterStaff,filterArea,filterYear,search,showSingle]);
 
   return (
     <div className="space-y-4">
-      {multiCount===0&&(
+      {groups.length===0&&(
         <div className="rounded border border-slate-200 p-5 text-center space-y-2 bg-slate-50">
           <div className="text-2xl">📅</div>
           <div className="font-bold text-slate-800 text-sm">Multi-Season View</div>
-          <div className="text-sm text-slate-700 max-w-sm mx-auto">This view groups programs that run across multiple seasons, showing trends over time. It becomes most valuable once you have two or more seasons of data entered. Keep entering programs and come back here next season.</div>
+          <div className="text-sm text-slate-700 max-w-sm mx-auto">{(filterStaff||filterArea||filterYear||search)?"No programs match the current filters. Try clearing one or more filters.":"This view groups programs that run across multiple seasons. It becomes most useful once you have two or more seasons of data entered."}</div>
         </div>
       )}
       <div className="bg-white rounded-lg shadow-sm px-4 py-3 space-y-3">
@@ -2775,37 +2767,19 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
             <option value="">All Areas</option>
             {allAreasMSV.map(a=><option key={a} value={a}>{a}</option>)}
           </select>
-          {(filterStaff||filterArea||search||filterYears.size>0)&&(
-            <button onClick={()=>{setFilterStaff("");setFilterArea("");setSearch("");setFilterYears(new Set());}}
+          <select value={filterYear} onChange={e=>setFilterYear(e.target.value)}
+            className="rounded border border-slate-200 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2">
+            <option value="">All Years</option>
+            {allYearsMSV.map(y=><option key={y} value={y}>{y}</option>)}
+          </select>
+          {(filterStaff||filterArea||filterYear||search)&&(
+            <button onClick={()=>{setFilterStaff("");setFilterArea("");setFilterYear("");setSearch("");}}
               className="text-xs px-3 py-1.5 rounded border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
               Clear filters
             </button>
           )}
         </div>
-        {allYearsMSV.length>1&&(
-          <div className="flex flex-wrap gap-1.5">
-            {allYearsMSV.map(yr=>{
-              const active=filterYears.has(yr);
-              return(
-                <button key={yr} onClick={()=>{
-                  setFilterYears(prev=>{
-                    const n=new Set(prev);
-                    active?n.delete(yr):n.add(yr);
-                    return n;
-                  });
-                }}
-                className="text-xs font-semibold px-3 py-1 rounded-full border transition"
-                style={active
-                  ?{background:"#00A9CE",color:"#fff",borderColor:"#00A9CE"}
-                  :{borderColor:"#e2e8f0",color:"#64748b",background:"transparent"}}>
-                  {yr}
-                </button>
-              );
-            })}
-            {filterYears.size>0&&<span className="text-xs text-slate-400 self-center ml-1">click to deselect</span>}
-          </div>
-        )}
-        {(filterStaff||filterArea||search||filterYears.size>0)&&(
+        {(filterStaff||filterArea||filterYear||search)&&(
           <div className="text-xs text-slate-500">
             Showing {groups.length} program{groups.length!==1?"s":""} matching current filters
           </div>
