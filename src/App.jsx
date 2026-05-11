@@ -2911,11 +2911,11 @@ function SubProgramTracker({programs,onChange,umbrellaRevenue,umbrellaCost}){
                 {[
                   {label:"Est. Revenue",value:"$"+Math.round(sessionTotals.rev).toLocaleString(),color:"#84BD00"},
                   {label:"Est. Costs",value:"$"+Math.round(sessionTotals.cost).toLocaleString(),color:"#E35205"},
-                  {label:"Est. Net",value:(sessionTotals.profit<0?"($"+Math.abs(Math.round(sessionTotals.profit)).toLocaleString()+")"):"$"+Math.round(sessionTotals.profit).toLocaleString(),color:sessionTotals.profit>=0?"#84BD00":"#E35205"},
-                  {label:"Est. CR",value:sessionTotals.cost>0?Math.round((sessionTotals.rev/sessionTotals.cost)*100)+"%":"—",color:sessionTotals.cost>0&&sessionTotals.rev>=sessionTotals.cost?"#84BD00":"#F6AB00"},
+                  {label:"Est. Net",value:sessionTotals.profit<0?"-$"+Math.abs(Math.round(sessionTotals.profit)).toLocaleString():"$"+Math.round(sessionTotals.profit).toLocaleString(),color:sessionTotals.profit>=0?"#84BD00":"#E35205"},
+                  {label:"Est. CR",value:sessionTotals.cost>0?Math.round(sessionTotals.rev/sessionTotals.cost*100)+"%":"—",color:sessionTotals.cost>0&&sessionTotals.rev>=sessionTotals.cost?"#84BD00":"#F6AB00"},
                   ...(hasIncode?[
                     {label:"Incode Revenue",value:"$"+Math.round(umbRev).toLocaleString(),color:"#5C462B"},
-                    {label:"Est. vs Incode",value:umbRev>0?Math.round((sessionTotals.rev/umbRev)*100)+"%":"—",color:umbRev>0&&Math.abs(sessionTotals.rev-umbRev)/umbRev<0.15?"#84BD00":"#F6AB00",sub:"of Incode revenue"},
+                    {label:"Est. vs Incode",value:umbRev>0?Math.round(sessionTotals.rev/umbRev*100)+"%":"—",color:umbRev>0&&Math.abs(sessionTotals.rev-umbRev)/umbRev<0.15?"#84BD00":"#F6AB00",sub:"of Incode revenue"},
                   ]:[]),
                 ].map(s=>(
                   <div key={s.label} className="text-center">
@@ -3083,7 +3083,7 @@ function SubProgramTracker({programs,onChange,umbrellaRevenue,umbrellaCost}){
                         </td>
                         <td className="px-2 py-1.5 text-right font-mono font-bold whitespace-nowrap"
                           style={{color:!hasFinData?"#94a3b8":estNet>=0?"#84BD00":"#E35205"}}>
-                          {!hasFinData?"—":estNet<0?"($"+Math.abs(Math.round(estNet)).toLocaleString()+")":"$"+Math.round(estNet).toLocaleString()}
+                          {!hasFinData?"—":estNet<0?"-$"+Math.abs(Math.round(estNet)).toLocaleString():"$"+Math.round(estNet).toLocaleString()}
                         </td>
                       </>}
                       <td className="px-2 py-1.5 min-w-36">
@@ -3107,7 +3107,7 @@ function SubProgramTracker({programs,onChange,umbrellaRevenue,umbrellaCost}){
                       <td/>
                       <td/>
                       <td className="px-2 py-2 text-right font-mono font-bold text-xs" style={{color:sessionTotals.profit>=0?"#84BD00":"#E35205"}}>
-                        {sessionTotals.profit<0?"($"+Math.abs(Math.round(sessionTotals.profit)).toLocaleString()+")":"$"+Math.round(sessionTotals.profit).toLocaleString()}
+                        {sessionTotals.profit<0?"-$"+Math.abs(Math.round(sessionTotals.profit)).toLocaleString():"$"+Math.round(sessionTotals.profit).toLocaleString()}
                       </td>
                       <td colSpan={2}/>
                     </tr>
