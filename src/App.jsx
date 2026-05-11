@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "./supabase.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const AREAS = ["Adult General","Adult Sports","Aquatics","Camps","Clubhouse","Dance","Fitness","Golf Dome","Museum","Performing Arts","Rentals","Seniors","Special Events","Youth General","Youth Sports","Other"];
+const AREAS = ["Adult General","Adult Sports","Aquatics","Camps","Clubhouse","Dance","Early Childhood","Fitness","Golf Dome","Museum","Performing Arts","Rentals","Seniors","Special Events","Youth General","Youth Sports","Other"];
 const SEASONS = ["Spring","Summer","Fall","Winter","All Year"];
 /* inject no-spinner CSS */
 if(typeof document!=="undefined"){const s=document.createElement("style");s.textContent="input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield}";document.head.appendChild(s);}
@@ -2697,8 +2697,11 @@ function Dashboard({programs,staffName,isManager,onEdit,onAddProgram}) {
 }
 
 // ─── Multi-Season View ────────────────────────────────────────────────────────
-function MultiSeasonView({programs,onEdit}) {
+
+function MultiSeasonView({programs,onEdit,staffName,isManager}) {
   const [search,setSearch] = useState("");
+  const [filterStaff,setFilterStaff] = useState("");
+  const [filterArea,setFilterArea]   = useState("");
   const [showSingle,setShowSingle] = useState(false);
   const multiCount = (() => {
     const groups = {};
@@ -2708,9 +2711,17 @@ function MultiSeasonView({programs,onEdit}) {
     });
     return Object.values(groups).filter(v=>v>=2).length;
   })();
+  const allStaffMSV  = [...new Set(programs.filter(p=>!p.is_archived&&p.staff_name).map(p=>p.staff_name))].sort();
+  const allAreasMSV  = [...new Set(programs.filter(p=>!p.is_archived&&p.area).map(p=>p.area))].sort();
+  const filteredProgs = programs.filter(p=>
+    (!filterStaff || p.staff_name===filterStaff) &&
+    (!filterArea  || p.area===filterArea) &&
+    (!search      || p.name.toLowerCase().includes(search.toLowerCase()))
+  );
+
   const groups = useMemo(()=>{
     const map = {};
-    programs.filter(p=>!p.is_archived).forEach(p=>{
+    filteredProgs.filter(p=>!p.is_archived).forEach(p=>{
       const key = `${(p.name||"").toLowerCase().trim()}__${(p.staff_name||"").toLowerCase().trim()}`;
       if(!map[key]) map[key]={name:p.name,area:p.area,staff:p.staff_name,seasons:[]};
       const k = calcKPIs(p);
@@ -2723,7 +2734,7 @@ function MultiSeasonView({programs,onEdit}) {
         if(b.seasons.length!==a.seasons.length) return b.seasons.length-a.seasons.length;
         return a.name.localeCompare(b.name);
       });
-  },[programs,search,showSingle]);
+  },[filteredProgs,filterStaff,filterArea,search,showSingle]);
 
   return (
     <div className="space-y-4">
@@ -2746,8 +2757,33 @@ function MultiSeasonView({programs,onEdit}) {
             {showSingle?"Showing all":"Show single-season"}
           </button>
         </div>
-        <input className="w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2"
-          placeholder="Search by program name or staff..." value={search} onChange={e=>setSearch(e.target.value)}/>
+        <div className="flex flex-wrap gap-2">
+          <input className="flex-1 min-w-40 rounded border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2"
+            placeholder="Search by program name..." value={search} onChange={e=>setSearch(e.target.value)}/>
+          {isManager&&(
+            <select value={filterStaff} onChange={e=>setFilterStaff(e.target.value)}
+              className="rounded border border-slate-200 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2">
+              <option value="">All Staff</option>
+              {allStaffMSV.map(s=><option key={s} value={s}>{s}</option>)}
+            </select>
+          )}
+          <select value={filterArea} onChange={e=>setFilterArea(e.target.value)}
+            className="rounded border border-slate-200 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2">
+            <option value="">All Areas</option>
+            {allAreasMSV.map(a=><option key={a} value={a}>{a}</option>)}
+          </select>
+          {(filterStaff||filterArea||search)&&(
+            <button onClick={()=>{setFilterStaff("");setFilterArea("");setSearch("");}}
+              className="text-xs px-3 py-1.5 rounded border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
+              Clear filters
+            </button>
+          )}
+        </div>
+        {(filterStaff||filterArea||search)&&(
+          <div className="text-xs text-slate-500">
+            Showing {groups.length} program{groups.length!==1?"s":""} matching current filters
+          </div>
+        )}
       </div>
       {groups.length===0&&(
         <div className="bg-white rounded-lg shadow-sm p-8 text-center text-slate-700 text-sm">
@@ -3364,9 +3400,20 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                   <input type="checkbox" checked={!!p.is_umbrella} onChange={e=>{setP(prev=>({...prev,is_umbrella:e.target.checked}));setDirty(true);}} className="mt-0.5 shrink-0"/>
                   <div>
                     <div className="text-sm font-semibold text-slate-800">Umbrella Program</div>
-                    <div className="text-xs text-slate-700 mt-0.5 leading-relaxed">Check this if multiple classes share one Incode budget line (e.g. Visual Arts covers Brushstrokes, Sewing, and Fashion Design). Use the Sessions tab in Actuals to track enrollment per class. See Guide & Resources → 📐 How to Set Up Programs for guidance.</div>
+                    <div className="text-xs text-slate-700 mt-0.5 leading-relaxed">Check this if multiple classes share one Incode budget line (e.g. Visual Arts covers Brushstrokes, Sewing, and Fashion Design). Use the Sessions tab in Actuals to track enrollment per class. See Guide &amp; Resources → 📐 How to Set Up Programs for guidance.</div>
                   </div>
                 </label>
+                {p.is_umbrella&&(
+                  <div className="mt-2 rounded px-4 py-3 text-xs leading-relaxed" style={{background:"rgba(0,169,206,0.07)",border:"1px solid rgba(0,169,206,0.25)"}}>
+                    <div className="font-bold mb-1" style={{color:"#007A99"}}>☂ What happens next</div>
+                    <div className="text-slate-700 space-y-1">
+                      <div>1. <strong>Save this program</strong> with your budget numbers in the Budgeted and Actuals tabs — these represent the combined total for all classes under this umbrella.</div>
+                      <div>2. <strong>Open the Actuals tab</strong> → scroll to <em>Individual Classes / Sessions</em> → add a row for each class (Brushstrokes, Sewing, Fashion Design, etc.).</div>
+                      <div>3. <strong>Update each quarter</strong> — enter current enrollment, waitlist, and trend per class. The financial estimates are optional but useful for spotting which classes need attention.</div>
+                      <div className="pt-1 text-slate-500">The program card in the Programs list will show an Umbrella badge and surface any classes below 60% fill automatically.</div>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="sm:col-span-2">
                 <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Notes</label>
@@ -8100,7 +8147,7 @@ export default function App() {
                 saving={saving}/>
             )}
             {tab==="history"&&(
-              <MultiSeasonView programs={programs} onEdit={p=>{setEditingProgram(p);setTab("programs");}}/>
+              <MultiSeasonView programs={programs} onEdit={p=>{setEditingProgram(p);setTab("programs");}} staffName={staffName} isManager={effectiveManager}/>
             )}
             {tab==="kpi"&&<Reference isManager={effectiveManager} db={supabase} programs={programs} staffName={staffName}/>}
             {tab==="access"&&effectiveManager&&(
