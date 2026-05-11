@@ -2702,6 +2702,7 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
   const [search,setSearch] = useState("");
   const [filterStaff,setFilterStaff] = useState("");
   const [filterArea,setFilterArea]   = useState("");
+  const [filterYears,setFilterYears] = useState(new Set());
   const [showSingle,setShowSingle] = useState(false);
   const multiCount = (() => {
     const groups = {};
@@ -2713,9 +2714,11 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
   })();
   const allStaffMSV  = [...new Set(programs.filter(p=>!p.is_archived&&p.staff_name).map(p=>p.staff_name))].sort();
   const allAreasMSV  = [...new Set(programs.filter(p=>!p.is_archived&&p.area).map(p=>p.area))].sort();
+  const allYearsMSV  = [...new Set(programs.filter(p=>!p.is_archived&&p.year).map(p=>toFY(p.year)))].sort().reverse();
   const filteredProgs = programs.filter(p=>
     (!filterStaff || p.staff_name===filterStaff) &&
     (!filterArea  || p.area===filterArea) &&
+    (filterYears.size===0 || filterYears.has(toFY(p.year))) &&
     (!search      || p.name.toLowerCase().includes(search.toLowerCase()))
   );
 
@@ -2734,7 +2737,7 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
         if(b.seasons.length!==a.seasons.length) return b.seasons.length-a.seasons.length;
         return a.name.localeCompare(b.name);
       });
-  },[filteredProgs,filterStaff,filterArea,search,showSingle]);
+  },[filteredProgs,filterStaff,filterArea,filterYears,search,showSingle]);
 
   return (
     <div className="space-y-4">
@@ -2772,14 +2775,37 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
             <option value="">All Areas</option>
             {allAreasMSV.map(a=><option key={a} value={a}>{a}</option>)}
           </select>
-          {(filterStaff||filterArea||search)&&(
-            <button onClick={()=>{setFilterStaff("");setFilterArea("");setSearch("");}}
+          {(filterStaff||filterArea||search||filterYears.size>0)&&(
+            <button onClick={()=>{setFilterStaff("");setFilterArea("");setSearch("");setFilterYears(new Set());}}
               className="text-xs px-3 py-1.5 rounded border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
               Clear filters
             </button>
           )}
         </div>
-        {(filterStaff||filterArea||search)&&(
+        {allYearsMSV.length>1&&(
+          <div className="flex flex-wrap gap-1.5">
+            {allYearsMSV.map(yr=>{
+              const active=filterYears.has(yr);
+              return(
+                <button key={yr} onClick={()=>{
+                  setFilterYears(prev=>{
+                    const n=new Set(prev);
+                    active?n.delete(yr):n.add(yr);
+                    return n;
+                  });
+                }}
+                className="text-xs font-semibold px-3 py-1 rounded-full border transition"
+                style={active
+                  ?{background:"#00A9CE",color:"#fff",borderColor:"#00A9CE"}
+                  :{borderColor:"#e2e8f0",color:"#64748b",background:"transparent"}}>
+                  {yr}
+                </button>
+              );
+            })}
+            {filterYears.size>0&&<span className="text-xs text-slate-400 self-center ml-1">click to deselect</span>}
+          </div>
+        )}
+        {(filterStaff||filterArea||search||filterYears.size>0)&&(
           <div className="text-xs text-slate-500">
             Showing {groups.length} program{groups.length!==1?"s":""} matching current filters
           </div>
