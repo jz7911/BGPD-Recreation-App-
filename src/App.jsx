@@ -5385,6 +5385,7 @@ function Reference({isManager,db,programs,staffName}) {
           {id:"philosophy",label:"🏛 Philosophy"},
           {id:"guide",label:"Dashboard Guide"},
           {id:"training",label:"📋 Training Guide"},
+          {id:"setup",label:"📐 How to Set Up Programs"},
           {id:"review",label:"📋 Program Review"},
           {id:"capacity",label:"🧮 Capacity Calculator"},
           {id:"redesign",label:"🔄 Redesign Ideas"},
@@ -5998,6 +5999,186 @@ function Reference({isManager,db,programs,staffName}) {
         </div>
       )}
 
+      {sec==="setup"&&(
+        <div className="p-5 space-y-6">
+
+          {/* ── Header ── */}
+          <div className="rounded p-6 text-white" style={{background:"linear-gradient(135deg,#5C462B 0%,#00A9CE 100%)"}}>
+            <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{color:"rgba(255,255,255,0.7)"}}>Program Entry Standards</div>
+            <div className="text-2xl font-black mb-2">How to Set Up Programs in the Dashboard</div>
+            <p className="text-sm opacity-80">Answers the three most common decisions staff face: umbrella vs. individual records, shared costs like lifeguards, and tracking sub-programs over time.</p>
+          </div>
+
+          {/* ── Decision 1: Umbrella vs Individual ── */}
+          <div className="rounded border border-slate-200 overflow-hidden">
+            <div className="px-4 py-3 text-sm font-bold text-white" style={{background:"#5C462B"}}>Decision 1 — One Record Per Program, or an Umbrella?</div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-slate-700">This is the most important setup decision. The rule is simple: <span className="font-bold text-slate-800">match how your budget is structured in Incode.</span></p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="rounded border-2 border-green-200 overflow-hidden">
+                  <div className="px-4 py-2.5 bg-green-50 text-xs font-bold text-green-800 uppercase tracking-wide">✓ Use Separate Records When...</div>
+                  <div className="p-4 space-y-2 text-sm text-slate-700">
+                    <p>Each program has its own budget line in Incode with separate revenue and cost tracking.</p>
+                    <p>Programs have meaningfully different fee structures, audiences, or cost drivers.</p>
+                    <p>You need cost recovery visibility at the individual program level.</p>
+                    <div className="mt-3 pt-3 border-t border-green-100 text-xs text-green-700 font-semibold">
+                      Examples: Swim Lessons vs. Swim Team vs. Lifeguard Training — each has its own fees and costs and should be tracked separately.
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded border-2 border-blue-200 overflow-hidden">
+                  <div className="px-4 py-2.5 bg-blue-50 text-xs font-bold text-blue-800 uppercase tracking-wide">✓ Use an Umbrella Record When...</div>
+                  <div className="p-4 space-y-2 text-sm text-slate-700">
+                    <p>Multiple classes share one budget line in Incode (one revenue total, one cost total).</p>
+                    <p>The programs are the same category running at different times or skill levels.</p>
+                    <p>You don't need or track separate financials per class — just total enrollment by class.</p>
+                    <div className="mt-3 pt-3 border-t border-blue-100 text-xs text-blue-800 font-semibold">
+                      Examples: Visual Arts (Brushstrokes, Sewing, Fashion Design all in one Incode line). Adult Fitness Classes. Drop-In Gym.
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded px-4 py-3 text-sm" style={{background:"rgba(0,169,206,0.06)",border:"1px solid rgba(0,169,206,0.2)"}}>
+                <span className="font-bold" style={{color:"#00A9CE"}}>Visual Arts example:</span>
+                <span className="text-slate-700"> Create one record called <span className="font-semibold">Visual Arts</span> with Season = All Year (since it runs year-round). Enter the combined Incode budget numbers. Then use the <span className="font-semibold">Individual Classes/Sessions tab</span> in Actuals to track Brushstrokes, Sewing, and Fashion Design enrollment separately. This gives you financial accuracy at the budget level AND enrollment visibility at the class level.</span>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Decision 2: Annual vs Seasonal ── */}
+          <div className="rounded border border-slate-200 overflow-hidden">
+            <div className="px-4 py-2.5 text-sm font-bold text-white" style={{background:"#5C462B"}}>Decision 2 — Annual Budget vs. Seasonal Entry</div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-slate-700">Some programs run all year (Visual Arts, Fitness Center classes, Clubhouse). Others run in a specific season (Summer Camps, Flag Football). This affects how you enter them.</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead><tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+                    <th className="px-4 py-2 text-left font-semibold">Situation</th>
+                    <th className="px-4 py-2 text-left font-semibold">Season to Select</th>
+                    <th className="px-4 py-2 text-left font-semibold">How to Track Progress</th>
+                  </tr></thead>
+                  <tbody>
+                    {[
+                      {situation:"One Incode budget line for the full year (e.g. Visual Arts)",season:'Select "All Year"',how:"Enter annual budget numbers. Use the Sessions tab in Actuals to track enrollment per class each quarter."},
+                      {situation:"Program runs only one season (e.g. Summer Day Camps)",season:"Select the actual season (Summer)",how:"Enter seasonal budget and actuals. Duplicate for next year's season when ready."},
+                      {situation:"Same program runs in multiple seasons (e.g. Adult Yoga — Fall and Spring)",season:"Create one record per season",how:"Use Multi-Season tab to see trends across both. Duplicate the record to create next season's entry."},
+                      {situation:"Ongoing league (e.g. Adult Volleyball, runs Fall/Winter/Spring)",season:"Create one record per season",how:"Track enrollment per session. Use Multi-Season tab for year-over-year fill rate trends."},
+                    ].map((r,i)=>(
+                      <tr key={i} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
+                        <td className="px-4 py-3 text-slate-800 font-medium">{r.situation}</td>
+                        <td className="px-4 py-3"><span className="text-xs font-bold px-2 py-1 rounded" style={{background:"rgba(0,169,206,0.1)",color:"#00A9CE"}}>{r.season}</span></td>
+                        <td className="px-4 py-3 text-slate-700 text-xs">{r.how}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Decision 3: Shared Costs (Lifeguards) ── */}
+          <div className="rounded border border-slate-200 overflow-hidden">
+            <div className="px-4 py-2.5 text-sm font-bold text-white" style={{background:"#00A9CE"}}>Decision 3 — Shared Costs Across Programs (e.g. Lifeguards)</div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-slate-700">When multiple programs run simultaneously and share a cost — like lifeguards covering Swim Lessons, Swim Team, and Swim Team Prep at the same time — you need to decide how to allocate that shared cost across programs.</p>
+
+              <div className="rounded border border-slate-100 overflow-hidden">
+                <div className="px-4 py-2.5 bg-slate-800 text-white text-xs font-bold uppercase tracking-wide">The 3-Step Lifeguard Process</div>
+                {[
+                  {n:"1",color:"#00A9CE",title:"Calculate total lifeguard cost for the period",detail:"Add up all lifeguard wages for the time period where programs overlap. Example: 3 lifeguards × 20 hrs/week × 10 weeks × $15/hr = $9,000 for the pool season."},
+                  {n:"2",color:"#00A9CE",title:"Use the Allocation Calculator to split by enrollment",detail:"Go to Guide & Resources → 💰 Allocation Calculator. Enter $9,000 as Personnel cost. Select Swim Lessons, Swim Team, and Swim Team Prep. Choose 'By Enrollment' — the tool splits proportionally based on how many participants each program has. Apply to Budgeted at the start of season, then re-run with actuals at season end."},
+                  {n:"3",color:"#00A9CE",title:"Apply the result to each program's Personnel field",detail:"The calculator writes the allocated amount directly to each program record. Swim Lessons gets its share, Swim Team gets its share, etc. Each program's cost recovery now reflects its true share of the facility's staffing cost."},
+                ].map(s=>(
+                  <div key={s.n} className="flex gap-4 px-4 py-3 border-t border-slate-100">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-black shrink-0 mt-0.5" style={{background:s.color}}>{s.n}</div>
+                    <div>
+                      <div className="text-sm font-bold text-slate-800 mb-0.5">{s.title}</div>
+                      <div className="text-xs text-slate-700 leading-relaxed">{s.detail}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded px-4 py-3 text-xs" style={{background:"rgba(92,70,43,0.05)",border:"1px solid rgba(92,70,43,0.12)"}}>
+                <div className="font-bold text-slate-800 mb-1">Alternative: Equal Split</div>
+                <p className="text-slate-700">If enrollment data isn't available yet (start of season), use Equal Split in the Allocation Calculator — each program gets 1/3 of the cost. Update with enrollment-weighted actuals at season end. This keeps budgets in place while you wait for real data.</p>
+              </div>
+
+              <div className="rounded px-4 py-3 text-xs" style={{background:"rgba(0,169,206,0.05)",border:"1px solid rgba(0,169,206,0.15)"}}>
+                <div className="font-bold mb-1" style={{color:"#00A9CE"}}>Other shared cost examples to handle the same way</div>
+                <div className="grid grid-cols-2 gap-1 text-slate-700">
+                  {["Pool chemicals → all aquatics programs","Instructor who teaches multiple art classes","Stage manager for multiple theater productions","Van driver for multiple camp groups"].map(ex=>(
+                    <div key={ex} className="flex gap-1.5"><span style={{color:"#00A9CE"}}>›</span>{ex}</div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Using the Sessions Tab for Quarterly Tracking ── */}
+          <div className="rounded border border-slate-200 overflow-hidden">
+            <div className="px-4 py-2.5 text-sm font-bold text-white" style={{background:"#990066"}}>Tracking Sub-Program Progress with the Sessions Tab</div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-slate-700">For umbrella programs like Visual Arts running all year, the Sessions tab in Actuals is your tool for quarterly and seasonal visibility into individual classes.</p>
+
+              <div className="rounded border border-slate-100 overflow-hidden">
+                <div className="px-4 py-2 bg-slate-50 text-xs font-bold text-slate-700 uppercase tracking-wider">How Visual Arts quarterly tracking works</div>
+                {[
+                  {period:"Start of year",action:"Create one Visual Arts record. Set Season = All Year. Enter full-year Incode budget numbers in Budgeted tab."},
+                  {period:"After each quarter",action:"Open Visual Arts → Actuals tab → Individual Classes/Sessions. Add or update a row for each class (Brushstrokes, Sewing, Fashion Design). Enter current enrollment and capacity. The overall fill rate on the dashboard reflects the combined total."},
+                  {period:"Mid-year check",action:"Open the Sessions panel to see which classes are filling and which aren't — without needing separate program records. A class at 30% fill is visible here even though the overall program may look healthy at 70%."},
+                  {period:"End of year",action:"Update Actual Revenue and Actual Costs with full-year Incode actuals. The Sessions tab still shows your breakdown by class for reference."},
+                ].map((r,i)=>(
+                  <div key={i} className={`flex gap-4 px-4 py-3 ${i>0?"border-t border-slate-50":""}`}>
+                    <div className="text-xs font-bold px-2 py-1 rounded shrink-0 h-fit mt-0.5 whitespace-nowrap" style={{background:"rgba(153,0,102,0.1)",color:"#990066"}}>{r.period}</div>
+                    <div className="text-sm text-slate-700">{r.action}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded px-4 py-3 text-xs" style={{background:"#FEF4DC",border:"1px solid rgba(246,171,0,0.3)"}}>
+                <span className="font-bold text-amber-800">Limitation to know:</span>
+                <span className="text-amber-800"> The Sessions tab tracks enrollment and capacity per class, but not revenue or costs per class. If you need cost recovery at the individual class level (e.g. Brushstrokes vs. Sewing), create separate program records instead of using the umbrella approach.</span>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Quick Reference Table ── */}
+          <div className="rounded border border-slate-200 overflow-hidden">
+            <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-white" style={{background:"#5C462B"}}>Quick Reference — Which Approach to Use</div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+                  <th className="px-4 py-2 text-left font-semibold">Program Type</th>
+                  <th className="px-4 py-2 text-left font-semibold">Setup</th>
+                  <th className="px-4 py-2 text-left font-semibold">Season</th>
+                  <th className="px-4 py-2 text-left font-semibold">Sub-program tracking</th>
+                </tr></thead>
+                <tbody>
+                  {[
+                    {type:"Visual Arts (Brushstrokes, Sewing, Fashion Design — one Incode line)",setup:"Umbrella record",season:"All Year",sub:"Sessions tab in Actuals"},
+                    {type:"Swim Lessons, Swim Team, Swim Team Prep (separate Incode lines)",setup:"Separate records",season:"Each season",sub:"Allocation Calculator for shared lifeguard cost"},
+                    {type:"Aquatics (if one Incode line covers all pool programs)",setup:"Umbrella record",season:"All Year or seasonal",sub:"Sessions tab + Allocation Calculator for lifeguard split"},
+                    {type:"Adult Yoga — runs Fall and Spring",setup:"One record per season",season:"Fall / Spring",sub:"Multi-Season tab for trend view"},
+                    {type:"Flag Football (Fall only)",setup:"One record",season:"Fall",sub:"Sessions tab if multiple divisions"},
+                    {type:"Clubhouse / Preschool (11 sites, one Incode line)",setup:"Umbrella or one record per site",season:"All Year",sub:"Clubhouse Allocation Tool for cost split"},
+                    {type:"Summer Day Camps (multiple themes, one budget line)",setup:"Umbrella record",season:"Summer",sub:"Sessions tab — one row per camp theme"},
+                    {type:"Summer Day Camps (each theme has own Incode line)",setup:"Separate records per camp",season:"Summer",sub:"Each camp tracks its own fill rate"},
+                  ].map((r,i)=>(
+                    <tr key={i} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
+                      <td className="px-4 py-2.5 text-slate-800 text-xs font-medium">{r.type}</td>
+                      <td className="px-4 py-2.5"><span className="text-xs font-bold px-2 py-0.5 rounded" style={{background:r.setup==="Umbrella record"?"#E6F6FB":"#EEF5E0",color:r.setup==="Umbrella record"?"#007A99":"#4A6B00"}}>{r.setup}</span></td>
+                      <td className="px-4 py-2.5 text-xs text-slate-700 font-mono">{r.season}</td>
+                      <td className="px-4 py-2.5 text-xs text-slate-700">{r.sub}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      )}
       {sec==="review"&&(
         <ProgramReviewSection db={db} programs={programs} staffName={staffName} isManager={isManager}/>
       )}
