@@ -2705,6 +2705,16 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
   const [filterYear,setFilterYear]   = useState(new Set());
   const [showSingle,setShowSingle]   = useState(false);
   const [msvOpen,setMsvOpen]         = useState(null);
+  const [filterSeason,setFilterSeason] = useState(new Set());
+
+  useEffect(()=>{
+    if(!msvOpen) return;
+    function handleClick(e){
+      if(!e.target.closest("[data-msv-filter]")) setMsvOpen(null);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return ()=>document.removeEventListener("mousedown", handleClick);
+  },[msvOpen]);
   const [expandedGroups,setExpandedGroups] = useState(new Set());
   const [expandedAreas,setExpandedAreas]   = useState(new Set());
 
@@ -2717,11 +2727,13 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
 
   const allStaffMSV  = [...new Set(programs.filter(p=>!p.is_archived&&p.staff_name).map(p=>p.staff_name))].sort();
   const allAreasMSV  = [...new Set(programs.filter(p=>!p.is_archived&&p.area).map(p=>p.area))].sort();
-  const allYearsMSV  = [...new Set(programs.filter(p=>!p.is_archived&&p.year).map(p=>toFY(p.year)))].sort().reverse();
+  const allYearsMSV   = [...new Set(programs.filter(p=>!p.is_archived&&p.year).map(p=>toFY(p.year)))].sort().reverse();
+  const allSeasonsMSV = [...new Set(programs.filter(p=>!p.is_archived&&p.season).map(p=>p.season))].sort();
   const filteredProgs = programs.filter(p=>
-    (filterStaff.size===0 || filterStaff.has(p.staff_name)) &&
-    (filterArea.size===0  || filterArea.has(p.area)) &&
-    (filterYear.size===0  || filterYear.has(toFY(p.year))) &&
+    (filterStaff.size===0  || filterStaff.has(p.staff_name)) &&
+    (filterArea.size===0   || filterArea.has(p.area)) &&
+    (filterYear.size===0   || filterYear.has(toFY(p.year))) &&
+    (filterSeason.size===0 || filterSeason.has(p.season)) &&
     (!search || p.name.toLowerCase().includes(search.toLowerCase()))
   );
 
@@ -2747,7 +2759,7 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
         <div className="rounded border border-slate-200 p-5 text-center space-y-2 bg-slate-50">
           <div className="text-2xl">📅</div>
           <div className="font-bold text-slate-800 text-sm">Multi-Season View</div>
-          <div className="text-sm text-slate-700 max-w-sm mx-auto">{(filterStaff.size>0||filterArea.size>0||filterYear.size>0||search)?"No programs match the current filters — try clearing one or more filters.":"This view groups programs that run across multiple seasons. It becomes most useful once you have two or more seasons of data entered."}</div>
+          <div className="text-sm text-slate-700 max-w-sm mx-auto">{(filterStaff.size>0||filterArea.size>0||filterSeason.size>0||filterYear.size>0||search)?"No programs match the current filters — try clearing one or more filters.":"This view groups programs that run across multiple seasons. It becomes most useful once you have two or more seasons of data entered."}</div>
         </div>
       )}
       <div className="bg-white rounded-lg shadow-sm px-4 py-3 space-y-3">
@@ -2766,12 +2778,13 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
           {[
             ...(isManager&&allStaffMSV.length>0?[{key:"staff",label:"Staff",opts:allStaffMSV,state:filterStaff,setter:setFilterStaff}]:[]),
             ...(allAreasMSV.length>0?[{key:"area",label:"Area",opts:allAreasMSV,state:filterArea,setter:setFilterArea}]:[]),
+            ...(allSeasonsMSV.length>0?[{key:"season",label:"Season",opts:allSeasonsMSV,state:filterSeason,setter:setFilterSeason}]:[]),
             ...(allYearsMSV.length>0?[{key:"year",label:"Year",opts:allYearsMSV,state:filterYear,setter:setFilterYear}]:[]),
           ].map(({key,label,opts,state,setter})=>{
             const btnLabel = state.size===0 ? (key==="year"?"All Years":label) : state.size===1 ? (key==="year"?`FY ${[...state][0]}`:[...state][0]) : `${label} (${state.size})`;
             const isActive = state.size>0;
             return(
-              <div key={key} className="relative" style={{zIndex:msvOpen===key?40:1}}>
+              <div key={key} className="relative" style={{zIndex:msvOpen===key?40:1}} data-msv-filter="true">
                 <button onClick={()=>setMsvOpen(o=>o===key?null:key)}
                   className="flex items-center gap-1.5 text-sm rounded-lg border px-3 py-1.5 transition"
                   style={isActive?{background:"#00A9CE",color:"white",borderColor:"#00A9CE"}:{background:"white",color:"#64748b",borderColor:"#e2e8f0"}}>
@@ -2812,14 +2825,14 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
           })}
           <input className="flex-1 min-w-36 rounded border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2"
             placeholder="Search programs..." value={search} onChange={e=>setSearch(e.target.value)}/>
-          {(filterStaff.size>0||filterArea.size>0||filterYear.size>0||search)&&(
-            <button onClick={()=>{setFilterStaff(new Set());setFilterArea(new Set());setFilterYear(new Set());setSearch("");setMsvOpen(null);}}
+          {(filterStaff.size>0||filterArea.size>0||filterSeason.size>0||filterYear.size>0||search)&&(
+            <button onClick={()=>{setFilterStaff(new Set());setFilterArea(new Set());setFilterSeason(new Set());setFilterYear(new Set());setSearch("");setMsvOpen(null);}}
               className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
               Clear
             </button>
           )}
         </div>
-        {(filterStaff.size>0||filterArea.size>0||filterYear.size>0||search)&&(
+        {(filterStaff.size>0||filterArea.size>0||filterSeason.size>0||filterYear.size>0||search)&&(
           <div className="text-xs text-slate-500 px-1">
             {groups.length} program{groups.length!==1?"s":""} shown
           </div>
@@ -2875,10 +2888,13 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
                       return SO.indexOf(a.season)-SO.indexOf(b.season);
                     })[0];
                     return(
-                      <div key={gKey} className="bg-white">
+                      <div key={gKey} className="bg-white" style={{borderTop:"2px solid #d1e4f0"}}>
                         {/* Program header row — always visible */}
                         <button onClick={()=>toggleGroup(gKey)}
-                          className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-50 transition">
+                          className="w-full px-4 py-3 flex items-center justify-between text-left transition"
+                          style={{background:"#EEF5FB",borderTop:"1px solid #d1e4f0"}}
+                          onMouseEnter={e=>e.currentTarget.style.background="#E2EFF8"}
+                          onMouseLeave={e=>e.currentTarget.style.background="#EEF5FB"}>
                           <div className="flex items-center gap-3 flex-wrap">
                             <span className="font-semibold text-slate-800 text-sm">{g.name}</span>
                             {g.staff&&<span className="text-xs text-slate-500">{g.staff}</span>}
