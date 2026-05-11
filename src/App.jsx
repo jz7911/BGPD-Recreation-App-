@@ -2699,20 +2699,24 @@ function Dashboard({programs,staffName,isManager,onEdit,onAddProgram}) {
 // ─── Multi-Season View ────────────────────────────────────────────────────────
 
 function MultiSeasonView({programs,onEdit,staffName,isManager}) {
-  const [search,setSearch] = useState("");
-  const [filterStaff,setFilterStaff] = useState("");
-  const [filterArea,setFilterArea]   = useState("");
-  const [filterYear,setFilterYear]   = useState("");
-  const [showSingle,setShowSingle] = useState(false);
+  const [search,setSearch]           = useState("");
+  const [filterStaff,setFilterStaff] = useState(new Set());
+  const [filterArea,setFilterArea]   = useState(new Set());
+  const [filterYear,setFilterYear]   = useState(new Set());
+  const [showSingle,setShowSingle]   = useState(false);
+
+  function toggleMSV(setter,val){
+    setter(prev=>{ const n=new Set(prev); n.has(val)?n.delete(val):n.add(val); return n; });
+  }
 
   const allStaffMSV  = [...new Set(programs.filter(p=>!p.is_archived&&p.staff_name).map(p=>p.staff_name))].sort();
   const allAreasMSV  = [...new Set(programs.filter(p=>!p.is_archived&&p.area).map(p=>p.area))].sort();
   const allYearsMSV  = [...new Set(programs.filter(p=>!p.is_archived&&p.year).map(p=>toFY(p.year)))].sort().reverse();
   const filteredProgs = programs.filter(p=>
-    (!filterStaff || p.staff_name===filterStaff) &&
-    (!filterArea  || p.area===filterArea) &&
-    (!filterYear || toFY(p.year)===filterYear) &&
-    (!search      || p.name.toLowerCase().includes(search.toLowerCase()))
+    (filterStaff.size===0 || filterStaff.has(p.staff_name)) &&
+    (filterArea.size===0  || filterArea.has(p.area)) &&
+    (filterYear.size===0  || filterYear.has(toFY(p.year))) &&
+    (!search || p.name.toLowerCase().includes(search.toLowerCase()))
   );
 
   const groups = useMemo(()=>{
@@ -2729,7 +2733,7 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
         if(b.seasons.length!==a.seasons.length) return b.seasons.length-a.seasons.length;
         return a.name.localeCompare(b.name);
       });
-  },[filteredProgs,filterStaff,filterArea,filterYear,search,showSingle]);
+  },[filteredProgs,showSingle]);
 
   return (
     <div className="space-y-4">
@@ -2737,7 +2741,7 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
         <div className="rounded border border-slate-200 p-5 text-center space-y-2 bg-slate-50">
           <div className="text-2xl">📅</div>
           <div className="font-bold text-slate-800 text-sm">Multi-Season View</div>
-          <div className="text-sm text-slate-700 max-w-sm mx-auto">{(filterStaff||filterArea||filterYear||search)?"No programs match the current filters. Try clearing one or more filters.":"This view groups programs that run across multiple seasons. It becomes most useful once you have two or more seasons of data entered."}</div>
+          <div className="text-sm text-slate-700 max-w-sm mx-auto">{(filterStaff.size>0||filterArea.size>0||filterYear.size>0||search)?"No programs match the current filters — try clearing one or more filters.":"This view groups programs that run across multiple seasons. It becomes most useful once you have two or more seasons of data entered."}</div>
         </div>
       )}
       <div className="bg-white rounded-lg shadow-sm px-4 py-3 space-y-3">
@@ -2752,36 +2756,63 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
             {showSingle?"Showing all":"Show single-season"}
           </button>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <input className="flex-1 min-w-40 rounded border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2"
-            placeholder="Search by program name..." value={search} onChange={e=>setSearch(e.target.value)}/>
-          {isManager&&(
-            <select value={filterStaff} onChange={e=>setFilterStaff(e.target.value)}
-              className="rounded border border-slate-200 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2">
-              <option value="">All Staff</option>
-              {allStaffMSV.map(s=><option key={s} value={s}>{s}</option>)}
-            </select>
-          )}
-          <select value={filterArea} onChange={e=>setFilterArea(e.target.value)}
-            className="rounded border border-slate-200 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2">
-            <option value="">All Areas</option>
-            {allAreasMSV.map(a=><option key={a} value={a}>{a}</option>)}
-          </select>
-          <select value={filterYear} onChange={e=>setFilterYear(e.target.value)}
-            className="rounded border border-slate-200 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2">
-            <option value="">All Years</option>
-            {allYearsMSV.map(y=><option key={y} value={y}>{y}</option>)}
-          </select>
-          {(filterStaff||filterArea||filterYear||search)&&(
-            <button onClick={()=>{setFilterStaff("");setFilterArea("");setFilterYear("");setSearch("");}}
-              className="text-xs px-3 py-1.5 rounded border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
-              Clear filters
-            </button>
-          )}
-        </div>
-        {(filterStaff||filterArea||filterYear||search)&&(
-          <div className="text-xs text-slate-500">
-            Showing {groups.length} program{groups.length!==1?"s":""} matching current filters
+        <input className="w-full rounded border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 mb-2"
+          placeholder="Search by program name..." value={search} onChange={e=>setSearch(e.target.value)}/>
+        {(allStaffMSV.length>1||allAreasMSV.length>1||allYearsMSV.length>1)&&(
+          <div className="space-y-2">
+            {isManager&&allStaffMSV.length>1&&(
+              <div>
+                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Staff</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {allStaffMSV.map(s=>(
+                    <button key={s} onClick={()=>toggleMSV(setFilterStaff,s)}
+                      className="text-xs px-2.5 py-1 rounded-full border transition font-medium"
+                      style={filterStaff.has(s)?{background:"#5C462B",color:"#fff",borderColor:"#5C462B"}:{borderColor:"#e2e8f0",color:"#64748b"}}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {allAreasMSV.length>1&&(
+              <div>
+                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Area</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {allAreasMSV.map(a=>(
+                    <button key={a} onClick={()=>toggleMSV(setFilterArea,a)}
+                      className="text-xs px-2.5 py-1 rounded-full border transition font-medium"
+                      style={filterArea.has(a)?{background:"#00A9CE",color:"#fff",borderColor:"#00A9CE"}:{borderColor:"#e2e8f0",color:"#64748b"}}>
+                      {a}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {allYearsMSV.length>1&&(
+              <div>
+                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Year</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {allYearsMSV.map(y=>(
+                    <button key={y} onClick={()=>toggleMSV(setFilterYear,y)}
+                      className="text-xs px-2.5 py-1 rounded-full border transition font-medium"
+                      style={filterYear.has(y)?{background:"#990066",color:"#fff",borderColor:"#990066"}:{borderColor:"#e2e8f0",color:"#64748b"}}>
+                      {y}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {(filterStaff.size>0||filterArea.size>0||filterYear.size>0||search)&&(
+              <div className="flex items-center justify-between pt-1">
+                <div className="text-xs text-slate-500">
+                  {groups.length} program{groups.length!==1?"s":""} shown
+                </div>
+                <button onClick={()=>{setFilterStaff(new Set());setFilterArea(new Set());setFilterYear(new Set());setSearch("");}}
+                  className="text-xs px-3 py-1 rounded border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
+                  Clear all filters
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
