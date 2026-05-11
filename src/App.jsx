@@ -2704,6 +2704,7 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
   const [filterArea,setFilterArea]   = useState(new Set());
   const [filterYear,setFilterYear]   = useState(new Set());
   const [showSingle,setShowSingle]   = useState(false);
+  const [msvOpen,setMsvOpen]         = useState(null);
 
   function toggleMSV(setter,val){
     setter(prev=>{ const n=new Set(prev); n.has(val)?n.delete(val):n.add(val); return n; });
@@ -2753,66 +2754,69 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
           <button onClick={()=>setShowSingle(s=>!s)}
             className="text-xs px-3 py-1.5 rounded-lg border transition whitespace-nowrap shrink-0"
             style={showSingle?{background:"#00A9CE",color:"white",borderColor:"#00A9CE"}:{borderColor:"#e2e8f0",color:"#64748b"}}>
-            {showSingle?"Showing all":"Show single-season"}
+            {showSingle?"Showing all programs":"+ Include single-season"}
           </button>
         </div>
-        <input className="w-full rounded border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 mb-2"
-          placeholder="Search by program name..." value={search} onChange={e=>setSearch(e.target.value)}/>
-        {(allStaffMSV.length>1||allAreasMSV.length>1||allYearsMSV.length>1)&&(
-          <div className="space-y-2">
-            {isManager&&allStaffMSV.length>1&&(
-              <div>
-                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Staff</div>
-                <div className="flex flex-wrap gap-1.5">
-                  {allStaffMSV.map(s=>(
-                    <button key={s} onClick={()=>toggleMSV(setFilterStaff,s)}
-                      className="text-xs px-2.5 py-1 rounded-full border transition font-medium"
-                      style={filterStaff.has(s)?{background:"#5C462B",color:"#fff",borderColor:"#5C462B"}:{borderColor:"#e2e8f0",color:"#64748b"}}>
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            {allAreasMSV.length>1&&(
-              <div>
-                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Area</div>
-                <div className="flex flex-wrap gap-1.5">
-                  {allAreasMSV.map(a=>(
-                    <button key={a} onClick={()=>toggleMSV(setFilterArea,a)}
-                      className="text-xs px-2.5 py-1 rounded-full border transition font-medium"
-                      style={filterArea.has(a)?{background:"#00A9CE",color:"#fff",borderColor:"#00A9CE"}:{borderColor:"#e2e8f0",color:"#64748b"}}>
-                      {a}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            {allYearsMSV.length>1&&(
-              <div>
-                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Year</div>
-                <div className="flex flex-wrap gap-1.5">
-                  {allYearsMSV.map(y=>(
-                    <button key={y} onClick={()=>toggleMSV(setFilterYear,y)}
-                      className="text-xs px-2.5 py-1 rounded-full border transition font-medium"
-                      style={filterYear.has(y)?{background:"#990066",color:"#fff",borderColor:"#990066"}:{borderColor:"#e2e8f0",color:"#64748b"}}>
-                      {y}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            {(filterStaff.size>0||filterArea.size>0||filterYear.size>0||search)&&(
-              <div className="flex items-center justify-between pt-1">
-                <div className="text-xs text-slate-500">
-                  {groups.length} program{groups.length!==1?"s":""} shown
-                </div>
-                <button onClick={()=>{setFilterStaff(new Set());setFilterArea(new Set());setFilterYear(new Set());setSearch("");}}
-                  className="text-xs px-3 py-1 rounded border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
-                  Clear all filters
+        <div className="bg-white rounded-lg shadow-sm px-4 py-3 flex flex-wrap gap-2 items-center relative">
+          {[
+            ...(isManager&&allStaffMSV.length>0?[{key:"staff",label:"Staff",opts:allStaffMSV,state:filterStaff,setter:setFilterStaff}]:[]),
+            ...(allAreasMSV.length>0?[{key:"area",label:"Area",opts:allAreasMSV,state:filterArea,setter:setFilterArea}]:[]),
+            ...(allYearsMSV.length>0?[{key:"year",label:"Year",opts:allYearsMSV,state:filterYear,setter:setFilterYear}]:[]),
+          ].map(({key,label,opts,state,setter})=>{
+            const btnLabel = state.size===0 ? (key==="year"?"All Years":label) : state.size===1 ? (key==="year"?`FY ${[...state][0]}`:[...state][0]) : `${label} (${state.size})`;
+            const isActive = state.size>0;
+            return(
+              <div key={key} className="relative" style={{zIndex:msvOpen===key?40:1}}>
+                <button onClick={()=>setMsvOpen(o=>o===key?null:key)}
+                  className="flex items-center gap-1.5 text-sm rounded-lg border px-3 py-1.5 transition"
+                  style={isActive?{background:"#00A9CE",color:"white",borderColor:"#00A9CE"}:{background:"white",color:"#64748b",borderColor:"#e2e8f0"}}>
+                  <span>{btnLabel}</span>
+                  <span style={{fontSize:"9px",opacity:.7}}>{msvOpen===key?"▲":"▼"}</span>
                 </button>
+                {msvOpen===key&&(
+                  <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded shadow-sm min-w-48 py-1 max-h-64 overflow-y-auto"
+                    style={{zIndex:50}}>
+                    <button onClick={()=>setter(new Set())}
+                      className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-left hover:bg-gray-100 transition border-b border-slate-100"
+                      style={{color:state.size===0?"#00A9CE":"#374151"}}>
+                      <span className="w-4 h-4 rounded border flex items-center justify-center shrink-0 text-xs"
+                        style={state.size===0?{background:"#00A9CE",borderColor:"#00A9CE",color:"white"}:{borderColor:"#d1d5db"}}>
+                        {state.size===0?"✓":""}
+                      </span>
+                      <span className={state.size===0?"font-semibold":""}>All {key==="year"?"Years":label}</span>
+                    </button>
+                    {opts.map(opt=>{
+                      const sel=state.has(opt);
+                      const disp=key==="year"?`FY ${opt}`:opt;
+                      return(
+                        <button key={opt} onClick={()=>toggleMSV(setter,opt)}
+                          className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-left hover:bg-gray-100 transition"
+                          style={{color:sel?"#00A9CE":"#374151"}}>
+                          <span className="w-4 h-4 rounded border flex items-center justify-center shrink-0 text-xs"
+                            style={sel?{background:"#00A9CE",borderColor:"#00A9CE",color:"white"}:{borderColor:"#d1d5db"}}>
+                            {sel?"✓":""}
+                          </span>
+                          <span className={sel?"font-semibold":""}>{disp}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            )}
+            );
+          })}
+          <input className="flex-1 min-w-36 rounded border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2"
+            placeholder="Search programs..." value={search} onChange={e=>setSearch(e.target.value)}/>
+          {(filterStaff.size>0||filterArea.size>0||filterYear.size>0||search)&&(
+            <button onClick={()=>{setFilterStaff(new Set());setFilterArea(new Set());setFilterYear(new Set());setSearch("");setMsvOpen(null);}}
+              className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
+              Clear
+            </button>
+          )}
+        </div>
+        {(filterStaff.size>0||filterArea.size>0||filterYear.size>0||search)&&(
+          <div className="text-xs text-slate-500 px-1">
+            {groups.length} program{groups.length!==1?"s":""} shown
           </div>
         )}
       </div>
