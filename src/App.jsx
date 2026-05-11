@@ -2825,7 +2825,7 @@ function SubProgramTracker({programs,onChange,umbrellaRevenue,umbrellaCost}){
 
   function addRow(){
     const quarter=QUARTERS[Math.floor((new Date().getMonth())/3)];
-    onChange([...list,{id:Date.now(),label:"",day:"",time:"",capacity:0,enrollment:0,waitlist:0,fee:"",trend:"—",quarter,notes:"",instructor_cost:"",supplies_cost:"",misc_revenue:"",updatedAt:new Date().toISOString()}]);
+    onChange([...list,{id:Date.now(),label:"",day:"",time:"",capacity:0,enrollment:0,waitlist:0,fee:"",trend:"—",quarter,notes:"",instructor_cost:"",supplies_cost:"",misc_revenue:"",facility_hours:"",contractor_split:"",updatedAt:new Date().toISOString()}]);
   }
   function updateRow(id,field,val){
     onChange(list.map(r=>r.id===id?{...r,[field]:val,updatedAt:new Date().toISOString()}:r));
@@ -2849,8 +2849,12 @@ function SubProgramTracker({programs,onChange,umbrellaRevenue,umbrellaCost}){
     const misc   = parseFloat(r.misc_revenue)||0;
     const inst   = parseFloat(r.instructor_cost)||0;
     const supp   = parseFloat(r.supplies_cost)||0;
-    const rev    = (fee * enr) + misc;
-    const cost   = inst + supp;
+    const facHrs = parseFloat(r.facility_hours)||0;
+    const fac         = facHrs * 3;
+    const splitPct    = parseFloat(r.contractor_split)||0;
+    const rev         = (fee * enr) + misc;
+    const contractAmt = splitPct>0 ? rev*(splitPct/100) : 0;
+    const cost        = inst + supp + fac + contractAmt;
     return {
       rev:  acc.rev  + rev,
       cost: acc.cost + cost,
@@ -2981,8 +2985,10 @@ function SubProgramTracker({programs,onChange,umbrellaRevenue,umbrellaCost}){
                       <th className="px-2 py-1.5 text-right font-semibold" style={{borderLeft:"2px solid #e2e8f0"}}>Fee/Person</th>
                       <th className="px-2 py-1.5 text-right font-semibold">Est. Rev.</th>
                       <th className="px-2 py-1.5 text-right font-semibold">Misc Rev.</th>
-                      <th className="px-2 py-1.5 text-right font-semibold">Instructor</th>
+                      <th className="px-2 py-1.5 text-right font-semibold">Instructor/Staff</th>
+                      <th className="px-2 py-1.5 text-right font-semibold">Contractor %</th>
                       <th className="px-2 py-1.5 text-right font-semibold">Supplies</th>
+                      <th className="px-2 py-1.5 text-right font-semibold">Fac. Hrs</th>
                       <th className="px-2 py-1.5 text-right font-semibold">Est. Net</th>
                     </>}
                     <th className="px-2 py-1.5 text-left font-semibold">Notes</th>
@@ -2999,10 +3005,14 @@ function SubProgramTracker({programs,onChange,umbrellaRevenue,umbrellaCost}){
                   const miscRev    = parseFloat(r.misc_revenue)||0;
                   const instCost   = parseFloat(r.instructor_cost)||0;
                   const suppCost   = parseFloat(r.supplies_cost)||0;
-                  const estRev     = (fee * enr) + miscRev;
-                  const estCost    = instCost + suppCost;
+                  const facHrs      = parseFloat(r.facility_hours)||0;
+                  const facCost     = facHrs * 3;
+                  const splitPct    = parseFloat(r.contractor_split)||0;
+                  const estRev      = (fee * enr) + miscRev;
+                  const contractAmt = splitPct>0 ? estRev*(splitPct/100) : 0;
+                  const estCost     = instCost + suppCost + facCost + contractAmt;
                   const estNet     = estRev - estCost;
-                  const hasFinData = fee>0||instCost>0||suppCost>0;
+                  const hasFinData = fee>0||instCost>0||suppCost>0||facHrs>0||splitPct>0;
 
                   return(
                     <tr key={r.id} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"} ${isStale?"opacity-60":""}`}>
@@ -3075,11 +3085,27 @@ function SubProgramTracker({programs,onChange,umbrellaRevenue,umbrellaCost}){
                           </div>
                         </td>
                         <td className="px-2 py-1.5">
+                          <div className="flex items-center gap-1">
+                            <input type="number" min={0} max={100} step={1} value={r.contractor_split||""} onChange={e=>updateRow(r.id,"contractor_split",parseFloat(e.target.value)||0)}
+                              placeholder="%" title="Contractor keeps this % of revenue. Auto-calculates." className="w-12 rounded border border-slate-200 px-1 py-1 text-xs text-right focus:outline-none focus:ring-1" style={{MozAppearance:"textfield"}}/>
+                            <span className="text-slate-400 text-xs">%</span>
+                          </div>
+                          {splitPct>0&&estRev>0&&<div className="text-xs text-right" style={{color:"#E35205"}}>-${Math.round(contractAmt).toLocaleString()}</div>}
+                        </td>
+                        <td className="px-2 py-1.5">
                           <div className="flex items-center">
                             <span className="text-slate-400 mr-0.5">$</span>
                             <input type="number" min={0} value={r.supplies_cost||""} onChange={e=>updateRow(r.id,"supplies_cost",parseFloat(e.target.value)||0)}
                               placeholder="0" title="Supplies, materials, etc." className="w-16 rounded border border-slate-200 px-1 py-1 text-xs text-right focus:outline-none focus:ring-1" style={{MozAppearance:"textfield"}}/>
                           </div>
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <div className="flex items-center gap-1">
+                            <input type="number" min={0} step={0.5} value={r.facility_hours||""} onChange={e=>updateRow(r.id,"facility_hours",parseFloat(e.target.value)||0)}
+                              placeholder="0" title="Facility hours used by this class ($3/hr)" className="w-12 rounded border border-slate-200 px-1 py-1 text-xs text-right focus:outline-none focus:ring-1" style={{MozAppearance:"textfield"}}/>
+                            <span className="text-slate-400 text-xs">hrs</span>
+                          </div>
+                          {facHrs>0&&<div className="text-xs text-slate-400 text-right">${(facHrs*3).toFixed(0)}</div>}
                         </td>
                         <td className="px-2 py-1.5 text-right font-mono font-bold whitespace-nowrap"
                           style={{color:!hasFinData?"#94a3b8":estNet>=0?"#84BD00":"#E35205"}}>
@@ -3103,6 +3129,7 @@ function SubProgramTracker({programs,onChange,umbrellaRevenue,umbrellaCost}){
                     <tr className="border-t-2 border-slate-200 bg-slate-50">
                       <td className="px-2 py-2 font-bold text-slate-700 text-xs" colSpan={9}>Totals</td>
                       <td className="px-2 py-2 text-right font-mono font-bold text-xs" style={{color:"#84BD00"}}>${Math.round(sessionTotals.rev).toLocaleString()}</td>
+                      <td/>
                       <td/>
                       <td/>
                       <td/>
