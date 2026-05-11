@@ -104,7 +104,7 @@ const DB_FIELDS = [
   "fee",
   "nps_promoters","nps_passives","nps_detractors","nps_total",
   "pricing_decision","pricing_target_fee","pricing_rationale","pricing_notes","pricing_subsidy","pricing_subsidy_amount",
-  "budget_mode","sub_programs","clubhouse_alloc","clubhouse_alloc_act",
+  "is_umbrella","budget_mode","sub_programs","clubhouse_alloc","clubhouse_alloc_act",
   "ant_clubhouse_fee","act_clubhouse_fee",
   "peer_visible",
   "is_deleted","deleted_by","deleted_at",
@@ -204,7 +204,7 @@ function newProgram(staffName) {
     fee: 0,
     nps_promoters:0,nps_passives:0,nps_detractors:0,nps_total:0,
     pricing_decision:"",pricing_target_fee:0,pricing_rationale:"",pricing_notes:"",pricing_subsidy:null,pricing_subsidy_amount:0,
-    budget_mode:"seasonal",sub_programs:[],clubhouse_alloc:null,clubhouse_alloc_act:null,
+    is_umbrella:false,budget_mode:"seasonal",sub_programs:[],clubhouse_alloc:null,clubhouse_alloc_act:null,
     ant_clubhouse_fee:0,act_clubhouse_fee:0,
     co_staff_name:"",co_staff_workload_pct:0,
   };
@@ -2425,7 +2425,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="bg-slate-50 text-xs text-slate-700 uppercase tracking-wider">
-                {[["name","Program"],["staff_name","Staff"],["area","Area"],["season","Season"],["fillRate","Fill Rate"],["costRecovery","Cost Recovery"],["profitLoss","Net P/(L)"],["totalCost","Total Cost"],["waitlist","Waitlist"],["trend","Trend"],["nps","NPS"],["status","Status"],[null,"vs Prior"],[null,""]].map(([col,h])=>(
+                {[["name","Program"],["staff_name","Staff"],["area","Area"],["season","Season"],["fillRate","Fill Rate"],["costRecovery","Cost Recovery"],["profitLoss","Net P/(L)"],["totalCost","Total Cost"],["waitlist","Waitlist"],["trend","Trend"],["nps","NPS"],["status","Status"],[null,"Classes"],[null,"vs Prior"],[null,""]].map(([col,h])=>(
                   <th key={h} className={col?`px-3 py-2 text-left font-semibold cursor-pointer hover:text-slate-800 select-none ${sort.col===col?"text-slate-800":""}`:"px-3 py-2 text-left font-semibold"}
                     onClick={col?()=>toggleSort(col):undefined}>
                     {h}{col&&<span className="ml-1 text-slate-400">{sortIcon(col)}</span>}
@@ -2471,7 +2471,31 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                   </td>
                   <td className="px-3 py-2.5 whitespace-nowrap">
                     <Badge status={p.status}/>
-                    
+                    {p.is_umbrella&&<span className="ml-1 text-xs font-semibold" style={{color:"#007A99"}}>☂</span>}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    {p.is_umbrella&&Array.isArray(p.sub_programs)&&p.sub_programs.length>0&&(()=>{
+                      const sessions=p.sub_programs;
+                      const struggling=sessions.filter(s=>s.capacity>0&&Math.round((s.enrollment/s.capacity)*100)<60&&s.label);
+                      const waitlisted=sessions.filter(s=>parseInt(s.waitlist)>0&&s.label);
+                      const stale=sessions.filter(s=>s.updatedAt&&((Date.now()-new Date(s.updatedAt).getTime())>90*24*60*60*1000));
+                      return(
+                        <div className="space-y-0.5">
+                          {sessions.map(s=>{
+                            const f=s.capacity>0?Math.round((s.enrollment/s.capacity)*100):null;
+                            const fc=f!=null?(f>=70?"#84BD00":f>=60?"#F6AB00":"#E35205"):"#94a3b8";
+                            return s.label?(
+                              <div key={s.id} className="flex items-center gap-1.5 text-xs">
+                                <span className="truncate max-w-24 text-slate-700">{s.label}</span>
+                                {f!=null&&<span className="font-mono font-bold shrink-0" style={{color:fc}}>{f}%</span>}
+                                {parseInt(s.waitlist)>0&&<span className="text-amber-500 shrink-0">⚡{s.waitlist}</span>}
+                              </div>
+                            ):null;
+                          })}
+                          {stale.length>0&&<div className="text-xs" style={{color:"#94a3b8"}}>🕐 {stale.length} stale</div>}
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="px-3 py-2.5 whitespace-nowrap">
                     {prior ? (
@@ -2791,85 +2815,331 @@ const CB_COST_CATEGORIES = [
 
 
 // ─── Sub-Program / Session Tracker ───────────────────────────────────────────
-function SubProgramTracker({programs,onChange}){
+function SubProgramTracker({programs,onChange,umbrellaRevenue,umbrellaCost}){
   const [open,setOpen]=useState(false);
+  const [showFinancials,setShowFinancials]=useState(false);
   const list=Array.isArray(programs)?programs:[];
 
+  const QUARTERS=["Q1 (Jan–Mar)","Q2 (Apr–Jun)","Q3 (Jul–Sep)","Q4 (Oct–Dec)","Spring","Summer","Fall","Winter"];
+  const TRENDS=["—","Growing","Stable","Declining","New"];
+
   function addRow(){
-    onChange([...list,{id:Date.now(),label:"",day:"",time:"",capacity:0,enrollment:0}]);
+    const quarter=QUARTERS[Math.floor((new Date().getMonth())/3)];
+    onChange([...list,{id:Date.now(),label:"",day:"",time:"",capacity:0,enrollment:0,waitlist:0,fee:"",trend:"—",quarter,notes:"",instructor_cost:"",supplies_cost:"",misc_revenue:"",updatedAt:new Date().toISOString()}]);
   }
   function updateRow(id,field,val){
-    onChange(list.map(r=>r.id===id?{...r,[field]:val}:r));
+    onChange(list.map(r=>r.id===id?{...r,[field]:val,updatedAt:new Date().toISOString()}:r));
   }
   function removeRow(id){
     onChange(list.filter(r=>r.id!==id));
   }
 
-  const totalCap=list.reduce((a,r)=>a+(parseInt(r.capacity)||0),0);
-  const totalEnr=list.reduce((a,r)=>a+(parseInt(r.enrollment)||0),0);
-  const overallFill=totalCap>0?(totalEnr/totalCap)*100:0;
+  const totalCap   = list.reduce((a,r)=>a+(parseInt(r.capacity)||0),0);
+  const totalEnr   = list.reduce((a,r)=>a+(parseInt(r.enrollment)||0),0);
+  const totalWait  = list.reduce((a,r)=>a+(parseInt(r.waitlist)||0),0);
+  const overallFill= totalCap>0?(totalEnr/totalCap)*100:0;
+  const struggling = list.filter(r=>r.capacity>0&&Math.round((r.enrollment/r.capacity)*100)<60&&r.label);
+  const full       = list.filter(r=>r.capacity>0&&Math.round((r.enrollment/r.capacity)*100)>=100);
+  const staleRows  = list.filter(r=>r.updatedAt&&((Date.now()-new Date(r.updatedAt).getTime())>90*24*60*60*1000));
+
+  // Financial rollup across sessions
+  const sessionTotals = list.reduce((acc,r)=>{
+    const fee    = parseFloat(r.fee)||0;
+    const enr    = parseInt(r.enrollment)||0;
+    const misc   = parseFloat(r.misc_revenue)||0;
+    const inst   = parseFloat(r.instructor_cost)||0;
+    const supp   = parseFloat(r.supplies_cost)||0;
+    const rev    = (fee * enr) + misc;
+    const cost   = inst + supp;
+    return {
+      rev:  acc.rev  + rev,
+      cost: acc.cost + cost,
+      profit: acc.profit + (rev - cost),
+    };
+  },{rev:0, cost:0, profit:0});
+
+  const umbRev  = parseFloat(umbrellaRevenue)||0;
+  const umbCost = parseFloat(umbrellaCost)||0;
+  const hasIncode = umbRev>0||umbCost>0;
 
   return(
     <div className="rounded border border-slate-200 overflow-hidden">
       <button onClick={()=>setOpen(o=>!o)}
         className="w-full px-4 py-3 flex items-center justify-between text-left bg-slate-50 hover:bg-gray-200 transition">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-bold text-slate-800">📋 Individual Classes / Sessions</span>
-            {list.length>0&&<span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{background:"#F5E6EF",color:"#3730a3"}}>{list.length} session{list.length!==1?"s":""}</span>}
+            {list.length>0&&<span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{background:"#F5E6EF",color:"#3730a3"}}>{list.length} class{list.length!==1?"es":""}</span>}
+            {totalWait>0&&<span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{background:"#FEF4DC",color:"#8A5E00"}}>⚡ {totalWait} waitlisted</span>}
+            {struggling.length>0&&<span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{background:"#FDF0E6",color:"#E35205"}}>⚠ {struggling.length} below 60%</span>}
+            {staleRows.length>0&&<span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{background:"#f1f5f9",color:"#64748b"}}>🕐 {staleRows.length} stale</span>}
+            {sessionTotals.rev>0&&<span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{background:sessionTotals.profit>=0?"#EEF5E0":"#FDF0E6",color:sessionTotals.profit>=0?"#4A6B00":"#E35205"}}>Est. {sessionTotals.profit>=0?"+":""}{sessionTotals.profit<0?"(":""}{Math.abs(Math.round(sessionTotals.profit)).toLocaleString()}{sessionTotals.profit<0?")":" net"}</span>}
           </div>
-          <div className="text-xs text-slate-700 mt-0.5">Optional — track separate days/times within this program (e.g. Mon 5pm, Wed 6pm)</div>
+          <div className="text-xs text-slate-700 mt-0.5">Track enrollment, estimated financials, and trends per class — update each quarter</div>
         </div>
         <span className="text-slate-700 text-xs font-bold ml-4 shrink-0" style={{transform:open?"rotate(180deg)":"rotate(0deg)",display:"inline-block",transition:"transform .2s"}}>▼</span>
       </button>
+
       {open&&(
-        <div className="p-4 space-y-3">
+        <div className="p-4 space-y-4">
+
+          {/* Summary bar */}
+          {list.length>0&&(
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {[
+                {label:"Overall Fill",value:totalCap>0?Math.round(overallFill)+"%":"—",color:overallFill>=70?"#84BD00":overallFill>=60?"#F6AB00":"#E35205"},
+                {label:"Total Enrolled",value:`${totalEnr} / ${totalCap}`,color:"#5C462B"},
+                {label:"On Waitlists",value:totalWait>0?totalWait:"None",color:totalWait>0?"#F6AB00":"#84BD00"},
+                {label:"Classes at Risk",value:struggling.length>0?struggling.length+" class"+(struggling.length!==1?"es":""):"None",color:struggling.length>0?"#E35205":"#84BD00"},
+              ].map(s=>(
+                <div key={s.label} className="rounded p-2.5 text-center" style={{background:"rgba(0,0,0,0.025)",border:"1px solid rgba(0,0,0,0.06)"}}>
+                  <div className="text-xs text-slate-500 mb-0.5">{s.label}</div>
+                  <div className="text-sm font-bold" style={{color:s.color}}>{s.value}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Financial snapshot — only when financials exist */}
+          {(sessionTotals.rev>0||sessionTotals.cost>0)&&(
+            <div className="rounded overflow-hidden" style={{border:"1px solid rgba(0,169,206,0.2)"}}>
+              <div className="px-4 py-2 flex items-center justify-between" style={{background:"rgba(0,169,206,0.06)"}}>
+                <div className="text-xs font-bold uppercase tracking-wider" style={{color:"#00A9CE"}}>Estimated Financial Summary — All Classes</div>
+                <div className="text-xs text-slate-500">Supervisor estimates · not tied to Incode</div>
+              </div>
+              <div className="px-4 py-3 grid grid-cols-3 gap-4 sm:grid-cols-6">
+                {[
+                  {label:"Est. Revenue",value:"$"+Math.round(sessionTotals.rev).toLocaleString(),color:"#84BD00"},
+                  {label:"Est. Costs",value:"$"+Math.round(sessionTotals.cost).toLocaleString(),color:"#E35205"},
+                  {label:"Est. Net",value:(sessionTotals.profit<0?"($"+Math.abs(Math.round(sessionTotals.profit)).toLocaleString()+")"):"$"+Math.round(sessionTotals.profit).toLocaleString(),color:sessionTotals.profit>=0?"#84BD00":"#E35205"},
+                  {label:"Est. CR",value:sessionTotals.cost>0?Math.round((sessionTotals.rev/sessionTotals.cost)*100)+"%":"—",color:sessionTotals.cost>0&&sessionTotals.rev>=sessionTotals.cost?"#84BD00":"#F6AB00"},
+                  ...(hasIncode?[
+                    {label:"Incode Revenue",value:"$"+Math.round(umbRev).toLocaleString(),color:"#5C462B"},
+                    {label:"Est. vs Incode",value:umbRev>0?Math.round((sessionTotals.rev/umbRev)*100)+"%":"—",color:umbRev>0&&Math.abs(sessionTotals.rev-umbRev)/umbRev<0.15?"#84BD00":"#F6AB00",sub:"of Incode revenue"},
+                  ]:[]),
+                ].map(s=>(
+                  <div key={s.label} className="text-center">
+                    <div className="text-xs text-slate-500 mb-0.5">{s.label}</div>
+                    <div className="text-sm font-bold" style={{color:s.color}}>{s.value}</div>
+                    {s.sub&&<div className="text-xs text-slate-400">{s.sub}</div>}
+                  </div>
+                ))}
+              </div>
+              {hasIncode&&Math.abs(sessionTotals.rev-umbRev)/Math.max(umbRev,1)>0.2&&sessionTotals.rev>0&&(
+                <div className="px-4 py-2 text-xs border-t" style={{borderColor:"rgba(0,169,206,0.15)",color:"#8A5E00",background:"#FFFBF0"}}>
+                  ⚠ Session estimates are {Math.round(Math.abs(sessionTotals.rev-umbRev)/Math.max(umbRev,1)*100)}% {sessionTotals.rev>umbRev?"above":"below"} Incode revenue — check that all classes and fees are entered correctly.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Alerts */}
+          {struggling.length>0&&(
+            <div className="rounded px-3 py-2.5 text-xs" style={{background:"#FDF0E6",border:"1px solid rgba(227,82,5,0.2)"}}>
+              <span className="font-bold" style={{color:"#E35205"}}>Below 60% fill: </span>
+              <span className="text-slate-700">{struggling.map(r=>r.label).join(", ")} — consider adjusting capacity, marketing, or schedule.</span>
+            </div>
+          )}
+          {full.length>0&&(
+            <div className="rounded px-3 py-2.5 text-xs" style={{background:"#EEF5E0",border:"1px solid rgba(132,189,0,0.3)"}}>
+              <span className="font-bold" style={{color:"#4A6B00"}}>At capacity: </span>
+              <span className="text-slate-700">{full.map(r=>r.label+(r.waitlist>0?` (${r.waitlist} waitlisted)`:"")).join(", ")} — consider adding a section.</span>
+            </div>
+          )}
+          {staleRows.length>0&&(
+            <div className="rounded px-3 py-2.5 text-xs" style={{background:"#f1f5f9",border:"1px solid #e2e8f0"}}>
+              <span className="font-bold text-slate-700">Needs update: </span>
+              <span className="text-slate-700">{staleRows.map(r=>r.label||"Unnamed").join(", ")} — last updated more than 90 days ago.</span>
+            </div>
+          )}
+
+          {/* Toggle financials columns */}
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Classes</div>
+            <button onClick={()=>setShowFinancials(f=>!f)}
+              className="text-xs font-semibold px-3 py-1 rounded border transition"
+              style={showFinancials?{background:"#00A9CE",color:"#fff",borderColor:"#00A9CE"}:{borderColor:"#e2e8f0",color:"#64748b"}}>
+              {showFinancials?"Hide":"Show"} Estimated Financials
+            </button>
+          </div>
+
+          {/* Table */}
           {list.length>0&&(
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
-                <thead><tr className="bg-slate-50 text-slate-700 uppercase tracking-wider">
-                  <th className="px-2 py-1.5 text-left font-semibold">Class / Session</th>
-                  <th className="px-2 py-1.5 text-left font-semibold">Day</th>
-                  <th className="px-2 py-1.5 text-left font-semibold">Time</th>
-                  <th className="px-2 py-1.5 text-center font-semibold">Capacity</th>
-                  <th className="px-2 py-1.5 text-center font-semibold">Enrolled</th>
-                  <th className="px-2 py-1.5 text-center font-semibold">Fill %</th>
-                  <th className="px-2 py-1.5"/>
-                </tr></thead>
+                <thead>
+                  <tr className="bg-slate-50 text-slate-500 uppercase tracking-wider">
+                    <th className="px-2 py-1.5 text-left font-semibold">Class / Section</th>
+                    <th className="px-2 py-1.5 text-left font-semibold">Quarter</th>
+                    <th className="px-2 py-1.5 text-left font-semibold">Day / Time</th>
+                    <th className="px-2 py-1.5 text-center font-semibold">Cap.</th>
+                    <th className="px-2 py-1.5 text-center font-semibold">Enr.</th>
+                    <th className="px-2 py-1.5 text-center font-semibold">Wait</th>
+                    <th className="px-2 py-1.5 text-center font-semibold">Fill</th>
+                    <th className="px-2 py-1.5 text-center font-semibold">Trend</th>
+                    {showFinancials&&<>
+                      <th className="px-2 py-1.5 text-right font-semibold" style={{borderLeft:"2px solid #e2e8f0"}}>Fee/Person</th>
+                      <th className="px-2 py-1.5 text-right font-semibold">Est. Rev.</th>
+                      <th className="px-2 py-1.5 text-right font-semibold">Misc Rev.</th>
+                      <th className="px-2 py-1.5 text-right font-semibold">Instructor</th>
+                      <th className="px-2 py-1.5 text-right font-semibold">Supplies</th>
+                      <th className="px-2 py-1.5 text-right font-semibold">Est. Net</th>
+                    </>}
+                    <th className="px-2 py-1.5 text-left font-semibold">Notes</th>
+                    <th className="px-2 py-1.5"/>
+                  </tr>
+                </thead>
                 <tbody>{list.map((r,i)=>{
-                  const fill=r.capacity>0?Math.round((r.enrollment/r.capacity)*100):null;
-                  const fillColor=fill!=null?(fill>=70?"#84BD00":fill>=60?"#F6AB00":"#E35205"):"#94a3b8";
+                  const fill       = r.capacity>0?Math.round((r.enrollment/r.capacity)*100):null;
+                  const fillColor  = fill!=null?(fill>=70?"#84BD00":fill>=60?"#F6AB00":"#E35205"):"#94a3b8";
+                  const trendColor = {"Growing":"#84BD00","Stable":"#64748b","Declining":"#E35205","New":"#00A9CE","—":"#94a3b8"}[r.trend]||"#94a3b8";
+                  const isStale    = r.updatedAt&&((Date.now()-new Date(r.updatedAt).getTime())>90*24*60*60*1000);
+                  const fee        = parseFloat(r.fee)||0;
+                  const enr        = parseInt(r.enrollment)||0;
+                  const miscRev    = parseFloat(r.misc_revenue)||0;
+                  const instCost   = parseFloat(r.instructor_cost)||0;
+                  const suppCost   = parseFloat(r.supplies_cost)||0;
+                  const estRev     = (fee * enr) + miscRev;
+                  const estCost    = instCost + suppCost;
+                  const estNet     = estRev - estCost;
+                  const hasFinData = fee>0||instCost>0||suppCost>0;
+
                   return(
-                    <tr key={r.id} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
-                      <td className="px-2 py-1.5"><input value={r.label} onChange={e=>updateRow(r.id,"label",e.target.value)} placeholder="e.g. Beginners" className="w-full rounded border border-slate-200 px-2 py-1 text-xs focus:outline-none focus:ring-1"/></td>
-                      <td className="px-2 py-1.5"><input value={r.day} onChange={e=>updateRow(r.id,"day",e.target.value)} placeholder="Mon" className="w-16 rounded border border-slate-200 px-2 py-1 text-xs focus:outline-none focus:ring-1"/></td>
-                      <td className="px-2 py-1.5"><input value={r.time} onChange={e=>updateRow(r.id,"time",e.target.value)} placeholder="5:00pm" className="w-20 rounded border border-slate-200 px-2 py-1 text-xs focus:outline-none focus:ring-1"/></td>
-                      <td className="px-2 py-1.5"><input type="number" min={0} value={r.capacity||""} onChange={e=>updateRow(r.id,"capacity",parseInt(e.target.value)||0)} className="w-16 rounded border border-slate-200 px-2 py-1 text-xs text-center focus:outline-none focus:ring-1" style={{MozAppearance:"textfield"}}/></td>
-                      <td className="px-2 py-1.5"><input type="number" min={0} value={r.enrollment||""} onChange={e=>updateRow(r.id,"enrollment",parseInt(e.target.value)||0)} className="w-16 rounded border border-slate-200 px-2 py-1 text-xs text-center focus:outline-none focus:ring-1" style={{MozAppearance:"textfield"}}/></td>
-                      <td className="px-2 py-1.5 text-center font-bold" style={{color:fillColor}}>{fill!=null?fill+"%":"—"}</td>
-                      <td className="px-2 py-1.5"><button onClick={()=>removeRow(r.id)} className="text-red-300 hover:text-red-500 text-xs font-bold">✕</button></td>
+                    <tr key={r.id} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"} ${isStale?"opacity-60":""}`}>
+                      <td className="px-2 py-1.5 min-w-32">
+                        <input value={r.label} onChange={e=>updateRow(r.id,"label",e.target.value)}
+                          placeholder="e.g. Brushstrokes"
+                          className="w-full rounded border border-slate-200 px-2 py-1 text-xs focus:outline-none focus:ring-1"/>
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <select value={r.quarter||""} onChange={e=>updateRow(r.id,"quarter",e.target.value)}
+                          className="rounded border border-slate-200 px-1 py-1 text-xs bg-white focus:outline-none focus:ring-1">
+                          <option value="">—</option>
+                          {QUARTERS.map(q=><option key={q}>{q}</option>)}
+                        </select>
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <div className="flex gap-1">
+                          <input value={r.day} onChange={e=>updateRow(r.id,"day",e.target.value)}
+                            placeholder="Mon" className="w-12 rounded border border-slate-200 px-1 py-1 text-xs focus:outline-none focus:ring-1"/>
+                          <input value={r.time} onChange={e=>updateRow(r.id,"time",e.target.value)}
+                            placeholder="5pm" className="w-14 rounded border border-slate-200 px-1 py-1 text-xs focus:outline-none focus:ring-1"/>
+                        </div>
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <input type="number" min={0} value={r.capacity||""} onChange={e=>updateRow(r.id,"capacity",parseInt(e.target.value)||0)}
+                          className="w-12 rounded border border-slate-200 px-1 py-1 text-xs text-center focus:outline-none focus:ring-1" style={{MozAppearance:"textfield"}}/>
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <input type="number" min={0} value={r.enrollment||""} onChange={e=>updateRow(r.id,"enrollment",parseInt(e.target.value)||0)}
+                          className="w-12 rounded border border-slate-200 px-1 py-1 text-xs text-center focus:outline-none focus:ring-1" style={{MozAppearance:"textfield"}}/>
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <input type="number" min={0} value={r.waitlist||""} onChange={e=>updateRow(r.id,"waitlist",parseInt(e.target.value)||0)}
+                          className="w-12 rounded border border-slate-200 px-1 py-1 text-xs text-center focus:outline-none focus:ring-1" style={{MozAppearance:"textfield"}}/>
+                      </td>
+                      <td className="px-2 py-1.5 text-center font-bold whitespace-nowrap" style={{color:fillColor}}>
+                        {fill!=null?fill+"%":"—"}
+                        {r.waitlist>0&&<span className="ml-1 text-amber-500">⚡</span>}
+                      </td>
+                      <td className="px-2 py-1.5 text-center">
+                        <select value={r.trend||"—"} onChange={e=>updateRow(r.id,"trend",e.target.value)}
+                          className="rounded border border-slate-200 px-1 py-1 text-xs bg-white focus:outline-none focus:ring-1"
+                          style={{color:trendColor,fontWeight:"600"}}>
+                          {TRENDS.map(t=><option key={t}>{t}</option>)}
+                        </select>
+                      </td>
+                      {showFinancials&&<>
+                        <td className="px-2 py-1.5" style={{borderLeft:"2px solid #e2e8f0"}}>
+                          <div className="flex items-center">
+                            <span className="text-slate-400 mr-0.5">$</span>
+                            <input type="number" min={0} value={r.fee||""} onChange={e=>updateRow(r.id,"fee",e.target.value)}
+                              placeholder="0" className="w-16 rounded border border-slate-200 px-1 py-1 text-xs text-right focus:outline-none focus:ring-1" style={{MozAppearance:"textfield"}}/>
+                          </div>
+                        </td>
+                        <td className="px-2 py-1.5 text-right font-mono font-semibold" style={{color:"#84BD00"}}>
+                          {fee>0&&enr>0?"$"+(fee*enr).toLocaleString():"—"}
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <div className="flex items-center">
+                            <span className="text-slate-400 mr-0.5">$</span>
+                            <input type="number" min={0} value={r.misc_revenue||""} onChange={e=>updateRow(r.id,"misc_revenue",parseFloat(e.target.value)||0)}
+                              placeholder="0" title="Other revenue (grants, donations, etc.)" className="w-16 rounded border border-slate-200 px-1 py-1 text-xs text-right focus:outline-none focus:ring-1" style={{MozAppearance:"textfield"}}/>
+                          </div>
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <div className="flex items-center">
+                            <span className="text-slate-400 mr-0.5">$</span>
+                            <input type="number" min={0} value={r.instructor_cost||""} onChange={e=>updateRow(r.id,"instructor_cost",parseFloat(e.target.value)||0)}
+                              placeholder="0" title="Instructor wages or contract cost" className="w-16 rounded border border-slate-200 px-1 py-1 text-xs text-right focus:outline-none focus:ring-1" style={{MozAppearance:"textfield"}}/>
+                          </div>
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <div className="flex items-center">
+                            <span className="text-slate-400 mr-0.5">$</span>
+                            <input type="number" min={0} value={r.supplies_cost||""} onChange={e=>updateRow(r.id,"supplies_cost",parseFloat(e.target.value)||0)}
+                              placeholder="0" title="Supplies, materials, etc." className="w-16 rounded border border-slate-200 px-1 py-1 text-xs text-right focus:outline-none focus:ring-1" style={{MozAppearance:"textfield"}}/>
+                          </div>
+                        </td>
+                        <td className="px-2 py-1.5 text-right font-mono font-bold whitespace-nowrap"
+                          style={{color:!hasFinData?"#94a3b8":estNet>=0?"#84BD00":"#E35205"}}>
+                          {!hasFinData?"—":estNet<0?"($"+Math.abs(Math.round(estNet)).toLocaleString()+")":"$"+Math.round(estNet).toLocaleString()}
+                        </td>
+                      </>}
+                      <td className="px-2 py-1.5 min-w-36">
+                        <input value={r.notes||""} onChange={e=>updateRow(r.id,"notes",e.target.value)}
+                          placeholder="e.g. instructor changed"
+                          className="w-full rounded border border-slate-200 px-2 py-1 text-xs focus:outline-none focus:ring-1"/>
+                      </td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">
+                        {isStale&&<span title="Not updated in 90+ days" className="text-slate-400 mr-1">🕐</span>}
+                        <button onClick={()=>removeRow(r.id)} className="text-red-300 hover:text-red-500 text-xs font-bold">✕</button>
+                      </td>
                     </tr>
                   );
                 })}</tbody>
+                {showFinancials&&list.length>1&&(
+                  <tfoot>
+                    <tr className="border-t-2 border-slate-200 bg-slate-50">
+                      <td className="px-2 py-2 font-bold text-slate-700 text-xs" colSpan={9}>Totals</td>
+                      <td className="px-2 py-2 text-right font-mono font-bold text-xs" style={{color:"#84BD00"}}>${Math.round(sessionTotals.rev).toLocaleString()}</td>
+                      <td/>
+                      <td/>
+                      <td/>
+                      <td className="px-2 py-2 text-right font-mono font-bold text-xs" style={{color:sessionTotals.profit>=0?"#84BD00":"#E35205"}}>
+                        {sessionTotals.profit<0?"($"+Math.abs(Math.round(sessionTotals.profit)).toLocaleString()+")":"$"+Math.round(sessionTotals.profit).toLocaleString()}
+                      </td>
+                      <td colSpan={2}/>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           )}
-          {list.length>0&&(
-            <div className="flex items-center gap-4 px-3 py-2 rounded-lg bg-slate-50 border border-slate-100 text-xs">
-              <span className="text-slate-700">Total: <span className="font-bold text-slate-800">{totalEnr}/{totalCap}</span> enrolled</span>
-              <span className="font-bold" style={{color:overallFill>=70?"#84BD00":overallFill>=60?"#F6AB00":"#E35205"}}>{totalCap>0?Math.round(overallFill)+"%":"—"} overall fill</span>
-              {totalCap>0&&overallFill<70&&<span className=" font-semibold">⚠ Some classes may be underperforming</span>}
-            </div>
-          )}
-          <button onClick={addRow} className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-50 transition">
-            + Add Session
-          </button>
-          <p className="text-xs text-slate-700">Sessions are saved with this program. The main Enrollment field above should still reflect the total across all sessions.</p>
+
+          <div className="flex items-center justify-between">
+            <button onClick={addRow}
+              className="text-xs font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded border transition"
+              style={{color:"#00A9CE",borderColor:"rgba(0,169,206,0.3)",background:"rgba(0,169,206,0.04)"}}>
+              + Add Class / Session
+            </button>
+            {list.length>0&&(
+              <div className="text-xs text-slate-500">
+                Last updated: {(()=>{
+                  const dates=list.filter(r=>r.updatedAt).map(r=>new Date(r.updatedAt));
+                  if(!dates.length) return "—";
+                  return new Date(Math.max(...dates)).toLocaleDateString();
+                })()}
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-slate-500">Estimated financials are supervisor best-estimates — not tied to Incode. The main Budget/Actuals tabs above hold the official numbers. Use these to spot which classes may need attention before the season ends.</p>
         </div>
       )}
     </div>
   );
 }
+
 
 function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndStay,onDelete,onArchive,onDuplicate,onCancel,saving}) {
   const [p,setP]             = useState(()=> initial ? {...cleanForDB(initial), decision_log: initial.decision_log||[], other1_label: initial.other1_label||"Other Direct Costs", other2_label: initial.other2_label||"Other Direct Costs 2"} : newProgram(staffName));
@@ -3062,7 +3332,16 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                   )}
                 </div>
               </div>
-              <div>
+              <div className="sm:col-span-2">
+                <label className="flex items-start gap-3 cursor-pointer p-3 rounded border border-slate-200 hover:bg-slate-50 transition">
+                  <input type="checkbox" checked={!!p.is_umbrella} onChange={e=>{setP(prev=>({...prev,is_umbrella:e.target.checked}));setDirty(true);}} className="mt-0.5 shrink-0"/>
+                  <div>
+                    <div className="text-sm font-semibold text-slate-800">Umbrella Program</div>
+                    <div className="text-xs text-slate-700 mt-0.5 leading-relaxed">Check this if multiple classes share one Incode budget line (e.g. Visual Arts covers Brushstrokes, Sewing, and Fashion Design). Use the Sessions tab in Actuals to track enrollment per class. See Guide & Resources → 📐 How to Set Up Programs for guidance.</div>
+                  </div>
+                </label>
+              </div>
+              <div className="sm:col-span-2">
                 <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Notes</label>
                 <textarea className="mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 resize-none" rows={3}
                   placeholder="Strategy notes, drivers, multi-year context..."
@@ -3185,7 +3464,9 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
               
               <SubProgramTracker
                 programs={Array.isArray(p.sub_programs)?p.sub_programs:[]}
-                onChange={v=>setField("sub_programs")(v)}/>
+                onChange={v=>setField("sub_programs")(v)}
+                umbrellaRevenue={p.act_revenue||p.ant_revenue||0}
+                umbrellaCost={calcCR(p,"act_").total||calcCR(p,"ant_").total||0}/>
             </div>
           )}
           {sec==="summary"&&(
@@ -3500,16 +3781,25 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
 }
 
 // ─── Programs List ────────────────────────────────────────────────────────────
-function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDupSingle,onBulkArchive,onBulkDelete,returnToYear,onReturnToYearConsumed}) {
-  const [filters,setFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
-  const [search,setSearch]   = useState("");
-  const [showArchived,setShowArchived] = useState(false);
+function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDupSingle,onBulkArchive,onBulkDelete,returnToYear,onReturnToYearConsumed,filters,onFiltersChange,search,onSearchChange,showArchived,onShowArchivedChange}) {
+  // Filters are lifted to App so they persist across program open/close
+  // Fall back to local state if props not provided (backwards compat)
+  const [localFilters,setLocalFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
+  const [localSearch,setLocalSearch]   = useState("");
+  const [localShowArchived,setLocalShowArchived] = useState(false);
+  const activeFilters     = filters     ?? localFilters;
+  const setActiveFilters  = onFiltersChange ?? setLocalFilters;
+  const activeSearch      = search      ?? localSearch;
+  const setActiveSearch   = onSearchChange ?? setLocalSearch;
+  const activeShowArchived= showArchived ?? localShowArchived;
+  const setActiveShowArchived = onShowArchivedChange ?? setLocalShowArchived;
   const [plSort,setPlSort]   = useState("updated");
   const [selected,setSelected] = useState(new Set());
+  const [umbrellaOnly,setUmbrellaOnly] = useState(false);
   const toggleSelect = id => setSelected(s=>{const n=new Set(s);n.has(id)?n.delete(id):n.add(id);return n;});
   const selectAll  = ids => setSelected(new Set(ids));
   const clearSelect = () => setSelected(new Set());
-  function onFilterChange(key,val){setFilters(f=>({...f,[key]:val}));}
+  function onFilterChange(key,val){setActiveFilters(f=>({...f,[key]:val}));}
 
   const allStaff   = [...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
   const allAreas   = [...new Set(programs.map(p=>p.area))];
@@ -3517,13 +3807,14 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
   const allSeasons = [...SEASONS];
 
   const vis = programs
-    .filter(p=>showArchived ? (!!p.is_archived&&!p.is_deleted) : (!p.is_archived&&!p.is_deleted))
-    .filter(p=>filters.staff.size===0||filters.staff.has(p.staff_name))
-    .filter(p=>filters.area.size===0||filters.area.has(p.area))
-    .filter(p=>filters.year.size===0||filters.year.has(toFY(p.year)))
-    .filter(p=>filters.season.size===0||filters.season.has(p.season))
-    .filter(p=>!search||p.name.toLowerCase().includes(search.toLowerCase()));
-  const archivedCount = programs.filter(p=>p.is_archived&&!p.is_deleted&&(isManager||p.staff_name===staffName)&&(filters.year.size===0||filters.year.has(toFY(p.year)))).length;
+    .filter(p=>activeShowArchived ? (!!p.is_archived&&!p.is_deleted) : (!p.is_archived&&!p.is_deleted))
+    .filter(p=>activeFilters.staff.size===0||activeFilters.staff.has(p.staff_name))
+    .filter(p=>activeFilters.area.size===0||activeFilters.area.has(p.area))
+    .filter(p=>activeFilters.year.size===0||activeFilters.year.has(toFY(p.year)))
+    .filter(p=>activeFilters.season.size===0||activeFilters.season.has(p.season))
+    .filter(p=>!activeSearch||p.name.toLowerCase().includes(activeSearch.toLowerCase()))
+    .filter(p=>!umbrellaOnly||!!p.is_umbrella);
+  const archivedCount = programs.filter(p=>p.is_archived&&!p.is_deleted&&(isManager||p.staff_name===staffName)&&(activeFilters.year.size===0||activeFilters.year.has(toFY(p.year)))).length;
 
   return (
     <div className="space-y-4">
@@ -3536,19 +3827,26 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
               Bulk Season Rollover
             </button>
           )}
-          <button onClick={()=>{setShowArchived(s=>!s);clearSelect();}}
+          <button onClick={()=>{setActiveShowArchived(s=>!s);clearSelect();}}
             className={`text-xs font-semibold px-3 py-2 rounded border transition ${showArchived?"text-white border-transparent":"border-slate-200 text-slate-700 hover:bg-gray-200"}`}
-            style={showArchived?{backgroundColor:"#64748b"}:{}}>
-            📦 {showArchived?"← Active Programs":`Archived (${archivedCount})`}
+            style={activeShowArchived?{backgroundColor:"#64748b"}:{}}>
+            📦 {activeShowArchived?"← Active Programs":`Archived (${archivedCount})`}
           </button>
           {!showArchived&&<button onClick={onAdd} className="text-xs font-bold px-3 py-2 rounded text-white" style={{backgroundColor:"#00A9CE"}}>+ Add Program</button>}
         </div>
       </div>
       <div className="space-y-2">
-        <MultiFilter filters={filters} onChange={onFilterChange}
+        <MultiFilter filters={activeFilters} onChange={onFilterChange}
           counts={{staff:allStaff,area:allAreas,season:allSeasons,year:allYears}}/>
-        <input className="w-full rounded border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:border-blue-400"
-          placeholder="Search programs by name..." value={search} onChange={e=>setSearch(e.target.value)}/>
+        <div className="flex gap-2">
+          <input className="flex-1 rounded border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:border-blue-400"
+            placeholder="Search programs by name..." value={activeSearch} onChange={e=>setActiveSearch(e.target.value)}/>
+          <button onClick={()=>setUmbrellaOnly(u=>!u)}
+            className="text-xs font-semibold px-3 py-1.5 rounded border transition whitespace-nowrap shrink-0"
+            style={umbrellaOnly?{background:"#00A9CE",color:"#fff",borderColor:"#00A9CE"}:{borderColor:"#e2e8f0",color:"#64748b"}}>
+            ☂ Umbrella only
+          </button>
+        </div>
       </div>
       {selected.size>0&&(
         <div className="bg-white rounded-lg shadow-sm px-4 py-3 flex items-center gap-3 flex-wrap" style={{border:"2px solid #00A9CE"}}>
@@ -3596,10 +3894,19 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
                   className="shrink-0 w-4 h-4 cursor-pointer accent-teal-500"/>
               )}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <div className="font-semibold text-slate-800 truncate">{p.name}</div>
+                  {p.is_umbrella&&<span className="text-xs font-semibold px-1.5 py-0.5 rounded whitespace-nowrap" style={{background:"#E6F6FB",color:"#007A99"}}>Umbrella</span>}
                   {!k.hasActuals&&<span className="text-xs bg-amber-100  px-1.5 py-0.5 rounded font-medium whitespace-nowrap">No actuals</span>}
                   {p.notes&&<span className="text-slate-400 text-xs" title={p.notes}>●</span>}
+                  {p.is_umbrella&&Array.isArray(p.sub_programs)&&p.sub_programs.length>0&&(()=>{
+                    const stale=p.sub_programs.filter(s=>s.updatedAt&&((Date.now()-new Date(s.updatedAt).getTime())>90*24*60*60*1000));
+                    const struggling=p.sub_programs.filter(s=>s.capacity>0&&Math.round((s.enrollment/s.capacity)*100)<60&&s.label);
+                    return(<>
+                      {struggling.length>0&&<span className="text-xs font-semibold px-1.5 py-0.5 rounded whitespace-nowrap" style={{background:"#FDF0E6",color:"#E35205"}}>⚠ {struggling.length} class{struggling.length!==1?"es":""} &lt;60%</span>}
+                      {stale.length>0&&<span className="text-xs font-semibold px-1.5 py-0.5 rounded whitespace-nowrap" style={{background:"#f1f5f9",color:"#64748b"}}>🕐 stale data</span>}
+                    </>);
+                  })()}
                 </div>
                 <div className="text-xs text-slate-700">{p.area} - {p.season} FY {toFY(p.year)} - {p.staff_name}
                   {lastUpdated&&<span className="ml-2 text-slate-400">· Updated {new Date(lastUpdated).toLocaleDateString()}</span>}
@@ -6076,21 +6383,42 @@ function Reference({isManager,db,programs,staffName}) {
             </div>
           </div>
 
-          {/* ── Decision 3: Shared Costs (Lifeguards) ── */}
+          {/* ── Decision 3: Shared Costs ── */}
           <div className="rounded border border-slate-200 overflow-hidden">
-            <div className="px-4 py-2.5 text-sm font-bold text-white" style={{background:"#00A9CE"}}>Decision 3 — Shared Costs Across Programs (e.g. Lifeguards)</div>
-            <div className="p-5 space-y-4">
-              <p className="text-sm text-slate-700">When multiple programs run simultaneously and share a cost — like lifeguards covering Swim Lessons, Swim Team, and Swim Team Prep at the same time — you need to decide how to allocate that shared cost across programs.</p>
+            <div className="px-4 py-2.5 text-sm font-bold text-white" style={{background:"#00A9CE"}}>Decision 3 — Shared Costs Across Programs</div>
+            <div className="p-5 space-y-5">
 
-              <div className="rounded border border-slate-100 overflow-hidden">
-                <div className="px-4 py-2.5 bg-slate-800 text-white text-xs font-bold uppercase tracking-wide">The 3-Step Lifeguard Process</div>
+              <p className="text-sm text-slate-700">Some costs don't belong to one program — they support several at once. A karate instructor who teaches three levels. Lifeguards covering the pool while swim lessons, swim team, and open swim all run. A stage manager for the fall and spring productions. These costs need to land somewhere, and splitting them by enrollment is the most defensible method.</p>
+
+              {/* Real examples grid */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {[
-                  {n:"1",color:"#00A9CE",title:"Calculate total lifeguard cost for the period",detail:"Add up all lifeguard wages for the time period where programs overlap. Example: 3 lifeguards × 20 hrs/week × 10 weeks × $15/hr = $9,000 for the pool season."},
-                  {n:"2",color:"#00A9CE",title:"Use the Allocation Calculator to split by enrollment",detail:"Go to Guide & Resources → 💰 Allocation Calculator. Enter $9,000 as Personnel cost. Select Swim Lessons, Swim Team, and Swim Team Prep. Choose 'By Enrollment' — the tool splits proportionally based on how many participants each program has. Apply to Budgeted at the start of season, then re-run with actuals at season end."},
-                  {n:"3",color:"#00A9CE",title:"Apply the result to each program's Personnel field",detail:"The calculator writes the allocated amount directly to each program record. Swim Lessons gets its share, Swim Team gets its share, etc. Each program's cost recovery now reflects its true share of the facility's staffing cost."},
+                  {icon:"🥋",title:"Karate instructor teaches Beginner, Intermediate, and Advanced",cost:"Instructor contract: $4,800/season",split:"Split by enrollment across all three levels. Beginner (40 kids) gets more than Advanced (12 kids)."},
+                  {icon:"🏊",title:"Lifeguards on deck while three pool programs run simultaneously",cost:"3 guards × 10 weeks × 20 hrs × $15 = $9,000",split:"Split across Swim Lessons, Swim Team, and Swim Team Prep by enrollment. Each program owns its share of the deck."},
+                  {icon:"🎭",title:"Stage manager supports Fall Children's Theater and Spring Musical",cost:"Stage manager contract: $2,400",split:"Split evenly or by rehearsal hours — each production gets half, or weight it by how many rehearsals each one used."},
+                  {icon:"🚐",title:"Van driver transports kids across three summer camp groups",cost:"Driver wages + mileage: $1,200",split:"Split equally across Day Camp, STEM Camp, and Art Camp — same driver, same miles, same three groups."},
+                  {icon:"🎨",title:"Supply order covers materials for three art classes running the same session",cost:"Supply order: $600",split:"Split by enrollment. Brushstrokes (18 kids) gets more than Fashion Design (8 kids)."},
+                  {icon:"🏋️",title:"Fitness equipment maintenance covers Group X, Yoga Studio, and Spin",cost:"Annual service contract: $1,800",split:"Split equally across three spaces — or by class count if one room runs far more sessions than the others."},
+                ].map(ex=>(
+                  <div key={ex.title} className="rounded border border-slate-100 p-4 space-y-2">
+                    <div className="text-lg">{ex.icon}</div>
+                    <div className="text-sm font-bold text-slate-800 leading-snug">{ex.title}</div>
+                    <div className="text-xs font-mono text-slate-500">{ex.cost}</div>
+                    <div className="text-xs text-slate-700 leading-relaxed"><span className="font-semibold text-slate-800">How to split: </span>{ex.split}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* The process */}
+              <div className="rounded border border-slate-100 overflow-hidden">
+                <div className="px-4 py-2.5 bg-slate-800 text-white text-xs font-bold uppercase tracking-wide">How to Do It — The 3-Step Process</div>
+                {[
+                  {n:"1",title:"Know your total",detail:"Add up the full cost for the shared expense. Instructor contract, guard wages, supply order — whatever it is. One number."},
+                  {n:"2",title:"Run the Allocation Calculator",detail:"Guide & Resources → 💰 Allocation Calculator. Enter the total, select the programs it covers, pick 'By Enrollment' (or Equal Split if you don't have enrollment yet). The tool calculates each program's share instantly."},
+                  {n:"3",title:"Apply it",detail:"Hit Apply — the calculator writes directly to each program's cost fields. Each program now shows its real share of the shared cost. Run it at the start of the season with budgeted enrollment, then again at the end with actuals."},
                 ].map(s=>(
                   <div key={s.n} className="flex gap-4 px-4 py-3 border-t border-slate-100">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-black shrink-0 mt-0.5" style={{background:s.color}}>{s.n}</div>
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-black shrink-0 mt-0.5" style={{background:"#00A9CE"}}>{s.n}</div>
                     <div>
                       <div className="text-sm font-bold text-slate-800 mb-0.5">{s.title}</div>
                       <div className="text-xs text-slate-700 leading-relaxed">{s.detail}</div>
@@ -6100,17 +6428,8 @@ function Reference({isManager,db,programs,staffName}) {
               </div>
 
               <div className="rounded px-4 py-3 text-xs" style={{background:"rgba(92,70,43,0.05)",border:"1px solid rgba(92,70,43,0.12)"}}>
-                <div className="font-bold text-slate-800 mb-1">Alternative: Equal Split</div>
-                <p className="text-slate-700">If enrollment data isn't available yet (start of season), use Equal Split in the Allocation Calculator — each program gets 1/3 of the cost. Update with enrollment-weighted actuals at season end. This keeps budgets in place while you wait for real data.</p>
-              </div>
-
-              <div className="rounded px-4 py-3 text-xs" style={{background:"rgba(0,169,206,0.05)",border:"1px solid rgba(0,169,206,0.15)"}}>
-                <div className="font-bold mb-1" style={{color:"#00A9CE"}}>Other shared cost examples to handle the same way</div>
-                <div className="grid grid-cols-2 gap-1 text-slate-700">
-                  {["Pool chemicals → all aquatics programs","Instructor who teaches multiple art classes","Stage manager for multiple theater productions","Van driver for multiple camp groups"].map(ex=>(
-                    <div key={ex} className="flex gap-1.5"><span style={{color:"#00A9CE"}}>›</span>{ex}</div>
-                  ))}
-                </div>
+                <span className="font-bold text-slate-800">Start of season vs. end of season: </span>
+                <span className="text-slate-700">At the start, use Equal Split or budgeted enrollment — just get something in place. At season end, re-run the calculator with actual enrollment and hit Apply again. The actuals fields update and cost recovery reflects reality.</span>
               </div>
             </div>
           </div>
@@ -7475,6 +7794,11 @@ export default function App() {
   const [addingProgram,setAddingProgram]   = useState(false);
   const [dupProgram,setDupProgram]         = useState(null);
   const [showBulkDup,setShowBulkDup]       = useState(false);
+  // Persisted Programs list filters — survive program open/close
+  const currentFY = (()=>{const d=new Date();const y=d.getMonth()>=4?d.getFullYear():d.getFullYear()-1;return `${String(y).slice(-2)}-${String(y+1).slice(-2)}`;})();
+  const [plFilters,setPlFilters]           = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set([currentFY])});
+  const [plSearch,setPlSearch]             = useState("");
+  const [plShowArchived,setPlShowArchived] = useState(false);
   const [loading,setLoading]               = useState(true);
   const [saving,setSaving]                 = useState(false);
   const [returnToYear,setReturnToYear]     = useState(null);
@@ -7728,6 +8052,9 @@ export default function App() {
                 onAdd={()=>setAddingProgram(true)}
                 onBulkDup={()=>setShowBulkDup(true)}
                 onDupSingle={setDupProgram}
+                filters={plFilters} onFiltersChange={setPlFilters}
+                search={plSearch} onSearchChange={setPlSearch}
+                showArchived={plShowArchived} onShowArchivedChange={setPlShowArchived}
                 onBulkArchive={handleBulkArchive}
                 onBulkDelete={handleBulkDelete}
                 returnToYear={returnToYear}
