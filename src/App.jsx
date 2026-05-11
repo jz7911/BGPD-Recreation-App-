@@ -1593,7 +1593,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
                   <th className="px-2 py-1 text-center border-l border-slate-200">Bud.</th><th className="px-2 py-1 text-center">Actual</th><th className="px-2 py-1 text-center">Var.</th>
                 </tr>
               </thead>
-              <tbody>{sortedKpis.map((p,i)=>(
+              <tbody>{kpis.map((p,i)=>(
                 <tr key={p.id} className={`border-t border-slate-50 hover:bg-gray-200 ${i%2===0?"bg-white":"bg-slate-50/50"}`}>
                   <td className="px-3 py-2.5 font-semibold text-slate-800 whitespace-nowrap">
                     <button onClick={()=>onEdit(p)} className="hover:text-blue-600 hover:underline text-left">{p.name}</button>
@@ -1633,7 +1633,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
             </table>
           </div>
         ) : (
-          <div className="p-4 space-y-5">{sortedKpis.map(p=>(
+          <div className="p-4 space-y-5">{kpis.map(p=>(
             <div key={p.id} className="border border-slate-100 rounded-lg p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -3781,7 +3781,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
 }
 
 // ─── Programs List ────────────────────────────────────────────────────────────
-function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDupSingle,onBulkArchive,onBulkDelete,returnToYear,onReturnToYearConsumed,filters,onFiltersChange,search,onSearchChange,showArchived,onShowArchivedChange}) {
+function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDupSingle,onBulkArchive,onBulkDelete,filters,onFiltersChange,search,onSearchChange,showArchived,onShowArchivedChange}) {
   // Filters are lifted to App so they persist across program open/close
   // Fall back to local state if props not provided (backwards compat)
   const [localFilters,setLocalFilters] = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set()});
@@ -8056,9 +8056,7 @@ export default function App() {
                 search={plSearch} onSearchChange={setPlSearch}
                 showArchived={plShowArchived} onShowArchivedChange={setPlShowArchived}
                 onBulkArchive={handleBulkArchive}
-                onBulkDelete={handleBulkDelete}
-                returnToYear={returnToYear}
-                onReturnToYearConsumed={()=>setReturnToYear(null)}/>
+                onBulkDelete={handleBulkDelete}/>
             )}
             {tab==="programs"&&showingForm&&(
               <ProgramForm
