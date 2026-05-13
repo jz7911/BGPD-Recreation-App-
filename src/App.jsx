@@ -8626,13 +8626,6 @@ function StaffPinAdmin({db, staffName}) {
   );
 }
 
-          </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 
 function ClubhouseAllocationTool({db,programs,staffName}){
