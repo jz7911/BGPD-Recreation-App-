@@ -749,7 +749,7 @@ function PBar({label,actual,budget,ff,inv}) {
   );
 }
 
-function Inp({label,type="text",value,onChange,options,min,max,hint,placeholder,required,maxLen}) {
+function Inp({label,type="text",value,onChange,options,min,max,hint,placeholder,required,maxLen,autoComplete="off"}) {
   const cls = "w-full px-3 py-2 text-sm focus:outline-none transition bg-white";
   const style = {border:"1px solid rgba(92,70,43,0.15)",borderRadius:"2px"};
   // For number inputs: track a local display string so backspace/delete work freely
@@ -2824,7 +2824,7 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
             );
           })}
           <input className="flex-1 min-w-36 rounded border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2"
-            placeholder="Search programs..." value={search} onChange={e=>setSearch(e.target.value)}/>
+            autoComplete="off" placeholder="Search programs..." autoComplete="off" value={search} onChange={e=>setSearch(e.target.value)}/>
           {(filterStaff.size>0||filterArea.size>0||filterSeason.size>0||filterYear.size>0||search)&&(
             <button onClick={()=>{setFilterStaff(new Set());setFilterArea(new Set());setFilterSeason(new Set());setFilterYear(new Set());setSearch("");setMsvOpen(null);}}
               className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
@@ -2973,11 +2973,11 @@ function SubProgramTracker({programs,onChange,umbrellaRevenue,umbrellaCost}){
   const [showFinancials,setShowFinancials]=useState(false);
   const list=Array.isArray(programs)?programs:[];
 
-  const QUARTERS=["Q1 (Jan–Mar)","Q2 (Apr–Jun)","Q3 (Jul–Sep)","Q4 (Oct–Dec)","Spring","Summer","Fall","Winter"];
+  const QUARTERS=["QA (May–Jul)","QB (Aug–Oct)","QC (Nov–Jan)","QD (Feb–Apr)","Spring","Summer","Fall","Winter"];
   const TRENDS=["—","Growing","Stable","Declining","New"];
 
   function addRow(){
-    const quarter=QUARTERS[Math.floor((new Date().getMonth())/3)];
+    const quarter=(()=>{const m=new Date().getMonth();return QUARTERS[[4,5,6].includes(m)?0:[7,8,9].includes(m)?1:[10,11,0].includes(m)?2:3];})();
     onChange([...list,{id:Date.now(),label:"",day:"",time:"",capacity:0,enrollment:0,waitlist:0,fee:"",trend:"—",quarter,notes:"",instructor_cost:"",supplies_cost:"",misc_revenue:"",facility_hours:"",contractor_split:"",updatedAt:new Date().toISOString()}]);
   }
   function updateRow(id,field,val){
@@ -3171,7 +3171,7 @@ function SubProgramTracker({programs,onChange,umbrellaRevenue,umbrellaCost}){
                     <tr key={r.id} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"} ${isStale?"opacity-60":""}`}>
                       <td className="px-2 py-1.5 min-w-32">
                         <input value={r.label} onChange={e=>updateRow(r.id,"label",e.target.value)}
-                          placeholder="e.g. Brushstrokes"
+                          placeholder="e.g. Brushstrokes" autoComplete="off"
                           className="w-full rounded border border-slate-200 px-2 py-1 text-xs focus:outline-none focus:ring-1"/>
                       </td>
                       <td className="px-2 py-1.5">
@@ -3267,7 +3267,7 @@ function SubProgramTracker({programs,onChange,umbrellaRevenue,umbrellaCost}){
                       </>}
                       <td className="px-2 py-1.5 min-w-36">
                         <input value={r.notes||""} onChange={e=>updateRow(r.id,"notes",e.target.value)}
-                          placeholder="e.g. instructor changed"
+                          placeholder="e.g. instructor changed" autoComplete="off"
                           className="w-full rounded border border-slate-200 px-2 py-1 text-xs focus:outline-none focus:ring-1"/>
                       </td>
                       <td className="px-2 py-1.5 whitespace-nowrap">
@@ -4031,7 +4031,7 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
           counts={{staff:allStaff,area:allAreas,season:allSeasons,year:allYears}}/>
         <div className="flex gap-2">
           <input className="flex-1 rounded border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:border-blue-400"
-            placeholder="Search programs by name..." value={activeSearch} onChange={e=>setActiveSearch(e.target.value)}/>
+            placeholder="Search programs by name..." autoComplete="off" value={activeSearch} onChange={e=>setActiveSearch(e.target.value)}/>
           <button onClick={()=>setUmbrellaOnly(u=>!u)}
             className="text-xs font-semibold px-3 py-1.5 rounded border transition whitespace-nowrap shrink-0"
             style={umbrellaOnly?{background:"#00A9CE",color:"#fff",borderColor:"#00A9CE"}:{borderColor:"#e2e8f0",color:"#64748b"}}>
@@ -4622,7 +4622,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
 
       {/* Filters */}
       <div className="bg-white rounded border border-slate-100 shadow-sm p-4 flex flex-wrap gap-3 items-center mb-5">
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search program or supervisor…"
+        <input value={search} onChange={e=>setSearch(e.target.value)} autoComplete="off" placeholder="Search program or supervisor…"
           className="flex-1 min-w-48 text-sm rounded-lg border border-slate-200 px-3 py-1.5"/>
         <select value={fyFilter} onChange={e=>setFyFilter(e.target.value)} className="text-sm rounded-lg border border-slate-200 px-3 py-1.5 bg-white">
           <option value="all">All FYs</option>
@@ -5677,7 +5677,7 @@ function ProgramGuideSection({isManager,db}){
       {/* Search + add */}
       <div className="flex items-center gap-3 flex-wrap">
         <input value={search} onChange={e=>setSearch(e.target.value)}
-          placeholder="Search program name, type, or bucket…"
+          autoComplete="off" placeholder="Search program name, type, or bucket…"
           className="flex-1 min-w-48 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:border-blue-400"/>
         {search&&<button onClick={()=>setSearch("")} className="text-xs text-slate-700 hover:text-slate-700">Clear</button>}
         <span className="text-xs text-slate-700">{filtered?`${filtered.length} match${filtered.length!==1?"es":""}`:`${allEntries.length} programs${custom.length>0?` (${custom.length} custom)`:""}`}</span>
@@ -8342,10 +8342,10 @@ function StaffPinAdmin({db, staffName}) {
 }
 
 
-// ─── Allocation Calculator ────────────────────────────────────────────────────
-function AllocationCalculator({programs, staffName, isManager}) {
+//function AllocationCalculator({programs, staffName, isManager}) {
   const [season, setSeason]       = useState("all");
   const [year,   setYear]         = useState("all");
+  const [acSearch, setAcSearch]   = useState("");
   const [which,  setWhich]        = useState("budgeted");
   const [costLines, setCostLines] = useState([{desc:"",amount:"",category:"other1"}]);
   const [mode,   setMode]         = useState("enrollment");
@@ -8369,7 +8369,8 @@ function AllocationCalculator({programs, staffName, isManager}) {
     : programs.filter(p=>!p.is_archived && p.staff_name === staffName);
   const filtered = myPrograms.filter(p =>
     (season === "all" || p.season === season) &&
-    (year   === "all" || p.year   === year)
+    (year   === "all" || p.year   === year) &&
+    (!acSearch || p.name.toLowerCase().includes(acSearch.toLowerCase()))
   );
   const allSeasons = [...new Set(myPrograms.map(p=>p.season).filter(Boolean))].sort();
   const allYears   = [...new Set(myPrograms.map(p=>p.year).filter(Boolean))].sort().reverse();
@@ -8485,7 +8486,13 @@ function AllocationCalculator({programs, staffName, isManager}) {
             </div>
             {filtered.length===0
               ? <div className="text-xs text-center py-4" style={{color:"#A09080"}}>No programs match this filter.</div>
-              : <div className="border border-slate-200 rounded overflow-hidden divide-y divide-slate-100 max-h-52 overflow-y-auto">
+              : <div>
+                  <input
+                    className="w-full rounded border border-slate-200 px-3 py-1.5 text-sm mb-2 focus:outline-none focus:ring-2"
+                    placeholder="Search programs..."
+                    autoComplete="off"
+                    value={acSearch} onChange={e=>setAcSearch(e.target.value)}/>
+                  <div className="border border-slate-200 rounded overflow-hidden divide-y divide-slate-100 max-h-52 overflow-y-auto">
                   {filtered.map(p=>(
                     <label key={p.id} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-slate-50">
                       <input type="checkbox" checked={!!selected[p.id]} onChange={()=>toggleProg(p.id)} className="shrink-0"/>
@@ -8501,6 +8508,7 @@ function AllocationCalculator({programs, staffName, isManager}) {
                       )}
                     </label>
                   ))}
+                </div>
                 </div>
             }
             <div className="text-xs mt-1" style={{color:"#A09080"}}>{selectedProgs.length} selected</div>
@@ -8611,6 +8619,14 @@ function AllocationCalculator({programs, staffName, isManager}) {
               className="px-4 py-2 text-sm font-bold rounded text-white disabled:opacity-40" style={{background:"#84BD00"}}>
               {applying?"Applying...":appliedCount===result.rows.length?"Applied":"Apply to Programs"}
             </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+          </button>
           </div>
         </div>
       )}
