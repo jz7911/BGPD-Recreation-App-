@@ -8342,7 +8342,7 @@ function StaffPinAdmin({db, staffName}) {
 }
 
 
-//function AllocationCalculator({programs, staffName, isManager}) {
+function AllocationCalculator({programs, staffName, isManager}) {
   const [season, setSeason]       = useState("all");
   const [year,   setYear]         = useState("all");
   const [acSearch, setAcSearch]   = useState("");
