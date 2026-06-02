@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "./supabase.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const AREAS = ["Adult General","Adult Sports","Aquatics","Camps","Clubhouse","Dance","Early Childhood","Fitness","Golf Dome","Museum","Performing Arts","Rentals","Seniors","Special Events","Youth General","Youth Sports","Other"];
+const AREAS = DISTRICT_CONFIG.areas;
 const SEASONS = ["Spring","Summer","Fall","Winter","All Year"];
 /* inject no-spinner CSS */
 if(typeof document!=="undefined"){const s=document.createElement("style");s.textContent="input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield}";document.head.appendChild(s);}
@@ -55,10 +55,49 @@ const PROGRAM_TYPES = [
   {label:"Camp",                       pct:0.09,  hint:"Day camps and specialty camps. High complexity: part-time staff management, licensing, safety, parent communication. Enter per curriculum group — not per week. Supervisors overseeing multiple camps: use Custom % for your full portfolio."},
   {label:"Production / Major Program", pct:0.10,  hint:"Preschool, Clubhouse, theater productions, Dance Company, Fitness Center operations. Year-round high-touch programs. Multi-site supervisors: use Custom % to reflect your full portfolio load."},
 ];
-const ADMIN_OVERHEAD_RATE  = 0.1;
-const FT_ANNUAL_SALARY     = 97700;
-const FACILITY_COST_PER_HR = 3;
-const MANAGER_NAMES        = ["admin","manager","joe zimmermann","erika strojinc","dan stanczak","brian o'malley","chris eckert","chuck burgess","diana clayson","amanda busch"];
+const ADMIN_OVERHEAD_RATE  = DISTRICT_CONFIG.adminOverheadRate;
+// ─── DISTRICT CONFIGURATION ───────────────────────────────────────────────────
+// To deploy for a new district, update this object only.
+// All district-specific values are derived from here.
+const DISTRICT_CONFIG = {
+  // Identity
+  name:              "Buffalo Grove Park District",
+  shortName:         "BGPD",
+  abbreviation:      "BGPD",
+  copyright:         "© Buffalo Grove Park District",
+  reportPrefix:      "BGPD",          // used in CSV/report filenames
+
+  // Branding
+  primaryColor:      "#00A9CE",       // PMS 312 teal
+  secondaryColor:    "#5C462B",       // PMS 462 brown
+  fontFamily:        "'Nunito Sans', Arial, sans-serif",
+
+  // Fiscal year: month FY starts (0=Jan, 4=May, 6=Jul)
+  fyStartMonth:      4,               // May = month index 4
+
+  // Financial assumptions
+  ftAnnualSalary:    97700,           // FT staff fully-loaded annual salary
+  adminOverheadRate: 0.10,            // 10% admin overhead on direct costs
+  facilityCostPerHr: 3,              // internal facility charge per hour
+
+  // Staff & access
+  managerNames: [
+    "admin","manager","joe zimmermann","erika strojinc","dan stanczak",
+    "brian o'malley","chris eckert","chuck burgess","diana clayson","amanda busch"
+  ],
+
+  // Program areas (customize per district)
+  areas: [
+    "Adult General","Adult Sports","Aquatics","Camps","Clubhouse","Dance",
+    "Early Childhood","Fitness","Golf Dome","Museum","Performing Arts",
+    "Rentals","Seniors","Special Events","Youth General","Youth Sports","Other"
+  ],
+};
+
+// ─── Derived constants (do not edit below) ────────────────────────────────────
+const FT_ANNUAL_SALARY     = DISTRICT_CONFIG.ftAnnualSalary;
+const FACILITY_COST_PER_HR = DISTRICT_CONFIG.facilityCostPerHr;
+const MANAGER_NAMES        = DISTRICT_CONFIG.managerNames;
 
 
 // Service category cost recovery targets
@@ -187,7 +226,7 @@ function calcKPIs(p) {
 function newProgram(staffName) {
   const last = getLastUsed(staffName);
   return {
-    name:"", area:last.area||"Youth Sports", season:last.season||"Summer", year:last.year||(()=>{const d=new Date();const y=d.getMonth()>=4?d.getFullYear():d.getFullYear()-1;return `${String(y).slice(-2)}-${String(y+1).slice(-2)}`;})(),
+    name:"", area:last.area||"Youth Sports", season:last.season||"Summer", year:last.year||(()=>{const d=new Date();const y=d.getMonth()>=DISTRICT_CONFIG.fyStartMonth?d.getFullYear():d.getFullYear()-1;return `${String(y).slice(-2)}-${String(y+1).slice(-2)}`;})(),
     classification:last.classification||"Community Driven", service_category:last.service_category||"",
     trend:"New", nps:0, notes:"", staff_name: staffName||"", waitlist:0,
     ant_capacity:0, ant_enrollment:0, ant_revenue:0,
@@ -323,7 +362,7 @@ function printSeasonReport(programs, filters) {
   <div style="font-family:'Segoe UI',sans-serif;color:#1e293b;background:white;width:750px;">
     <div style="background:#00A9CE;color:white;padding:20px 28px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-start;">
       <div>
-        <div style="font-weight:700;font-size:20px;">BGPD Recreation — Season Performance Report</div>
+        <div style="font-weight:700;font-size:20px;">{DISTRICT_CONFIG.shortName} Recreation — Season Performance Report</div>
         <div style="font-size:12px;opacity:0.75;margin-top:4px;">${filters} · Generated ${today}</div>
       </div>
       <div style="text-align:right;">
@@ -359,7 +398,7 @@ function printSeasonReport(programs, filters) {
 
   // Build full HTML document as a Blob and open via object URL — avoids popup blockers
   const fullHTML = `<!DOCTYPE html><html><head><meta charset="utf-8">
-  <title>BGPD Season Report</title>
+  <title>{DISTRICT_CONFIG.shortName} Season Report</title>
   <style>
     * { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
     body { background: white; color: #1e293b; }
@@ -411,7 +450,7 @@ function exportCSV(programs) {
   const blob = new Blob([headers+"\n"+rows.join("\n")], {type:"text/csv"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `BGPD_Programs_${new Date().toISOString().slice(0,10)}.csv`;
+  a.download = `${DISTRICT_CONFIG.reportPrefix}_Programs_${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
 }
 
@@ -1021,7 +1060,8 @@ class ErrorBoundary extends React.Component {
 
 
 function BGPDLogo({size=48}){
-  // Inline SVG recreation of BGPD logo: bison silhouette in a sky-blue circle
+  // District logo — replace this SVG with the client district's logo
+  // Update DISTRICT_CONFIG.name/shortName/abbreviation above
   return(
     <svg width={size} height={size} viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
       {/* Sky blue ring */}
@@ -1124,7 +1164,7 @@ function StaffSetup({onConfirm}) {
       <div className="w-full max-w-sm">
         <div className="text-center pb-8">
           <div className="flex justify-center mb-5"><BGPDLogo size={56}/></div>
-          <div className="font-bold tracking-widest uppercase" style={{fontSize:"11px",color:"#5C462B",letterSpacing:"0.16em"}}>Buffalo Grove Park District</div>
+          <div className="font-bold tracking-widest uppercase" style={{fontSize:"11px",color:"#5C462B",letterSpacing:"0.16em"}}>{DISTRICT_CONFIG.name}</div>
           <div className="mt-1 text-xs font-bold tracking-widest uppercase" style={{color:"#00A9CE",letterSpacing:"0.14em"}}>Recreation Program Management</div>
         </div>
         <div style={{background:"#ffffff",border:"1px solid rgba(92,70,43,0.15)",borderRadius:"4px",padding:"2.5rem 2rem"}}>
@@ -1192,7 +1232,7 @@ function StaffSetup({onConfirm}) {
 
           </div>
         </div>
-        <p className="text-center text-xs mt-6" style={{color:"#6B5744"}}>© Buffalo Grove Park District</p>
+        <p className="text-center text-xs mt-6" style={{color:"#6B5744"}}>{DISTRICT_CONFIG.copyright}</p>
       </div>
     </div>
   );
@@ -1435,7 +1475,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
   const [filters,setFilters] = useState({staff:new Set([staffName].filter(Boolean)),area:new Set(),season:new Set(),year:new Set()});
   useEffect(()=>{
     if(!programs.length) return;
-    const currentFY=(()=>{const d=new Date();const y=d.getMonth()>=4?d.getFullYear():d.getFullYear()-1;return `${String(y).slice(-2)}-${String(y+1).slice(-2)}`;})();
+    const currentFY=(()=>{const d=new Date();const y=d.getMonth()>=DISTRICT_CONFIG.fyStartMonth?d.getFullYear():d.getFullYear()-1;return `${String(y).slice(-2)}-${String(y+1).slice(-2)}`;})();
     const years=[...new Set(programs.filter(p=>!p.is_archived&&p.staff_name===staffName).map(p=>toFY(p.year)).filter(Boolean))].sort().reverse();
     const defaultFY = years.includes(currentFY) ? currentFY : (years[0]||currentFY);
     setFilters(f=>({...f,year:new Set([defaultFY])}));
@@ -1445,7 +1485,7 @@ function StaffDashboard({programs,staffName,onEdit,onAddProgram}) {
 
   function onFilterChange(key, val) { setFilters(f=>({...f,[key]:val})); }
 
-  const allStaff   = [...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
+  const allStaff   = [...new Set(programs.map(p=>p.staff_name).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
   const allAreas   = [...new Set(programs.map(p=>p.area))];
   const allYears   = [...YEARS];
   const allSeasons = [...SEASONS];
@@ -1744,7 +1784,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   // Default to latest year that has actual program data once programs load
   useEffect(()=>{
     if(!programs.length) return;
-    const currentFY=(()=>{const d=new Date();const y=d.getMonth()>=4?d.getFullYear():d.getFullYear()-1;return `${String(y).slice(-2)}-${String(y+1).slice(-2)}`;})();
+    const currentFY=(()=>{const d=new Date();const y=d.getMonth()>=DISTRICT_CONFIG.fyStartMonth?d.getFullYear():d.getFullYear()-1;return `${String(y).slice(-2)}-${String(y+1).slice(-2)}`;})();
     const years=[...new Set(programs.filter(p=>!p.is_archived).map(p=>toFY(p.year)).filter(Boolean))].sort().reverse();
     // Default to current calendar FY if it has data; otherwise latest year with data
     const defaultFY = years.includes(currentFY) ? currentFY : (years[0]||currentFY);
@@ -1756,7 +1796,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
     if(!programs.length) return;
     setFilters(f=>{
       if(f.year.size>0) return f;
-      const d=new Date(); const y=d.getMonth()>=4?d.getFullYear():d.getFullYear()-1;
+      const d=new Date(); const y=d.getMonth()>=DISTRICT_CONFIG.fyStartMonth?d.getFullYear():d.getFullYear()-1;
       const currentFY=`${String(y).slice(-2)}-${String(y+1).slice(-2)}`;
       const years=[...new Set(programs.filter(p=>!p.is_archived).map(p=>toFY(p.year)).filter(Boolean))].sort().reverse();
       const defaultFY=years.includes(currentFY)?currentFY:(years[0]||currentFY);
@@ -1777,7 +1817,7 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
   const [pdSeason,setPdSeason]   = useState("all");
   const [showReport,setShowReport] = useState(false);
 
-  const allStaff   = [...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
+  const allStaff   = [...new Set(programs.map(p=>p.staff_name).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
   const allAreas   = [...new Set(programs.map(p=>p.area))];
   const allYears   = [...YEARS];
   const allSeasons = [...SEASONS];
@@ -2973,11 +3013,11 @@ function SubProgramTracker({programs,onChange,umbrellaRevenue,umbrellaCost}){
   const [showFinancials,setShowFinancials]=useState(false);
   const list=Array.isArray(programs)?programs:[];
 
-  const QUARTERS=["QA (May–Jul)","QB (Aug–Oct)","QC (Nov–Jan)","QD (Feb–Apr)","Spring","Summer","Fall","Winter"];
+  const QUARTERS=["Spring","Summer","Fall","Winter","QA (May–Jul)","QB (Aug–Oct)","QC (Nov–Jan)","QD (Feb–Apr)"];
   const TRENDS=["—","Growing","Stable","Declining","New"];
 
   function addRow(){
-    const quarter=(()=>{const m=new Date().getMonth();return QUARTERS[[4,5,6].includes(m)?0:[7,8,9].includes(m)?1:[10,11,0].includes(m)?2:3];})();
+    const quarter=(()=>{const m=new Date().getMonth();return m>=2&&m<=4?"Spring":m>=5&&m<=7?"Summer":m>=8&&m<=10?"Fall":"Winter";})();
     onChange([...list,{id:Date.now(),label:"",day:"",time:"",capacity:0,enrollment:0,waitlist:0,fee:"",trend:"—",quarter,notes:"",instructor_cost:"",supplies_cost:"",misc_revenue:"",facility_hours:"",contractor_split:"",updatedAt:new Date().toISOString()}]);
   }
   function updateRow(id,field,val){
@@ -3127,7 +3167,7 @@ function SubProgramTracker({programs,onChange,umbrellaRevenue,umbrellaCost}){
                 <thead>
                   <tr className="bg-slate-50 text-slate-500 uppercase tracking-wider">
                     <th className="px-2 py-1.5 text-left font-semibold">Class / Section</th>
-                    <th className="px-2 py-1.5 text-left font-semibold">Quarter</th>
+                    <th className="px-2 py-1.5 text-left font-semibold">Season / Quarter</th>
                     <th className="px-2 py-1.5 text-left font-semibold">Day / Time</th>
                     <th className="px-2 py-1.5 text-center font-semibold">Cap.</th>
                     <th className="px-2 py-1.5 text-center font-semibold">Enr.</th>
@@ -3992,7 +4032,7 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
   const clearSelect = () => setSelected(new Set());
   function onFilterChange(key,val){setActiveFilters(f=>({...f,[key]:val}));}
 
-  const allStaff   = [...new Set(programs.map(p=>p.staff_name).filter(Boolean))];
+  const allStaff   = [...new Set(programs.map(p=>p.staff_name).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
   const allAreas   = [...new Set(programs.map(p=>p.area))];
   const allYears   = [...YEARS];
   const allSeasons = [...SEASONS];
@@ -4546,8 +4586,8 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
         <div className="rounded border border-slate-200 p-4 mb-5 flex items-start gap-3" style={{background:"#f8fafc"}}>
           <span className="text-lg shrink-0">📋</span>
           <div>
-            <div className="font-bold text-slate-800 text-sm mb-1">Why BGPD does Program Reviews</div>
-            <p className="text-xs text-slate-700 leading-relaxed">Program reviews are how BGPD makes intentional, documented decisions about its programming portfolio — a direct commitment from the 2025–2028 Strategic Plan's focus on fiscal sustainability and data-driven management. Every review creates a permanent record of why a program was continued, adjusted, expanded, or sunset, grounded in the 110% cost recovery framework. This protects the district from reactive decision-making, gives the board confidence that programming choices are strategic, and helps BGPD move its overall program margin toward long-term financial health. Complete a review for every program at the end of each season it runs.</p>
+            <div className="font-bold text-slate-800 text-sm mb-1">Why {DISTRICT_CONFIG.shortName} does Program Reviews</div>
+            <p className="text-xs text-slate-700 leading-relaxed">Program reviews are how {DISTRICT_CONFIG.shortName} makes intentional, documented decisions about its programming portfolio — a direct commitment from the 2025–2028 Strategic Plan's focus on fiscal sustainability and data-driven management. Every review creates a permanent record of why a program was continued, adjusted, expanded, or sunset, grounded in the 110% cost recovery framework. This protects the district from reactive decision-making, gives the board confidence that programming choices are strategic, and helps BGPD move its overall program margin toward long-term financial health. Complete a review for every program at the end of each season it runs.</p>
           </div>
         </div>
       )}
@@ -4587,7 +4627,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               const blob=new Blob([headers+"\n"+rows.join("\n")],{type:"text/csv"});
               const a=document.createElement("a");
               a.href=URL.createObjectURL(blob);
-              a.download=`BGPD_Program_Reviews_${new Date().toISOString().slice(0,10)}.csv`;
+              a.download=`${DISTRICT_CONFIG.reportPrefix}_Program_Reviews_${new Date().toISOString().slice(0,10)}.csv`;
               a.click();
             }} className="px-4 py-2 text-sm font-semibold rounded-lg border border-slate-200 text-slate-700 hover:bg-gray-200 transition">
               ↓ Export CSV
@@ -5649,7 +5689,7 @@ function ProgramGuideSection({isManager,db}){
     <div className="p-5 space-y-5">
       <div>
         <h2 className="font-bold font-semibold text-base mb-1">Program Types & Guide</h2>
-        <p className="text-sm text-slate-700">Every BGPD program mapped to its Program Type and 110% cost recovery target. Use this when entering a new program to pick the right type.</p>
+        <p className="text-sm text-slate-700">Every {DISTRICT_CONFIG.shortName} program mapped to its Program Type and 110% cost recovery target. Use this when entering a new program to pick the right type.</p>
       </div>
 
       {/* Program Type workload table */}
@@ -5901,7 +5941,7 @@ function Reference({isManager,db,programs,staffName}) {
           {/* Header */}
           <div className="rounded p-6 text-white" style={{background:"#5C462B"}}>
             <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{color:"rgba(255,255,255,0.7)"}}>Welcome to the</div>
-            <div className="text-2xl font-black mb-2">BGPD Recreation Program Dashboard</div>
+            <div className="text-2xl font-black mb-2">{DISTRICT_CONFIG.shortName+" Recreation Program Dashboard</div>
             <div className="text-sm mb-4" style={{color:"rgba(255,255,255,0.8)"}}>Everything you need to get started. The full training guide, Q&A, and reference materials are in the other tabs.</div>
           </div>
 
@@ -6266,7 +6306,7 @@ function Reference({isManager,db,programs,staffName}) {
             /* ─────────────────── STAFF VIEW ─────────────────── */
             <>
               <div className="rounded p-6 text-white" style={{background:"#00A9CE"}}>
-                <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{color:"#ffffff"}}>BGPD Recreation</div>
+                <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{color:"#ffffff"}}>{DISTRICT_CONFIG.shortName} Recreation</div>
                 <div className="text-2xl font-black mb-2">Recreation Programming Philosophy</div>
                 <div className="text-sm opacity-80">Our goal is to offer great programs while using our resources responsibly. Every program should support at least three of the five pillars below — including both required pillars.</div>
               </div>
@@ -6768,7 +6808,7 @@ function Reference({isManager,db,programs,staffName}) {
               {/* ── STAFF HEADER ── */}
               <div className="rounded p-6 text-white" style={{background:"#00A9CE"}}>
                 <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{color:"#ffffff"}}>Staff Training Guide</div>
-                <div className="text-2xl font-black mb-2">Using the BGPD Recreation App</div>
+                <div className="text-2xl font-black mb-2">Using the {DISTRICT_CONFIG.shortName} Recreation App</div>
                 <div className="text-sm opacity-80 mb-4">This guide walks you through everything in the app — what each number means, how to enter your programs, and how to keep your data current. Read it once and refer back as needed.</div>
                 <div className="grid grid-cols-3 gap-2 text-center text-xs">
                   {[{n:"1",l:"Log in & set up"},{n:"2",l:"Add your programs"},{n:"3",l:"Update as they run"}].map(s=>(
@@ -7132,7 +7172,7 @@ function Reference({isManager,db,programs,staffName}) {
               {/* ── MANAGER HEADER ── */}
               <div className="rounded p-6 text-white" style={{background:"linear-gradient(135deg,#00A9CE 0%,#990066 100%)"}}>
                 <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{color:"#ffffff"}}>Manager Training Guide</div>
-                <div className="text-2xl font-black mb-2">Leading with Data — BGPD Recreation App</div>
+                <div className="text-2xl font-black mb-2">Leading with Data — {DISTRICT_CONFIG.shortName} Recreation App</div>
                 <div className="text-sm opacity-80 mb-4">How to use the dashboard to manage your team, evaluate programs, and communicate results. This guide covers everything you see that staff don't — and how to use it.</div>
                 <div className="grid grid-cols-4 gap-2 text-center text-xs">
                   {["Portfolio view","Analytics","Action queues","Admin KPIs"].map(l=>(
@@ -7986,7 +8026,7 @@ export default function App() {
   const [dupProgram,setDupProgram]         = useState(null);
   const [showBulkDup,setShowBulkDup]       = useState(false);
   // Persisted Programs list filters — survive program open/close
-  const currentFY = (()=>{const d=new Date();const y=d.getMonth()>=4?d.getFullYear():d.getFullYear()-1;return `${String(y).slice(-2)}-${String(y+1).slice(-2)}`;})();
+  const currentFY = (()=>{const d=new Date();const y=d.getMonth()>=DISTRICT_CONFIG.fyStartMonth?d.getFullYear():d.getFullYear()-1;return `${String(y).slice(-2)}-${String(y+1).slice(-2)}`;})();
   const [plFilters,setPlFilters]           = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set([currentFY])});
   const [plSearch,setPlSearch]             = useState("");
   const [plShowArchived,setPlShowArchived] = useState(false);
@@ -8178,7 +8218,7 @@ export default function App() {
           <div className="flex items-center gap-3">
             <BGPDLogo size={32}/>
             <div>
-              <div className="font-bold text-sm leading-tight" style={{color:"#5C462B",letterSpacing:"0.08em",textTransform:"uppercase"}}>Buffalo Grove Park District</div>
+              <div className="font-bold text-sm leading-tight" style={{color:"#5C462B",letterSpacing:"0.08em",textTransform:"uppercase"}}>{DISTRICT_CONFIG.name}</div>
               <div className="text-xs font-semibold tracking-widest uppercase" style={{color:"#00A9CE"}}>
                 {staffName}{isManager?(effectiveManager?" · Manager View":" · Staff View"):""}
               </div>
