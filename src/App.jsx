@@ -5941,7 +5941,7 @@ function Reference({isManager,db,programs,staffName}) {
           {/* Header */}
           <div className="rounded p-6 text-white" style={{background:"#5C462B"}}>
             <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{color:"rgba(255,255,255,0.7)"}}>Welcome to the</div>
-            <div className="text-2xl font-black mb-2">{DISTRICT_CONFIG.shortName+" Recreation Program Dashboard</div>
+            <div className="text-2xl font-black mb-2">{DISTRICT_CONFIG.shortName+" Recreation Program Dashboard"}</div>
             <div className="text-sm mb-4" style={{color:"rgba(255,255,255,0.8)"}}>Everything you need to get started. The full training guide, Q&A, and reference materials are in the other tabs.</div>
           </div>
 
