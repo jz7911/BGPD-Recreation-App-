@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "./supabase.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const AREAS = DISTRICT_CONFIG.areas;
+const AREAS = DISTRICT_CONFIG.areas || ["Adult General","Adult Sports","Aquatics","Camps","Clubhouse","Dance","Early Childhood","Fitness","Golf Dome","Museum","Performing Arts","Rentals","Seniors","Special Events","Youth General","Youth Sports","Other"];
 const SEASONS = ["Spring","Summer","Fall","Winter","All Year"];
 /* inject no-spinner CSS */
 if(typeof document!=="undefined"){const s=document.createElement("style");s.textContent="input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield}";document.head.appendChild(s);}
@@ -55,7 +55,7 @@ const PROGRAM_TYPES = [
   {label:"Camp",                       pct:0.09,  hint:"Day camps and specialty camps. High complexity: part-time staff management, licensing, safety, parent communication. Enter per curriculum group — not per week. Supervisors overseeing multiple camps: use Custom % for your full portfolio."},
   {label:"Production / Major Program", pct:0.10,  hint:"Preschool, Clubhouse, theater productions, Dance Company, Fitness Center operations. Year-round high-touch programs. Multi-site supervisors: use Custom % to reflect your full portfolio load."},
 ];
-const ADMIN_OVERHEAD_RATE  = DISTRICT_CONFIG.adminOverheadRate;
+const ADMIN_OVERHEAD_RATE  = 0.1;
 // ─── DISTRICT CONFIGURATION ───────────────────────────────────────────────────
 // To deploy for a new district, update this object only.
 // All district-specific values are derived from here.
@@ -94,9 +94,9 @@ const DISTRICT_CONFIG = {
   ],
 };
 
-// ─── Derived constants (do not edit below) ────────────────────────────────────
-const FT_ANNUAL_SALARY     = DISTRICT_CONFIG.ftAnnualSalary;
-const FACILITY_COST_PER_HR = DISTRICT_CONFIG.facilityCostPerHr;
+// ─── Derived constants — inlined to avoid minifier reordering issues ─────────
+const FT_ANNUAL_SALARY     = 97700;
+const FACILITY_COST_PER_HR = 3;
 const MANAGER_NAMES        = DISTRICT_CONFIG.managerNames;
 
 
