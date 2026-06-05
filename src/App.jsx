@@ -2515,24 +2515,18 @@ function ManagerDashboard({programs,staffName,onEdit,onAddProgram}) {
                   </td>
                   <td className="px-3 py-2.5">
                     {p.is_umbrella&&Array.isArray(p.sub_programs)&&p.sub_programs.length>0&&(()=>{
-                      const sessions=p.sub_programs;
-                      const struggling=sessions.filter(s=>s.capacity>0&&Math.round((s.enrollment/s.capacity)*100)<60&&s.label);
-                      const waitlisted=sessions.filter(s=>parseInt(s.waitlist)>0&&s.label);
+                      const sessions=p.sub_programs.filter(s=>s.label);
+                      const struggling=sessions.filter(s=>s.capacity>0&&Math.round((s.enrollment/s.capacity)*100)<60);
+                      const waitlisted=sessions.filter(s=>parseInt(s.waitlist)>0);
                       const stale=sessions.filter(s=>s.updatedAt&&((Date.now()-new Date(s.updatedAt).getTime())>90*24*60*60*1000));
                       return(
-                        <div className="space-y-0.5">
-                          {sessions.map(s=>{
-                            const f=s.capacity>0?Math.round((s.enrollment/s.capacity)*100):null;
-                            const fc=f!=null?(f>=70?"#84BD00":f>=60?"#F6AB00":"#E35205"):"#94a3b8";
-                            return s.label?(
-                              <div key={s.id} className="flex items-center gap-1.5 text-xs">
-                                <span className="truncate max-w-24 text-slate-700">{s.label}</span>
-                                {f!=null&&<span className="font-mono font-bold shrink-0" style={{color:fc}}>{f}%</span>}
-                                {parseInt(s.waitlist)>0&&<span className="text-amber-500 shrink-0">⚡{s.waitlist}</span>}
-                              </div>
-                            ):null;
-                          })}
-                          {stale.length>0&&<div className="text-xs" style={{color:"#94a3b8"}}>🕐 {stale.length} stale</div>}
+                        <div className="flex flex-wrap gap-1">
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap" style={{background:"rgba(0,169,206,0.1)",color:"#007A99"}}>
+                            {sessions.length} class{sessions.length!==1?"es":""}
+                          </span>
+                          {struggling.length>0&&<span className="text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap" style={{background:"#FDF0E6",color:"#E35205"}}>⚠ {struggling.length} &lt;60%</span>}
+                          {waitlisted.length>0&&<span className="text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap" style={{background:"#FEF4DC",color:"#8A5E00"}}>⚡ {waitlisted.reduce((a,s)=>a+(parseInt(s.waitlist)||0),0)} wait</span>}
+                          {stale.length>0&&<span className="text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap" style={{background:"#f1f5f9",color:"#64748b"}}>🕐 stale</span>}
                         </div>
                       );
                     })()}
