@@ -4101,6 +4101,22 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
           <button onClick={clearSelect} className="text-xs text-slate-500 hover:text-slate-700 ml-auto">✕ Clear</button>
         </div>
       )}
+      {vis.length>0&&(
+        <div className="flex items-center justify-between px-1 py-1">
+          <div className="flex items-center gap-2">
+            {(isManager||true)&&vis.length>0&&(
+              selected.size===vis.length
+                ? <button onClick={()=>clearSelect()} className="text-xs font-semibold px-2.5 py-1 rounded border transition" style={{borderColor:"#00A9CE",color:"#00A9CE",background:"rgba(0,169,206,0.05)"}}>
+                    ✓ All {vis.length} selected — Deselect all
+                  </button>
+                : <button onClick={()=>setSelected(new Set(vis.map(p=>p.id)))} className="text-xs font-semibold px-2.5 py-1 rounded border transition" style={{borderColor:"#e2e8f0",color:"#64748b"}}>
+                    Select all ({vis.length})
+                  </button>
+            )}
+          </div>
+          {selected.size>0&&<span className="text-xs text-slate-500">{selected.size} of {vis.length} selected</span>}
+        </div>
+      )}
       {vis.length===0 ? (
         <div className="bg-white rounded-lg shadow-sm p-12 text-center text-slate-700 text-sm">No programs found.</div>
       ) : (
