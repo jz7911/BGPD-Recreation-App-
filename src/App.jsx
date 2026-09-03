@@ -4262,7 +4262,9 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   function handleProgramName(name){
     s("program_name",name);
     if(!reviewablePrograms||!reviewablePrograms.length) return;
-    const match=reviewablePrograms.find(p=>p.name?.toLowerCase()===name.toLowerCase());
+    // Prefer current FY + current season; fall back to most recent (list is sorted desc by FY)
+    const matched=reviewablePrograms.filter(p=>p.name?.toLowerCase()===name.toLowerCase()&&!p.is_archived&&!p.is_deleted);
+    const match=matched.find(p=>p.year===ADMIN_CUR)||matched.find(p=>p.year===ADMIN_CUR.slice(-4))||matched[0];
     if(match){
       const kpis=calcKPIs(match);
       const cr=calcCR(match,"act_");
@@ -4513,9 +4515,15 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   });
 
   // Programs this person can review: staff see only their own, managers see all
-  const reviewablePrograms = isManager
+  // Sort so current FY programs come first — ensures find() picks the most recent record
+  const reviewablePrograms = (isManager
     ? (programs||[])
-    : (programs||[]).filter(p=>p.staff_name?.toLowerCase().trim()===staffName.toLowerCase().trim());
+    : (programs||[]).filter(p=>p.staff_name?.toLowerCase().trim()===staffName.toLowerCase().trim())
+  ).sort((a,b)=>{
+    const fyA=ADMIN_FYS.indexOf(a.year&&a.year.length===9?a.year:ADMIN_FYS.find(f=>f.endsWith(a.year?.slice(-2)||""))||"");
+    const fyB=ADMIN_FYS.indexOf(b.year&&b.year.length===9?b.year:ADMIN_FYS.find(f=>f.endsWith(b.year?.slice(-2)||""))||"");
+    return fyB-fyA;
+  });
 
   // ── Helper sub-components ──────────────────────────────────────────────────
   const inp=(label,key,type="text",opts=null,req=false,hint="")=>(
