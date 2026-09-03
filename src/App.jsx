@@ -4173,7 +4173,7 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
 }
 
 const ADMIN_FYS = ["2021-2022","2022-2023","2023-2024","2024-2025","2025-2026","2026-2027"];
-const ADMIN_CUR = "2025-2026";
+const ADMIN_CUR = (()=>{const d=new Date();const y=d.getMonth()>=DISTRICT_CONFIG.fyStartMonth?d.getFullYear():d.getFullYear()-1;return `${y}-${y+1}`;})();
 
 // ─── Program Review Checklist ─────────────────────────────────────────────────
 function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
