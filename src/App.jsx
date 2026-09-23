@@ -5953,6 +5953,20 @@ function FeeReportTab({programs}) {
   const [filterCat,  setFilterCat]  = useState("All");
   const [sortCol,    setSortCol]    = useState("name");
   const [sortDir,    setSortDir]    = useState("asc");
+  const [editingFee, setEditingFee] = useState(null);   // program id being edited
+  const [feeInput,   setFeeInput]   = useState("");     // raw input string
+  const [savingFee,  setSavingFee]  = useState(null);   // id currently saving
+  const [feeOverrides, setFeeOverrides] = useState({}); // {id: number} local overrides after save
+
+  async function saveFee(id) {
+    const val = parseFloat(feeInput);
+    if (isNaN(val) || val < 0) { setEditingFee(null); return; }
+    setSavingFee(id);
+    const {error} = await supabase.from("programs").update({fee: val}).eq("id", id);
+    setSavingFee(null);
+    setEditingFee(null);
+    if (!error) setFeeOverrides(prev=>({...prev,[id]:val}));
+  }
 
   // Detect most recent FY that has at least some actuals entered
   const currentFY = useMemo(()=>{
@@ -5993,7 +6007,7 @@ function FeeReportTab({programs}) {
       const crPct      = cr.crPct;
       const target     = getCRTarget(p);
       const gap        = crGap(crPct, target);
-      const currentFee = parseFloat(p.fee)||0;
+      const currentFee = feeOverrides[p.id] != null ? feeOverrides[p.id] : (parseFloat(p.fee)||0);
       const {fee:suggestedFee, reason:sugReason} = hasActuals
         ? calcSuggestedFee(crPct, target, cr, currentFee)
         : {fee:null, reason:"no-data"};
@@ -6011,7 +6025,7 @@ function FeeReportTab({programs}) {
       if (typeof va==="string") return sortDir==="asc"?va.localeCompare(vb):vb.localeCompare(va);
       return sortDir==="asc"?va-vb:vb-va;
     });
-  },[activeProgs,filterArea,filterCat,sortCol,sortDir]);
+  },[activeProgs,filterArea,filterCat,sortCol,sortDir,feeOverrides]);
 
   function toggleSort(col) {
     if (sortCol===col) setSortDir(d=>d==="asc"?"desc":"asc");
@@ -6134,7 +6148,8 @@ function FeeReportTab({programs}) {
         <div className="ml-auto flex gap-3 text-xs" style={{color:"#6B5744"}}>
           <span><span style={{color:"#E35205",fontWeight:700}}>●</span> Raise to floor</span>
           <span><span style={{color:"#007A99",fontWeight:700}}>●</span> 3% increase</span>
-          <span><span style={{color:"#A09080",fontWeight:700}}>●</span> Hold</span>
+          <span><span style={{color:"#4A6B00",fontWeight:700}}>●</span> Hold</span>
+          <span><span style={{color:"#D0C8C0",fontWeight:700}}>●</span> No actuals</span>
         </div>
       </div>
 
@@ -6167,17 +6182,21 @@ function FeeReportTab({programs}) {
                 No programs match.  Try clearing filters.
               </td></tr>
             )}
-            {rows.map(({p,revPerPart,crPct,target,gap,currentFee,suggestedFee,sugReason,dollarChange},i)=>{
+            {rows.map(({p,hasActuals,revPerPart,crPct,target,gap,currentFee,suggestedFee,sugReason,dollarChange},i)=>{
               // Row accent color based on situation
               const accentColor =
+                sugReason==="no-data"       ? "#D0C8C0" :
                 sugReason==="below-floor"   ? "#E35205" :
                 sugReason==="in-range"      ? "#007A99" :
                 sugReason==="above-ceiling" ? "#4A6B00" : "#A09080";
 
               const changeLabel =
-                dollarChange==null && sugReason==="above-ceiling" ? "Hold" :
-                dollarChange==null ? "—" :
+                !hasActuals                                        ? "—" :
+                dollarChange==null && sugReason==="above-ceiling"  ? "Hold" :
+                dollarChange==null                                  ? "—" :
                 (dollarChange>=0?"+":"")+fmt$(dollarChange);
+
+              const noDataCell = <span style={{color:"#C8B8A8",fontStyle:"italic",fontSize:"11px"}}>No data</span>;
 
               return (
                 <tr key={p.id} style={{background:i%2===0?"#ffffff":"#fafaf8",borderBottom:"1px solid rgba(92,70,43,0.06)"}}>
@@ -6187,11 +6206,35 @@ function FeeReportTab({programs}) {
                     {target&&<div style={{fontSize:"10px",fontWeight:400,color:"#A09080"}}>{target.label}</div>}
                   </td>
                   <td style={{padding:"7px 8px",color:"#5C462B",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.area||"—"}</td>
-                  <td style={{padding:"7px 8px",fontFamily:"monospace",color:"#3d2b1a"}}>{currentFee>0?fmt$(currentFee):<span style={{color:"#ccc"}}>—</span>}</td>
-                  <td style={{padding:"7px 8px",fontFamily:"monospace",color:"#00A9CE",fontWeight:600}}>{fmt$(revPerPart)}</td>
-                  <td style={{padding:"7px 8px",fontFamily:"monospace",fontWeight:700,color:crPct>=1?"#4A6B00":"#E35205"}}>{fmtPct(crPct)}</td>
+                  <td style={{padding:"4px 6px",fontFamily:"monospace",color:"#3d2b1a"}}>
+                    {editingFee===p.id ? (
+                      <div style={{display:"flex",alignItems:"center",gap:3}}>
+                        <span style={{color:"#A09080",fontSize:"11px"}}>$</span>
+                        <input
+                          type="number"
+                          autoFocus
+                          value={feeInput}
+                          onChange={e=>setFeeInput(e.target.value)}
+                          onKeyDown={e=>{if(e.key==="Enter")saveFee(p.id);if(e.key==="Escape")setEditingFee(null);}}
+                          onBlur={()=>saveFee(p.id)}
+                          style={{width:"64px",fontSize:"12px",fontFamily:"monospace",border:"1px solid #007A99",borderRadius:"3px",padding:"2px 4px",outline:"none"}}
+                        />
+                      </div>
+                    ) : savingFee===p.id ? (
+                      <span style={{color:"#A09080",fontSize:"11px"}}>saving…</span>
+                    ) : (
+                      <span
+                        onClick={()=>{setEditingFee(p.id);setFeeInput(currentFee>0?String(currentFee):"");}}
+                        title="Click to edit current fee"
+                        style={{cursor:"pointer",borderBottom:"1px dashed #B0C8D0",paddingBottom:"1px"}}>
+                        {currentFee>0 ? fmt$(currentFee) : <span style={{color:"#ccc"}}>—</span>}
+                      </span>
+                    )}
+                  </td>
+                  <td style={{padding:"7px 8px",fontFamily:"monospace",color:"#00A9CE",fontWeight:600}}>{hasActuals ? fmt$(revPerPart) : noDataCell}</td>
+                  <td style={{padding:"7px 8px",fontFamily:"monospace",fontWeight:700,color:!hasActuals?"#C8B8A8":crPct>=1?"#4A6B00":"#E35205"}}>{hasActuals ? fmtPct(crPct) : noDataCell}</td>
                   <td style={{padding:"7px 8px",fontFamily:"monospace",fontWeight:700,color:accentColor}}>
-                    {suggestedFee!=null ? fmt$(suggestedFee) : <span style={{color:"#A09080",fontWeight:400}}>Hold</span>}
+                    {!hasActuals ? noDataCell : suggestedFee!=null ? fmt$(suggestedFee) : <span style={{color:"#A09080",fontWeight:400}}>Hold</span>}
                   </td>
                   <td style={{padding:"7px 8px",fontFamily:"monospace",fontWeight:700,color:dollarChange!=null&&dollarChange>0?"#E35205":dollarChange!=null&&dollarChange<0?"#4A6B00":"#A09080"}}>
                     {changeLabel}
@@ -6205,8 +6248,8 @@ function FeeReportTab({programs}) {
 
       {/* Footer */}
       <div className="text-xs space-y-1" style={{color:"#A09080"}}>
-        <div>Showing FY {currentFY} only.  Only programs with actual revenue and enrollment entered appear here.</div>
-        <div>Current Fee is set on the program record.  Rev/Part is actual revenue divided by actual enrollment.  For flat-rate programs they should match.</div>
+        <div>Showing all active programs in FY {currentFY}.  Programs without actuals entered yet appear as "No data" and cannot receive a fee suggestion until revenue and enrollment are recorded.</div>
+        <div>Current Fee is editable — click any fee cell to update it.  Changes save directly to the program record.  Rev/Part is actual revenue divided by actual enrollment.  For flat-rate programs they should match.</div>
         <div>Suggested Fee logic: below target floor → raise to floor.  Within target range → 3% increase capped at the ceiling.  Above ceiling → hold (no increase).</div>
         <div>Dollar change shows the difference between suggested and current fee.  Only appears when a current fee is set on the program.</div>
       </div>
