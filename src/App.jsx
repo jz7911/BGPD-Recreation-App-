@@ -4708,6 +4708,14 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
             const pMet=(r.pillars_met||"").split(",").filter(Boolean).length;
             const dc=dcColor[r.decision]||"#64748b";
             const frDelta=r.prior_fill_rate?r.fill_rate-r.prior_fill_rate:null;
+            // Mismatch detection: compare saved CR% to current program actuals
+            const currentProg=(reviewablePrograms||[]).find(p=>
+              p.name?.toLowerCase()===r.program_name?.toLowerCase()&&
+              (p.year===ADMIN_CUR||p.year===ADMIN_CUR.slice(-4))&&
+              !p.is_archived&&!p.is_deleted
+            );
+            const currentCR=currentProg?Math.round(calcCR(currentProg,"act_").crPct*100):null;
+            const crMismatch=currentCR!==null&&r.cost_recovery&&Math.abs(currentCR-(r.cost_recovery||0))>5;
             return(
               <div key={r.id} className={`${i>0?"border-t border-slate-50":""} px-4 py-4 flex items-start gap-4 hover:bg-gray-200 transition ${savedId===r.id?"bg-green-50 border-l-4 border-green-400":""}`}>
                 <div className="shrink-0 mt-0.5 w-24 text-center">
@@ -4723,7 +4731,9 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                     <span className="text-slate-700">Fill: <span className="font-bold">{r.fill_rate||0}%</span>
                       {frDelta!==null&&<span style={{color:frDelta>=0?"#84BD00":"#E35205",marginLeft:"3px"}}>{frDelta>=0?"▲":"▼"}{Math.abs(frDelta).toFixed(0)}pp</span>}
                     </span>
-                    <span className="text-slate-700">CR: <span className="font-bold">{r.cost_recovery||0}%</span></span>
+                    <span className="text-slate-700">CR: <span className="font-bold">{r.cost_recovery||0}%</span>
+                      {crMismatch&&<span className="ml-1.5 px-1.5 py-0.5 rounded text-xs font-bold" style={{background:"#FDF0E6",color:"#E35205"}}>⚠ App shows {currentCR}% — needs update</span>}
+                    </span>
                     {r.seasons_below_threshold>0&&<span className="font-semibold" style={{color:r.seasons_below_threshold>=2?"#E35205":"#F6AB00"}}>{r.seasons_below_threshold} season{r.seasons_below_threshold>1?"s":""} below threshold</span>}
                     <span style={{color:pMet>=3?"#84BD00":"#E35205"}} className="font-semibold">{pMet}/5 pillars</span>
                     {r.next_review&&<span className="text-slate-700">→ {r.next_review}</span>}
@@ -8705,7 +8715,19 @@ function ClubhouseAllocationTool({db,programs,staffName}){
   const [applying,setApplying] = useState(false);
   const [applyStatus,setApplyStatus] = useState({});
   const [lastApplied,setLastApplied] = useState(null);
+  const [showLastSaved,setShowLastSaved] = useState(false);
+  const [showOverwriteWarning,setShowOverwriteWarning] = useState(false);
   const [err,setErr]         = useState("");
+
+  // Find any previously saved snapshot across all clubhouse programs
+  const savedSnapshots = useMemo(()=>{
+    const snaps=[];
+    programs.filter(p=>p.area==="Clubhouse"&&!p.is_archived).forEach(p=>{
+      const snap=which==="budgeted"?p.clubhouse_alloc:p.clubhouse_alloc_act;
+      if(snap&&snap.appliedAt) snaps.push({site:p.name,prog:p,snap});
+    });
+    return snaps.sort((a,b)=>new Date(b.snap.appliedAt)-new Date(a.snap.appliedAt));
+  },[programs,which]);
 
   const px       = which==="budgeted" ? "ant_" : "act_";
   const feeField = which==="budgeted" ? "ant_clubhouse_fee" : "act_clubhouse_fee";
@@ -8722,13 +8744,20 @@ function ClubhouseAllocationTool({db,programs,staffName}){
   ,[programs,season,year]);
 
   // Auto-map: match site names to programs, pull enrollment from program record
+  // Prefers most-recent FY when multiple seasons exist for a site
   function autoMap(){
     const newMap={...siteMap};
     const newBasis={...siteBasis};
     SITES.forEach(site=>{
-      const match=clubhouseProgs.find(p=>
+      const matches=clubhouseProgs.filter(p=>
         p.name.toLowerCase().includes(site.toLowerCase())
       );
+      // Pick the record with the highest FY year value (most recent)
+      const match=matches.sort((a,b)=>{
+        const ay=parseInt(a.year)||0;
+        const by=parseInt(b.year)||0;
+        return by-ay;
+      })[0];
       if(match){
         newMap[site]=match.id;
         if(mode==="enrollment"){
@@ -8789,8 +8818,20 @@ function ClubhouseAllocationTool({db,programs,staffName}){
     setApplyStatus({});
   }
 
-  async function applyAll(){
+  // Check if any mapped site already has a non-zero fee saved
+  const sitesWithExistingFee = result ? SITES.filter(s=>{
+    const prog=programs.find(p=>p.id===siteMap[s]);
+    return prog && prog[feeField] && prog[feeField]>0;
+  }) : [];
+
+  async function applyAll(force=false){
     if(!result) return;
+    // Warn before overwriting existing values
+    if(!force && sitesWithExistingFee.length>0){
+      setShowOverwriteWarning(true);
+      return;
+    }
+    setShowOverwriteWarning(false);
     setApplying(true);
     setErr("");
     const status={};
@@ -8837,6 +8878,66 @@ function ClubhouseAllocationTool({db,programs,staffName}){
         <div className="px-4 py-3 rounded text-sm text-red-700 bg-red-50 border border-red-200">
           <div className="font-bold mb-1">⚠ Some sites failed to save</div>
           <div className="text-xs whitespace-pre-wrap">{err}</div>
+        </div>
+      )}
+
+      {/* Last saved snapshot */}
+      {savedSnapshots.length>0&&(
+        <div className="bg-white rounded border border-slate-100 shadow-sm overflow-hidden">
+          <button onClick={()=>setShowLastSaved(v=>!v)}
+            className="w-full px-5 py-3 flex items-center justify-between text-left hover:bg-slate-50 transition">
+            <div>
+              <div className="text-xs font-bold uppercase tracking-widest text-slate-700">
+                {showLastSaved?"▾":"▸"} Last Applied Allocation ({which==="budgeted"?"Budgeted":"Actual"})
+              </div>
+              <div className="text-xs text-slate-500 mt-0.5">
+                Applied {new Date(savedSnapshots[0].snap.appliedAt).toLocaleString()} by {savedSnapshots[0].snap.appliedBy||"unknown"}
+              </div>
+            </div>
+            <span className="text-xs px-2 py-1 rounded-full font-semibold" style={{background:"#EEF5E0",color:"#4A6B00"}}>
+              {savedSnapshots.length} site{savedSnapshots.length!==1?"s":""} on record
+            </span>
+          </button>
+          {showLastSaved&&(
+            <div className="border-t border-slate-100 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="bg-slate-50 text-xs text-slate-700 uppercase tracking-wider">
+                  <th className="px-4 py-2 text-left font-semibold">Site Program</th>
+                  <th className="px-4 py-2 text-center font-semibold">Weight</th>
+                  <th className="px-4 py-2 text-right font-semibold">Allocated Fee</th>
+                  <th className="px-4 py-2 text-center font-semibold">Period</th>
+                  <th className="px-4 py-2 text-right font-semibold">Applied</th>
+                </tr></thead>
+                <tbody>{savedSnapshots.map(({site,prog,snap},i)=>(
+                  <tr key={prog.id} className={`border-t border-slate-50 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
+                    <td className="px-4 py-2.5 font-semibold text-slate-800">{site}</td>
+                    <td className="px-4 py-2.5 text-center font-mono text-xs text-slate-700">{snap.weight||"—"}</td>
+                    <td className="px-4 py-2.5 text-right font-mono font-bold text-slate-800">
+                      ${(snap.siteTotal||0).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-2.5 text-center text-xs text-slate-700">
+                      {snap.season!=="all"?snap.season:"All Seasons"} {snap.year!=="all"?`FY ${snap.year}`:"All Years"}
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-xs text-slate-500">
+                      {new Date(snap.appliedAt).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))}</tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-slate-200 bg-slate-50">
+                    <td className="px-4 py-2.5 font-bold text-slate-800" colSpan={2}>Total across all sites</td>
+                    <td className="px-4 py-2.5 text-right font-mono font-bold">
+                      ${savedSnapshots.reduce((sum,{snap})=>sum+(snap.siteTotal||0),0).toLocaleString()}
+                    </td>
+                    <td colSpan={2}/>
+                  </tr>
+                </tfoot>
+              </table>
+              <div className="px-5 py-3 border-t border-slate-100 text-xs text-slate-500">
+                This shows the most recent allocation applied to each site program.  Entering costs and hitting Calculate above will NOT overwrite these values — only the Apply button does.
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -8958,7 +9059,7 @@ function ClubhouseAllocationTool({db,programs,staffName}){
                       className="w-full text-sm rounded border border-slate-200 px-2 py-1 bg-white">
                       <option value="">— not mapped —</option>
                       {clubhouseProgs.map(p=>(
-                        <option key={p.id} value={p.id}>{p.name}</option>
+                        <option key={p.id} value={p.id}>{p.name} ({p.season} FY {toFY(p.year)})</option>
                       ))}
                     </select>
                   </td>
@@ -9076,11 +9177,36 @@ function ClubhouseAllocationTool({db,programs,staffName}){
               Writes the <strong className="text-slate-700">Clubhouse Allocation Fee ({which==="budgeted"?"Budgeted":"Actual"})</strong> field on each mapped program record.
               {SITES.filter(s=>!siteMap[s]).length>0&&` ${SITES.filter(s=>!siteMap[s]).length} unmapped site${SITES.filter(s=>!siteMap[s]).length!==1?"s":""} will be skipped.`}
             </div>
-            <button onClick={applyAll} disabled={applying||mappedCount===0}
-              className="px-6 py-2.5 text-sm font-bold rounded text-white disabled:opacity-40 transition"
-              style={{background:"#84BD00"}}>
-              {applying?"Applying…":`✓ Apply to ${mappedCount} Site Program${mappedCount!==1?"s":""}`}
-            </button>
+            {showOverwriteWarning&&(
+              <div className="rounded border border-amber-200 bg-amber-50 p-4 space-y-3">
+                <div className="text-sm font-bold text-amber-800">⚠ These sites already have a saved allocation</div>
+                <div className="text-xs text-amber-700">
+                  {sitesWithExistingFee.map(s=>{
+                    const prog=programs.find(p=>p.id===siteMap[s]);
+                    return <div key={s}>{s}: currently ${Math.round(prog?.[feeField]||0).toLocaleString()}</div>;
+                  })}
+                </div>
+                <div className="text-xs text-amber-700">Applying will replace these values with the new calculation.  This cannot be undone.</div>
+                <div className="flex gap-3">
+                  <button onClick={()=>applyAll(true)}
+                    className="px-4 py-2 text-xs font-bold rounded text-white transition"
+                    style={{background:"#E35205"}}>
+                    Yes, overwrite and apply
+                  </button>
+                  <button onClick={()=>setShowOverwriteWarning(false)}
+                    className="px-4 py-2 text-xs font-semibold rounded border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+            {!showOverwriteWarning&&(
+              <button onClick={()=>applyAll(false)} disabled={applying||mappedCount===0}
+                className="px-6 py-2.5 text-sm font-bold rounded text-white disabled:opacity-40 transition"
+                style={{background:"#84BD00"}}>
+                {applying?"Applying…":`✓ Apply to ${mappedCount} Site Program${mappedCount!==1?"s":""}`}
+              </button>
+            )}
           </div>
         </div>
       )}
