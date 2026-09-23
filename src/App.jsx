@@ -5915,21 +5915,62 @@ function crGap(crPct, target) {
   return crPct - target.lo; // negative = below floor
 }
 
+// Compute suggested next-FY fee using tiered logic:
+//   Below target floor  → fee needed to reach the floor (priority fix)
+//   Within target range → current fee + 3%, capped so CR doesn't exceed ceiling
+//   Above target ceiling → hold (no increase; already over-recovering)
+//   No target / no cost data → null (no suggestion)
+function calcSuggestedFee(crPct, target, cr, currentFee) {
+  if (!target || cr.total <= 0 || cr.enrollment <= 0) return {fee:null, reason:"no-target"};
+  const enrollment = cr.enrollment;
+  const totalCost  = cr.total;
+  if (crPct < target.lo) {
+    // Below floor: raise to floor
+    const needed = Math.ceil((target.lo * totalCost) / enrollment);
+    return {fee: needed, reason:"below-floor"};
+  }
+  if (crPct > target.hi && target.hi > 0) {
+    // Above ceiling: hold
+    return {fee: null, reason:"above-ceiling"};
+  }
+  // Within range (or subsidy target where hi===0): apply 3% increase
+  // But cap so we don't push CR past the ceiling
+  const base = currentFee > 0 ? currentFee : (cr.revenue / enrollment);
+  const increased = base * 1.03;
+  if (target.hi > 0) {
+    // What fee would exactly hit the ceiling?
+    const ceilFee = (target.hi * totalCost) / enrollment;
+    const capped = Math.min(increased, ceilFee);
+    return {fee: Math.ceil(capped), reason:"in-range"};
+  }
+  // Subsidy programs (hi===0): 3% on the fee if it has one, else no suggestion
+  if (currentFee > 0) return {fee: Math.ceil(increased), reason:"in-range"};
+  return {fee: null, reason:"no-target"};
+}
+
 function FeeReportTab({programs}) {
   const [filterArea, setFilterArea] = useState("All");
-  const [filterYear, setFilterYear] = useState("All");
-  const [filterCat, setFilterCat] = useState("All");
-  const [sortCol, setSortCol] = useState("name");
-  const [sortDir, setSortDir] = useState("asc");
+  const [filterCat,  setFilterCat]  = useState("All");
+  const [sortCol,    setSortCol]    = useState("name");
+  const [sortDir,    setSortDir]    = useState("asc");
+
+  // Only non-archived, non-deleted programs with actuals, limited to most recent FY
+  const currentFY = useMemo(()=>{
+    const fys = programs
+      .filter(p=>!p.is_archived&&!p.is_deleted&&p.act_revenue>0&&p.act_enrollment>0)
+      .map(p=>toFY(p.year))
+      .filter(Boolean);
+    if (!fys.length) return null;
+    return fys.sort().reverse()[0];
+  },[programs]);
 
   const activeProgs = useMemo(()=>
-    programs.filter(p=>!p.is_archived && !p.is_deleted && p.act_revenue>0 && p.act_enrollment>0),
-  [programs]);
-
-  const years = useMemo(()=>{
-    const ys = [...new Set(activeProgs.map(p=>toFY(p.year)).filter(Boolean))];
-    return ys.sort().reverse();
-  },[activeProgs]);
+    programs.filter(p=>
+      !p.is_archived && !p.is_deleted &&
+      p.act_revenue>0 && p.act_enrollment>0 &&
+      toFY(p.year)===currentFY
+    ),
+  [programs, currentFY]);
 
   const areas = useMemo(()=>{
     const as = [...new Set(activeProgs.map(p=>p.area).filter(Boolean))];
@@ -5944,69 +5985,50 @@ function FeeReportTab({programs}) {
   const rows = useMemo(()=>{
     let list = activeProgs;
     if (filterArea !== "All") list = list.filter(p=>p.area===filterArea);
-    if (filterYear !== "All") list = list.filter(p=>toFY(p.year)===filterYear);
     if (filterCat  !== "All") list = list.filter(p=>p.service_category===filterCat);
     return list.map(p=>{
-      const cr = calcCR(p,"act_");
-      const revenue = cr.revenue;
-      const enrollment = cr.enrollment;
-      const revPerPart = enrollment>0 ? revenue/enrollment : 0;
-      const crPct = cr.crPct;
-      const target = getCRTarget(p);
-      const gap = crGap(crPct, target);
-      // Current FY fee from the fee field (stored as string in DB, parse it)
+      const cr         = calcCR(p,"act_");
+      const revPerPart = cr.enrollment>0 ? cr.revenue/cr.enrollment : 0;
+      const crPct      = cr.crPct;
+      const target     = getCRTarget(p);
+      const gap        = crGap(crPct, target);
       const currentFee = parseFloat(p.fee)||0;
-      // Suggested next FY fee: if below target floor, scale up rev/part proportionally
-      // If no target or already at/above target, no change suggested
-      let suggestedFee = null;
-      if (target && target.lo > 0 && crPct > 0 && crPct < target.lo) {
-        // What fee would bring CR to the target floor?
-        // revenue = fee * enrollment, total cost stays same
-        // targetCR = (fee * enrollment) / totalCost => fee = (targetCR * totalCost) / enrollment
-        const totalCost = cr.total;
-        if (enrollment > 0 && totalCost > 0) {
-          suggestedFee = (target.lo * totalCost) / enrollment;
-          // Round up to nearest dollar
-          suggestedFee = Math.ceil(suggestedFee);
-        }
-      }
-      return {p, revenue, enrollment, revPerPart, crPct, target, gap, currentFee, suggestedFee};
+      const {fee:suggestedFee, reason:sugReason} = calcSuggestedFee(crPct, target, cr, currentFee);
+      const dollarChange = (suggestedFee!=null && currentFee>0) ? suggestedFee - currentFee : null;
+      return {p, cr, revPerPart, crPct, target, gap, currentFee, suggestedFee, sugReason, dollarChange};
     }).sort((a,b)=>{
       let va=0,vb=0;
-      if (sortCol==="name")         {va=a.p.name||"";vb=b.p.name||"";}
-      else if (sortCol==="area")    {va=a.p.area||"";vb=b.p.area||"";}
-      else if (sortCol==="fy")      {va=toFY(a.p.year)||"";vb=toFY(b.p.year)||"";}
-      else if (sortCol==="currentFee") {va=a.currentFee;vb=b.currentFee;}
-      else if (sortCol==="revPerPart") {va=a.revPerPart;vb=b.revPerPart;}
-      else if (sortCol==="cr")      {va=a.crPct;vb=b.crPct;}
-      else if (sortCol==="gap")     {va=a.gap??-999;vb=b.gap??-999;}
-      else if (sortCol==="suggested") {va=a.suggestedFee??-1;vb=b.suggestedFee??-1;}
-      if (typeof va==="string") {
-        return sortDir==="asc" ? va.localeCompare(vb) : vb.localeCompare(va);
-      }
-      return sortDir==="asc" ? va-vb : vb-va;
+      if      (sortCol==="name")        {va=a.p.name||"";     vb=b.p.name||"";}
+      else if (sortCol==="area")        {va=a.p.area||"";     vb=b.p.area||"";}
+      else if (sortCol==="currentFee")  {va=a.currentFee;     vb=b.currentFee;}
+      else if (sortCol==="revPerPart")  {va=a.revPerPart;     vb=b.revPerPart;}
+      else if (sortCol==="cr")          {va=a.crPct;          vb=b.crPct;}
+      else if (sortCol==="suggested")   {va=a.suggestedFee??-1;vb=b.suggestedFee??-1;}
+      else if (sortCol==="dollarChange"){va=a.dollarChange??-9999;vb=b.dollarChange??-9999;}
+      if (typeof va==="string") return sortDir==="asc"?va.localeCompare(vb):vb.localeCompare(va);
+      return sortDir==="asc"?va-vb:vb-va;
     });
-  },[activeProgs,filterArea,filterYear,filterCat,sortCol,sortDir]);
+  },[activeProgs,filterArea,filterCat,sortCol,sortDir]);
 
   function toggleSort(col) {
     if (sortCol===col) setSortDir(d=>d==="asc"?"desc":"asc");
-    else {setSortCol(col);setSortDir("asc");}
+    else {setSortCol(col); setSortDir("asc");}
   }
 
-  const totalRevenue = rows.reduce((s,r)=>s+r.revenue,0);
-  const totalEnroll  = rows.reduce((s,r)=>s+r.enrollment,0);
-  const belowTarget  = rows.filter(r=>r.gap!==null&&r.gap<0).length;
-  const needsIncrease = rows.filter(r=>r.suggestedFee!==null).length;
+  const belowFloor    = rows.filter(r=>r.sugReason==="below-floor").length;
+  const inRange       = rows.filter(r=>r.sugReason==="in-range").length;
+  const aboveCeiling  = rows.filter(r=>r.sugReason==="above-ceiling").length;
+  const totalRevenue  = rows.reduce((s,r)=>s+r.cr.revenue,0);
 
-  const fmt$ = n => "$"+(n||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const fmt$   = n => "$"+(n||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
   const fmtPct = n => ((n||0)*100).toFixed(1)+"%";
 
-  const thStyle = (col) => ({
-    padding:"8px 10px",
+  const thSt = (col) => ({
+    padding:"7px 8px",
     textAlign:"left",
     fontSize:"11px",
     fontWeight:700,
-    letterSpacing:"0.08em",
+    letterSpacing:"0.06em",
     textTransform:"uppercase",
     color: sortCol===col?"#00A9CE":"#5C462B",
     cursor:"pointer",
@@ -6016,91 +6038,76 @@ function FeeReportTab({programs}) {
     borderBottom:"2px solid rgba(92,70,43,0.12)",
   });
 
-  function SortArrow({col}) {
-    if (sortCol!==col) return <span style={{color:"#ccc",marginLeft:3}}>↕</span>;
-    return <span style={{color:"#00A9CE",marginLeft:3}}>{sortDir==="asc"?"↑":"↓"}</span>;
+  function Arr({col}) {
+    if (sortCol!==col) return <span style={{color:"#ccc",marginLeft:2}}>↕</span>;
+    return <span style={{color:"#00A9CE",marginLeft:2}}>{sortDir==="asc"?"↑":"↓"}</span>;
   }
 
   function exportCSV() {
-    const headers = ["Program","Area","FY","Staff","Current Fee","Rev / Participant","CR%","Target CR","Gap to Target","Suggested Next FY Fee","Direction"];
-    const escCSV = v => {
-      const s = String(v??"");
-      return s.includes(",")||s.includes('"')||s.includes("\n") ? `"${s.replace(/"/g,'""')}"` : s;
-    };
-    const dataRows = rows.map(({p,revPerPart,crPct,target,gap,currentFee,suggestedFee})=>{
-      const isBelow = gap!==null && gap < -0.001;
-      const isAbove = gap!==null && gap > 0.001;
-      const inRange = gap!==null && !isBelow && !isAbove;
-      let direction = "";
-      if (!target) direction="No target set";
-      else if (isBelow && gap < -0.10) direction="Fee increase likely needed";
-      else if (isBelow) direction="Consider fee increase";
-      else if (inRange) direction="On target";
-      else direction="Strong, hold or review";
-      return [
-        p.name||"",
-        p.area||"",
-        toFY(p.year)||"",
-        p.staff_name||"",
-        currentFee>0?currentFee.toFixed(2):"",
-        revPerPart.toFixed(2),
-        (crPct*100).toFixed(1)+"%",
-        target?target.label:"",
-        gap!==null?((gap>=0?"+":"")+((gap||0)*100).toFixed(1)+"%"):"",
-        suggestedFee!=null?suggestedFee.toFixed(2):"",
-        direction,
-      ].map(escCSV).join(",");
-    });
-    const csv = [headers.join(","), ...dataRows].join("\n");
-    const blob = new Blob([csv], {type:"text/csv"});
+    const esc = v=>{const s=String(v??"");return s.includes(",")||s.includes('"')||s.includes("\n")?`"${s.replace(/"/g,'""')}"`:`${s}`;};
+    const headers = ["Program","Area","Staff","Current Fee","Rev/Participant","CR%","Target CR","Suggested Fee","$ Change","Reason"];
+    const dataRows = rows.map(({p,revPerPart,crPct,target,currentFee,suggestedFee,dollarChange,sugReason})=>[
+      p.name||"",
+      p.area||"",
+      p.staff_name||"",
+      currentFee>0?currentFee.toFixed(2):"",
+      revPerPart.toFixed(2),
+      (crPct*100).toFixed(1)+"%",
+      target?target.label:"",
+      suggestedFee!=null?suggestedFee.toFixed(2):"hold",
+      dollarChange!=null?(dollarChange>=0?"+":"")+dollarChange.toFixed(2):"",
+      sugReason==="below-floor"?"Raise to target floor":sugReason==="in-range"?"3% inflation increase":sugReason==="above-ceiling"?"Hold (above ceiling)":"No target set",
+    ].map(esc).join(","));
+    const csv = [headers.join(","),...dataRows].join("\n");
+    const blob = new Blob([csv],{type:"text/csv"});
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
-    const fyLabel = filterYear!=="All"?filterYear:"All-FY";
-    const areaLabel = filterArea!=="All"?("-"+filterArea):"";
-    a.download = `BGPD-Fee-Report-${fyLabel}${areaLabel}.csv`;
-    a.click();
+    a.href=url; a.download=`BGPD-Fee-Report-${currentFY||"FY"}.csv`; a.click();
     URL.revokeObjectURL(url);
   }
 
+  if (!currentFY) return (
+    <div className="p-8 text-center" style={{color:"#A09080"}}>No programs with actuals found.</div>
+  );
+
   return (
-    <div className="p-5 space-y-5">
+    <div className="p-4 space-y-4">
       {/* Header */}
-      <div className="rounded p-5 text-white" style={{background:"#5C462B"}}>
-        <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{color:"rgba(255,255,255,0.65)"}}>Manager Report</div>
-        <div className="text-xl font-black mb-1">Fee Analysis Report</div>
-        <div className="text-sm" style={{color:"rgba(255,255,255,0.8)"}}>
-          Shows current fee, actual revenue per participant, and cost recovery for programs with actuals entered.  Use this as a starting point for the annual master fee discussion with the board.
+      <div className="rounded p-4 text-white flex items-center justify-between gap-4" style={{background:"#5C462B"}}>
+        <div>
+          <div className="text-xs font-bold uppercase tracking-widest mb-0.5" style={{color:"rgba(255,255,255,0.6)"}}>Manager Report · FY {currentFY}</div>
+          <div className="text-lg font-black">Fee Analysis Report</div>
+          <div className="text-xs mt-1" style={{color:"rgba(255,255,255,0.75)"}}>
+            Suggested fees use a 3-tier rule: below target floor raises to floor, within range gets 3% (capped at ceiling), above ceiling holds.
+          </div>
         </div>
+        <button onClick={exportCSV}
+          className="text-xs font-bold px-3 py-2 rounded shrink-0"
+          style={{background:"rgba(255,255,255,0.15)",color:"#ffffff",border:"1px solid rgba(255,255,255,0.3)"}}>
+          ⬇ Export CSV
+        </button>
       </div>
 
-      {/* Note banner */}
-      <div className="rounded px-4 py-3 text-xs" style={{background:"#EEF5E0",border:"1px solid #c4d98b",color:"#4A6B00"}}>
-        <span className="font-bold">How to read this report: </span>
-        Current Fee is the fee entered on the program record.  Rev per Participant is actual revenue divided by actual enrollment (equals the fee for flat-rate programs).  Suggested Next FY Fee is the minimum fee needed to reach the service category CR target floor, calculated from actual cost data.  Programs without a service category assigned show no target or suggestion.
-      </div>
-
-      {/* Summary row */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {/* Summary tiles */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {[
-          {label:"Programs Shown",   value:rows.length,                    fmt:n=>String(n),            color:"#00A9CE"},
-          {label:"Total Revenue",    value:totalRevenue,                   fmt:fmt$,                    color:"#00A9CE"},
-          {label:"Below CR Target",  value:belowTarget,                    fmt:n=>String(n)+" program"+(n===1?"":"s"), color:belowTarget>0?"#E35205":"#4A6B00"},
-          {label:"Need Fee Increase",value:needsIncrease,                  fmt:n=>String(n)+" program"+(n===1?"":"s"), color:needsIncrease>0?"#E35205":"#4A6B00"},
+          {label:"Programs",      value:String(rows.length),               color:"#00A9CE"},
+          {label:"Total Revenue", value:fmt$(totalRevenue),                color:"#00A9CE"},
+          {label:"Need Increase", value:String(belowFloor)+" programs",    color:belowFloor>0?"#E35205":"#4A6B00"},
+          {label:"Above Ceiling", value:String(aboveCeiling)+" programs",  color:aboveCeiling>0?"#007A99":"#A09080"},
         ].map(s=>(
-          <div key={s.label} className="rounded p-3 text-center" style={{background:"#ffffff",border:"1px solid rgba(92,70,43,0.12)"}}>
-            <div className="text-xs uppercase font-bold tracking-wide mb-1" style={{color:"#5C462B"}}>{s.label}</div>
-            <div className="text-lg font-black" style={{color:s.color}}>{s.fmt(s.value)}</div>
+          <div key={s.label} className="rounded p-3 text-center" style={{background:"#fff",border:"1px solid rgba(92,70,43,0.12)"}}>
+            <div className="text-xs uppercase font-bold tracking-wide mb-0.5" style={{color:"#5C462B"}}>{s.label}</div>
+            <div className="text-base font-black" style={{color:s.color}}>{s.value}</div>
           </div>
         ))}
       </div>
 
-      {/* Filters + Export */}
+      {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">
         {[
-          {label:"Area",    val:filterArea, set:setFilterArea, opts:["All",...areas]},
-          {label:"FY",      val:filterYear, set:setFilterYear, opts:["All",...years]},
-          {label:"Category",val:filterCat,  set:setFilterCat,  opts:["All",...cats]},
+          {label:"Area",     val:filterArea, set:setFilterArea, opts:["All",...areas]},
+          {label:"Category", val:filterCat,  set:setFilterCat,  opts:["All",...cats]},
         ].map(f=>(
           <label key={f.label} className="flex items-center gap-1 text-xs font-bold" style={{color:"#5C462B"}}>
             {f.label}:
@@ -6111,86 +6118,79 @@ function FeeReportTab({programs}) {
             </select>
           </label>
         ))}
-        {(filterArea!=="All"||filterYear!=="All"||filterCat!=="All")&&(
-          <button onClick={()=>{setFilterArea("All");setFilterYear("All");setFilterCat("All");}}
+        {(filterArea!=="All"||filterCat!=="All")&&(
+          <button onClick={()=>{setFilterArea("All");setFilterCat("All");}}
             className="text-xs font-bold px-2 py-1 rounded"
             style={{background:"rgba(227,82,5,0.08)",color:"#E35205",border:"1px solid rgba(227,82,5,0.2)"}}>
-            Clear filters
+            Clear
           </button>
         )}
-        <button onClick={exportCSV}
-          className="text-xs font-bold px-3 py-1.5 rounded ml-auto"
-          style={{background:"#00A9CE",color:"#ffffff",border:"none"}}>
-          ⬇ Export CSV
-        </button>
+        {/* Legend */}
+        <div className="ml-auto flex gap-3 text-xs" style={{color:"#6B5744"}}>
+          <span><span style={{color:"#E35205",fontWeight:700}}>●</span> Raise to floor</span>
+          <span><span style={{color:"#007A99",fontWeight:700}}>●</span> 3% increase</span>
+          <span><span style={{color:"#A09080",fontWeight:700}}>●</span> Hold</span>
+        </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto rounded" style={{border:"1px solid rgba(92,70,43,0.12)"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:"13px"}}>
+      {/* Table — 7 columns, fits on screen */}
+      <div className="rounded" style={{border:"1px solid rgba(92,70,43,0.12)",overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:"12px",tableLayout:"fixed"}}>
+          <colgroup>
+            <col style={{width:"28%"}}/>
+            <col style={{width:"13%"}}/>
+            <col style={{width:"10%"}}/>
+            <col style={{width:"10%"}}/>
+            <col style={{width:"9%"}}/>
+            <col style={{width:"15%"}}/>
+            <col style={{width:"15%"}}/>
+          </colgroup>
           <thead>
             <tr>
-              {[
-                {col:"name",      label:"Program"},
-                {col:"area",      label:"Area"},
-                {col:"fy",        label:"FY"},
-                {col:"currentFee",label:"Current Fee"},
-                {col:"revPerPart",label:"Rev / Participant"},
-                {col:"cr",        label:"CR%"},
-                {col:"gap",       label:"Gap to Target"},
-                {col:"suggested", label:"Suggested Next FY Fee"},
-              ].map(h=>(
-                <th key={h.col} style={thStyle(h.col)} onClick={()=>toggleSort(h.col)}>
-                  {h.label}<SortArrow col={h.col}/>
-                </th>
-              ))}
-              <th style={{...thStyle("dir"),cursor:"default",color:"#5C462B"}}>Direction</th>
+              <th style={thSt("name")}      onClick={()=>toggleSort("name")}>Program<Arr col="name"/></th>
+              <th style={thSt("area")}      onClick={()=>toggleSort("area")}>Area<Arr col="area"/></th>
+              <th style={thSt("currentFee")}onClick={()=>toggleSort("currentFee")}>Current Fee<Arr col="currentFee"/></th>
+              <th style={thSt("revPerPart")}onClick={()=>toggleSort("revPerPart")}>Rev/Part<Arr col="revPerPart"/></th>
+              <th style={thSt("cr")}        onClick={()=>toggleSort("cr")}>CR%<Arr col="cr"/></th>
+              <th style={thSt("suggested")} onClick={()=>toggleSort("suggested")}>Suggested Fee<Arr col="suggested"/></th>
+              <th style={thSt("dollarChange")} onClick={()=>toggleSort("dollarChange")}>Change<Arr col="dollarChange"/></th>
             </tr>
           </thead>
           <tbody>
             {rows.length===0&&(
-              <tr><td colSpan={9} style={{padding:"24px",textAlign:"center",color:"#A09080",fontSize:"13px"}}>
-                No programs match.  Try clearing filters or confirm actuals are entered.
+              <tr><td colSpan={7} style={{padding:"24px",textAlign:"center",color:"#A09080"}}>
+                No programs match.  Try clearing filters.
               </td></tr>
             )}
-            {rows.map(({p,revPerPart,crPct,target,gap,currentFee,suggestedFee},i)=>{
-              const isBelow = gap!==null && gap < -0.001;
-              const isAbove = gap!==null && gap > 0.001;
-              const inRange = gap!==null && !isBelow && !isAbove;
-              let gapColor = "#6B5744";
-              if (isBelow) gapColor = "#E35205";
-              if (isAbove) gapColor = "#4A6B00";
-              if (inRange) gapColor = "#007A99";
+            {rows.map(({p,revPerPart,crPct,target,gap,currentFee,suggestedFee,sugReason,dollarChange},i)=>{
+              // Row accent color based on situation
+              const accentColor =
+                sugReason==="below-floor"   ? "#E35205" :
+                sugReason==="in-range"      ? "#007A99" :
+                sugReason==="above-ceiling" ? "#4A6B00" : "#A09080";
 
-              let direction = "";
-              let dirColor = "#6B5744";
-              if (!target)                        {direction="No target set";                 dirColor="#A09080";}
-              else if (isBelow && gap < -0.10)    {direction="↑ Fee increase likely needed"; dirColor="#E35205";}
-              else if (isBelow)                   {direction="↑ Consider fee increase";      dirColor="#c76b00";}
-              else if (inRange)                   {direction="✓ On target";                  dirColor="#007A99";}
-              else                                {direction="✓ Strong, hold or review";     dirColor="#4A6B00";}
+              const changeLabel =
+                dollarChange==null && sugReason==="above-ceiling" ? "Hold" :
+                dollarChange==null ? "—" :
+                (dollarChange>=0?"+":"")+fmt$(dollarChange);
 
               return (
                 <tr key={p.id} style={{background:i%2===0?"#ffffff":"#fafaf8",borderBottom:"1px solid rgba(92,70,43,0.06)"}}>
-                  <td style={{padding:"8px 10px",fontWeight:600,color:"#3d2b1a",maxWidth:"180px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={p.name}>{p.name}</td>
-                  <td style={{padding:"8px 10px",color:"#5C462B",fontSize:"12px"}}>{p.area||"—"}</td>
-                  <td style={{padding:"8px 10px",color:"#5C462B",fontSize:"12px"}}>{toFY(p.year)||"—"}</td>
-                  <td style={{padding:"8px 10px",fontWeight:600,color:"#3d2b1a",fontFamily:"monospace"}}>{currentFee>0?fmt$(currentFee):<span style={{color:"#ccc"}}>not set</span>}</td>
-                  <td style={{padding:"8px 10px",fontWeight:700,color:"#00A9CE",fontFamily:"monospace"}}>{fmt$(revPerPart)}</td>
-                  <td style={{padding:"8px 10px",fontWeight:700,color:crPct>=1?"#4A6B00":"#E35205",fontFamily:"monospace"}}>{fmtPct(crPct)}</td>
-                  <td style={{padding:"8px 10px",fontWeight:700,color:gapColor,fontFamily:"monospace"}}>
-                    {gap===null?"—":(gap>=0?"+":"")+fmtPct(gap)}
-                    {target&&<div style={{fontSize:"10px",fontWeight:400,color:"#A09080",fontFamily:"inherit"}}>target: {target.label}</div>}
+                  {/* Program name with colored left border indicating action */}
+                  <td style={{padding:"7px 8px",fontWeight:600,color:"#3d2b1a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderLeft:`3px solid ${accentColor}`}} title={p.name}>
+                    {p.name}
+                    {target&&<div style={{fontSize:"10px",fontWeight:400,color:"#A09080"}}>{target.label}</div>}
                   </td>
-                  <td style={{padding:"8px 10px",fontWeight:700,fontFamily:"monospace",color:suggestedFee!=null?"#E35205":"#A09080"}}>
-                    {suggestedFee!=null ? fmt$(suggestedFee) : <span style={{color:"#ccc",fontWeight:400}}>—</span>}
-                    {suggestedFee!=null&&currentFee>0&&(
-                      <div style={{fontSize:"10px",fontWeight:400,color:"#A09080",fontFamily:"inherit"}}>
-                        +{fmt$(suggestedFee-currentFee)} from current
-                      </div>
-                    )}
+                  <td style={{padding:"7px 8px",color:"#5C462B",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.area||"—"}</td>
+                  <td style={{padding:"7px 8px",fontFamily:"monospace",color:"#3d2b1a"}}>{currentFee>0?fmt$(currentFee):<span style={{color:"#ccc"}}>—</span>}</td>
+                  <td style={{padding:"7px 8px",fontFamily:"monospace",color:"#00A9CE",fontWeight:600}}>{fmt$(revPerPart)}</td>
+                  <td style={{padding:"7px 8px",fontFamily:"monospace",fontWeight:700,color:crPct>=1?"#4A6B00":"#E35205"}}>{fmtPct(crPct)}</td>
+                  <td style={{padding:"7px 8px",fontFamily:"monospace",fontWeight:700,color:accentColor}}>
+                    {suggestedFee!=null ? fmt$(suggestedFee) : <span style={{color:"#A09080",fontWeight:400}}>Hold</span>}
                   </td>
-                  <td style={{padding:"8px 10px",fontSize:"12px",fontWeight:600,color:dirColor}}>{direction}</td>
+                  <td style={{padding:"7px 8px",fontFamily:"monospace",fontWeight:700,color:dollarChange!=null&&dollarChange>0?"#E35205":dollarChange!=null&&dollarChange<0?"#4A6B00":"#A09080"}}>
+                    {changeLabel}
+                  </td>
                 </tr>
               );
             })}
@@ -6198,14 +6198,12 @@ function FeeReportTab({programs}) {
         </table>
       </div>
 
-      {/* Footer notes */}
+      {/* Footer */}
       <div className="text-xs space-y-1" style={{color:"#A09080"}}>
-        <div>• Only programs with actual revenue and enrollment entered appear here.  Archived programs are excluded.</div>
-        <div>• Current Fee is the fee entered in the program record.  Set it on the program form to populate this column.</div>
-        <div>• Rev per Participant = Actual Revenue divided by Actual Enrollment.  For flat-rate programs this equals the fee charged.</div>
-        <div>• CR% uses the same formula as the rest of the app: Revenue divided by (Direct Costs times 1.10 plus FT Salary times Workload% plus Facility Hours times $3).</div>
-        <div>• Suggested Next FY Fee is the minimum per-participant fee needed to reach the service category CR target floor, based on actual costs.  It does not account for enrollment changes.</div>
-        <div>• This report does not factor in fee assistance, scholarship discounts, or tiered pricing.  Review those programs individually before recommending an increase.</div>
+        <div>Showing FY {currentFY} only.  Only programs with actual revenue and enrollment entered appear here.</div>
+        <div>Current Fee is set on the program record.  Rev/Part is actual revenue divided by actual enrollment.  For flat-rate programs they should match.</div>
+        <div>Suggested Fee logic: below target floor → raise to floor.  Within target range → 3% increase capped at the ceiling.  Above ceiling → hold (no increase).</div>
+        <div>Dollar change shows the difference between suggested and current fee.  Only appears when a current fee is set on the program.</div>
       </div>
     </div>
   );
