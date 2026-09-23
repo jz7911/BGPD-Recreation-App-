@@ -5886,6 +5886,254 @@ function ProgramGuideSection({isManager,db}){
 }
 
 
+// ─── CR target lookup by service category ─────────────────────────────────
+const CR_TARGET_MAP = {
+  "Open Access":                       {lo:0,   hi:0,   label:"~0% (Full Subsidy)"},
+  "Community Events":                  {lo:0,   hi:0.20,label:"0-20% (Subsidy)"},
+  "Specialty Events":                  {lo:0.95,hi:1.05,label:"~100%"},
+  "Beg./Intro. Activities":            {lo:1.00,hi:1.00,label:"100%"},
+  "Drop In Activities":                {lo:1.00,hi:1.05,label:"100-105%"},
+  "Childcare Services":                {lo:1.10,hi:1.30,label:"110-130%"},
+  "Intermediate/Adv. Activities":      {lo:1.10,hi:1.30,label:"110-130%"},
+  "Private/Semi-Private Activities":   {lo:1.30,hi:1.50,label:"130-150%"},
+  "Specialized Activities":            {lo:1.30,hi:1.50,label:"130-150%"},
+  "Rentals":                           {lo:1.30,hi:1.50,label:"130-150%"},
+  "Retail & Consumables":              {lo:1.30,hi:1.50,label:"130-150%"},
+};
+
+function getCRTarget(p) {
+  const cat = p.service_category||"";
+  const t = CR_TARGET_MAP[cat];
+  if (!t) return null;
+  return t;
+}
+
+// gap = positive means above target high (good), negative means below target lo (needs fee increase)
+function crGap(crPct, target) {
+  if (!target) return null;
+  if (crPct >= target.lo) return crPct - target.hi; // if already in range or above, gap to top
+  return crPct - target.lo; // negative = below floor
+}
+
+function FeeReportTab({programs}) {
+  const [filterArea, setFilterArea] = useState("All");
+  const [filterYear, setFilterYear] = useState("All");
+  const [filterCat, setFilterCat] = useState("All");
+  const [sortCol, setSortCol] = useState("revPerPart");
+  const [sortDir, setSortDir] = useState("asc");
+
+  const activeProgs = useMemo(()=>
+    programs.filter(p=>!p.is_archived && p.act_revenue>0 && p.act_enrollment>0),
+  [programs]);
+
+  const years = useMemo(()=>{
+    const ys = [...new Set(activeProgs.map(p=>toFY(p.year)).filter(Boolean))];
+    return ys.sort().reverse();
+  },[activeProgs]);
+
+  const areas = useMemo(()=>{
+    const as = [...new Set(activeProgs.map(p=>p.area).filter(Boolean))];
+    return as.sort();
+  },[activeProgs]);
+
+  const cats = useMemo(()=>{
+    const cs = [...new Set(activeProgs.map(p=>p.service_category).filter(Boolean))];
+    return cs.sort();
+  },[activeProgs]);
+
+  const rows = useMemo(()=>{
+    let list = activeProgs;
+    if (filterArea !== "All") list = list.filter(p=>p.area===filterArea);
+    if (filterYear !== "All") list = list.filter(p=>toFY(p.year)===filterYear);
+    if (filterCat  !== "All") list = list.filter(p=>p.service_category===filterCat);
+    return list.map(p=>{
+      const cr = calcCR(p,"act_");
+      const revenue = cr.revenue;
+      const enrollment = cr.enrollment;
+      const revPerPart = enrollment>0 ? revenue/enrollment : 0;
+      const crPct = cr.crPct;
+      const target = getCRTarget(p);
+      const gap = crGap(crPct, target);
+      return {p, revenue, enrollment, revPerPart, crPct, target, gap};
+    }).sort((a,b)=>{
+      let va=0,vb=0;
+      if (sortCol==="name")       {va=a.p.name||"";vb=b.p.name||"";}
+      else if (sortCol==="area")  {va=a.p.area||"";vb=b.p.area||"";}
+      else if (sortCol==="fy")    {va=toFY(a.p.year)||"";vb=toFY(b.p.year)||"";}
+      else if (sortCol==="revPerPart") {va=a.revPerPart;vb=b.revPerPart;}
+      else if (sortCol==="cr")    {va=a.crPct;vb=b.crPct;}
+      else if (sortCol==="gap")   {va=a.gap??-999;vb=b.gap??-999;}
+      if (typeof va==="string") {
+        return sortDir==="asc" ? va.localeCompare(vb) : vb.localeCompare(va);
+      }
+      return sortDir==="asc" ? va-vb : vb-va;
+    });
+  },[activeProgs,filterArea,filterYear,filterCat,sortCol,sortDir]);
+
+  function toggleSort(col) {
+    if (sortCol===col) setSortDir(d=>d==="asc"?"desc":"asc");
+    else {setSortCol(col);setSortDir("asc");}
+  }
+
+  const totalRevenue = rows.reduce((s,r)=>s+r.revenue,0);
+  const totalEnroll  = rows.reduce((s,r)=>s+r.enrollment,0);
+  const avgCR        = rows.length>0 ? rows.reduce((s,r)=>s+r.crPct,0)/rows.length : 0;
+  const belowTarget  = rows.filter(r=>r.gap!==null&&r.gap<0).length;
+
+  const thStyle = (col) => ({
+    padding:"8px 10px",
+    textAlign:"left",
+    fontSize:"11px",
+    fontWeight:700,
+    letterSpacing:"0.08em",
+    textTransform:"uppercase",
+    color: sortCol===col?"#00A9CE":"#5C462B",
+    cursor:"pointer",
+    whiteSpace:"nowrap",
+    userSelect:"none",
+    background:"#F8F6F2",
+    borderBottom:"2px solid rgba(92,70,43,0.12)",
+  });
+
+  function SortArrow({col}) {
+    if (sortCol!==col) return <span style={{color:"#ccc",marginLeft:3}}>↕</span>;
+    return <span style={{color:"#00A9CE",marginLeft:3}}>{sortDir==="asc"?"↑":"↓"}</span>;
+  }
+
+  const fmt$ = n => "$"+(n||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const fmtPct = n => ((n||0)*100).toFixed(1)+"%";
+
+  return (
+    <div className="p-5 space-y-5">
+      {/* Header */}
+      <div className="rounded p-5 text-white" style={{background:"#5C462B"}}>
+        <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{color:"rgba(255,255,255,0.65)"}}>Manager Report</div>
+        <div className="text-xl font-black mb-1">Fee Analysis Report</div>
+        <div className="text-sm" style={{color:"rgba(255,255,255,0.8)"}}>
+          Shows actual revenue per participant and cost recovery for programs with actuals entered.  Revenue per participant serves as a fee proxy for flat-rate programs.  Use this as a starting point for the annual master fee discussion with the board.
+        </div>
+      </div>
+
+      {/* Note banner */}
+      <div className="rounded px-4 py-3 text-xs" style={{background:"#EEF5E0",border:"1px solid #c4d98b",color:"#4A6B00"}}>
+        <span className="font-bold">How to read this report: </span>
+        Revenue per participant is actual revenue divided by actual enrollment.  For flat-rate programs this equals the fee charged.  CR% is cost recovery using the same formula as the rest of the app.  Gap shows how far CR% sits from the service category target floor — negative numbers mean a fee increase may be warranted.  Programs without a service category assigned show no target or gap.
+      </div>
+
+      {/* Summary row */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          {label:"Programs Shown",  value:rows.length,                    fmt:n=>String(n)},
+          {label:"Total Revenue",   value:totalRevenue,                   fmt:fmt$},
+          {label:"Avg Enrollment",  value:totalEnroll/(rows.length||1),   fmt:n=>n.toFixed(0)},
+          {label:"Below Target",    value:belowTarget,                    fmt:n=>n+" program"+(n===1?"":"s"),color:belowTarget>0?"#E35205":"#4A6B00"},
+        ].map(s=>(
+          <div key={s.label} className="rounded p-3 text-center" style={{background:"#ffffff",border:"1px solid rgba(92,70,43,0.12)"}}>
+            <div className="text-xs uppercase font-bold tracking-wide mb-1" style={{color:"#5C462B"}}>{s.label}</div>
+            <div className="text-lg font-black" style={{color:s.color||"#00A9CE"}}>{s.fmt(s.value)}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3">
+        {[
+          {label:"Area",    val:filterArea, set:setFilterArea, opts:["All",...areas]},
+          {label:"FY",      val:filterYear, set:setFilterYear, opts:["All",...years]},
+          {label:"Category",val:filterCat,  set:setFilterCat,  opts:["All",...cats]},
+        ].map(f=>(
+          <label key={f.label} className="flex items-center gap-1 text-xs font-bold" style={{color:"#5C462B"}}>
+            {f.label}:
+            <select value={f.val} onChange={e=>f.set(e.target.value)}
+              className="ml-1 text-xs border rounded px-2 py-1"
+              style={{borderColor:"rgba(92,70,43,0.25)",color:"#3d2b1a",background:"#fff"}}>
+              {f.opts.map(o=><option key={o} value={o}>{o}</option>)}
+            </select>
+          </label>
+        ))}
+        {(filterArea!=="All"||filterYear!=="All"||filterCat!=="All")&&(
+          <button onClick={()=>{setFilterArea("All");setFilterYear("All");setFilterCat("All");}}
+            className="text-xs font-bold px-2 py-1 rounded"
+            style={{background:"rgba(227,82,5,0.08)",color:"#E35205",border:"1px solid rgba(227,82,5,0.2)"}}>
+            Clear filters
+          </button>
+        )}
+      </div>
+
+      {/* Table */}
+      <div className="overflow-x-auto rounded" style={{border:"1px solid rgba(92,70,43,0.12)"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:"13px"}}>
+          <thead>
+            <tr>
+              {[
+                {col:"name",   label:"Program"},
+                {col:"area",   label:"Area"},
+                {col:"fy",     label:"FY"},
+                {col:"revPerPart",label:"Rev / Participant"},
+                {col:"cr",     label:"CR%"},
+                {col:"gap",    label:"Gap to Target"},
+              ].map(h=>(
+                <th key={h.col} style={thStyle(h.col)} onClick={()=>toggleSort(h.col)}>
+                  {h.label}<SortArrow col={h.col}/>
+                </th>
+              ))}
+              <th style={{...thStyle("note"),cursor:"default"}}>Direction</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length===0&&(
+              <tr><td colSpan={7} style={{padding:"24px",textAlign:"center",color:"#A09080",fontSize:"13px"}}>
+                No programs match — try clearing filters or make sure actuals are entered.
+              </td></tr>
+            )}
+            {rows.map(({p,revPerPart,crPct,target,gap},i)=>{
+              const isBelow = gap!==null && gap < -0.001;
+              const isAbove = gap!==null && gap > 0.001;
+              const inRange = gap!==null && !isBelow && !isAbove;
+              let gapColor = "#6B5744";
+              if (isBelow) gapColor = "#E35205";
+              if (isAbove) gapColor = "#4A6B00";
+              if (inRange) gapColor = "#007A99";
+
+              let direction = "";
+              let dirColor = "#6B5744";
+              if (!target) {direction="No target set";dirColor="#A09080";}
+              else if (isBelow && gap < -0.10) {direction="↑ Fee increase likely needed";dirColor="#E35205";}
+              else if (isBelow) {direction="↑ Consider fee increase";dirColor="#c76b00";}
+              else if (inRange) {direction="✓ On target";dirColor="#007A99";}
+              else {direction="Strong — hold or review";dirColor="#4A6B00";}
+
+              return (
+                <tr key={p.id} style={{background:i%2===0?"#ffffff":"#fafaf8",borderBottom:"1px solid rgba(92,70,43,0.06)"}}>
+                  <td style={{padding:"8px 10px",fontWeight:600,color:"#3d2b1a",maxWidth:"200px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={p.name}>{p.name}</td>
+                  <td style={{padding:"8px 10px",color:"#5C462B",fontSize:"12px"}}>{p.area||"—"}</td>
+                  <td style={{padding:"8px 10px",color:"#5C462B",fontSize:"12px"}}>{toFY(p.year)||"—"}</td>
+                  <td style={{padding:"8px 10px",fontWeight:700,color:"#00A9CE",fontFamily:"monospace"}}>{fmt$(revPerPart)}</td>
+                  <td style={{padding:"8px 10px",fontWeight:700,color: crPct>=1?"#4A6B00":"#E35205",fontFamily:"monospace"}}>{fmtPct(crPct)}</td>
+                  <td style={{padding:"8px 10px",fontWeight:700,color:gapColor,fontFamily:"monospace"}}>
+                    {gap===null?"—":(gap>=0?"+":"")+fmtPct(gap)}
+                    {target&&<div style={{fontSize:"10px",fontWeight:400,color:"#A09080",fontFamily:"inherit"}}>target: {target.label}</div>}
+                  </td>
+                  <td style={{padding:"8px 10px",fontSize:"12px",fontWeight:600,color:dirColor}}>{direction}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Footer notes */}
+      <div className="text-xs space-y-1" style={{color:"#A09080"}}>
+        <div>• Only programs with actual revenue and enrollment entered appear here.  Archived programs are excluded.</div>
+        <div>• Revenue per participant = Actual Revenue ÷ Actual Enrollment.  This equals the fee for flat-rate programs.</div>
+        <div>• CR% uses the same formula as the rest of the app: Revenue ÷ (Direct Costs × 1.10 + FT Salary × Workload% + Facility Hours × $3).</div>
+        <div>• Gap to target requires a service category assigned in the program record.  Set service categories on the program form to unlock this column.</div>
+        <div>• This report does not factor in fee assistance, scholarship discounts, or tiered pricing.  Review those programs individually before recommending an increase.</div>
+      </div>
+    </div>
+  );
+}
+
 function Reference({isManager,db,programs,staffName}) {
   const [sec,setSec] = useState("start");
   const workload = [
@@ -5957,6 +6205,7 @@ function Reference({isManager,db,programs,staffName}) {
           {id:"redesign",label:"🔄 Redesign Ideas"},
           {id:"allocation",label:"💰 Allocation Calculator"},
           {id:"clubhouse",label:"🏫 Clubhouse Allocation"},
+          {id:"feereport",label:"📈 Fee Report"},
           ...(isManager?[{id:"fyconfig",label:"⚙️ Formula Config"}]:[]),
         ].map(s=>(
           <button key={s.id} onClick={()=>setSec(s.id)}
@@ -6824,6 +7073,9 @@ function Reference({isManager,db,programs,staffName}) {
       )}
       {sec==="clubhouse"&&(
         <ClubhouseAllocationTool db={db} programs={programs} staffName={staffName}/>
+      )}
+      {sec==="feereport"&&(
+        <FeeReportTab programs={programs}/>
       )}
       {sec==="fyconfig"&&isManager&&(
         <FYConfigPanel db={db} isManager={isManager}/>
