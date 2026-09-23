@@ -5919,11 +5919,11 @@ function FeeReportTab({programs}) {
   const [filterArea, setFilterArea] = useState("All");
   const [filterYear, setFilterYear] = useState("All");
   const [filterCat, setFilterCat] = useState("All");
-  const [sortCol, setSortCol] = useState("revPerPart");
+  const [sortCol, setSortCol] = useState("name");
   const [sortDir, setSortDir] = useState("asc");
 
   const activeProgs = useMemo(()=>
-    programs.filter(p=>!p.is_archived && p.act_revenue>0 && p.act_enrollment>0),
+    programs.filter(p=>!p.is_archived && !p.is_deleted && p.act_revenue>0 && p.act_enrollment>0),
   [programs]);
 
   const years = useMemo(()=>{
@@ -5954,15 +5954,33 @@ function FeeReportTab({programs}) {
       const crPct = cr.crPct;
       const target = getCRTarget(p);
       const gap = crGap(crPct, target);
-      return {p, revenue, enrollment, revPerPart, crPct, target, gap};
+      // Current FY fee from the fee field (stored as string in DB, parse it)
+      const currentFee = parseFloat(p.fee)||0;
+      // Suggested next FY fee: if below target floor, scale up rev/part proportionally
+      // If no target or already at/above target, no change suggested
+      let suggestedFee = null;
+      if (target && target.lo > 0 && crPct > 0 && crPct < target.lo) {
+        // What fee would bring CR to the target floor?
+        // revenue = fee * enrollment, total cost stays same
+        // targetCR = (fee * enrollment) / totalCost => fee = (targetCR * totalCost) / enrollment
+        const totalCost = cr.total;
+        if (enrollment > 0 && totalCost > 0) {
+          suggestedFee = (target.lo * totalCost) / enrollment;
+          // Round up to nearest dollar
+          suggestedFee = Math.ceil(suggestedFee);
+        }
+      }
+      return {p, revenue, enrollment, revPerPart, crPct, target, gap, currentFee, suggestedFee};
     }).sort((a,b)=>{
       let va=0,vb=0;
-      if (sortCol==="name")       {va=a.p.name||"";vb=b.p.name||"";}
-      else if (sortCol==="area")  {va=a.p.area||"";vb=b.p.area||"";}
-      else if (sortCol==="fy")    {va=toFY(a.p.year)||"";vb=toFY(b.p.year)||"";}
+      if (sortCol==="name")         {va=a.p.name||"";vb=b.p.name||"";}
+      else if (sortCol==="area")    {va=a.p.area||"";vb=b.p.area||"";}
+      else if (sortCol==="fy")      {va=toFY(a.p.year)||"";vb=toFY(b.p.year)||"";}
+      else if (sortCol==="currentFee") {va=a.currentFee;vb=b.currentFee;}
       else if (sortCol==="revPerPart") {va=a.revPerPart;vb=b.revPerPart;}
-      else if (sortCol==="cr")    {va=a.crPct;vb=b.crPct;}
-      else if (sortCol==="gap")   {va=a.gap??-999;vb=b.gap??-999;}
+      else if (sortCol==="cr")      {va=a.crPct;vb=b.crPct;}
+      else if (sortCol==="gap")     {va=a.gap??-999;vb=b.gap??-999;}
+      else if (sortCol==="suggested") {va=a.suggestedFee??-1;vb=b.suggestedFee??-1;}
       if (typeof va==="string") {
         return sortDir==="asc" ? va.localeCompare(vb) : vb.localeCompare(va);
       }
@@ -5977,8 +5995,11 @@ function FeeReportTab({programs}) {
 
   const totalRevenue = rows.reduce((s,r)=>s+r.revenue,0);
   const totalEnroll  = rows.reduce((s,r)=>s+r.enrollment,0);
-  const avgCR        = rows.length>0 ? rows.reduce((s,r)=>s+r.crPct,0)/rows.length : 0;
   const belowTarget  = rows.filter(r=>r.gap!==null&&r.gap<0).length;
+  const needsIncrease = rows.filter(r=>r.suggestedFee!==null).length;
+
+  const fmt$ = n => "$"+(n||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const fmtPct = n => ((n||0)*100).toFixed(1)+"%";
 
   const thStyle = (col) => ({
     padding:"8px 10px",
@@ -6000,8 +6021,47 @@ function FeeReportTab({programs}) {
     return <span style={{color:"#00A9CE",marginLeft:3}}>{sortDir==="asc"?"↑":"↓"}</span>;
   }
 
-  const fmt$ = n => "$"+(n||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
-  const fmtPct = n => ((n||0)*100).toFixed(1)+"%";
+  function exportCSV() {
+    const headers = ["Program","Area","FY","Staff","Current Fee","Rev / Participant","CR%","Target CR","Gap to Target","Suggested Next FY Fee","Direction"];
+    const escCSV = v => {
+      const s = String(v??"");
+      return s.includes(",")||s.includes('"')||s.includes("\n") ? `"${s.replace(/"/g,'""')}"` : s;
+    };
+    const dataRows = rows.map(({p,revPerPart,crPct,target,gap,currentFee,suggestedFee})=>{
+      const isBelow = gap!==null && gap < -0.001;
+      const isAbove = gap!==null && gap > 0.001;
+      const inRange = gap!==null && !isBelow && !isAbove;
+      let direction = "";
+      if (!target) direction="No target set";
+      else if (isBelow && gap < -0.10) direction="Fee increase likely needed";
+      else if (isBelow) direction="Consider fee increase";
+      else if (inRange) direction="On target";
+      else direction="Strong, hold or review";
+      return [
+        p.name||"",
+        p.area||"",
+        toFY(p.year)||"",
+        p.staff_name||"",
+        currentFee>0?currentFee.toFixed(2):"",
+        revPerPart.toFixed(2),
+        (crPct*100).toFixed(1)+"%",
+        target?target.label:"",
+        gap!==null?((gap>=0?"+":"")+((gap||0)*100).toFixed(1)+"%"):"",
+        suggestedFee!=null?suggestedFee.toFixed(2):"",
+        direction,
+      ].map(escCSV).join(",");
+    });
+    const csv = [headers.join(","), ...dataRows].join("\n");
+    const blob = new Blob([csv], {type:"text/csv"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const fyLabel = filterYear!=="All"?filterYear:"All-FY";
+    const areaLabel = filterArea!=="All"?("-"+filterArea):"";
+    a.download = `BGPD-Fee-Report-${fyLabel}${areaLabel}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <div className="p-5 space-y-5">
@@ -6010,33 +6070,33 @@ function FeeReportTab({programs}) {
         <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{color:"rgba(255,255,255,0.65)"}}>Manager Report</div>
         <div className="text-xl font-black mb-1">Fee Analysis Report</div>
         <div className="text-sm" style={{color:"rgba(255,255,255,0.8)"}}>
-          Shows actual revenue per participant and cost recovery for programs with actuals entered.  Revenue per participant serves as a fee proxy for flat-rate programs.  Use this as a starting point for the annual master fee discussion with the board.
+          Shows current fee, actual revenue per participant, and cost recovery for programs with actuals entered.  Use this as a starting point for the annual master fee discussion with the board.
         </div>
       </div>
 
       {/* Note banner */}
       <div className="rounded px-4 py-3 text-xs" style={{background:"#EEF5E0",border:"1px solid #c4d98b",color:"#4A6B00"}}>
         <span className="font-bold">How to read this report: </span>
-        Revenue per participant is actual revenue divided by actual enrollment.  For flat-rate programs this equals the fee charged.  CR% is cost recovery using the same formula as the rest of the app.  Gap shows how far CR% sits from the service category target floor — negative numbers mean a fee increase may be warranted.  Programs without a service category assigned show no target or gap.
+        Current Fee is the fee entered on the program record.  Rev per Participant is actual revenue divided by actual enrollment (equals the fee for flat-rate programs).  Suggested Next FY Fee is the minimum fee needed to reach the service category CR target floor, calculated from actual cost data.  Programs without a service category assigned show no target or suggestion.
       </div>
 
       {/* Summary row */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
-          {label:"Programs Shown",  value:rows.length,                    fmt:n=>String(n)},
-          {label:"Total Revenue",   value:totalRevenue,                   fmt:fmt$},
-          {label:"Avg Enrollment",  value:totalEnroll/(rows.length||1),   fmt:n=>n.toFixed(0)},
-          {label:"Below Target",    value:belowTarget,                    fmt:n=>n+" program"+(n===1?"":"s"),color:belowTarget>0?"#E35205":"#4A6B00"},
+          {label:"Programs Shown",   value:rows.length,                    fmt:n=>String(n),            color:"#00A9CE"},
+          {label:"Total Revenue",    value:totalRevenue,                   fmt:fmt$,                    color:"#00A9CE"},
+          {label:"Below CR Target",  value:belowTarget,                    fmt:n=>String(n)+" program"+(n===1?"":"s"), color:belowTarget>0?"#E35205":"#4A6B00"},
+          {label:"Need Fee Increase",value:needsIncrease,                  fmt:n=>String(n)+" program"+(n===1?"":"s"), color:needsIncrease>0?"#E35205":"#4A6B00"},
         ].map(s=>(
           <div key={s.label} className="rounded p-3 text-center" style={{background:"#ffffff",border:"1px solid rgba(92,70,43,0.12)"}}>
             <div className="text-xs uppercase font-bold tracking-wide mb-1" style={{color:"#5C462B"}}>{s.label}</div>
-            <div className="text-lg font-black" style={{color:s.color||"#00A9CE"}}>{s.fmt(s.value)}</div>
+            <div className="text-lg font-black" style={{color:s.color}}>{s.fmt(s.value)}</div>
           </div>
         ))}
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3">
+      {/* Filters + Export */}
+      <div className="flex flex-wrap gap-3 items-center">
         {[
           {label:"Area",    val:filterArea, set:setFilterArea, opts:["All",...areas]},
           {label:"FY",      val:filterYear, set:setFilterYear, opts:["All",...years]},
@@ -6058,6 +6118,11 @@ function FeeReportTab({programs}) {
             Clear filters
           </button>
         )}
+        <button onClick={exportCSV}
+          className="text-xs font-bold px-3 py-1.5 rounded ml-auto"
+          style={{background:"#00A9CE",color:"#ffffff",border:"none"}}>
+          ⬇ Export CSV
+        </button>
       </div>
 
       {/* Table */}
@@ -6066,27 +6131,29 @@ function FeeReportTab({programs}) {
           <thead>
             <tr>
               {[
-                {col:"name",   label:"Program"},
-                {col:"area",   label:"Area"},
-                {col:"fy",     label:"FY"},
+                {col:"name",      label:"Program"},
+                {col:"area",      label:"Area"},
+                {col:"fy",        label:"FY"},
+                {col:"currentFee",label:"Current Fee"},
                 {col:"revPerPart",label:"Rev / Participant"},
-                {col:"cr",     label:"CR%"},
-                {col:"gap",    label:"Gap to Target"},
+                {col:"cr",        label:"CR%"},
+                {col:"gap",       label:"Gap to Target"},
+                {col:"suggested", label:"Suggested Next FY Fee"},
               ].map(h=>(
                 <th key={h.col} style={thStyle(h.col)} onClick={()=>toggleSort(h.col)}>
                   {h.label}<SortArrow col={h.col}/>
                 </th>
               ))}
-              <th style={{...thStyle("note"),cursor:"default"}}>Direction</th>
+              <th style={{...thStyle("dir"),cursor:"default",color:"#5C462B"}}>Direction</th>
             </tr>
           </thead>
           <tbody>
             {rows.length===0&&(
-              <tr><td colSpan={7} style={{padding:"24px",textAlign:"center",color:"#A09080",fontSize:"13px"}}>
-                No programs match — try clearing filters or make sure actuals are entered.
+              <tr><td colSpan={9} style={{padding:"24px",textAlign:"center",color:"#A09080",fontSize:"13px"}}>
+                No programs match.  Try clearing filters or confirm actuals are entered.
               </td></tr>
             )}
-            {rows.map(({p,revPerPart,crPct,target,gap},i)=>{
+            {rows.map(({p,revPerPart,crPct,target,gap,currentFee,suggestedFee},i)=>{
               const isBelow = gap!==null && gap < -0.001;
               const isAbove = gap!==null && gap > 0.001;
               const inRange = gap!==null && !isBelow && !isAbove;
@@ -6097,22 +6164,31 @@ function FeeReportTab({programs}) {
 
               let direction = "";
               let dirColor = "#6B5744";
-              if (!target) {direction="No target set";dirColor="#A09080";}
-              else if (isBelow && gap < -0.10) {direction="↑ Fee increase likely needed";dirColor="#E35205";}
-              else if (isBelow) {direction="↑ Consider fee increase";dirColor="#c76b00";}
-              else if (inRange) {direction="✓ On target";dirColor="#007A99";}
-              else {direction="Strong — hold or review";dirColor="#4A6B00";}
+              if (!target)                        {direction="No target set";                 dirColor="#A09080";}
+              else if (isBelow && gap < -0.10)    {direction="↑ Fee increase likely needed"; dirColor="#E35205";}
+              else if (isBelow)                   {direction="↑ Consider fee increase";      dirColor="#c76b00";}
+              else if (inRange)                   {direction="✓ On target";                  dirColor="#007A99";}
+              else                                {direction="✓ Strong, hold or review";     dirColor="#4A6B00";}
 
               return (
                 <tr key={p.id} style={{background:i%2===0?"#ffffff":"#fafaf8",borderBottom:"1px solid rgba(92,70,43,0.06)"}}>
-                  <td style={{padding:"8px 10px",fontWeight:600,color:"#3d2b1a",maxWidth:"200px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={p.name}>{p.name}</td>
+                  <td style={{padding:"8px 10px",fontWeight:600,color:"#3d2b1a",maxWidth:"180px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={p.name}>{p.name}</td>
                   <td style={{padding:"8px 10px",color:"#5C462B",fontSize:"12px"}}>{p.area||"—"}</td>
                   <td style={{padding:"8px 10px",color:"#5C462B",fontSize:"12px"}}>{toFY(p.year)||"—"}</td>
+                  <td style={{padding:"8px 10px",fontWeight:600,color:"#3d2b1a",fontFamily:"monospace"}}>{currentFee>0?fmt$(currentFee):<span style={{color:"#ccc"}}>not set</span>}</td>
                   <td style={{padding:"8px 10px",fontWeight:700,color:"#00A9CE",fontFamily:"monospace"}}>{fmt$(revPerPart)}</td>
-                  <td style={{padding:"8px 10px",fontWeight:700,color: crPct>=1?"#4A6B00":"#E35205",fontFamily:"monospace"}}>{fmtPct(crPct)}</td>
+                  <td style={{padding:"8px 10px",fontWeight:700,color:crPct>=1?"#4A6B00":"#E35205",fontFamily:"monospace"}}>{fmtPct(crPct)}</td>
                   <td style={{padding:"8px 10px",fontWeight:700,color:gapColor,fontFamily:"monospace"}}>
                     {gap===null?"—":(gap>=0?"+":"")+fmtPct(gap)}
                     {target&&<div style={{fontSize:"10px",fontWeight:400,color:"#A09080",fontFamily:"inherit"}}>target: {target.label}</div>}
+                  </td>
+                  <td style={{padding:"8px 10px",fontWeight:700,fontFamily:"monospace",color:suggestedFee!=null?"#E35205":"#A09080"}}>
+                    {suggestedFee!=null ? fmt$(suggestedFee) : <span style={{color:"#ccc",fontWeight:400}}>—</span>}
+                    {suggestedFee!=null&&currentFee>0&&(
+                      <div style={{fontSize:"10px",fontWeight:400,color:"#A09080",fontFamily:"inherit"}}>
+                        +{fmt$(suggestedFee-currentFee)} from current
+                      </div>
+                    )}
                   </td>
                   <td style={{padding:"8px 10px",fontSize:"12px",fontWeight:600,color:dirColor}}>{direction}</td>
                 </tr>
@@ -6125,9 +6201,10 @@ function FeeReportTab({programs}) {
       {/* Footer notes */}
       <div className="text-xs space-y-1" style={{color:"#A09080"}}>
         <div>• Only programs with actual revenue and enrollment entered appear here.  Archived programs are excluded.</div>
-        <div>• Revenue per participant = Actual Revenue ÷ Actual Enrollment.  This equals the fee for flat-rate programs.</div>
-        <div>• CR% uses the same formula as the rest of the app: Revenue ÷ (Direct Costs × 1.10 + FT Salary × Workload% + Facility Hours × $3).</div>
-        <div>• Gap to target requires a service category assigned in the program record.  Set service categories on the program form to unlock this column.</div>
+        <div>• Current Fee is the fee entered in the program record.  Set it on the program form to populate this column.</div>
+        <div>• Rev per Participant = Actual Revenue divided by Actual Enrollment.  For flat-rate programs this equals the fee charged.</div>
+        <div>• CR% uses the same formula as the rest of the app: Revenue divided by (Direct Costs times 1.10 plus FT Salary times Workload% plus Facility Hours times $3).</div>
+        <div>• Suggested Next FY Fee is the minimum per-participant fee needed to reach the service category CR target floor, based on actual costs.  It does not account for enrollment changes.</div>
         <div>• This report does not factor in fee assistance, scholarship discounts, or tiered pricing.  Review those programs individually before recommending an increase.</div>
       </div>
     </div>
