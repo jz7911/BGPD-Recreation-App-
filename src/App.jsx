@@ -5954,7 +5954,7 @@ function FeeReportTab({programs}) {
   const [sortCol,    setSortCol]    = useState("name");
   const [sortDir,    setSortDir]    = useState("asc");
 
-  // Only non-archived, non-deleted programs with actuals, limited to most recent FY
+  // Detect most recent FY that has at least some actuals entered
   const currentFY = useMemo(()=>{
     const fys = programs
       .filter(p=>!p.is_archived&&!p.is_deleted&&p.act_revenue>0&&p.act_enrollment>0)
@@ -5964,10 +5964,10 @@ function FeeReportTab({programs}) {
     return fys.sort().reverse()[0];
   },[programs]);
 
+  // All non-archived, non-deleted programs in the current FY — including those with no actuals yet
   const activeProgs = useMemo(()=>
     programs.filter(p=>
       !p.is_archived && !p.is_deleted &&
-      p.act_revenue>0 && p.act_enrollment>0 &&
       toFY(p.year)===currentFY
     ),
   [programs, currentFY]);
@@ -5988,14 +5988,17 @@ function FeeReportTab({programs}) {
     if (filterCat  !== "All") list = list.filter(p=>p.service_category===filterCat);
     return list.map(p=>{
       const cr         = calcCR(p,"act_");
-      const revPerPart = cr.enrollment>0 ? cr.revenue/cr.enrollment : 0;
+      const hasActuals = cr.enrollment>0 && cr.revenue>0;
+      const revPerPart = hasActuals ? cr.revenue/cr.enrollment : null;
       const crPct      = cr.crPct;
       const target     = getCRTarget(p);
       const gap        = crGap(crPct, target);
       const currentFee = parseFloat(p.fee)||0;
-      const {fee:suggestedFee, reason:sugReason} = calcSuggestedFee(crPct, target, cr, currentFee);
+      const {fee:suggestedFee, reason:sugReason} = hasActuals
+        ? calcSuggestedFee(crPct, target, cr, currentFee)
+        : {fee:null, reason:"no-data"};
       const dollarChange = (suggestedFee!=null && currentFee>0) ? suggestedFee - currentFee : null;
-      return {p, cr, revPerPart, crPct, target, gap, currentFee, suggestedFee, sugReason, dollarChange};
+      return {p, cr, hasActuals, revPerPart, crPct, target, gap, currentFee, suggestedFee, sugReason, dollarChange};
     }).sort((a,b)=>{
       let va=0,vb=0;
       if      (sortCol==="name")        {va=a.p.name||"";     vb=b.p.name||"";}
@@ -6018,6 +6021,7 @@ function FeeReportTab({programs}) {
   const belowFloor    = rows.filter(r=>r.sugReason==="below-floor").length;
   const inRange       = rows.filter(r=>r.sugReason==="in-range").length;
   const aboveCeiling  = rows.filter(r=>r.sugReason==="above-ceiling").length;
+  const noData        = rows.filter(r=>r.sugReason==="no-data").length;
   const totalRevenue  = rows.reduce((s,r)=>s+r.cr.revenue,0);
 
   const fmt$   = n => "$"+(n||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -6089,12 +6093,13 @@ function FeeReportTab({programs}) {
       </div>
 
       {/* Summary tiles */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
         {[
           {label:"Programs",      value:String(rows.length),               color:"#00A9CE"},
           {label:"Total Revenue", value:fmt$(totalRevenue),                color:"#00A9CE"},
           {label:"Need Increase", value:String(belowFloor)+" programs",    color:belowFloor>0?"#E35205":"#4A6B00"},
           {label:"Above Ceiling", value:String(aboveCeiling)+" programs",  color:aboveCeiling>0?"#007A99":"#A09080"},
+          {label:"No Actuals",    value:String(noData)+" programs",        color:noData>0?"#A09080":"#4A6B00"},
         ].map(s=>(
           <div key={s.label} className="rounded p-3 text-center" style={{background:"#fff",border:"1px solid rgba(92,70,43,0.12)"}}>
             <div className="text-xs uppercase font-bold tracking-wide mb-0.5" style={{color:"#5C462B"}}>{s.label}</div>
