@@ -4216,6 +4216,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
     decision:"Continue",decision_reason:"",action_items:"",next_review:"",pillars_met:"",redesign_strategies:"",
   };
   const [form,setForm]=useState(emptyForm);
+  const [crManual,setCrManual]=useState(false); // true when user has typed CR% directly
   const [activeStep,setActiveStep]=useState(0);
 
   const AGE_GROUPS=["All Ages","Early Childhood (0–5)","Children (6–12)","Youth (13–17)","Young Adults (18–34)","Adults (35–54)","Older Adults (55–64)","Seniors (65+)","Multigenerational / Family","Adaptive / Inclusive","Workforce / Special Interest"];
@@ -4256,7 +4257,18 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   }
   useEffect(()=>{load();},[]);
 
-  function s(k,v){setForm(p=>({...p,[k]:v}));}
+  function s(k,v){
+    setForm(prev=>{
+      const next={...prev,[k]:v};
+      // Auto-calc CR% from revenue / direct_costs unless user has manually overridden it
+      if((k==="revenue"||k==="direct_costs")&&!crManual){
+        const rev=parseFloat(k==="revenue"?v:next.revenue)||0;
+        const cost=parseFloat(k==="direct_costs"?v:next.direct_costs)||0;
+        if(cost>0) next.cost_recovery=Math.round((rev/cost)*100);
+      }
+      return next;
+    });
+  }
 
   // Auto-match program from programs list when name changes
   function handleProgramName(name){
@@ -4268,6 +4280,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
     if(match){
       const kpis=calcKPIs(match);
       const cr=calcCR(match,"act_");
+      setCrManual(false);
       setMatchedProgram(match);
       setForm(prev=>({
         ...prev,
@@ -4478,17 +4491,22 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
 
   function startNew(mode="full"){
     setEditRow(null);
+    setCrManual(false);
     setForm({...emptyForm, supervisor: isManager ? "" : staffName});
     setActiveStep(0);setMatchedProgram(null);setReviewMode(mode);setView("form");
   }
   function startEdit(r){
     setEditRow(r);
+    setCrManual(false);
     const prog=(reviewablePrograms||[]).find(p=>p.name?.toLowerCase()===r.program_name?.toLowerCase());
     const freshCR=prog?calcCR(prog,"act_"):null;
+    const freshRev=freshCR?Math.round(freshCR.revenue)||"":r.revenue||"";
+    const freshCost=freshCR?Math.round(freshCR.total)||"":r.direct_costs||"";
+    const autoCRPct=(parseFloat(freshCost)>0)?Math.round((parseFloat(freshRev)||0)/parseFloat(freshCost)*100):(r.cost_recovery||"");
     setForm({...emptyForm,...r,
-      revenue:freshCR?Math.round(freshCR.revenue)||"":r.revenue||"",
-      direct_costs:freshCR?Math.round(freshCR.total)||"":r.direct_costs||"",
-      cost_recovery:r.cost_recovery||"",prior_cr:r.prior_cr||"",
+      revenue:freshRev,
+      direct_costs:freshCost,
+      cost_recovery:autoCRPct,prior_cr:r.prior_cr||"",
       fill_rate:r.fill_rate||"",prior_fill_rate:r.prior_fill_rate||"",
       cancellation_rate:r.cancellation_rate||"",
       enrollment:r.enrollment||"",capacity:r.capacity||"",
@@ -5135,7 +5153,27 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               {inp("Revenue ($)","revenue","number")}
               {inp("Direct Costs ($)","direct_costs","number")}
-              {inp("Cost Recovery (%)","cost_recovery","number")}
+              {/* CR% — auto-calculated from revenue/costs, but manually overridable */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+                  Cost Recovery (%)
+                  {!crManual&&form.revenue&&form.direct_costs&&(
+                    <span className="text-xs font-bold px-1.5 py-0.5 rounded" style={{background:"#E6F6FB",color:"#007A99"}}>auto</span>
+                  )}
+                  {crManual&&(
+                    <button onClick={()=>{setCrManual(false);const rev=parseFloat(form.revenue)||0;const cost=parseFloat(form.direct_costs)||0;if(cost>0)s("cost_recovery",Math.round((rev/cost)*100));}}
+                      className="text-xs font-bold px-1.5 py-0.5 rounded" style={{background:"#FEF4DC",color:"#8A5E00",border:"1px solid rgba(138,94,0,0.2)"}}>
+                      reset to auto
+                    </button>
+                  )}
+                </label>
+                <input type="number" min={0} max={500}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  value={form.cost_recovery||""}
+                  onChange={e=>{setCrManual(true);s("cost_recovery",e.target.value);}}
+                  placeholder="auto"
+                />
+              </div>
               {inp("Prior Season CR (%)","prior_cr","number","",false,"Last season's cost recovery for comparison")}
             </div>
             {form.revenue&&form.direct_costs&&(
