@@ -143,7 +143,7 @@ const DB_FIELDS = [
   "fee",
   "nps_promoters","nps_passives","nps_detractors","nps_total",
   "fee_per_session","fee_ood",
-  "pricing_decision","pricing_target_fee","pricing_rationale","pricing_notes","pricing_subsidy","pricing_subsidy_amount","pricing_revisit_date",
+  "pricing_decision","pricing_target_fee","pricing_rationale","pricing_notes","pricing_subsidy","pricing_subsidy_amount",
   "is_umbrella","budget_mode","sub_programs","clubhouse_alloc","clubhouse_alloc_act",
   "ant_clubhouse_fee","act_clubhouse_fee",
   "peer_visible",
@@ -241,7 +241,7 @@ function newProgram(staffName) {
     other1_label:"Other Direct Costs", other2_label:"Other Direct Costs 2",
     decision_log: [],
     is_archived: false,
-    fee: 0, fee_per_session: null, fee_ood: null, pricing_revisit_date: null,
+    fee: 0, fee_per_session: null, fee_ood: null,
     nps_promoters:0,nps_passives:0,nps_detractors:0,nps_total:0,
     pricing_decision:"",pricing_target_fee:0,pricing_rationale:"",pricing_notes:"",pricing_subsidy:null,pricing_subsidy_amount:0,
     is_umbrella:false,budget_mode:"seasonal",sub_programs:[],clubhouse_alloc:null,clubhouse_alloc_act:null,
@@ -3370,8 +3370,6 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
   const [sec,setSec]         = useState("info");
   const [confirm,setConfirm]         = useState(false);
   const [confirmArchive,setConfirmArchive] = useState(false);
-  const [saveSuccess,setSaveSuccess] = useState(false);
-  const [lastSavedAt,setLastSavedAt] = useState(null);
   const [logEntry,setLogEntry] = useState("");
   const [dirty,setDirty]     = useState(false);
   const isNew                = !initial;
@@ -3428,9 +3426,6 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
   const handleSave = () => {
     saveLastUsed(staffName, {area:p.area, season:p.season, year:p.year, classification:p.classification, service_category:p.service_category, program_type:p.ant_program_type});
     setDirty(false);
-    setLastSavedAt(new Date());
-    setSaveSuccess(true);
-    setTimeout(()=>setSaveSuccess(false), 3000);
     onSave(p);
   };
 
@@ -3456,33 +3451,20 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
       )}
       {confirmArchive&&(
         <ConfirmModal
-          message={p.is_archived
-            ? `Restore "${p.name}" to active programs?`
-            : (p.act_enrollment>0
-                ? `"${p.name}" has ${p.act_enrollment} enrolled participants this season.  Archive anyway?  It will be hidden from dashboards and reports but can be restored later.`
-                : `Archive "${p.name}"?  It will be hidden from dashboards and reports but can be restored later.`)}
+          message={p.is_archived ? `Restore "${p.name}" to active programs?` : `Archive "${p.name}"? It will be hidden from dashboards and reports but can be restored later.`}
           onConfirm={()=>onArchive(p.id, !p.is_archived)}
           onCancel={()=>setConfirmArchive(false)}
           confirmLabel={p.is_archived?"Restore":"Archive"}
           confirmColor={p.is_archived?"#84BD00":"#64748b"}
         />
       )}
-      {saveSuccess&&(
-        <div className="px-4 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2" style={{background:"#EEF5E0",color:"#4A6B00",border:"1px solid #c3dea0"}}>
-          <span>✓ Saved</span>
-          {lastSavedAt&&<span className="font-normal text-xs" style={{color:"#6B8C2A"}}>{lastSavedAt.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</span>}
-        </div>
-      )}
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
             <h2 className="font-bold text-slate-800">{isNew?"Add Program":"Edit Program"}</h2>
-            {dirty&&<span className="text-xs bg-amber-100 px-2 py-0.5 rounded-full font-medium">Unsaved</span>}
+            {dirty&&<span className="text-xs bg-amber-100  px-2 py-0.5 rounded-full font-medium">Unsaved</span>}
           </div>
-          <div className="flex items-center gap-3 mt-0.5">
-            {lastUpdated&&<div className="text-xs text-slate-500">Last updated {new Date(lastUpdated).toLocaleDateString()}</div>}
-            {lastSavedAt&&!dirty&&<div className="text-xs text-slate-500">Saved {lastSavedAt.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</div>}
-          </div>
+          {lastUpdated&&<div className="text-xs text-slate-700 mt-0.5">Last updated {new Date(lastUpdated).toLocaleDateString()}</div>}
         </div>
         <button onClick={handleBack} className="text-sm text-slate-700 hover:text-slate-700">Back</button>
       </div>
@@ -3764,17 +3746,18 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
           {sec==="pricing"&&isManager&&(()=>{
             const enrollment=p.act_enrollment||p.ant_enrollment||0;
             const targetRev=svcTarget?k.totalCost*svcTarget.min:0;
-            const breakEvenRev=k.totalCost; // 100% CR
             const gap=targetRev-k.revenue;
             // Use the editable fee fields directly; fall back to computed revenue/enrollment
             const currentFeeID=p.fee>0?p.fee:(enrollment>0?k.revenue/enrollment:null);
             const currentFeeOOD=p.fee_ood>0?p.fee_ood:null;
             const currentFee=currentFeeID; // gap analysis always runs off in-district fee
-            const sugFee=enrollment>0&&targetRev>0?targetRev/enrollment:null; // fee to hit target minimum
-            const breakEvenFee=enrollment>0&&breakEvenRev>0?breakEvenRev/enrollment:null; // fee to hit 100% CR
+            const breakEvenRev=k.totalCost;
+            const breakEvenFee=enrollment>0&&breakEvenRev>0?breakEvenRev/enrollment:null;
+            const sugFee=enrollment>0&&targetRev>0?targetRev/enrollment:null;
             const feeGap=sugFee!=null&&currentFee!=null?sugFee-currentFee:null;
             const onTarget=svcTarget?k.costRecovery>=svcTarget.min:true;
             const oodBelowID=p.fee_ood>0&&p.fee>0&&p.fee_ood<p.fee;
+            const showGapFields=svcTarget&&!onTarget&&gap>0;
 
             // Live calculations from entered values
             const targetFeeEntered=parseFloat(p.pricing_target_fee)||0;
@@ -3839,7 +3822,6 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                       )}
                     </div>
                   </div>
-                  {/* Break-even fee reference */}
                   {breakEvenFee!=null&&enrollment>0&&(
                     <div className="mt-3 pt-3 border-t border-slate-200 flex flex-wrap gap-4 text-xs text-slate-600">
                       <span>Break-even fee (100% CR): <span className="font-semibold text-slate-800">{dollar(Math.ceil(breakEvenFee))}/person</span></span>
@@ -3889,23 +3871,21 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                 )}
 
                 {/* Manager pricing decision — always visible */}
-                {(()=>{
-                  const showGapFields=svcTarget&&!onTarget&&gap>0;
-                  return(
-                  <div className="rounded border border-slate-200 overflow-hidden">
-                    <div className="px-4 py-3 flex items-center justify-between border-b border-slate-100" style={{background:"#f0f4ff"}}>
-                      <div>
-                        <div className="text-xs font-bold text-slate-800 uppercase tracking-widest">Pricing Decision</div>
-                        <div className="text-xs text-slate-700 mt-0.5">
-                          {showGapFields?"Enter a target fee, an intentional subsidy amount, or both":"Document your fee decision and set a revisit date"}
-                        </div>
+                <div className="rounded border border-slate-200 overflow-hidden">
+                  <div className="px-4 py-3 flex items-center justify-between border-b border-slate-100" style={{background:"#f0f4ff"}}>
+                    <div>
+                      <div className="text-xs font-bold text-slate-800 uppercase tracking-widest">Pricing Decision</div>
+                      <div className="text-xs text-slate-700 mt-0.5">
+                        {showGapFields?"Enter a target fee, an intentional subsidy amount, or both":"Document your fee decision and set a revisit date"}
                       </div>
-                      <span className="text-xs font-bold px-2 py-1 rounded" style={{background:"#F5E6EF",color:"#3730a3"}}>Manager only</span>
                     </div>
-                    <div className="p-4 space-y-4">
+                    <span className="text-xs font-bold px-2 py-1 rounded" style={{background:"#F5E6EF",color:"#3730a3"}}>Manager only</span>
+                  </div>
+                  <div className="p-4 space-y-4">
 
-                      {/* Gap-specific fields — only shown when below target */}
-                      {showGapFields&&(<>
+                    {/* Gap-specific fields — only shown when below target */}
+                    {showGapFields&&(
+                      <>
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="p-4 rounded border border-slate-200 bg-slate-50 space-y-2">
                           <div className="text-xs font-bold text-slate-700 uppercase tracking-wide">Target fee</div>
@@ -3967,7 +3947,8 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                           </div>
                         </div>
                       )}
-                      </>)}
+                      </>
+                    )}
 
                       {/* Justification — always visible */}
                       <div>
@@ -3989,28 +3970,16 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                           style={{minHeight:"60px",fontFamily:"inherit"}}/>
                       </div>
 
-                      {/* Revisit date */}
-                      <div className="flex items-center gap-3 pt-1 border-t border-slate-100">
-                        <div className="flex-1">
-                          <div className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1">Revisit Date</div>
-                          <div className="text-xs text-slate-500 mb-2">Flag this program for pricing review at a future date</div>
-                          <input type="date" value={p.pricing_revisit_date||""} onChange={e=>setField("pricing_revisit_date")(e.target.value||null)}
-                            className="rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:border-blue-400 bg-white"
-                            style={{colorScheme:"light"}}/>
+                      {/* Revisit date — always visible */}
+                      <div className="flex flex-wrap items-end gap-4 pt-2 border-t border-slate-100">
+                        <div>
+                          <div className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1">Revisit date</div>
+                          <input type="date" value={p.pricing_revisit_date||""} onChange={e=>setField("pricing_revisit_date")(e.target.value)}
+                            className="rounded border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:border-blue-400 bg-white"/>
                         </div>
-                        {p.pricing_revisit_date&&(()=>{
-                          const days=Math.ceil((new Date(p.pricing_revisit_date)-new Date())/(1000*60*60*24));
-                          const overdue=days<0;
-                          const soon=days>=0&&days<=30;
-                          return(
-                            <div className="text-xs font-semibold px-2 py-1 rounded" style={{
-                              background:overdue?"#FDF0E6":soon?"#FFFBF0":"#EEF5E0",
-                              color:overdue?"#E35205":soon?"#8A5E00":"#4A6B00"
-                            }}>
-                              {overdue?`${Math.abs(days)}d overdue`:days===0?"Today":days===1?"Tomorrow":`${days}d away`}
-                            </div>
-                          );
-                        })()}
+                        {p.pricing_revisit_date&&new Date(p.pricing_revisit_date)<new Date()&&(
+                          <span className="text-xs font-bold px-2 py-1 rounded" style={{background:"#FEF3C7",color:"#92400E"}}>Past due — update this</span>
+                        )}
                       </div>
 
                     </div>
@@ -4090,9 +4059,6 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                       if(!next) return;
                       saveLastUsed(staffName,{area:p.area,season:p.season,year:p.year,classification:p.classification,service_category:p.service_category,program_type:p.ant_program_type});
                       setDirty(false);
-                      setLastSavedAt(new Date());
-                      setSaveSuccess(true);
-                      setTimeout(()=>setSaveSuccess(false), 3000);
                       setSec(next);
                       if(onSaveAndStay && !isNew) onSaveAndStay(p);
                     }}
@@ -4384,7 +4350,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
     s("program_name",name);
     if(!reviewablePrograms||!reviewablePrograms.length) return;
     // Prefer current FY + current season; fall back to most recent (list is sorted desc by FY)
-    const matched=reviewablePrograms.filter(p=>p.name?.toLowerCase().trim()===name.toLowerCase().trim()&&!p.is_archived&&!p.is_deleted);
+    const matched=reviewablePrograms.filter(p=>p.name?.toLowerCase()===name.toLowerCase()&&!p.is_archived&&!p.is_deleted);
     const match=matched.find(p=>p.year===ADMIN_CUR)||matched.find(p=>p.year===ADMIN_CUR.slice(-4))||matched[0];
     if(match){
       const kpis=calcKPIs(match);
@@ -4412,7 +4378,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
         // auto-calculate seasons below threshold from program history
         seasons_below_threshold:(()=>{
           const history=(programs||[]).filter(p=>
-            p.name?.toLowerCase().trim()===name.toLowerCase().trim()&&
+            p.name?.toLowerCase()===name.toLowerCase()&&
             p.area===match.area&&
             p.id!==match.id
           );
@@ -4434,7 +4400,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
     const fyIdx=ADMIN_FYS.indexOf(fy);
     const priorFY=fyIdx>0?ADMIN_FYS[fyIdx-1]:null;
     const prior=reviewablePrograms.find(p=>
-      p.name?.toLowerCase().trim()===name.toLowerCase().trim()&&
+      p.name?.toLowerCase()===name.toLowerCase()&&
       p.season===season&&
       p.year===priorFY?.slice(0,4)
     );
@@ -4450,7 +4416,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
 
   // History from past reviews
   function reviewHistory(name){
-    return reviews.filter(r=>r.program_name?.toLowerCase().trim()===name?.toLowerCase().trim())
+    return reviews.filter(r=>r.program_name?.toLowerCase()===name?.toLowerCase())
       .sort((a,b)=>new Date(b.review_date)-new Date(a.review_date));
   }
 
@@ -4607,7 +4573,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   function startEdit(r){
     setEditRow(r);
     setCrManual(false);
-    const prog=(reviewablePrograms||[]).find(p=>p.name?.toLowerCase().trim()===r.program_name?.toLowerCase().trim());
+    const prog=(reviewablePrograms||[]).find(p=>p.name?.toLowerCase()===r.program_name?.toLowerCase());
     const freshCR=prog?calcCR(prog,"act_"):null;
     const freshRev=freshCR?Math.round(freshCR.revenue)||"":r.revenue||"";
     const freshCost=freshCR?Math.round(freshCR.total)||"":r.direct_costs||"";
@@ -4837,12 +4803,12 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
             const frDelta=r.prior_fill_rate?r.fill_rate-r.prior_fill_rate:null;
             // Mismatch detection: compare saved CR% to current program actuals
             const currentProg=(reviewablePrograms||[]).find(p=>
-              p.name?.toLowerCase().trim()===r.program_name?.toLowerCase().trim()&&
+              p.name?.toLowerCase()===r.program_name?.toLowerCase()&&
               (p.year===ADMIN_CUR||p.year===ADMIN_CUR.slice(-4))&&
               !p.is_archived&&!p.is_deleted
             );
             const currentCR=currentProg?Math.round(calcCR(currentProg,"act_").crPct*100):null;
-            const crMismatch=currentCR!==null&&r.cost_recovery&&Math.abs(currentCR-(r.cost_recovery||0))>10;
+            const crMismatch=currentCR!==null&&r.cost_recovery&&Math.abs(currentCR-(r.cost_recovery||0))>5;
             return(
               <div key={r.id} className={`${i>0?"border-t border-slate-50":""} px-4 py-4 flex items-start gap-4 hover:bg-gray-200 transition ${savedId===r.id?"bg-green-50 border-l-4 border-green-400":""}`}>
                 <div className="shrink-0 mt-0.5 w-24 text-center">
