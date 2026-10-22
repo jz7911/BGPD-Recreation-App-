@@ -4015,6 +4015,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
 
                     </div>
                   </div>
+              </div>
             );
           })()}
           {sec==="log"&&(
