@@ -3755,7 +3755,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
             const breakEvenFee=enrollment>0&&breakEvenRev>0?breakEvenRev/enrollment:null;
             const sugFee=enrollment>0&&targetRev>0?targetRev/enrollment:null;
             const feeGap=sugFee!=null&&currentFee!=null?sugFee-currentFee:null;
-            const onTarget=svcTarget?k.costRecovery>=svcTarget.min:true;
+            const onTarget=svcTarget?(svcTarget.expectSubsidy?k.costRecovery<=svcTarget.max+0.01:k.costRecovery>=svcTarget.min):true;
             const oodBelowID=p.fee_ood>0&&p.fee>0&&p.fee_ood<p.fee;
             const showGapFields=svcTarget&&!onTarget&&gap>0;
 
@@ -4349,9 +4349,11 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   function handleProgramName(name){
     s("program_name",name);
     if(!reviewablePrograms||!reviewablePrograms.length) return;
-    // Prefer current FY + current season; fall back to most recent (list is sorted desc by FY)
-    const matched=reviewablePrograms.filter(p=>p.name?.toLowerCase()===name.toLowerCase()&&!p.is_archived&&!p.is_deleted);
-    const match=matched.find(p=>p.year===ADMIN_CUR)||matched.find(p=>p.year===ADMIN_CUR.slice(-4))||matched[0];
+    // Match against the FY already selected in the form — gives us the right supervisor and data for that year
+    const selectedFY=form.fy||ADMIN_CUR;
+    const selectedYear=selectedFY.slice(-2); // e.g. "26" from "FY25-26"
+    const matched=reviewablePrograms.filter(p=>p.name?.toLowerCase().trim()===name.toLowerCase().trim()&&!p.is_archived&&!p.is_deleted);
+    const match=matched.find(p=>p.year===selectedFY)||matched.find(p=>p.year?.slice(-2)===selectedYear)||matched.find(p=>p.year===ADMIN_CUR)||matched[0];
     if(match){
       const kpis=calcKPIs(match);
       const cr=calcCR(match,"act_");
@@ -4734,7 +4736,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                 r.fill_rate||0,r.cost_recovery||0,r.revenue||0,r.direct_costs||0,
                 r.trend,r.decision,r.pillars_met,r.action_items||""
               ].map(v=>`"${String(v||"").replace(/"/g,'""')}"`).join(","));
-              const headers=["Program","Supervisor","Area","Season","FY","Review Date","Fill %","CR %","Revenue","Direct Costs","Trend","Decision","Pillars Met","Action Items"].join(",");
+              const headers=["Program","Supervisor","Area","Season","FY","Review Date","Fill %","CR %","Revenue","Total Program Cost","Trend","Decision","Pillars Met","Action Items"].join(",");
               const blob=new Blob([headers+"\n"+rows.join("\n")],{type:"text/csv"});
               const a=document.createElement("a");
               a.href=URL.createObjectURL(blob);
@@ -4920,7 +4922,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               <div>
                 <div className="text-xs font-bold uppercase tracking-widest text-slate-700 mb-2">💰 Financial</div>
                 <Row k="Revenue" v={r.revenue?`$${Number(r.revenue).toLocaleString()}`:null}/>
-                <Row k="Direct Costs" v={r.direct_costs?`$${Number(r.direct_costs).toLocaleString()}`:null}/>
+                <Row k="Total Program Cost" v={r.direct_costs?`$${Number(r.direct_costs).toLocaleString()}`:null}/>
                 <Row k="Cost Recovery" v={r.cost_recovery?`${r.cost_recovery}%`:null}/>
                 <Row k="Prior CR" v={r.prior_cr?`${r.prior_cr}%`:null}/>
                 <Row k="Classification" v={r.classification}/>
@@ -5089,7 +5091,13 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               <input value={form.program_name} onChange={e=>handleProgramName(e.target.value)}
                 list="program-list-q" className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2"/>
               <datalist id="program-list-q">
-                {[...new Set((programs||[]).map(p=>p.name).filter(Boolean))].sort().map(n=><option key={n} value={n}/>)}
+                {(()=>{
+                  const fy=form.fy||ADMIN_CUR;
+                  const yr=fy.slice(-2);
+                  const fyProgs=(programs||[]).filter(p=>!p.is_archived&&!p.is_deleted&&(p.year===fy||p.year?.slice(-2)===yr));
+                  const seen=new Set();
+                  return fyProgs.map(p=>p.name?.trim()).filter(n=>{if(!n)return false;const k=n.toLowerCase();if(seen.has(k))return false;seen.add(k);return true;}).sort().map(n=><option key={n} value={n}/>);
+                })()}
               </datalist>
             </div>
             <div>
@@ -5159,7 +5167,13 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               <input value={form.program_name} onChange={e=>handleProgramName(e.target.value)}
                 list="program-list" className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2"/>
               <datalist id="program-list">
-                {[...new Set((programs||[]).map(p=>p.name).filter(Boolean))].sort().map(n=><option key={n} value={n}/>)}
+                {(()=>{
+                  const fy=form.fy||ADMIN_CUR;
+                  const yr=fy.slice(-2);
+                  const fyProgs=(programs||[]).filter(p=>!p.is_archived&&!p.is_deleted&&(p.year===fy||p.year?.slice(-2)===yr));
+                  const seen=new Set();
+                  return fyProgs.map(p=>p.name?.trim()).filter(n=>{if(!n)return false;const k=n.toLowerCase();if(seen.has(k))return false;seen.add(k);return true;}).sort().map(n=><option key={n} value={n}/>);
+                })()}
               </datalist>
               {matchedProgram&&(()=>{
                 const mk=calcKPIs(matchedProgram);
@@ -5171,7 +5185,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                       <span>Fill: <b>{Math.round((mk.fillRate||0)*100)}%</b></span>
                       <span>CR: <b>{Math.round((mk.costRecovery||0)*100)}%</b></span>
                       <span>Revenue: <b>{dollar(matchedProgram.act_revenue||0)}</b></span>
-                      <span>Direct Costs: <b>{dollar(dc)}</b></span>
+                      <span>Total Program Cost: <b>{dollar(dc)}</b></span>
                       {matchedProgram.act_enrollment>0&&<span>Enrolled: <b>{matchedProgram.act_enrollment}/{matchedProgram.act_capacity}</b></span>}
                       <span className="text-blue-500">All fields pre-filled ↓</span>
                     </div>
@@ -5227,7 +5241,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
             <div className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">💰 Financial Stewardship <span className="text-xs font-normal text-red-500 ml-2">Required Pillar</span></div>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               {inp("Revenue ($)","revenue","number")}
-              {inp("Direct Costs ($)","direct_costs","number")}
+              {inp("Total Program Cost ($)","direct_costs","number")}
               {/* CR% — auto-calculated from revenue/costs, but manually overridable */}
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
@@ -7947,6 +7961,7 @@ function getRedesignSuggestions(programType, fillRate, costRecovery, area, decis
     suggestions.push({id:"pricing",   label:"Adjust the fee",                  detail:"If fill rate is healthy but cost recovery is low, the fee may be underpriced. A $5–10 increase per participant often has minimal enrollment impact but meaningfully shifts cost recovery (NRPA)."});
     suggestions.push({id:"marketing", label:"Rewrite the program description", detail:"IPRA best practice: outcome-focused descriptions outperform logistics-focused ones. 'Build confidence in a welcoming group' outperforms 'Mondays 6–7pm, 8 weeks.' A rewrite alone has driven 20–40% registration spikes."});
     suggestions.push({id:"costs",     label:"Trim direct costs",               detail:"Review each cost line for efficiency. Can the instructor rate be adjusted? Are supplies over-ordered? A 10% reduction in direct costs equals a 10% fee increase in cost recovery impact — with no enrollment risk."});
+    suggestions.push({id:"event_refresh", label:"Refresh the event experience",   detail:"When an event has run the same way for multiple years, attendance plateaus or declines even with good marketing. Consider adding a new activity station, changing the theme, updating the entertainment, or dropping an element that no longer draws. Small changes signal to past attendees that it is worth coming back."});
     if (type.includes("Camp")) suggestions.push({id:"camp_age", label:"Narrow the age range", detail:"Tighter age bands (2-year spans) produce stronger programming quality, retention, and word-of-mouth. A camp spanning ages 6–14 serves 8 developmental stages poorly."});
     if (type.includes("League")) suggestions.push({id:"league_length", label:"Shorten the season", detail:"Shorter seasons (6–8 weeks vs. 12) reduce commitment barriers and typically increase fill rate. Consider adding a one-day tournament at the end."});
   }
