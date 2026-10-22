@@ -142,6 +142,7 @@ const DB_FIELDS = [
   "is_archived",
   "fee",
   "nps_promoters","nps_passives","nps_detractors","nps_total",
+  "fee_per_session","fee_ood",
   "pricing_decision","pricing_target_fee","pricing_rationale","pricing_notes","pricing_subsidy","pricing_subsidy_amount",
   "is_umbrella","budget_mode","sub_programs","clubhouse_alloc","clubhouse_alloc_act",
   "ant_clubhouse_fee","act_clubhouse_fee",
@@ -240,7 +241,7 @@ function newProgram(staffName) {
     other1_label:"Other Direct Costs", other2_label:"Other Direct Costs 2",
     decision_log: [],
     is_archived: false,
-    fee: 0,
+    fee: 0, fee_per_session: null, fee_ood: null,
     nps_promoters:0,nps_passives:0,nps_detractors:0,nps_total:0,
     pricing_decision:"",pricing_target_fee:0,pricing_rationale:"",pricing_notes:"",pricing_subsidy:null,pricing_subsidy_amount:0,
     is_umbrella:false,budget_mode:"seasonal",sub_programs:[],clubhouse_alloc:null,clubhouse_alloc_act:null,
@@ -882,6 +883,14 @@ function CostPanel({px,p,set,isManager=false}) {
             <span className="text-xs text-slate-700 shrink-0">($)</span>
           </div>
           <input type="number" min={0} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-300" value={p[px+"revenue3"]||""} onChange={e=>set(px+"revenue3")(parseFloat(e.target.value)||0)} placeholder="0"/>
+        </div>
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-1">
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Per Class / Session Fee</span>
+            <span className="text-xs text-slate-500 shrink-0">($)</span>
+          </div>
+          <input type="number" min={0} className="w-full rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-200 text-slate-600" value={p.fee_per_session||""} onChange={e=>set("fee_per_session")(parseFloat(e.target.value)||null)} placeholder="Reference only"/>
+          <div className="text-xs text-slate-400 leading-tight">Reference only — does not affect calculations</div>
         </div>
       </div>
       <div>
@@ -3738,7 +3747,10 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
             const enrollment=p.act_enrollment||p.ant_enrollment||0;
             const targetRev=svcTarget?k.totalCost*svcTarget.min:0;
             const gap=targetRev-k.revenue;
-            const currentFee=p.fee>0?p.fee:(enrollment>0?k.revenue/enrollment:null);
+            // Use the editable fee fields directly; fall back to computed revenue/enrollment
+            const currentFeeID=p.fee>0?p.fee:(enrollment>0?k.revenue/enrollment:null);
+            const currentFeeOOD=p.fee_ood>0?p.fee_ood:null;
+            const currentFee=currentFeeID; // gap analysis always runs off in-district fee
             const sugFee=enrollment>0&&targetRev>0?targetRev/enrollment:null;
             const feeGap=sugFee!=null&&currentFee!=null?sugFee-currentFee:null;
             const onTarget=svcTarget?k.costRecovery>=svcTarget.min:true;
@@ -3754,22 +3766,54 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
             const gapClosedBySubsidy=subsidyEntered>0?Math.min(subsidyEntered,Math.max(gap-gapClosedByFee,0)):0;
             const unresolvedGap=Math.max(0,gap-gapClosedByFee-gapClosedBySubsidy);
 
+            // Live projected CR from current in-district fee * enrollment
+            const projRevID=(p.fee||0)*enrollment;
+            const projCRID=k.totalCost>0?projRevID/k.totalCost:null;
+            const projRevOOD=(p.fee_ood||0)*enrollment;
+            const projCROOD=k.totalCost>0?projRevOOD/k.totalCost:null;
+
             return(
               <div className="space-y-5">
                 <div>
                   <h3 className="font-bold text-slate-800 text-sm mb-1">Pricing Analysis</h3>
-                  <p className="text-xs text-slate-700">Set the current fee, review the cost recovery gap, and document intentional pricing decisions.</p>
+                  <p className="text-xs text-slate-700">Set current fees, review the cost recovery gap, and document intentional pricing decisions.  Change either fee and the calculations update automatically.</p>
                 </div>
 
-                {/* Current fee */}
+                {/* Current fees — in-district and out-of-district side by side */}
                 <div className="p-4 bg-slate-50 rounded border border-slate-100">
-                  <div className="text-xs font-bold text-slate-700 uppercase tracking-widest mb-2">Current In-District Fee</div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-slate-700">$</span>
-                    <input type="number" value={p.fee||""} onChange={e=>setField("fee")(parseFloat(e.target.value)||0)}
-                      className="w-32 rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:border-blue-400"
-                      placeholder="0" min={0} style={{MozAppearance:"textfield"}}/>
-                    <span className="text-xs text-slate-700">per participant</span>
+                  <div className="text-xs font-bold text-slate-700 uppercase tracking-widest mb-3">Current Fees</div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {/* In-district */}
+                    <div className="space-y-1">
+                      <div className="text-xs font-semibold text-slate-600 uppercase tracking-wide">In-District</div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-700">$</span>
+                        <input type="number" value={p.fee||""} onChange={e=>setField("fee")(parseFloat(e.target.value)||0)}
+                          className="w-28 rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:border-blue-400 bg-white"
+                          placeholder="0" min={0} style={{MozAppearance:"textfield"}}/>
+                        <span className="text-xs text-slate-700">per participant</span>
+                      </div>
+                      {p.fee>0&&enrollment>0&&projCRID!=null&&(
+                        <div className="text-xs text-slate-500">Projected CR at this fee: <span className="font-semibold text-slate-700">{pct(projCRID)}</span></div>
+                      )}
+                    </div>
+                    {/* Out-of-district */}
+                    <div className="space-y-1">
+                      <div className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Out-of-District</div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-700">$</span>
+                        <input type="number" value={p.fee_ood||""} onChange={e=>setField("fee_ood")(parseFloat(e.target.value)||null)}
+                          className="w-28 rounded border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:border-blue-400 bg-white"
+                          placeholder="0" min={0} style={{MozAppearance:"textfield"}}/>
+                        <span className="text-xs text-slate-700">per participant</span>
+                      </div>
+                      {p.fee_ood>0&&enrollment>0&&projCROOD!=null&&(
+                        <div className="text-xs text-slate-500">Projected CR at this fee: <span className="font-semibold text-slate-700">{pct(projCROOD)}</span></div>
+                      )}
+                      {p.fee_ood>0&&p.fee>0&&(
+                        <div className="text-xs text-slate-500">OOD premium: <span className="font-semibold text-slate-700">+{dollar(p.fee_ood-p.fee)} ({(((p.fee_ood-p.fee)/p.fee)*100).toFixed(0)}%)</span></div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
