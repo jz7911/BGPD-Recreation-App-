@@ -3500,16 +3500,21 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
       )}
 
       {/* Service category target banner */}
-      {svcTarget&&hasActuals&&(
-        <div className={`rounded-lg px-4 py-2.5 flex items-center gap-3 border text-sm ${svcTarget.onTarget?"bg-green-50 border-green-200 text-green-800":" border-amber-200 text-amber-800"}`}>
-          <span className="text-base">{svcTarget.onTarget?"✓":"⚠"}</span>
-          <div>
-            <span className="font-semibold">{p.service_category} target: {svcTarget.label}</span>
-            <span className="ml-2 font-normal opacity-75">— Actual cost recovery: {pct(k.costRecovery)}</span>
-            {!svcTarget.onTarget&&<span className="ml-2 font-bold font-medium">Not yet on target.</span>}
+      {svcTarget&&hasActuals&&(()=>{
+        const exceedsTarget=svcTarget.expectSubsidy&&k.costRecovery>svcTarget.max+0.01;
+        const bannerClass=svcTarget.onTarget?"bg-green-50 border-green-200 text-green-800":exceedsTarget?"border-teal-200 text-teal-800":"border-amber-200 text-amber-800";
+        return(
+          <div className={`rounded-lg px-4 py-2.5 flex items-center gap-3 border text-sm ${bannerClass}`} style={exceedsTarget?{background:"#f0fdfa"}:{}}>
+            <span className="text-base">{svcTarget.onTarget||exceedsTarget?"✓":"⚠"}</span>
+            <div>
+              <span className="font-semibold">{p.service_category} target: {svcTarget.label}</span>
+              <span className="ml-2 font-normal opacity-75">— Actual cost recovery: {pct(k.costRecovery)}</span>
+              {exceedsTarget&&<span className="ml-2 font-bold" style={{color:"#0d9488"}}>Exceeds target.</span>}
+              {!svcTarget.onTarget&&!exceedsTarget&&<span className="ml-2 font-bold font-medium">Not yet on target.</span>}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       <div className="bg-white overflow-hidden" style={{borderRadius:"4px",border:"1px solid rgba(92,70,43,0.15)"}}>
         <div className="flex border-b border-slate-100 overflow-x-auto scrollbar-none">
@@ -3717,13 +3722,17 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
               {/* Read-only CR status for all users on Summary tab */}
               {svcTarget&&(hasActuals||p.fee>0)&&(()=>{
                 const onTarget=svcTarget.onTarget;
+                const exceedsTarget=svcTarget.expectSubsidy&&k.costRecovery>svcTarget.max+0.01;
+                const bannerClass=onTarget?"bg-green-50 border-green-200":exceedsTarget?"border-teal-200":"border-amber-200";
+                const textColor=onTarget?"#4A6B00":exceedsTarget?"#0d9488":"#8A5E00";
                 return(
-                  <div className={`rounded px-4 py-3 flex items-center gap-3 border text-sm ${onTarget?"bg-green-50 border-green-200":" border-amber-200"}`}>
-                    <span className="text-lg">{onTarget?"✓":"⚠"}</span>
+                  <div className={`rounded px-4 py-3 flex items-center gap-3 border text-sm ${bannerClass}`} style={exceedsTarget?{background:"#f0fdfa"}:{}}>
+                    <span className="text-lg">{onTarget||exceedsTarget?"✓":"⚠"}</span>
                     <div className="flex-1">
-                      <span className="font-semibold" style={{color:onTarget?"#4A6B00":"#8A5E00"}}>{p.service_category} target: {svcTarget.label}</span>
-                      <span className="ml-2 text-xs opacity-75" style={{color:onTarget?"#4A6B00":"#8A5E00"}}>Actual: {pct(k.costRecovery)}</span>
-                      {!onTarget&&<span className="ml-2 text-xs font-medium" style={{color:"#8A5E00"}}>— {isManager?"See Pricing tab for fee analysis":"Below target"}</span>}
+                      <span className="font-semibold" style={{color:textColor}}>{p.service_category} target: {svcTarget.label}</span>
+                      <span className="ml-2 text-xs opacity-75" style={{color:textColor}}>Actual: {pct(k.costRecovery)}</span>
+                      {exceedsTarget&&<span className="ml-2 text-xs font-medium" style={{color:"#0d9488"}}>— Exceeds target</span>}
+                      {!onTarget&&!exceedsTarget&&<span className="ml-2 text-xs font-medium" style={{color:"#8A5E00"}}>— {isManager?"See Pricing tab for fee analysis":"Below target"}</span>}
                     </div>
                     {p.fee>0&&<div className="text-right"><div className="text-xs text-slate-700">Current fee</div><div className="font-bold text-slate-800">{dollar(p.fee)}/person</div></div>}
                   </div>
@@ -3836,16 +3845,22 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                 </div>
 
                 {/* CR gap summary */}
-                {svcTarget&&(hasActuals||p.fee>0)&&(
-                  <div className={`rounded border overflow-hidden`} style={{borderColor:onTarget?"#C0DD97":"#FAD679"}}>
-                    <div className="px-4 py-3 flex items-center gap-2" style={{background:onTarget?"#EEF5E0":"#FFFBF0"}}>
-                      <span className="text-base">{onTarget?"✓":"⚠"}</span>
-                      <span className="font-semibold text-sm" style={{color:onTarget?"#4A6B00":"#8A5E00"}}>
+                {svcTarget&&(hasActuals||p.fee>0)&&(()=>{
+                  const exceedsTarget=svcTarget.expectSubsidy&&k.costRecovery>svcTarget.max+0.01;
+                  const borderColor=onTarget?"#C0DD97":exceedsTarget?"#99f6e4":"#FAD679";
+                  const bgColor=onTarget?"#EEF5E0":exceedsTarget?"#f0fdfa":"#FFFBF0";
+                  const textColor=onTarget?"#4A6B00":exceedsTarget?"#0d9488":"#8A5E00";
+                  return(
+                  <div className={`rounded border overflow-hidden`} style={{borderColor}}>
+                    <div className="px-4 py-3 flex items-center gap-2" style={{background:bgColor}}>
+                      <span className="text-base">{onTarget||exceedsTarget?"✓":"⚠"}</span>
+                      <span className="font-semibold text-sm" style={{color:textColor}}>
                         {p.service_category} target: {svcTarget.label}
                       </span>
-                      <span className="text-xs opacity-75 ml-1" style={{color:onTarget?"#4A6B00":"#8A5E00"}}>
+                      <span className="text-xs opacity-75 ml-1" style={{color:textColor}}>
                         Actual: {pct(k.costRecovery)}
                       </span>
+                      {exceedsTarget&&<span className="text-xs font-semibold ml-1" style={{color:"#0d9488"}}>— Exceeds target</span>}
                     </div>
                     {!onTarget&&gap>0&&(
                       <div className="px-4 py-3 grid grid-cols-3 gap-4 border-t" style={{borderColor:"#FAD679",background:"#fefce8"}}>
@@ -3871,7 +3886,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                       </div>
                     )}
                   </div>
-                )}
+                );})()}
 
                 {/* Manager pricing decision — always visible */}
                 <div className="rounded border border-slate-200 overflow-hidden">
