@@ -206,8 +206,11 @@ function calcCR(p, px) {
 function calcKPIs(p) {
   const a = calcCR(p, "ant_");
   const b = calcCR(p, "act_");
+  const svt = getSvcTarget(p.service_category, b.crPct);
+  // Use the service category target when available; fall back to the generic 100% threshold
+  const crOnTarget = svt ? svt.onTarget : b.crPct >= 1.0;
   let status = "Monitor";
-  if (b.fillRate >= 0.7 && b.crPct >= 1.0)    status = "Healthy";
+  if (b.fillRate >= 0.7 && crOnTarget)         status = "Healthy";
   else if (b.fillRate < 0.6 || b.crPct < 0.5) status = "Needs Redesign";
   return {
     fillRate: b.fillRate, costRecovery: b.crPct,
@@ -691,7 +694,7 @@ function CRGapPanel({svcTarget,k,p}){
   if(!svcTarget) return null;
   const targetCR = svcTarget.min;
   const actualCR = k.costRecovery;
-  const onTarget = actualCR >= targetCR;
+  const onTarget = svcTarget.onTarget;
   const targetRevenue = k.totalCost * targetCR;
   const gap = targetRevenue - k.revenue;
   // Use actuals enrollment, fall back to budgeted if not yet entered
@@ -3713,7 +3716,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
               </div>
               {/* Read-only CR status for all users on Summary tab */}
               {svcTarget&&(hasActuals||p.fee>0)&&(()=>{
-                const onTarget=k.costRecovery>=svcTarget.min;
+                const onTarget=svcTarget.onTarget;
                 return(
                   <div className={`rounded px-4 py-3 flex items-center gap-3 border text-sm ${onTarget?"bg-green-50 border-green-200":" border-amber-200"}`}>
                     <span className="text-lg">{onTarget?"✓":"⚠"}</span>
@@ -4763,10 +4766,10 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
           {label:"Adjust",value:reviews.filter(r=>r.decision==="Adjust").length,accent:"#F6AB00"},
           {label:"Expand",value:reviews.filter(r=>r.decision==="Expand").length,accent:"#00A9CE"},
           {label:"Redesign",value:reviews.filter(r=>r.decision==="Redesign").length,accent:"#E35205"},
-          {label:"Sunset",value:reviews.filter(r=>r.decision==="Sunset Review").length,accent:"#E35205"},
+          {label:"Sunset",value:reviews.filter(r=>r.decision==="Sunset Review").length,accent:"#E35205",filter:"Sunset Review"},
         ].map(c=>(
           <div key={c.label} className="bg-white rounded border border-slate-100 shadow-sm p-3 text-center cursor-pointer hover:border-slate-200 transition"
-            onClick={()=>setDecFilter(decFilter===c.label||(c.label==="Total"&&decFilter==="all")?"all":c.label==="Total"?"all":c.label)}>
+            onClick={()=>{const fv=c.filter||c.label;setDecFilter(decFilter===fv||(c.label==="Total"&&decFilter==="all")?"all":c.label==="Total"?"all":fv);}}>
             <div className="text-2xl font-black" style={{color:c.accent}}>{c.value}</div>
             <div className="text-xs text-slate-700 mt-0.5">{c.label}</div>
           </div>
