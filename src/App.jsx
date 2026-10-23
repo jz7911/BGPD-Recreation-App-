@@ -4821,14 +4821,21 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
             const pMet=(r.pillars_met||"").split(",").filter(Boolean).length;
             const dc=dcColor[r.decision]||"#64748b";
             const frDelta=r.prior_fill_rate?r.fill_rate-r.prior_fill_rate:null;
-            // Mismatch detection: compare saved CR% to current program actuals
+            // Match program for this review's FY so CR/fill are always live-computed
+            const reviewFY=r.fy||ADMIN_CUR;
+            const reviewYr=reviewFY.slice(-2);
             const currentProg=(reviewablePrograms||[]).find(p=>
               p.name?.toLowerCase()===r.program_name?.toLowerCase()&&
-              (p.year===ADMIN_CUR||p.year===ADMIN_CUR.slice(-4))&&
-              !p.is_archived&&!p.is_deleted
+              !p.is_archived&&!p.is_deleted&&
+              (p.year===reviewFY||p.year?.slice(-2)===reviewYr)
             );
-            const currentCR=currentProg?Math.round(calcCR(currentProg,"act_").crPct*100):null;
-            const crMismatch=currentCR!==null&&r.cost_recovery&&Math.abs(currentCR-(r.cost_recovery||0))>5;
+            const liveCRCalc=currentProg?calcCR(currentProg,"act_"):null;
+            const currentCR=liveCRCalc?Math.round(liveCRCalc.crPct*100):null;
+            const currentFill=currentProg?Math.round((currentProg.act_enrollment||0)/(currentProg.act_capacity||1)*100):null;
+            // Show live figures when available; fall back to saved snapshot
+            const displayCR=currentCR!==null?currentCR:(r.cost_recovery||0);
+            const displayFill=currentFill!==null?currentFill:(r.fill_rate||0);
+            const crMismatch=currentCR!==null&&r.cost_recovery&&Math.abs(currentCR-(r.cost_recovery||0))>2;
             return(
               <div key={r.id} className={`${i>0?"border-t border-slate-50":""} px-4 py-4 flex items-start gap-4 hover:bg-gray-200 transition ${savedId===r.id?"bg-green-50 border-l-4 border-green-400":""}`}>
                 <div className="shrink-0 mt-0.5 w-24 text-center">
@@ -4841,11 +4848,11 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                     {r.updated_at&&<span className="ml-2 text-slate-400">· saved {new Date(r.updated_at).toLocaleDateString()}</span>}
                   </div>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs">
-                    <span className="text-slate-700">Fill: <span className="font-bold">{r.fill_rate||0}%</span>
+                    <span className="text-slate-700">Fill: <span className="font-bold">{displayFill}%</span>
                       {frDelta!==null&&<span style={{color:frDelta>=0?"#84BD00":"#E35205",marginLeft:"3px"}}>{frDelta>=0?"▲":"▼"}{Math.abs(frDelta).toFixed(0)}pp</span>}
                     </span>
-                    <span className="text-slate-700">CR: <span className="font-bold">{r.cost_recovery||0}%</span>
-                      {crMismatch&&<span className="ml-1.5 px-1.5 py-0.5 rounded text-xs font-bold" style={{background:"#FDF0E6",color:"#E35205"}}>⚠ App shows {currentCR}% — needs update</span>}
+                    <span className="text-slate-700">CR: <span className="font-bold">{displayCR}%</span>
+                      {crMismatch&&<span className="ml-1.5 px-1.5 py-0.5 rounded text-xs font-bold" style={{background:"#FEF3C7",color:"#92400E"}}>snapshot: {r.cost_recovery}%</span>}
                     </span>
                     {r.seasons_below_threshold>0&&<span className="font-semibold" style={{color:r.seasons_below_threshold>=2?"#E35205":"#F6AB00"}}>{r.seasons_below_threshold} season{r.seasons_below_threshold>1?"s":""} below threshold</span>}
                     <span style={{color:pMet>=3?"#84BD00":"#E35205"}} className="font-semibold">{pMet}/5 pillars</span>
