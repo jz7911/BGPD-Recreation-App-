@@ -5195,15 +5195,15 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               </datalist>
               {matchedProgram&&(()=>{
                 const mk=calcKPIs(matchedProgram);
-                const dc=(matchedProgram.act_personnel||0)+(matchedProgram.act_commodities||0)+(matchedProgram.act_contractuals||0)+(matchedProgram.act_other1||0)+(matchedProgram.act_other2||0);
+                const actCR=calcCR(matchedProgram,"act_");
                 return(
                   <div className="mt-1.5 px-3 py-2 rounded-lg bg-blue-50 border border-blue-100 text-xs text-blue-700 space-y-1">
                     <div className="flex flex-wrap gap-x-3 gap-y-0.5 items-center">
                       <span className="font-bold">✓ Matched —</span>
                       <span>Fill: <b>{Math.round((mk.fillRate||0)*100)}%</b></span>
                       <span>CR: <b>{Math.round((mk.costRecovery||0)*100)}%</b></span>
-                      <span>Revenue: <b>{dollar(matchedProgram.act_revenue||0)}</b></span>
-                      <span>Total Program Cost: <b>{dollar(dc)}</b></span>
+                      <span>Revenue: <b>{dollar(actCR.revenue)}</b></span>
+                      <span>Total Program Cost: <b>{dollar(Math.round(actCR.total))}</b></span>
                       {matchedProgram.act_enrollment>0&&<span>Enrolled: <b>{matchedProgram.act_enrollment}/{matchedProgram.act_capacity}</b></span>}
                       <span className="text-blue-500">All fields pre-filled ↓</span>
                     </div>
