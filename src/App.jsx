@@ -4368,11 +4368,11 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   // Auto-match program from programs list when name changes
   function handleProgramName(name){
     s("program_name",name);
-    if(!reviewablePrograms||!reviewablePrograms.length) return;
-    // Match against the FY already selected in the form — gives us the right supervisor and data for that year
+    if(!programs||!programs.length) return;
+    // Match against all programs (not staff-filtered) so any reviewer can match any umbrella/program
     const selectedFY=form.fy||ADMIN_CUR;
     const selectedYear=selectedFY.slice(-2); // e.g. "26" from "FY25-26"
-    const matched=reviewablePrograms.filter(p=>p.name?.toLowerCase().trim()===name.toLowerCase().trim()&&!p.is_archived&&!p.is_deleted);
+    const matched=(programs||[]).filter(p=>p.name?.toLowerCase().trim()===name.toLowerCase().trim()&&!p.is_archived&&!p.is_deleted);
     const match=matched.find(p=>p.year===selectedFY)||matched.find(p=>p.year?.slice(-2)===selectedYear)||matched.find(p=>p.year===ADMIN_CUR)||matched[0];
     if(match){
       const kpis=calcKPIs(match);
