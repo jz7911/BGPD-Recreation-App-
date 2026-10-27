@@ -4307,6 +4307,8 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
     is_pilot:false,is_adaptation:false,pilot_goal:"",met_enrollment:false,met_financial:false,adaptation_made:"",future_potential:"",innovation_notes:"",
     // Decision
     decision:"Continue",decision_reason:"",action_items:"",next_review:"",pillars_met:"",redesign_strategies:"",
+    // Quarterly / umbrella
+    is_quarterly:false,review_quarter:"",
   };
   const [form,setForm]=useState(emptyForm);
   const [crManual,setCrManual]=useState(false); // true when user has typed CR% directly
@@ -4521,6 +4523,8 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
       next_review:form.next_review||null,
       pillars_met:pillarsStr,
       redesign_strategies:form.redesign_strategies||"",
+      is_quarterly:!!form.is_quarterly,
+      review_quarter:form.review_quarter||"",
     };
   }
 
@@ -4844,7 +4848,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-bold font-semibold">{r.program_name}</div>
-                  <div className="text-xs text-slate-700 mt-0.5">{r.supervisor}{r.area?` · ${r.area}`:""} · {r.season&&r.fy?`${r.season} FY ${r.fy} · `:""}{r.review_date}
+                  <div className="text-xs text-slate-700 mt-0.5">{r.supervisor}{r.area?` · ${r.area}`:""} · {r.season&&r.fy?`${r.season} FY ${r.fy} · `:""}{r.review_date}{r.is_quarterly&&r.review_quarter&&<span className="ml-2 px-1.5 py-0.5 rounded font-bold" style={{background:"#E6F6FB",color:"#007A99"}}>{r.review_quarter} check-in</span>}
                     {r.updated_at&&<span className="ml-2 text-slate-400">· saved {new Date(r.updated_at).toLocaleDateString()}</span>}
                   </div>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs">
@@ -4852,7 +4856,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                       {frDelta!==null&&<span style={{color:frDelta>=0?"#84BD00":"#E35205",marginLeft:"3px"}}>{frDelta>=0?"▲":"▼"}{Math.abs(frDelta).toFixed(0)}pp</span>}
                     </span>
                     <span className="text-slate-700">CR: <span className="font-bold">{displayCR}%</span>
-                      {crMismatch&&<span className="ml-1.5 px-1.5 py-0.5 rounded text-xs font-bold" style={{background:"#FEF3C7",color:"#92400E"}}>snapshot: {r.cost_recovery}%</span>}
+                      {crMismatch&&<span className="ml-1.5 px-1.5 py-0.5 rounded text-xs font-bold" style={{background:"#FEF3C7",color:"#92400E"}}>submitted: {r.cost_recovery}%</span>}
                     </span>
                     {r.seasons_below_threshold>0&&<span className="font-semibold" style={{color:r.seasons_below_threshold>=2?"#E35205":"#F6AB00"}}>{r.seasons_below_threshold} season{r.seasons_below_threshold>1?"s":""} below threshold</span>}
                     <span style={{color:pMet>=3?"#84BD00":"#E35205"}} className="font-semibold">{pMet}/5 pillars</span>
@@ -5229,6 +5233,35 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               {inp("Target Age Group","target_age",null,AGE_GROUPS)}
               {inp("Seasons Offered (total)","seasons_offered","number","",false,"How many seasons has this program run in total?")}
             </div>
+
+            {/* Quarterly check-in toggle — for umbrella programs reviewed mid-year */}
+            {matchedProgram?.is_umbrella&&(
+              <div className="rounded-lg border border-slate-200 p-4 space-y-3" style={{background:"#f8fafc"}}>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={!!form.is_quarterly} onChange={e=>s("is_quarterly",e.target.checked)} className="w-4 h-4"/>
+                  <span className="text-sm font-semibold text-slate-800">This is a progress check-in</span>
+                  <span className="text-xs text-slate-500">(umbrella program — quarterly or ongoing, not a full annual review)</span>
+                </label>
+                {form.is_quarterly&&(
+                  <div className="space-y-3 pt-1">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Review Quarter</label>
+                      <select value={form.review_quarter||""} onChange={e=>s("review_quarter",e.target.value)}
+                        className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
+                        <option value="">Select quarter...</option>
+                        <option value="Q1">Q1 (May–Jul)</option>
+                        <option value="Q2">Q2 (Aug–Oct)</option>
+                        <option value="Q3">Q3 (Nov–Jan)</option>
+                        <option value="Q4">Q4 (Feb–Apr)</option>
+                      </select>
+                    </div>
+                    <div className="rounded bg-blue-50 border border-blue-100 px-3 py-2 text-xs text-blue-700">
+                      On the next step, enter revenue and total costs <strong>for this period only</strong>.  CR will be calculated from those numbers.  You do not need to update the program's actuals in the Programs tab.
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Prior season snapshot if available */}
             {prior&&(
