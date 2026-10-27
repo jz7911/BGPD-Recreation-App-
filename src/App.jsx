@@ -4847,7 +4847,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
             );
             const liveCRCalc=currentProg?calcCR(currentProg,"act_"):null;
             const currentCR=liveCRCalc?Math.round(liveCRCalc.crPct*100):null;
-            const currentFill=currentProg?Math.round((currentProg.act_enrollment||0)/(currentProg.act_capacity||1)*100):null;
+            const currentFill=(currentProg&&currentProg.act_capacity>0)?Math.round((currentProg.act_enrollment||0)/currentProg.act_capacity*100):null;
             // Show live figures when available; fall back to saved snapshot
             const displayCR=currentCR!==null?currentCR:(r.cost_recovery||0);
             const displayFill=currentFill!==null?currentFill:(r.fill_rate||0);
