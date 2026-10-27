@@ -5234,13 +5234,13 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               {inp("Seasons Offered (total)","seasons_offered","number","",false,"How many seasons has this program run in total?")}
             </div>
 
-            {/* Quarterly check-in toggle — for umbrella programs reviewed mid-year */}
-            {matchedProgram?.is_umbrella&&(
+            {/* Progress check-in toggle — available for any program */}
+            {(
               <div className="rounded-lg border border-slate-200 p-4 space-y-3" style={{background:"#f8fafc"}}>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={!!form.is_quarterly} onChange={e=>s("is_quarterly",e.target.checked)} className="w-4 h-4"/>
                   <span className="text-sm font-semibold text-slate-800">This is a progress check-in</span>
-                  <span className="text-xs text-slate-500">(umbrella program — quarterly or ongoing, not a full annual review)</span>
+                  <span className="text-xs text-slate-500">(quarterly or ongoing — not a full annual review)</span>
                 </label>
                 {form.is_quarterly&&(
                   <div className="space-y-3 pt-1">
