@@ -4313,6 +4313,18 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   const [form,setForm]=useState(emptyForm);
   const [crManual,setCrManual]=useState(false); // true when user has typed CR% directly
   const [activeStep,setActiveStep]=useState(0);
+  // Cost breakdown calculator for progress check-ins
+  const [costCalc,setCostCalc]=useState({personnel:"",commodities:"",contractuals:"",other1:"",other2:"",facility_hours:""});
+  const updateCostCalc=(k,v)=>{
+    const next={...costCalc,[k]:v};
+    setCostCalc(next);
+    // Auto-fill direct_costs from breakdown (direct + 10% overhead + $3/hr facility)
+    const direct=(parseFloat(next.personnel)||0)+(parseFloat(next.commodities)||0)+(parseFloat(next.contractuals)||0)+(parseFloat(next.other1)||0)+(parseFloat(next.other2)||0);
+    const overhead=direct*ADMIN_OVERHEAD_RATE;
+    const facility=(parseFloat(next.facility_hours)||0)*FACILITY_COST_PER_HR;
+    const total=direct+overhead+facility;
+    if(total>0){setCrManual(false);s("direct_costs",Math.round(total));}
+  };
 
   const AGE_GROUPS=["All Ages","Early Childhood (0–5)","Children (6–12)","Youth (13–17)","Young Adults (18–34)","Adults (35–54)","Older Adults (55–64)","Seniors (65+)","Multigenerational / Family","Adaptive / Inclusive","Workforce / Special Interest"];
   const AREAS=["Adult General","Adult Sports","Aquatics","Camps","Clubhouse","Dance","Fitness","Golf Dome","Museum","Performing Arts","Seniors","Special Events","Youth General","Youth Sports","Other"];
@@ -5249,10 +5261,10 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                       <select value={form.review_quarter||""} onChange={e=>s("review_quarter",e.target.value)}
                         className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-white">
                         <option value="">Select quarter...</option>
-                        <option value="Q1">Q1 (May–Jul)</option>
-                        <option value="Q2">Q2 (Aug–Oct)</option>
-                        <option value="Q3">Q3 (Nov–Jan)</option>
-                        <option value="Q4">Q4 (Feb–Apr)</option>
+                        <option value="QA">QA (May–Jul)</option>
+                        <option value="QB">QB (Aug–Oct)</option>
+                        <option value="QC">QC (Nov–Jan)</option>
+                        <option value="QD">QD (Feb–Apr)</option>
                       </select>
                     </div>
                     <div className="rounded bg-blue-50 border border-blue-100 px-3 py-2 text-xs text-blue-700">
@@ -5299,6 +5311,45 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
             <div className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">💰 Financial Stewardship <span className="text-xs font-normal text-red-500 ml-2">Required Pillar</span></div>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               {inp("Revenue ($)","revenue","number")}
+              {/* Cost breakdown calculator — shown for progress check-ins */}
+              {form.is_quarterly&&(
+                <div className="col-span-2 sm:col-span-4 rounded-lg border border-blue-200 p-4 space-y-3" style={{background:"#F0F7FF"}}>
+                  <div className="text-xs font-bold text-blue-800 uppercase tracking-widest mb-1">Cost Breakdown Calculator</div>
+                  <div className="text-xs text-blue-700 mb-2">Enter costs for this period only.  Overhead (10%) and facility charges ($3/hr) are added automatically.</div>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {[["Personnel ($)","personnel"],["Commodities ($)","commodities"],["Contractuals ($)","contractuals"],["Other Cost 1 ($)","other1"],["Other Cost 2 ($)","other2"]].map(([label,key])=>(
+                      <div key={key} className="flex flex-col gap-1">
+                        <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">{label}</label>
+                        <input type="number" min={0} value={costCalc[key]} onChange={e=>updateCostCalc(key,e.target.value)}
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="0"/>
+                      </div>
+                    ))}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Facility Hours</label>
+                      <input type="number" min={0} value={costCalc.facility_hours} onChange={e=>updateCostCalc("facility_hours",e.target.value)}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="0"/>
+                      <span className="text-xs text-slate-500">$3/hr allocated</span>
+                    </div>
+                  </div>
+                  {/* Breakdown summary */}
+                  {(()=>{
+                    const direct=(parseFloat(costCalc.personnel)||0)+(parseFloat(costCalc.commodities)||0)+(parseFloat(costCalc.contractuals)||0)+(parseFloat(costCalc.other1)||0)+(parseFloat(costCalc.other2)||0);
+                    const overhead=Math.round(direct*ADMIN_OVERHEAD_RATE);
+                    const facility=(parseFloat(costCalc.facility_hours)||0)*FACILITY_COST_PER_HR;
+                    const total=Math.round(direct+overhead+facility);
+                    if(!total) return null;
+                    return (
+                      <div className="rounded bg-white border border-blue-100 px-3 py-2 text-xs text-slate-700 flex flex-wrap gap-4 items-center mt-1">
+                        <span>Direct: <b>${direct.toLocaleString()}</b></span>
+                        <span>+ Overhead (10%): <b>${overhead.toLocaleString()}</b></span>
+                        {facility>0&&<span>+ Facility: <b>${facility.toLocaleString()}</b></span>}
+                        <span className="font-bold text-blue-800">= Total: ${total.toLocaleString()}</span>
+                        <span className="text-blue-600 text-xs ml-auto">↑ auto-filled into Total Program Cost</span>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
               {inp("Total Program Cost ($)","direct_costs","number")}
               {/* CR% — auto-calculated from revenue/costs, but manually overridable */}
               <div className="flex flex-col gap-1">
