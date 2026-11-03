@@ -5018,7 +5018,9 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false,targe
                   <div className="text-xs text-slate-700 mt-1">{r.season} {r.fy?.slice(2,4)}</div>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-bold font-semibold">{r.program_name}</div>
+                  <button type="button" onClick={()=>{setDetailRow(r);setView("detail");}}
+                    className="font-bold text-left hover:underline" style={{color:"#007A99",background:"none",border:"none",padding:0,cursor:"pointer",fontSize:"inherit"}}
+                    title="Open this review">{r.program_name}</button>
                   <div className="text-xs text-slate-700 mt-0.5">{r.supervisor}{r.area?` · ${r.area}`:""} · {r.season&&r.fy?`${r.season} FY ${r.fy} · `:""}{r.review_date}{r.is_quarterly&&r.review_quarter&&<span className="ml-2 px-1.5 py-0.5 rounded font-bold" style={{background:"#E6F6FB",color:"#007A99"}}>{r.review_quarter} check-in</span>}
                     {r.updated_at&&<span className="ml-2 text-slate-400">· saved {new Date(r.updated_at).toLocaleDateString()}</span>}
                     {onOpenProgram&&(currentProg||findProgramFor(r.program_name,r.fy,r.season))&&(
@@ -5059,6 +5061,28 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false,targe
   if(view==="detail"&&detailRow){
     const r=detailRow;
     const pMet=(r.pillars_met||"").split(",").filter(Boolean);
+    // Live figures from the program record this review is about (annual reviews only)
+    const liveProg=findProgramFor(r.program_name,r.fy,r.season);
+    const liveCR=liveProg&&!r.is_quarterly?calcCR(liveProg,"act_"):null;
+    const liveSrc=liveProg?withUmbrellaActuals(liveProg):null;
+    const live=liveCR&&liveCR.total>0?{
+      revenue:Math.round(liveCR.revenue),cost:Math.round(liveCR.total),
+      cr:Math.round(liveCR.crPct*100),fill:liveCR.capacity>0?Math.round(liveCR.fillRate*100):null,
+      enrollment:liveSrc.act_enrollment||0,capacity:liveSrc.act_capacity||0,
+    }:null;
+    const liveDiffers=live&&(Math.abs(live.cr-(r.cost_recovery||0))>2||Math.abs(live.revenue-(r.revenue||0))>1||Math.abs(live.cost-(r.direct_costs||0))>1);
+    const canRefresh=!!live&&(isManager||(r.supervisor||"").toLowerCase().trim()===staffName.toLowerCase().trim());
+    async function refreshFromProgram(){
+      if(!live) return;
+      const patch={revenue:live.revenue,direct_costs:live.cost,cost_recovery:live.cr,
+        ...(live.fill!=null?{fill_rate:live.fill}:{}),enrollment:live.enrollment,capacity:live.capacity,updated_at:new Date().toISOString()};
+      const {error:e}=await db.from("admin_reviews").update(patch).eq("id",r.id);
+      if(e){setDbError("Could not update review: "+e.message);return;}
+      const updated={...r,...patch};
+      setDetailRow(updated);
+      setReviews(prev=>prev.map(x=>x.id===r.id?updated:x));
+      setToast(`${r.program_name} review updated with current actuals`);
+    }
     const pillarMeta={1:{label:"Fiscal Sustainability",color:"#5C462B",req:true},2:{label:"Data & Accountability",color:"#5C462B",req:true},3:{label:"Community Impact",color:"#00A9CE",req:false},4:{label:"Space Optimization",color:"#990066",req:false},5:{label:"Innovation",color:"#D4850A",req:false}};
     const history=reviewHistory(r.program_name).filter(h=>h.id!==r.id);
     const Row=({k,v})=>v!=null&&v!==""&&v!==false?(<div className="flex justify-between py-1 border-b border-slate-50"><span className="text-slate-700 text-xs">{k}</span><span className="font-semibold text-slate-800 text-xs text-right max-w-48">{String(v)}</span></div>):null;
@@ -5086,7 +5110,14 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false,targe
               </div>
               <div className="text-right shrink-0">
                 <span className="inline-block px-3 py-1.5 rounded-lg text-sm font-bold text-white mb-1" style={{background:dcColor[r.decision]||"#64748b"}}>{r.decision}</span>
+                {r.is_quarterly&&r.review_quarter&&<div className="text-xs font-bold text-white mt-0.5">{r.review_quarter} progress check-in</div>}
                 {r.seasons_offered&&<div className="text-xs opacity-60 text-white">{r.seasons_offered} seasons offered</div>}
+                <div className="flex gap-2 justify-end mt-2">
+                  {liveProg&&onOpenProgram&&(
+                    <button type="button" onClick={()=>onOpenProgram(liveProg)} className="text-xs font-bold px-2.5 py-1 rounded" style={{background:"rgba(255,255,255,0.9)",color:"#007A99",border:"none",cursor:"pointer"}}>Open program →</button>
+                  )}
+                  <button type="button" onClick={()=>startEdit(r)} className="text-xs font-bold px-2.5 py-1 rounded" style={{background:"rgba(255,255,255,0.2)",color:"#fff",border:"1px solid rgba(255,255,255,0.5)",cursor:"pointer"}}>✏ Edit</button>
+                </div>
               </div>
             </div>
             <div className="flex flex-wrap gap-2 mt-4">
@@ -5098,6 +5129,28 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false,targe
           </div>
 
           <div className="p-6 space-y-6">
+            {/* Live program figures vs what this review saved */}
+            {live&&(
+              <div className="rounded-lg border px-4 py-3 text-xs" style={{background:liveDiffers?"#FEF4DC":"#EEF5E0",borderColor:liveDiffers?"rgba(138,94,0,0.25)":"#C0DD97",color:liveDiffers?"#8A5E00":"#4A6B00"}}>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                  <span className="font-bold">{liveDiffers?"⚠ Program record now differs from this review":"✓ Matches the program record"}</span>
+                  <span>{liveProg.season||""} FY {toFY(liveProg.year)}{liveProg.is_umbrella?" · umbrella":""}</span>
+                  <span>Revenue <b>{dollar(live.revenue)}</b>{liveDiffers&&r.revenue?` (saved ${dollar(r.revenue)})`:""}</span>
+                  <span>Cost <b>{dollar(live.cost)}</b>{liveDiffers&&r.direct_costs?` (saved ${dollar(r.direct_costs)})`:""}</span>
+                  <span>CR <b>{live.cr}%</b>{liveDiffers&&r.cost_recovery?` (saved ${r.cost_recovery}%)`:""}</span>
+                  {live.fill!=null&&<span>Fill <b>{live.fill}%</b></span>}
+                  {liveDiffers&&canRefresh&&(
+                    <button type="button" onClick={refreshFromProgram} className="ml-auto text-xs font-bold px-3 py-1.5 rounded text-white" style={{background:"#00A9CE",border:"none",cursor:"pointer"}}>Update review with current actuals</button>
+                  )}
+                </div>
+                {liveDiffers&&<div className="mt-1 opacity-80">The numbers saved with this review were captured when it was written.  Updating replaces revenue, cost, CR, fill and enrollment with the program record as it stands now.  Decision, notes and pillars are not touched.</div>}
+              </div>
+            )}
+            {r.is_quarterly&&(
+              <div className="rounded-lg border border-slate-200 px-4 py-3 text-xs text-slate-700" style={{background:"#f8fafc"}}>
+                Progress check-in: these are the period figures entered by hand for {r.review_quarter||"the quarter"}.  They are kept as written and are not refreshed from the program record.
+              </div>
+            )}
             {/* Key metrics row */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
