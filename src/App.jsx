@@ -133,6 +133,7 @@ const DB_FIELDS = [
   "ant_capacity","ant_enrollment","ant_revenue","ant_revenue2","act_revenue2","revenue2_label","ant_revenue3","act_revenue3","revenue3_label",
   "ant_personnel","ant_commodities","ant_contractuals",
   "ant_other1","ant_other2","ant_facility_hours",
+  "other1_label","other2_label",
   "ant_program_type","ant_custom_workload","ant_custom_type_label",
   "act_capacity","act_enrollment","act_revenue",
   "act_personnel","act_commodities","act_contractuals",
@@ -168,7 +169,50 @@ function getFyConfig(fy) {
   };
 }
 
-function calcCR(p, px) {
+// Umbrella programs: when the parent record has no actuals of its own, roll up the
+// individual classes/sessions (sub_programs) so every screen sees the same actuals.
+// Parent Incode figures always win when present — sessions are never added on top.
+function sessionRollup(p){
+  const all=Array.isArray(p?.sub_programs)?p.sub_programs:[];
+  // Only sessions that have actually run count.  Staff set up placeholder rows for
+  // future seasons (capacity filled in, nothing else) — those would drag fill rate down.
+  const list=all.filter(r=>(parseInt(r.enrollment)||0)>0||(parseFloat(r.instructor_cost)||0)>0||(parseFloat(r.supplies_cost)||0)>0||(parseFloat(r.misc_revenue)||0)>0);
+  if(!list.length) return null;
+  return list.reduce((a,r)=>{
+    const fee=parseFloat(r.fee)||0, enr=parseInt(r.enrollment)||0;
+    const rev=(fee*enr)+(parseFloat(r.misc_revenue)||0);
+    const split=parseFloat(r.contractor_split)||0;
+    return {
+      enrollment:a.enrollment+enr,
+      capacity:a.capacity+(parseInt(r.capacity)||0),
+      waitlist:a.waitlist+(parseInt(r.waitlist)||0),
+      revenue:a.revenue+rev,
+      personnel:a.personnel+(parseFloat(r.instructor_cost)||0),
+      commodities:a.commodities+(parseFloat(r.supplies_cost)||0),
+      contractuals:a.contractuals+(split>0?rev*(split/100):0),
+      facility_hours:a.facility_hours+(parseFloat(r.facility_hours)||0),
+    };
+  },{enrollment:0,capacity:0,waitlist:0,revenue:0,personnel:0,commodities:0,contractuals:0,facility_hours:0});
+}
+function withUmbrellaActuals(p){
+  if(!p||!p.is_umbrella) return p;
+  const s=sessionRollup(p); if(!s) return p;
+  const out={...p};
+  if(!(p.act_enrollment>0)&&s.enrollment>0) out.act_enrollment=s.enrollment;
+  if(!(p.act_capacity>0)&&s.capacity>0)     out.act_capacity=s.capacity;
+  if(!(p.waitlist>0)&&s.waitlist>0)         out.waitlist=s.waitlist;
+  const parentRev=(p.act_revenue||0)+(p.act_revenue2||0)+(p.act_revenue3||0);
+  if(parentRev<=0&&s.revenue>0) out.act_revenue=s.revenue;
+  const parentCost=(p.act_personnel||0)+(p.act_commodities||0)+(p.act_contractuals||0)+(p.act_other1||0)+(p.act_other2||0)+(p.act_clubhouse_fee||0);
+  if(parentCost<=0&&(s.personnel+s.commodities+s.contractuals)>0){
+    out.act_personnel=s.personnel; out.act_commodities=s.commodities; out.act_contractuals=s.contractuals;
+  }
+  if(!(p.act_facility_hours>0)&&s.facility_hours>0) out.act_facility_hours=s.facility_hours;
+  return out;
+}
+
+function calcCR(p0, px) {
+  const p = px==="act_" ? withUmbrellaActuals(p0) : p0;
   const {ftSalary, facilityRate, adminOverhead} = getFyConfig(p.year);
   const personnel    = p[px+"personnel"]      || 0;
   const commodities  = p[px+"commodities"]    || 0;
@@ -690,62 +734,6 @@ function NPSUploader({programId,programName,currentNPS,currentTotal,onSave,onCle
   );
 }
 
-function CRGapPanel({svcTarget,k,p}){
-  if(!svcTarget) return null;
-  const targetCR = svcTarget.min;
-  const actualCR = k.costRecovery;
-  const onTarget = svcTarget.onTarget;
-  const targetRevenue = k.totalCost * targetCR;
-  const gap = targetRevenue - k.revenue;
-  // Use actuals enrollment, fall back to budgeted if not yet entered
-  const enrollment = p.act_enrollment||p.ant_enrollment||0;
-  // Use explicitly entered fee if available, otherwise fall back to implied fee
-  const currentFeePerHead = p.fee>0 ? p.fee : (enrollment>0 ? k.revenue/enrollment : null);
-  const suggestedFee = enrollment>0 ? targetRevenue/enrollment : null;
-  const suggestedFeeIncrease = suggestedFee!=null&&currentFeePerHead!=null ? suggestedFee-currentFeePerHead : null;
-  const usingEnteredFee = p.fee>0;
-  return(
-    <div className="rounded border overflow-hidden"
-      style={{borderColor:onTarget?"#C0DD97":"#FAD679"}}>
-      <div className="px-4 py-3 flex items-center gap-2 text-sm"
-        style={{background:onTarget?"#EEF5E0":"#FFFBF0"}}>
-        <span className="text-base">{onTarget?"✓":"⚠"}</span>
-        <div className="flex-1">
-          <span className="font-semibold" style={{color:onTarget?"#4A6B00":"#8A5E00"}}>
-            {p.service_category} target: {svcTarget.label}
-          </span>
-          <span className="ml-2 text-xs opacity-75" style={{color:onTarget?"#4A6B00":"#8A5E00"}}>
-            Actual: {pct(actualCR)}
-          </span>
-        </div>
-      </div>
-      {!onTarget&&gap>0&&(
-        <div className="px-4 py-3 border-t grid grid-cols-1 gap-3 sm:grid-cols-3 text-sm"
-          style={{borderColor:"#FAD679",background:"#fefce8"}}>
-          <div>
-            <div className="text-xs font-bold font-semibold mb-0.5">Revenue Gap</div>
-            <div className="text-base font-bold text-amber-800">{dollar(Math.ceil(gap))}</div>
-            <div className="text-xs ">needed to hit {svcTarget.label}</div>
-          </div>
-          {suggestedFeeIncrease!=null&&(
-            <div>
-              <div className="text-xs font-bold font-semibold mb-0.5">Fee Increase Needed</div>
-              <div className="text-base font-bold text-amber-800">+{dollar(Math.ceil(suggestedFeeIncrease))}/participant</div>
-              <div className="text-xs ">based on {enrollment} enrolled</div>
-            </div>
-          )}
-          {suggestedFee!=null&&(
-            <div>
-              <div className="text-xs font-bold font-semibold mb-0.5">Suggested Fee</div>
-              <div className="text-base font-bold text-amber-800">{dollar(Math.ceil(suggestedFee))}/participant</div>
-              <div className="text-xs ">vs current {dollar(Math.round(currentFeePerHead||0))}/participant{!usingEnteredFee?" (implied from revenue)":""}</div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function Badge({status}) {
   const c = sColor(status);
@@ -2870,7 +2858,7 @@ function MultiSeasonView({programs,onEdit,staffName,isManager}) {
             );
           })}
           <input className="flex-1 min-w-36 rounded border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2"
-            autoComplete="off" placeholder="Search programs..." autoComplete="off" value={search} onChange={e=>setSearch(e.target.value)}/>
+            autoComplete="off" placeholder="Search programs..." value={search} onChange={e=>setSearch(e.target.value)}/>
           {(filterStaff.size>0||filterArea.size>0||filterSeason.size>0||filterYear.size>0||search)&&(
             <button onClick={()=>{setFilterStaff(new Set());setFilterArea(new Set());setFilterSeason(new Set());setFilterYear(new Set());setSearch("");setMsvOpen(null);}}
               className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
@@ -3115,7 +3103,7 @@ function SubProgramTracker({programs,onChange,umbrellaRevenue,umbrellaCost}){
                   {label:"Est. Revenue",value:"$"+Math.round(sessionTotals.rev).toLocaleString(),color:"#84BD00"},
                   {label:"Est. Costs",value:"$"+Math.round(sessionTotals.cost).toLocaleString(),color:"#E35205"},
                   {label:"Est. Net",value:sessionTotals.profit<0?"-$"+Math.abs(Math.round(sessionTotals.profit)).toLocaleString():"$"+Math.round(sessionTotals.profit).toLocaleString(),color:sessionTotals.profit>=0?"#84BD00":"#E35205"},
-                  {label:"Est. CR",value:sessionTotals.cost>0?Math.round(sessionTotals.rev/sessionTotals.cost*100)+"%":"—",color:sessionTotals.cost>0&&sessionTotals.rev>=sessionTotals.cost?"#84BD00":"#F6AB00"},
+                  {label:"Direct CR (no overhead/FT)",value:sessionTotals.cost>0?Math.round(sessionTotals.rev/sessionTotals.cost*100)+"%":"—",color:sessionTotals.cost>0&&sessionTotals.rev>=sessionTotals.cost?"#84BD00":"#F6AB00"},
                   ...(hasIncode?[
                     {label:"Incode Revenue",value:"$"+Math.round(umbRev).toLocaleString(),color:"#5C462B"},
                     {label:"Est. vs Incode",value:umbRev>0?Math.round(sessionTotals.rev/umbRev*100)+"%":"—",color:umbRev>0&&Math.abs(sessionTotals.rev-umbRev)/umbRev<0.15?"#84BD00":"#F6AB00",sub:"of Incode revenue"},
@@ -3367,7 +3355,7 @@ function SubProgramTracker({programs,onChange,umbrellaRevenue,umbrellaCost}){
 }
 
 
-function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndStay,onDelete,onArchive,onDuplicate,onCancel,saving}) {
+function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndStay,onDelete,onArchive,onDuplicate,onCancel,onOpenReviews,saving}) {
   const [p,setP]             = useState(()=> initial ? {...cleanForDB(initial), decision_log: initial.decision_log||[], other1_label: initial.other1_label||"Other Direct Costs", other2_label: initial.other2_label||"Other Direct Costs 2"} : newProgram(staffName));
   const set                  = k => v => setP(prev=>({...prev,[k]:v}));
   const [sec,setSec]         = useState("info");
@@ -3530,6 +3518,12 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
             {p.area&&<span className="text-xs text-slate-400">·</span>}
             {p.area&&<span className="text-xs text-slate-700">{p.area}</span>}
             {p.season&&p.year&&<><span className="text-xs text-slate-400">·</span><span className="text-xs text-slate-700">{p.season} FY {toFY(p.year)}</span></>}
+            {onOpenReviews&&(
+              <button type="button" onClick={()=>onOpenReviews(p)}
+                className="ml-auto text-xs font-bold px-2.5 py-1 rounded shrink-0"
+                style={{background:"#E6F6FB",color:"#007A99",border:"1px solid rgba(0,169,206,0.35)"}}
+                title="See past reviews for this program or start a new one">📋 Program Reviews →</button>
+            )}
           </div>
         )}
         <div className="p-5">
@@ -3756,20 +3750,56 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
             </div>
           )}
           {sec==="pricing"&&isManager&&(()=>{
-            const enrollment=p.act_enrollment||p.ant_enrollment||0;
-            const targetRev=svcTarget?k.totalCost*svcTarget.min:0;
-            const gap=targetRev-k.revenue;
+            // Pricing runs off ONE coherent basis: actuals when the program has run
+            // (enrollment and cost both entered), otherwise the budget.  Never mix actual
+            // cost with budgeted enrollment — that was producing fees that did not match
+            // the Fee Report.  Umbrella sessions roll up automatically via calcCR.
+            const actCR=calcCR(p,"act_");
+            const antCR=calcCR(p,"ant_");
+            const usingActuals=actCR.enrollment>0&&actCR.total>0;
+            const basisCR=usingActuals?actCR:antCR;
+            const basisLabel=usingActuals?"actuals":"budget";
+            const enrollment=basisCR.enrollment||0;
+            const basisCost=basisCR.total;
+            const basisRevenue=basisCR.revenue;
+            const basisCRPct=basisCR.crPct;
+            const feeTarget=getCRTarget(p);   // same table the Fee Report uses
+            const targetRev=svcTarget?basisCost*svcTarget.min:0;
+            const gap=targetRev-basisRevenue;
             // Use the editable fee fields directly; fall back to computed revenue/enrollment
-            const currentFeeID=p.fee>0?p.fee:(enrollment>0?k.revenue/enrollment:null);
-            const currentFeeOOD=p.fee_ood>0?p.fee_ood:null;
+            const currentFeeID=p.fee>0?p.fee:(enrollment>0?basisRevenue/enrollment:null);
+            const currentFeeImplied=!(p.fee>0)&&currentFeeID!=null;
             const currentFee=currentFeeID; // gap analysis always runs off in-district fee
-            const breakEvenRev=k.totalCost;
+            const breakEvenRev=basisCost;
             const breakEvenFee=enrollment>0&&breakEvenRev>0?breakEvenRev/enrollment:null;
-            const sugFee=enrollment>0&&targetRev>0?targetRev/enrollment:null;
+            // Suggested fee — identical rule and numbers to the Manager Fee Report
+            const sugCalc=enrollment>0&&basisCost>0?calcSuggestedFee(basisCRPct,feeTarget,basisCR,p.fee>0?p.fee:0):{fee:null,reason:"no-target"};
+            const sugFee=sugCalc.fee;
             const feeGap=sugFee!=null&&currentFee!=null?sugFee-currentFee:null;
-            const onTarget=svcTarget?(svcTarget.expectSubsidy?k.costRecovery<=svcTarget.max+0.01:k.costRecovery>=svcTarget.min):true;
+            const onTarget=svcTarget?(svcTarget.expectSubsidy?basisCRPct<=svcTarget.max+0.01:basisCRPct>=svcTarget.min):true;
             const oodBelowID=p.fee_ood>0&&p.fee>0&&p.fee_ood<p.fee;
             const showGapFields=svcTarget&&!onTarget&&gap>0;
+            // Three year fee path (110% / Dundee method): grow expenses 3%/yr, set the
+            // revenue goal at the target floor of year 3 cost, spread the fee change evenly.
+            const EXP_GROWTH=0.03;
+            const threeYear=(()=>{
+              if(!feeTarget||feeTarget.expectSubsidy||enrollment<=0||basisCost<=0||currentFee==null||currentFee<=0) return null;
+              const cost3=basisCost*Math.pow(1+EXP_GROWTH,3);
+              const goalRev=feeTarget.lo*cost3;
+              const ceilRev=feeTarget.hi>0?feeTarget.hi*cost3:null;
+              const curRev=basisRevenue>0?basisRevenue:currentFee*enrollment;
+              let needPct=goalRev/curRev-1;          // total revenue change needed over 3 yrs
+              let mode="to-floor";
+              if(needPct<=0){                          // already at or above the floor of yr-3 cost
+                // hold the line with inflation, but never push past the ceiling
+                needPct=Math.pow(1+EXP_GROWTH,3)-1;
+                if(ceilRev!=null) needPct=Math.min(needPct,Math.max(0,ceilRev/curRev-1));
+                mode="inflation";
+              }
+              const perYear=Math.pow(1+needPct,1/3)-1;
+              const fees=[1,2,3].map(y=>currentFee*Math.pow(1+perYear,y));
+              return {cost3,goalRev,curRev,needPct,perYear,fees,mode};
+            })();
 
             // Live calculations from entered values
             const targetFeeEntered=parseFloat(p.pricing_target_fee)||0;
@@ -3784,9 +3814,9 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
 
             // Live projected CR from current in-district fee * enrollment
             const projRevID=(p.fee||0)*enrollment;
-            const projCRID=k.totalCost>0?projRevID/k.totalCost:null;
+            const projCRID=basisCost>0?projRevID/basisCost:null;
             const projRevOOD=(p.fee_ood||0)*enrollment;
-            const projCROOD=k.totalCost>0?projRevOOD/k.totalCost:null;
+            const projCROOD=basisCost>0?projRevOOD/basisCost:null;
 
             return(
               <div className="space-y-5">
@@ -3794,6 +3824,23 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                   <h3 className="font-bold text-slate-800 text-sm mb-1">Pricing Analysis</h3>
                   <p className="text-xs text-slate-700">Set current fees, review the cost recovery gap, and document intentional pricing decisions.  Change either fee and the calculations update automatically.</p>
                 </div>
+
+                {/* Which numbers this tab is using */}
+                {enrollment>0&&basisCost>0?(
+                  <div className="rounded px-4 py-2.5 text-xs flex flex-wrap gap-x-4 gap-y-1 items-center" style={{background:usingActuals?"#EEF5E0":"#FEF4DC",border:`1px solid ${usingActuals?"#C0DD97":"rgba(138,94,0,0.25)"}`,color:usingActuals?"#4A6B00":"#8A5E00"}}>
+                    <span className="font-bold">Based on {basisLabel}:</span>
+                    <span>{enrollment} enrolled</span>
+                    <span>revenue {dollar(Math.round(basisRevenue))}</span>
+                    <span>total cost {dollar(Math.round(basisCost))}</span>
+                    <span>CR {pct(basisCRPct)}</span>
+                    {currentFeeImplied&&<span>· no fee entered, using revenue ÷ enrollment ({dollar(currentFee)}) as the current fee</span>}
+                    {!usingActuals&&<span className="font-semibold">· enter actual enrollment and costs on the Actuals tab for a real read</span>}
+                  </div>
+                ):(
+                  <div className="rounded px-4 py-2.5 text-xs" style={{background:"#FEF4DC",border:"1px solid rgba(138,94,0,0.25)",color:"#8A5E00"}}>
+                    No enrollment and cost data yet on either the Budgeted or Actuals tab, so there is nothing to price against.
+                  </div>
+                )}
 
                 {/* Current fees — in-district and out-of-district side by side */}
                 <div className="p-4 bg-slate-50 rounded border border-slate-100">
@@ -3845,8 +3892,8 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                 </div>
 
                 {/* CR gap summary */}
-                {svcTarget&&(hasActuals||p.fee>0)&&(()=>{
-                  const exceedsTarget=svcTarget.expectSubsidy&&k.costRecovery>svcTarget.max+0.01;
+                {svcTarget&&(enrollment>0&&basisCost>0||p.fee>0)&&(()=>{
+                  const exceedsTarget=svcTarget.expectSubsidy&&basisCRPct>svcTarget.max+0.01;
                   const borderColor=onTarget?"#C0DD97":exceedsTarget?"#99f6e4":"#FAD679";
                   const bgColor=onTarget?"#EEF5E0":exceedsTarget?"#f0fdfa":"#FFFBF0";
                   const textColor=onTarget?"#4A6B00":exceedsTarget?"#0d9488":"#8A5E00";
@@ -3858,7 +3905,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                         {p.service_category} target: {svcTarget.label}
                       </span>
                       <span className="text-xs opacity-75 ml-1" style={{color:textColor}}>
-                        Actual: {pct(k.costRecovery)}
+                        {usingActuals?"Actual":"Budgeted"}: {pct(basisCRPct)}
                       </span>
                       {exceedsTarget&&<span className="text-xs font-semibold ml-1" style={{color:"#0d9488"}}>— Exceeds target</span>}
                     </div>
@@ -3880,13 +3927,55 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                           <div>
                             <div className="text-xs font-bold font-semibold mb-0.5">Suggested Fee</div>
                             <div className="text-lg font-bold text-amber-800">{dollar(Math.ceil(sugFee))}/person</div>
-                            <div className="text-xs ">vs current {dollar(Math.round(currentFee||0))}/person</div>
+                            <div className="text-xs ">vs current {dollar(Math.round(currentFee||0))}/person · same rule as the Fee Report</div>
                           </div>
                         )}
                       </div>
                     )}
+                    {!onTarget&&gap>0&&sugFee!=null&&(
+                      <div className="px-4 py-2 text-xs border-t" style={{borderColor:"#FAD679",background:"#fffdf5",color:"#6B5744"}}>
+                        How it is figured: {pct(svcTarget.min)} floor × {dollar(Math.round(basisCost))} total cost ÷ {enrollment} enrolled = {dollar(Math.ceil(sugFee))}.  Assumes enrollment holds and all revenue comes from fees.
+                      </div>
+                    )}
                   </div>
                 );})()}
+
+                {/* Three year fee path — the 110% / Dundee method */}
+                {threeYear&&(
+                  <div className="rounded border border-slate-200 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between" style={{background:"#F5F3EE"}}>
+                      <div>
+                        <div className="text-xs font-bold text-slate-800 uppercase tracking-widest">Three Year Fee Path</div>
+                        <div className="text-xs text-slate-700 mt-0.5">
+                          {threeYear.mode==="to-floor"
+                            ?"Moves the fee to the target floor in three equal steps so the increase is manageable for participants."
+                            :"Already at or above the target floor.  Keeps pace with 3% cost growth so the program does not slide below it."}
+                        </div>
+                      </div>
+                      <span className="text-xs font-bold px-2 py-1 rounded shrink-0" style={{background:"#E6F6FB",color:"#007A99"}}>110% method</span>
+                    </div>
+                    <div className="p-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className="space-y-1 text-xs text-slate-700">
+                        <div className="flex justify-between"><span>Current total cost ({basisLabel})</span><span className="font-mono font-semibold">{dollar(Math.round(basisCost))}</span></div>
+                        <div className="flex justify-between"><span>Cost in 3 years at 3%/yr growth</span><span className="font-mono font-semibold">{dollar(Math.round(threeYear.cost3))}</span></div>
+                        <div className="flex justify-between"><span>Revenue goal ({pct(feeTarget.lo)} of year 3 cost)</span><span className="font-mono font-semibold">{dollar(Math.round(threeYear.goalRev))}</span></div>
+                        <div className="flex justify-between"><span>Current revenue</span><span className="font-mono font-semibold">{dollar(Math.round(threeYear.curRev))}</span></div>
+                        <div className="flex justify-between border-t border-slate-100 pt-1 mt-1 font-bold text-slate-800"><span>Revenue needs to change</span><span className="font-mono">{threeYear.needPct>=0?"+":""}{(threeYear.needPct*100).toFixed(1)}% over 3 years</span></div>
+                        <div className="text-slate-500">Assumes enrollment stays at {enrollment}.  Fee changes are spread evenly: {(threeYear.perYear*100).toFixed(1)}% per year.</div>
+                      </div>
+                      <div className="flex items-end justify-around gap-2">
+                        {[{label:"Now",fee:currentFee},{label:"Year 1",fee:threeYear.fees[0]},{label:"Year 2",fee:threeYear.fees[1]},{label:"Year 3",fee:threeYear.fees[2]}].map((st,i)=>(
+                          <div key={st.label} className="text-center flex-1">
+                            <div className="text-base font-black" style={{color:i===0?"#5C462B":i===3?"#007A99":"#3d2b1a"}}>{dollar(Math.ceil(st.fee))}</div>
+                            <div className="text-xs text-slate-600">{st.label}</div>
+                            {i>0&&<div className="text-xs text-slate-400">+{dollar(Math.ceil(st.fee)-Math.ceil(i===1?currentFee:threeYear.fees[i-2]))}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="px-4 pb-3 text-xs text-slate-500">Year 3 fee × {enrollment} enrolled = {dollar(Math.round(Math.ceil(threeYear.fees[2])*enrollment))} revenue, against {dollar(Math.round(threeYear.cost3))} projected cost ({pct(Math.ceil(threeYear.fees[2])*enrollment/threeYear.cost3)} CR).  Write the year 1 fee into Target fee below to document the decision.</div>
+                  </div>
+                )}
 
                 {/* Manager pricing decision — always visible */}
                 <div className="rounded border border-slate-200 overflow-hidden">
@@ -4269,7 +4358,7 @@ const ADMIN_FYS = ["2021-2022","2022-2023","2023-2024","2024-2025","2025-2026","
 const ADMIN_CUR = (()=>{const d=new Date();const y=d.getMonth()>=DISTRICT_CONFIG.fyStartMonth?d.getFullYear():d.getFullYear()-1;return `${y}-${y+1}`;})();
 
 // ─── Program Review Checklist ─────────────────────────────────────────────────
-function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
+function ProgramReviewSection({db,programs=[],staffName="",isManager=false,targetProgram=null,onOpenProgram=null}){
   const [reviews,setReviews]=useState([]);
   const [loading,setLoading]=useState(true);
   const [view,setView]=useState("list");
@@ -4315,15 +4404,29 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
   const [activeStep,setActiveStep]=useState(0);
   // Cost breakdown calculator for progress check-ins
   const [costCalc,setCostCalc]=useState({personnel:"",commodities:"",contractuals:"",other1:"",other2:"",facility_hours:""});
+  // Overhead % and facility rate come from the FY config table (same as calcCR).
+  // Review FY is "2026-2027"; config is keyed "26-27".
+  const reviewFyKey=(fy)=>{const f=String(fy||ADMIN_CUR);return f.length>=9?`${f.slice(2,4)}-${f.slice(-2)}`:f;};
+  const costCalcTotals=(cc,fy)=>{
+    const cfg=getFyConfig(reviewFyKey(fy));
+    const direct=(parseFloat(cc.personnel)||0)+(parseFloat(cc.commodities)||0)+(parseFloat(cc.contractuals)||0)+(parseFloat(cc.other1)||0)+(parseFloat(cc.other2)||0);
+    const overhead=direct*cfg.adminOverhead;
+    const facility=(parseFloat(cc.facility_hours)||0)*cfg.facilityRate;
+    return {direct,overhead,facility,total:direct+overhead+facility,cfg};
+  };
   const updateCostCalc=(k,v)=>{
     const next={...costCalc,[k]:v};
     setCostCalc(next);
-    // Auto-fill direct_costs from breakdown (direct + 10% overhead + $3/hr facility)
-    const direct=(parseFloat(next.personnel)||0)+(parseFloat(next.commodities)||0)+(parseFloat(next.contractuals)||0)+(parseFloat(next.other1)||0)+(parseFloat(next.other2)||0);
-    const overhead=direct*ADMIN_OVERHEAD_RATE;
-    const facility=(parseFloat(next.facility_hours)||0)*FACILITY_COST_PER_HR;
-    const total=direct+overhead+facility;
-    if(total>0){setCrManual(false);s("direct_costs",Math.round(total));}
+    const {total}=costCalcTotals(next,form.fy);
+    if(total>0){
+      setCrManual(false);
+      // Set cost and recompute CR in one update so a stale crManual flag cannot block it
+      setForm(prev=>{
+        const cost=Math.round(total);
+        const rev=parseFloat(prev.revenue)||0;
+        return {...prev,direct_costs:cost,cost_recovery:cost>0&&rev>0?Math.round((rev/cost)*100):prev.cost_recovery};
+      });
+    }
   };
 
   const AGE_GROUPS=["All Ages","Early Childhood (0–5)","Children (6–12)","Youth (13–17)","Young Adults (18–34)","Adults (35–54)","Older Adults (55–64)","Seniors (65+)","Multigenerational / Family","Adaptive / Inclusive","Workforce / Special Interest"];
@@ -4377,16 +4480,33 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
     });
   }
 
-  // Auto-match program from programs list when name changes
-  function handleProgramName(name){
+  // One matcher for every place the review section needs "the program record this
+  // review is about".  Program records store year as "26-27"; the review form stores
+  // FY as "2026-2027" — the last two characters are the only reliable bridge.
+  // Searches ALL programs (not the staff-filtered list) so a supervisor reviewing a
+  // program owned by someone else still gets live numbers.
+  function findProgramFor(name,fy,season){
+    if(!name||!programs||!programs.length) return null;
+    const yr=String(fy||ADMIN_CUR).slice(-2);
+    const n=name.toLowerCase().trim();
+    const cands=programs.filter(p=>p.name?.toLowerCase().trim()===n&&!p.is_archived&&!p.is_deleted&&String(p.year||"").slice(-2)===yr);
+    if(!cands.length) return null;
+    if(season){const bySeason=cands.find(p=>p.season===season); if(bySeason) return bySeason;}
+    return cands[0];
+  }
+
+  // Auto-match program from programs list when name changes.
+  // Pass fy/season explicitly when re-matching after those fields change.
+  function handleProgramName(name,fyOverride,seasonOverride){
     s("program_name",name);
     if(!programs||!programs.length) return;
-    // Match against all programs (not staff-filtered) so any reviewer can match any umbrella/program
-    const selectedFY=form.fy||ADMIN_CUR;
-    const selectedYear=selectedFY.slice(-2); // e.g. "26" from "FY25-26"
-    const matched=(programs||[]).filter(p=>p.name?.toLowerCase().trim()===name.toLowerCase().trim()&&!p.is_archived&&!p.is_deleted);
-    const match=matched.find(p=>p.year===selectedFY)||matched.find(p=>p.year?.slice(-2)===selectedYear)||matched.find(p=>p.year===ADMIN_CUR)||matched[0];
+    const fy=fyOverride||form.fy||ADMIN_CUR;
+    const season=seasonOverride!==undefined?seasonOverride:form.season;
+    const match=findProgramFor(name,fy,season);
     if(match){
+      // calcKPIs/calcCR roll up umbrella sessions automatically; use the rolled-up
+      // record for enrollment/capacity/waitlist too so the form matches the numbers.
+      const src=withUmbrellaActuals(match);
       const kpis=calcKPIs(match);
       const cr=calcCR(match,"act_");
       setCrManual(false);
@@ -4396,16 +4516,18 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
         program_name:name,
         supervisor:prev.supervisor||match.staff_name||"",
         area:match.area||prev.area,
-        season:match.season||prev.season,
+        // The reviewer's season choice wins; only fill it in when blank
+        season:prev.season||match.season||"",
         classification:match.classification||prev.classification,
-        fill_rate:kpis.fillRate?Math.round(kpis.fillRate*100):"",
-        cost_recovery:kpis.costRecovery?Math.round(kpis.costRecovery*100):"",
-        revenue:Math.round(cr.revenue)||"",
-        direct_costs:Math.round(cr.total)||"",
+        // Progress check-ins: staff type the period's own revenue and costs — leave those blank
+        fill_rate:prev.is_quarterly?prev.fill_rate:(kpis.fillRate?Math.round(kpis.fillRate*100):""),
+        cost_recovery:prev.is_quarterly?prev.cost_recovery:(kpis.costRecovery?Math.round(kpis.costRecovery*100):""),
+        revenue:prev.is_quarterly?prev.revenue:(Math.round(cr.revenue)||""),
+        direct_costs:prev.is_quarterly?prev.direct_costs:(Math.round(cr.total)||""),
         // actuals — participation
-        enrollment:match.act_enrollment||"",
-        capacity:match.act_capacity||"",
-        waitlist:match.waitlist!=null?match.waitlist:"",
+        enrollment:src.act_enrollment||"",
+        capacity:src.act_capacity||"",
+        waitlist:src.waitlist!=null?src.waitlist:"",
         // quality & trend
         nps:match.nps||"",
         trend:match.trend||"Stable",
@@ -4428,22 +4550,48 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
     }
   }
 
-  // Prior season lookup
+  // Arrived here from a program's "Program Reviews" link: filter the list to that
+  // program and clear any other filters so its history is the first thing shown.
+  useEffect(()=>{
+    if(!targetProgram) return;
+    setSearch(targetProgram.name||"");
+    setFyFilter("all");setDecFilter("all");
+    setView("list");setDetailRow(null);
+  },[targetProgram]);
+
+  // Start a new review pre-filled for a specific program record
+  function startNewFor(p){
+    const fy=ADMIN_FYS.find(f=>f.slice(-2)===String(p.year||"").slice(-2))||ADMIN_CUR;
+    startNew("full",{fy,season:SEASONS_LIST.includes(p.season)?p.season:"",program_name:""});
+    // Let the form mount, then run the matcher with the season/FY already set
+    setTimeout(()=>handleProgramName(p.name||"",fy,SEASONS_LIST.includes(p.season)?p.season:""),0);
+  }
+
+  // Re-match when the reviewer changes Season or Fiscal Year after typing the name,
+  // so the actuals always come from the record for the season being reviewed.
+  // Progress check-ins keep their hand-entered figures.
+  useEffect(()=>{
+    if(!form.program_name||form.is_quarterly) return;
+    if(!programs||!programs.length) return;
+    const m=findProgramFor(form.program_name,form.fy,form.season);
+    if(m&&m.id!==matchedProgram?.id) handleProgramName(form.program_name,form.fy,form.season);
+    else if(!m&&matchedProgram) setMatchedProgram(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[form.fy,form.season,programs]);
+
+  // Prior season lookup — same program name, same season, one FY earlier
   function priorSeasonData(name,season,fy){
-    if(!reviewablePrograms||!name) return null;
-    const fyIdx=ADMIN_FYS.indexOf(fy);
+    if(!name) return null;
+    const fyIdx=ADMIN_FYS.indexOf(fy||ADMIN_CUR);
     const priorFY=fyIdx>0?ADMIN_FYS[fyIdx-1]:null;
-    const prior=reviewablePrograms.find(p=>
-      p.name?.toLowerCase()===name.toLowerCase()&&
-      p.season===season&&
-      p.year===priorFY?.slice(0,4)
-    );
+    if(!priorFY) return null;
+    const prior=findProgramFor(name,priorFY,season);
     if(!prior) return null;
     const kpis=calcKPIs(prior);
     return{
       fill_rate:kpis.fillRate?Math.round(kpis.fillRate*100):null,
       cost_recovery:kpis.costRecovery?Math.round(kpis.costRecovery*100):null,
-      enrollment:prior.act_enrollment,
+      enrollment:withUmbrellaActuals(prior).act_enrollment,
       fy:priorFY,
     };
   }
@@ -4600,19 +4748,24 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
     setAutoSaving(false);
   }
 
-  function startNew(mode="full"){
+  function startNew(mode="full",preset=null){
     setEditRow(null);
     setCrManual(false);
-    setForm({...emptyForm, supervisor: isManager ? "" : staffName});
+    setCostCalc({personnel:"",commodities:"",contractuals:"",other1:"",other2:"",facility_hours:""});
+    setForm({...emptyForm, supervisor: isManager ? "" : staffName, ...(preset||{})});
     setActiveStep(0);setMatchedProgram(null);setReviewMode(mode);setView("form");
   }
   function startEdit(r){
     setEditRow(r);
     setCrManual(false);
-    const prog=(reviewablePrograms||[]).find(p=>p.name?.toLowerCase()===r.program_name?.toLowerCase());
+    setCostCalc({personnel:"",commodities:"",contractuals:"",other1:"",other2:"",facility_hours:""});
+    // Progress check-ins hold period figures staff typed by hand — never overwrite those.
+    // Annual reviews refresh from the matching program record (same FY and season).
+    const prog=r.is_quarterly?null:findProgramFor(r.program_name,r.fy,r.season);
+    setMatchedProgram(prog||findProgramFor(r.program_name,r.fy,r.season));
     const freshCR=prog?calcCR(prog,"act_"):null;
-    const freshRev=freshCR?Math.round(freshCR.revenue)||"":r.revenue||"";
-    const freshCost=freshCR?Math.round(freshCR.total)||"":r.direct_costs||"";
+    const freshRev=freshCR&&freshCR.revenue>0?Math.round(freshCR.revenue):(r.revenue||"");
+    const freshCost=freshCR&&freshCR.total>0?Math.round(freshCR.total):(r.direct_costs||"");
     const autoCRPct=(parseFloat(freshCost)>0)?Math.round((parseFloat(freshRev)||0)/parseFloat(freshCost)*100):(r.cost_recovery||"");
     setForm({...emptyForm,...r,
       revenue:freshRev,
@@ -4807,6 +4960,17 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
         ))}
       </div>
 
+      {targetProgram&&search&&search.toLowerCase()===String(targetProgram.name||"").toLowerCase()&&(
+        <div className="rounded border px-4 py-3 mb-5 flex flex-wrap items-center gap-3 text-sm" style={{background:"#E6F6FB",borderColor:"rgba(0,169,206,0.35)"}}>
+          <span className="font-bold text-slate-800">Reviews for {targetProgram.name}</span>
+          <span className="text-xs text-slate-600">{targetProgram.season?`${targetProgram.season} · `:""}FY {toFY(targetProgram.year)}{targetProgram.area?` · ${targetProgram.area}`:""}</span>
+          <span className="ml-auto flex items-center gap-2">
+            <button onClick={()=>startNewFor(targetProgram)} className="text-xs font-bold px-3 py-1.5 rounded text-white" style={{background:"#00A9CE"}}>+ New review for this program</button>
+            {onOpenProgram&&<button onClick={()=>onOpenProgram(targetProgram)} className="text-xs font-bold px-3 py-1.5 rounded" style={{background:"#fff",color:"#007A99",border:"1px solid rgba(0,169,206,0.4)"}}>← Back to program</button>}
+          </span>
+        </div>
+      )}
+
       {/* Filters */}
       <div className="bg-white rounded border border-slate-100 shadow-sm p-4 flex flex-wrap gap-3 items-center mb-5">
         <input value={search} onChange={e=>setSearch(e.target.value)} autoComplete="off" placeholder="Search program or supervisor…"
@@ -4837,17 +5001,12 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
             const pMet=(r.pillars_met||"").split(",").filter(Boolean).length;
             const dc=dcColor[r.decision]||"#64748b";
             const frDelta=r.prior_fill_rate?r.fill_rate-r.prior_fill_rate:null;
-            // Match program for this review's FY so CR/fill are always live-computed
-            const reviewFY=r.fy||ADMIN_CUR;
-            const reviewYr=reviewFY.slice(-2);
-            const currentProg=(reviewablePrograms||[]).find(p=>
-              p.name?.toLowerCase()===r.program_name?.toLowerCase()&&
-              !p.is_archived&&!p.is_deleted&&
-              (p.year===reviewFY||p.year?.slice(-2)===reviewYr)
-            );
+            // Match the program record for this review's FY and season so CR/fill are live.
+            // Progress check-ins hold their own period figures — always show what was saved.
+            const currentProg=r.is_quarterly?null:findProgramFor(r.program_name,r.fy,r.season);
             const liveCRCalc=currentProg?calcCR(currentProg,"act_"):null;
-            const currentCR=liveCRCalc?Math.round(liveCRCalc.crPct*100):null;
-            const currentFill=(currentProg&&currentProg.act_capacity>0)?Math.round((currentProg.act_enrollment||0)/currentProg.act_capacity*100):null;
+            const currentCR=liveCRCalc&&liveCRCalc.total>0?Math.round(liveCRCalc.crPct*100):null;
+            const currentFill=liveCRCalc&&liveCRCalc.capacity>0?Math.round(liveCRCalc.fillRate*100):null;
             // Show live figures when available; fall back to saved snapshot
             const displayCR=currentCR!==null?currentCR:(r.cost_recovery||0);
             const displayFill=currentFill!==null?currentFill:(r.fill_rate||0);
@@ -4862,6 +5021,10 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                   <div className="font-bold font-semibold">{r.program_name}</div>
                   <div className="text-xs text-slate-700 mt-0.5">{r.supervisor}{r.area?` · ${r.area}`:""} · {r.season&&r.fy?`${r.season} FY ${r.fy} · `:""}{r.review_date}{r.is_quarterly&&r.review_quarter&&<span className="ml-2 px-1.5 py-0.5 rounded font-bold" style={{background:"#E6F6FB",color:"#007A99"}}>{r.review_quarter} check-in</span>}
                     {r.updated_at&&<span className="ml-2 text-slate-400">· saved {new Date(r.updated_at).toLocaleDateString()}</span>}
+                    {onOpenProgram&&(currentProg||findProgramFor(r.program_name,r.fy,r.season))&&(
+                      <button type="button" onClick={e=>{e.stopPropagation();onOpenProgram(currentProg||findProgramFor(r.program_name,r.fy,r.season));}}
+                        className="ml-2 font-bold" style={{color:"#007A99",background:"none",border:"none",padding:0,cursor:"pointer"}}>Open program →</button>
+                    )}
                   </div>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs">
                     <span className="text-slate-700">Fill: <span className="font-bold">{displayFill}%</span>
@@ -5219,20 +5382,31 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
               {matchedProgram&&(()=>{
                 const mk=calcKPIs(matchedProgram);
                 const actCR=calcCR(matchedProgram,"act_");
+                const src=withUmbrellaActuals(matchedProgram);
+                const usedSessions=matchedProgram.is_umbrella&&src!==matchedProgram&&(src.act_enrollment!==matchedProgram.act_enrollment||src.act_revenue!==matchedProgram.act_revenue);
+                const noActuals=actCR.total<=0&&actCR.revenue<=0;
                 return(
                   <div className="mt-1.5 px-3 py-2 rounded-lg bg-blue-50 border border-blue-100 text-xs text-blue-700 space-y-1">
                     <div className="flex flex-wrap gap-x-3 gap-y-0.5 items-center">
-                      <span className="font-bold">✓ Matched —</span>
+                      <span className="font-bold">✓ Matched {matchedProgram.season||""} FY {toFY(matchedProgram.year)}{matchedProgram.staff_name?` · ${matchedProgram.staff_name}`:""} —</span>
                       <span>Fill: <b>{Math.round((mk.fillRate||0)*100)}%</b></span>
                       <span>CR: <b>{Math.round((mk.costRecovery||0)*100)}%</b></span>
                       <span>Revenue: <b>{dollar(actCR.revenue)}</b></span>
                       <span>Total Program Cost: <b>{dollar(Math.round(actCR.total))}</b></span>
-                      {matchedProgram.act_enrollment>0&&<span>Enrolled: <b>{matchedProgram.act_enrollment}/{matchedProgram.act_capacity}</b></span>}
-                      <span className="text-blue-500">All fields pre-filled ↓</span>
+                      {src.act_enrollment>0&&<span>Enrolled: <b>{src.act_enrollment}/{src.act_capacity||"—"}</b></span>}
+                      {!form.is_quarterly&&<span className="text-blue-500">All fields pre-filled ↓</span>}
+                      {onOpenProgram&&<button type="button" onClick={()=>onOpenProgram(matchedProgram)} className="font-bold underline" style={{color:"#007A99",background:"none",border:"none",padding:0,cursor:"pointer"}}>Open program →</button>}
                     </div>
+                    {usedSessions&&<div className="text-blue-600">Umbrella program with no actuals of its own — numbers above are rolled up from its individual classes/sessions.</div>}
+                    {noActuals&&<div className="font-semibold" style={{color:"#8A5E00"}}>⚠ This record has no actuals entered yet.  Revenue and cost below will be blank until the Actuals tab is filled in on the program.</div>}
                   </div>
                 );
               })()}
+              {!matchedProgram&&form.program_name&&form.program_name.length>2&&(
+                <div className="mt-1.5 px-3 py-2 rounded-lg text-xs" style={{background:"#FEF4DC",border:"1px solid rgba(138,94,0,0.2)",color:"#8A5E00"}}>
+                  No program record found for "{form.program_name}" in {form.season||"any season"}, FY {form.fy||ADMIN_CUR}.  Check the spelling, season and fiscal year, or enter the figures by hand.
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -5328,20 +5502,19 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false}){
                       <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Facility Hours</label>
                       <input type="number" min={0} value={costCalc.facility_hours} onChange={e=>updateCostCalc("facility_hours",e.target.value)}
                         className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="0"/>
-                      <span className="text-xs text-slate-500">$3/hr allocated</span>
+                      <span className="text-xs text-slate-500">${getFyConfig(reviewFyKey(form.fy)).facilityRate}/hr allocated</span>
                     </div>
                   </div>
                   {/* Breakdown summary */}
                   {(()=>{
-                    const direct=(parseFloat(costCalc.personnel)||0)+(parseFloat(costCalc.commodities)||0)+(parseFloat(costCalc.contractuals)||0)+(parseFloat(costCalc.other1)||0)+(parseFloat(costCalc.other2)||0);
-                    const overhead=Math.round(direct*ADMIN_OVERHEAD_RATE);
-                    const facility=(parseFloat(costCalc.facility_hours)||0)*FACILITY_COST_PER_HR;
-                    const total=Math.round(direct+overhead+facility);
+                    const t=costCalcTotals(costCalc,form.fy);
+                    const direct=t.direct, overhead=Math.round(t.overhead), facility=t.facility, total=Math.round(t.total);
+                    const ovPct=Math.round(t.cfg.adminOverhead*100);
                     if(!total) return null;
                     return (
                       <div className="rounded bg-white border border-blue-100 px-3 py-2 text-xs text-slate-700 flex flex-wrap gap-4 items-center mt-1">
                         <span>Direct: <b>${direct.toLocaleString()}</b></span>
-                        <span>+ Overhead (10%): <b>${overhead.toLocaleString()}</b></span>
+                        <span>+ Overhead ({ovPct}%): <b>${overhead.toLocaleString()}</b></span>
                         {facility>0&&<span>+ Facility: <b>${facility.toLocaleString()}</b></span>}
                         <span className="font-bold text-blue-800">= Total: ${total.toLocaleString()}</span>
                         <span className="text-blue-600 text-xs ml-auto">↑ auto-filled into Total Program Cost</span>
@@ -6123,25 +6296,12 @@ function ProgramGuideSection({isManager,db}){
 
 
 // ─── CR target lookup by service category ─────────────────────────────────
-const CR_TARGET_MAP = {
-  "Open Access":                       {lo:0,   hi:0,   label:"~0% (Full Subsidy)"},
-  "Community Events":                  {lo:0,   hi:0.20,label:"0-20% (Subsidy)"},
-  "Specialty Events":                  {lo:0.95,hi:1.05,label:"~100%"},
-  "Beg./Intro. Activities":            {lo:1.00,hi:1.00,label:"100%"},
-  "Drop In Activities":                {lo:1.00,hi:1.05,label:"100-105%"},
-  "Childcare Services":                {lo:1.10,hi:1.30,label:"110-130%"},
-  "Intermediate/Adv. Activities":      {lo:1.10,hi:1.30,label:"110-130%"},
-  "Private/Semi-Private Activities":   {lo:1.30,hi:1.50,label:"130-150%"},
-  "Specialized Activities":            {lo:1.30,hi:1.50,label:"130-150%"},
-  "Rentals":                           {lo:1.30,hi:1.50,label:"130-150%"},
-  "Retail & Consumables":              {lo:1.30,hi:1.50,label:"130-150%"},
-};
-
+// Single source of truth: SVC_TARGET_MAP (top of file).  The Fee Report, the
+// per-program Pricing tab and the Summary tab all read the same bands.
 function getCRTarget(p) {
-  const cat = p.service_category||"";
-  const t = CR_TARGET_MAP[cat];
+  const t = SVC_TARGET_MAP[p.service_category||""];
   if (!t) return null;
-  return t;
+  return {lo:t.min, hi:t.max, label:t.label, expectSubsidy:!!t.expectSubsidy};
 }
 
 // gap = positive means above target high (good), negative means below target lo (needs fee increase)
@@ -6160,6 +6320,9 @@ function calcSuggestedFee(crPct, target, cr, currentFee) {
   if (!target || cr.total <= 0 || cr.enrollment <= 0) return {fee:null, reason:"no-target"};
   const enrollment = cr.enrollment;
   const totalCost  = cr.total;
+  // Subsidized categories (Open Access, Community Events) are meant to run below
+  // 100% — the board has chosen to fund them.  Never suggest a fee increase.
+  if (target.expectSubsidy) return {fee:null, reason:"subsidy"};
   if (crPct < target.lo) {
     // Below floor: raise to floor
     const needed = Math.ceil((target.lo * totalCost) / enrollment);
@@ -6184,15 +6347,104 @@ function calcSuggestedFee(crPct, target, cr, currentFee) {
   return {fee: null, reason:"no-target"};
 }
 
-function FeeReportTab({programs}) {
+// Data completeness checks for a Fee Report row.  Any ⚠ flag means the suggested
+// fee is built on incomplete data and should be verified before acting on it.
+function feeRowFlags(p, cr, revPerPart, currentFee) {
+  const flags = [];
+  const pa = withUmbrellaActuals(p);
+  if (!p.service_category) flags.push({warn:true, text:"No service category — no target to compare against"});
+  if (!pa.act_program_type && !(parseFloat(pa.act_custom_workload)>0)) flags.push({warn:true, text:"No Program Type on Actuals — FT staff cost is $0, so CR is overstated"});
+  if (!(pa.act_facility_hours>0)) flags.push({warn:true, text:"No facility hours on Actuals — facility cost is $0"});
+  if (!(currentFee>0)) flags.push({warn:false, text:"No current fee entered — using revenue per participant as the fee"});
+  if (p.is_umbrella) flags.push({warn:false, text:"Umbrella program — fee shown is blended across sessions"});
+  if (currentFee>0 && revPerPart!=null && Math.abs(revPerPart-currentFee)/currentFee > 0.15) flags.push({warn:true, text:"Revenue per participant differs from the entered fee by more than 15% — discounts, multiple price points, or a stale fee"});
+  if (cr.enrollment>0 && cr.capacity>0 && cr.enrollment>cr.capacity) flags.push({warn:true, text:"Enrollment is higher than capacity — check Actuals"});
+  return flags;
+}
+
+// Plain language explanation of one Fee Report row — the same numbers the row
+// was computed from, shown step by step so staff can check the math themselves.
+function FeeMathPanel({p, cr, target, currentFee, revPerPart, suggestedFee, sugReason, flags}) {
+  const pa  = withUmbrellaActuals(p);
+  const cfg = getFyConfig(p.year);
+  const customWL = parseFloat(pa.act_custom_workload)||0;
+  const progType = pa.act_program_type||"";
+  const wlPct = customWL>0 ? customWL/100 : (progType&&progType!=="Custom" ? (PROGRAM_TYPES.find(t=>t.label===progType)?.pct||0) : 0);
+  const d = {
+    personnel:pa.act_personnel||0, commodities:pa.act_commodities||0, contractuals:pa.act_contractuals||0,
+    other1:pa.act_other1||0, other2:pa.act_other2||0, clubhouse:pa.act_clubhouse_fee||0,
+  };
+  const rev = {r1:pa.act_revenue||0, r2:pa.act_revenue2||0, r3:pa.act_revenue3||0};
+  const $ = n => "$"+Math.round(n||0).toLocaleString("en-US");
+  const $$ = n => "$"+(n||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const pc = n => ((n||0)*100).toFixed(1)+"%";
+  const feeBase = currentFee>0 ? currentFee : revPerPart;
+  const floorFee = target && cr.enrollment>0 ? Math.ceil((target.lo*cr.total)/cr.enrollment) : null;
+  const ceilFee  = target && target.hi>0 && cr.enrollment>0 ? (target.hi*cr.total)/cr.enrollment : null;
+
+  const Line = ({label, calc, value, bold}) => (
+    <div className="flex items-baseline gap-2 text-xs" style={{fontWeight:bold?700:400,color:bold?"#3d2b1a":"#5C462B"}}>
+      <span className="shrink-0" style={{minWidth:"150px"}}>{label}</span>
+      {calc&&<span className="flex-1 font-mono" style={{color:"#8A7A6A"}}>{calc}</span>}
+      <span className="font-mono shrink-0" style={{minWidth:"80px",textAlign:"right"}}>{value}</span>
+    </div>
+  );
+
+  let feeStory;
+  if (sugReason==="subsidy") feeStory = <>This category ({target?.label}) is meant to be subsidized by tax dollars.  The app never suggests a fee increase for it.  If you want it to recover more, that is a board level policy change, not a pricing fix.</>;
+  else if (sugReason==="no-target") feeStory = <>No service category target, or no cost or enrollment data, so there is nothing to compare the fee against.</>;
+  else if (sugReason==="below-floor") feeStory = <>{pc(cr.crPct)} is below the {pc(target.lo)} floor.  The fee that reaches the floor is <span className="font-mono">{pc(target.lo)} × {$(cr.total)} ÷ {cr.enrollment} = <b>{$$(floorFee)}</b></span> per participant{feeBase!=null&&<> ({(suggestedFee-feeBase)>=0?"+":""}{$$(suggestedFee-feeBase)} vs the {currentFee>0?"current fee":"current revenue per participant"} of {$$(feeBase)})</>}.  This assumes enrollment stays at {cr.enrollment} and all revenue comes from fees.</>;
+  else if (sugReason==="in-range") feeStory = <>{pc(cr.crPct)} is inside the {target.label} band, so the app applies a 3% inflation increase: <span className="font-mono">{$$(feeBase)} × 1.03 = {$$(feeBase*1.03)}</span>{ceilFee!=null&&<>, capped at the fee that would hit the {pc(target.hi)} ceiling (<span className="font-mono">{pc(target.hi)} × {$(cr.total)} ÷ {cr.enrollment} = {$$(ceilFee)}</span>)</>}.  Result: <b>{$$(suggestedFee)}</b>.</>;
+  else if (sugReason==="above-ceiling") feeStory = <>{pc(cr.crPct)} is above the {pc(target.hi)} ceiling.  The program is already over recovering, so the app says hold.  Consider whether the extra margin is intentional or whether the fee could come down to grow enrollment.</>;
+  else feeStory = <>No actuals yet.  Enter actual revenue, enrollment and costs on the program's Actuals tab.</>;
+
+  return (
+    <div className="px-4 py-3 space-y-3" style={{background:"#FBFAF7",borderLeft:"3px solid #00A9CE"}}>
+      {flags.length>0&&(
+        <div className="space-y-0.5">
+          {flags.map((f,i)=>(
+            <div key={i} className="text-xs font-semibold" style={{color:f.warn?"#8A5E00":"#6B5744"}}>{f.warn?"⚠":"ℹ"} {f.text}</div>
+          ))}
+        </div>
+      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-0.5">
+          <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{color:"#5C462B"}}>Total program cost</div>
+          <Line label="Direct costs" calc={`personnel ${$(d.personnel)} + commodities ${$(d.commodities)} + contractuals ${$(d.contractuals)}${d.other1?` + other ${$(d.other1)}`:""}${d.other2?` + other 2 ${$(d.other2)}`:""}${d.clubhouse?` + clubhouse ${$(d.clubhouse)}`:""}`} value={$(cr.direct)}/>
+          <Line label={`+ Admin overhead (${pc(cfg.adminOverhead).replace(".0","")})`} calc={`${$(cr.direct)} × ${cfg.adminOverhead}`} value={$(cr.ao)}/>
+          <Line label="+ FT staff allocation" calc={wlPct>0?`${$(cfg.ftSalary)} × ${(wlPct*100).toFixed(1)}% (${customWL>0?"custom":progType})`:"no Program Type selected → 0%"} value={$(cr.ftStaff)}/>
+          <Line label="+ Facility charge" calc={`${pa.act_facility_hours||0} hrs × $${cfg.facilityRate}/hr`} value={$(cr.facility)}/>
+          <Line label="= Total cost" value={$(cr.total)} bold/>
+        </div>
+        <div className="space-y-0.5">
+          <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{color:"#5C462B"}}>Revenue and cost recovery</div>
+          <Line label="Revenue" calc={`${$(rev.r1)}${rev.r2?` + ${pa.revenue2_label||"revenue 2"} ${$(rev.r2)}`:""}${rev.r3?` + ${pa.revenue3_label||"revenue 3"} ${$(rev.r3)}`:""}`} value={$(cr.revenue)}/>
+          <Line label="Enrollment" calc={cr.capacity>0?`of ${cr.capacity} capacity (${pc(cr.fillRate)} full)`:""} value={String(cr.enrollment||0)}/>
+          <Line label="Revenue per participant" calc={cr.enrollment>0?`${$(cr.revenue)} ÷ ${cr.enrollment}`:""} value={revPerPart!=null?$$(revPerPart):"—"}/>
+          <Line label="Current fee (entered)" calc={currentFee>0?"":"none — using revenue per participant"} value={currentFee>0?$$(currentFee):"—"}/>
+          <Line label="Cost recovery" calc={cr.total>0?`${$(cr.revenue)} ÷ ${$(cr.total)}`:""} value={pc(cr.crPct)} bold/>
+          <Line label="Target band" calc={p.service_category||"no category"} value={target?target.label:"—"}/>
+        </div>
+      </div>
+      <div className="rounded px-3 py-2 text-xs" style={{background:"#fff",border:"1px solid rgba(92,70,43,0.12)",color:"#3d2b1a"}}>
+        <span className="font-bold" style={{color:"#007A99"}}>Suggested fee: </span>{feeStory}
+      </div>
+    </div>
+  );
+}
+
+function FeeReportTab({programs, onOpenProgram}) {
   const [filterArea, setFilterArea] = useState("All");
   const [filterCat,  setFilterCat]  = useState("All");
+  const [filterFlag, setFilterFlag] = useState("All");   // All | needs-attention | clean
   const [sortCol,    setSortCol]    = useState("name");
   const [sortDir,    setSortDir]    = useState("asc");
   const [editingFee, setEditingFee] = useState(null);   // program id being edited
   const [feeInput,   setFeeInput]   = useState("");     // raw input string
   const [savingFee,  setSavingFee]  = useState(null);   // id currently saving
   const [feeOverrides, setFeeOverrides] = useState({}); // {id: number} local overrides after save
+  const [expanded,   setExpanded]   = useState(null);   // program id with the math panel open
+  const [fySel,      setFySel]      = useState("");     // "" = auto detect
 
   async function saveFee(id) {
     const val = parseFloat(feeInput);
@@ -6204,17 +6456,25 @@ function FeeReportTab({programs}) {
     if (!error) setFeeOverrides(prev=>({...prev,[id]:val}));
   }
 
-  // Detect most recent FY that has at least some actuals entered
-  const currentFY = useMemo(()=>{
-    const fys = programs
-      .filter(p=>!p.is_archived&&!p.is_deleted&&p.act_revenue>0&&p.act_enrollment>0)
-      .map(p=>toFY(p.year))
-      .filter(Boolean);
-    if (!fys.length) return null;
-    return fys.sort().reverse()[0];
+  // Every FY that has active programs, newest first
+  const fyOptions = useMemo(()=>{
+    const fys = [...new Set(programs.filter(p=>!p.is_archived&&!p.is_deleted).map(p=>toFY(p.year)).filter(Boolean))];
+    return fys.sort().reverse();
   },[programs]);
 
-  // All non-archived, non-deleted programs in the current FY — including those with no actuals yet
+  // Default: most recent FY that has at least some actuals entered
+  const detectedFY = useMemo(()=>{
+    const fys = programs
+      .filter(p=>!p.is_archived&&!p.is_deleted)
+      .filter(p=>{const c=calcCR(p,"act_");return c.revenue>0&&c.enrollment>0;})
+      .map(p=>toFY(p.year))
+      .filter(Boolean);
+    if (!fys.length) return fyOptions[0]||null;
+    return fys.sort().reverse()[0];
+  },[programs,fyOptions]);
+  const currentFY = fySel||detectedFY;
+
+  // All non-archived, non-deleted programs in the selected FY — including those with no actuals yet
   const activeProgs = useMemo(()=>
     programs.filter(p=>
       !p.is_archived && !p.is_deleted &&
@@ -6222,46 +6482,47 @@ function FeeReportTab({programs}) {
     ),
   [programs, currentFY]);
 
-  const areas = useMemo(()=>{
-    const as = [...new Set(activeProgs.map(p=>p.area).filter(Boolean))];
-    return as.sort();
-  },[activeProgs]);
-
-  const cats = useMemo(()=>{
-    const cs = [...new Set(activeProgs.map(p=>p.service_category).filter(Boolean))];
-    return cs.sort();
-  },[activeProgs]);
+  const areas = useMemo(()=>[...new Set(activeProgs.map(p=>p.area).filter(Boolean))].sort(),[activeProgs]);
+  const cats  = useMemo(()=>[...new Set(activeProgs.map(p=>p.service_category).filter(Boolean))].sort(),[activeProgs]);
 
   const rows = useMemo(()=>{
     let list = activeProgs;
     if (filterArea !== "All") list = list.filter(p=>p.area===filterArea);
     if (filterCat  !== "All") list = list.filter(p=>p.service_category===filterCat);
-    return list.map(p=>{
+    const built = list.map(p=>{
       const cr         = calcCR(p,"act_");
-      const hasActuals = cr.enrollment>0 && cr.revenue>0;
-      const revPerPart = hasActuals ? cr.revenue/cr.enrollment : null;
+      const hasActuals = cr.enrollment>0 && cr.total>0;
+      const revPerPart = cr.enrollment>0 ? cr.revenue/cr.enrollment : null;
       const crPct      = cr.crPct;
       const target     = getCRTarget(p);
-      const gap        = crGap(crPct, target);
-      const currentFee = feeOverrides[p.id] != null ? feeOverrides[p.id] : (parseFloat(p.fee)||0);
+      const enteredFee = feeOverrides[p.id] != null ? feeOverrides[p.id] : (parseFloat(p.fee)||0);
+      const currentFee = enteredFee;
       const {fee:suggestedFee, reason:sugReason} = hasActuals
         ? calcSuggestedFee(crPct, target, cr, currentFee)
         : {fee:null, reason:"no-data"};
-      const dollarChange = (suggestedFee!=null && currentFee>0) ? suggestedFee - currentFee : null;
-      return {p, cr, hasActuals, revPerPart, crPct, target, gap, currentFee, suggestedFee, sugReason, dollarChange};
-    }).sort((a,b)=>{
+      // $ change is measured against the entered fee, or revenue per participant when no fee is set
+      const feeBase    = currentFee>0 ? currentFee : revPerPart;
+      const dollarChange = (suggestedFee!=null && feeBase!=null && feeBase>0) ? suggestedFee - feeBase : null;
+      const flags      = hasActuals ? feeRowFlags(p, cr, revPerPart, currentFee) : [];
+      const warnCount  = flags.filter(f=>f.warn).length;
+      return {p, cr, hasActuals, revPerPart, crPct, target, currentFee, feeBase, suggestedFee, sugReason, dollarChange, flags, warnCount};
+    });
+    const filtered = filterFlag==="needs-attention" ? built.filter(r=>r.warnCount>0)
+                   : filterFlag==="clean"           ? built.filter(r=>r.hasActuals&&r.warnCount===0)
+                   : built;
+    return filtered.sort((a,b)=>{
       let va=0,vb=0;
       if      (sortCol==="name")        {va=a.p.name||"";     vb=b.p.name||"";}
       else if (sortCol==="area")        {va=a.p.area||"";     vb=b.p.area||"";}
       else if (sortCol==="currentFee")  {va=a.currentFee;     vb=b.currentFee;}
-      else if (sortCol==="revPerPart")  {va=a.revPerPart;     vb=b.revPerPart;}
+      else if (sortCol==="revPerPart")  {va=a.revPerPart??-1; vb=b.revPerPart??-1;}
       else if (sortCol==="cr")          {va=a.crPct;          vb=b.crPct;}
       else if (sortCol==="suggested")   {va=a.suggestedFee??-1;vb=b.suggestedFee??-1;}
       else if (sortCol==="dollarChange"){va=a.dollarChange??-9999;vb=b.dollarChange??-9999;}
       if (typeof va==="string") return sortDir==="asc"?va.localeCompare(vb):vb.localeCompare(va);
       return sortDir==="asc"?va-vb:vb-va;
     });
-  },[activeProgs,filterArea,filterCat,sortCol,sortDir,feeOverrides]);
+  },[activeProgs,filterArea,filterCat,filterFlag,sortCol,sortDir,feeOverrides]);
 
   function toggleSort(col) {
     if (sortCol===col) setSortDir(d=>d==="asc"?"desc":"asc");
@@ -6269,13 +6530,19 @@ function FeeReportTab({programs}) {
   }
 
   const belowFloor    = rows.filter(r=>r.sugReason==="below-floor").length;
-  const inRange       = rows.filter(r=>r.sugReason==="in-range").length;
   const aboveCeiling  = rows.filter(r=>r.sugReason==="above-ceiling").length;
   const noData        = rows.filter(r=>r.sugReason==="no-data").length;
+  const needsCheck    = rows.filter(r=>r.warnCount>0).length;
   const totalRevenue  = rows.reduce((s,r)=>s+r.cr.revenue,0);
 
   const fmt$   = n => "$"+(n||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
   const fmtPct = n => ((n||0)*100).toFixed(1)+"%";
+  const reasonText = r =>
+    r==="below-floor"   ? "Raise to target floor" :
+    r==="in-range"      ? "3% inflation increase" :
+    r==="above-ceiling" ? "Hold (above ceiling)" :
+    r==="subsidy"       ? "Subsidized category — no increase" :
+    r==="no-data"       ? "No actuals" : "No target set";
 
   const thSt = (col) => ({
     padding:"7px 8px",
@@ -6299,29 +6566,34 @@ function FeeReportTab({programs}) {
 
   function exportCSV() {
     const esc = v=>{const s=String(v??"");return s.includes(",")||s.includes('"')||s.includes("\n")?`"${s.replace(/"/g,'""')}"`:`${s}`;};
-    const headers = ["Program","Area","Staff","Current Fee","Rev/Participant","CR%","Target CR","Suggested Fee","$ Change","Reason"];
-    const dataRows = rows.map(({p,revPerPart,crPct,target,currentFee,suggestedFee,dollarChange,sugReason})=>[
+    const headers = ["Program","Area","Staff","Service Category","Current Fee","Rev/Participant","Enrollment","Revenue","Total Cost","CR%","Target CR","Suggested Fee","$ Change","Reason","Data Flags"];
+    const dataRows = rows.map(({p,cr,hasActuals,revPerPart,crPct,target,currentFee,suggestedFee,dollarChange,sugReason,flags})=>[
       p.name||"",
       p.area||"",
       p.staff_name||"",
+      p.service_category||"",
       currentFee>0?currentFee.toFixed(2):"",
-      revPerPart.toFixed(2),
-      (crPct*100).toFixed(1)+"%",
+      revPerPart!=null?revPerPart.toFixed(2):"",
+      cr.enrollment||0,
+      Math.round(cr.revenue||0),
+      Math.round(cr.total||0),
+      hasActuals?(crPct*100).toFixed(1)+"%":"",
       target?target.label:"",
-      suggestedFee!=null?suggestedFee.toFixed(2):"hold",
+      suggestedFee!=null?suggestedFee.toFixed(2):(sugReason==="above-ceiling"?"hold":""),
       dollarChange!=null?(dollarChange>=0?"+":"")+dollarChange.toFixed(2):"",
-      sugReason==="below-floor"?"Raise to target floor":sugReason==="in-range"?"3% inflation increase":sugReason==="above-ceiling"?"Hold (above ceiling)":"No target set",
+      reasonText(sugReason),
+      flags.filter(f=>f.warn).map(f=>f.text).join("; "),
     ].map(esc).join(","));
     const csv = [headers.join(","),...dataRows].join("\n");
     const blob = new Blob([csv],{type:"text/csv"});
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href=url; a.download=`BGPD-Fee-Report-${currentFY||"FY"}.csv`; a.click();
+    a.href=url; a.download=`${DISTRICT_CONFIG.reportPrefix}-Fee-Report-${currentFY||"FY"}.csv`; a.click();
     URL.revokeObjectURL(url);
   }
 
   if (!currentFY) return (
-    <div className="p-8 text-center" style={{color:"#A09080"}}>No programs with actuals found.</div>
+    <div className="p-8 text-center" style={{color:"#A09080"}}>No active programs found.</div>
   );
 
   return (
@@ -6332,7 +6604,7 @@ function FeeReportTab({programs}) {
           <div className="text-xs font-bold uppercase tracking-widest mb-0.5" style={{color:"rgba(255,255,255,0.6)"}}>Manager Report · FY {currentFY}</div>
           <div className="text-lg font-black">Fee Analysis Report</div>
           <div className="text-xs mt-1" style={{color:"rgba(255,255,255,0.75)"}}>
-            Suggested fees use a 3-tier rule: below target floor raises to floor, within range gets 3% (capped at ceiling), above ceiling holds.
+            Click any program name to see the math behind its row.  Rows marked ⚠ are built on incomplete data and should be checked before acting on them.
           </div>
         </div>
         <button onClick={exportCSV}
@@ -6345,11 +6617,11 @@ function FeeReportTab({programs}) {
       {/* Summary tiles */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
         {[
-          {label:"Programs",      value:String(rows.length),               color:"#00A9CE"},
-          {label:"Total Revenue", value:fmt$(totalRevenue),                color:"#00A9CE"},
-          {label:"Need Increase", value:String(belowFloor)+" programs",    color:belowFloor>0?"#E35205":"#4A6B00"},
-          {label:"Above Ceiling", value:String(aboveCeiling)+" programs",  color:aboveCeiling>0?"#007A99":"#A09080"},
-          {label:"No Actuals",    value:String(noData)+" programs",        color:noData>0?"#A09080":"#4A6B00"},
+          {label:"Programs",       value:String(rows.length),               color:"#00A9CE"},
+          {label:"Total Revenue",  value:fmt$(totalRevenue),                color:"#00A9CE"},
+          {label:"Need Increase",  value:String(belowFloor)+" programs",    color:belowFloor>0?"#E35205":"#4A6B00"},
+          {label:"Check Data",     value:String(needsCheck)+" programs",    color:needsCheck>0?"#8A5E00":"#4A6B00"},
+          {label:"No Actuals",     value:String(noData)+" programs",        color:noData>0?"#A09080":"#4A6B00"},
         ].map(s=>(
           <div key={s.label} className="rounded p-3 text-center" style={{background:"#fff",border:"1px solid rgba(92,70,43,0.12)"}}>
             <div className="text-xs uppercase font-bold tracking-wide mb-0.5" style={{color:"#5C462B"}}>{s.label}</div>
@@ -6361,8 +6633,9 @@ function FeeReportTab({programs}) {
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">
         {[
-          {label:"Area",     val:filterArea, set:setFilterArea, opts:["All",...areas]},
-          {label:"Category", val:filterCat,  set:setFilterCat,  opts:["All",...cats]},
+          {label:"FY",       val:currentFY,  set:setFySel,       opts:fyOptions},
+          {label:"Area",     val:filterArea, set:setFilterArea,  opts:["All",...areas]},
+          {label:"Category", val:filterCat,  set:setFilterCat,   opts:["All",...cats]},
         ].map(f=>(
           <label key={f.label} className="flex items-center gap-1 text-xs font-bold" style={{color:"#5C462B"}}>
             {f.label}:
@@ -6373,18 +6646,29 @@ function FeeReportTab({programs}) {
             </select>
           </label>
         ))}
-        {(filterArea!=="All"||filterCat!=="All")&&(
-          <button onClick={()=>{setFilterArea("All");setFilterCat("All");}}
+        <label className="flex items-center gap-1 text-xs font-bold" style={{color:"#5C462B"}}>
+          Show:
+          <select value={filterFlag} onChange={e=>setFilterFlag(e.target.value)}
+            className="ml-1 text-xs border rounded px-2 py-1"
+            style={{borderColor:"rgba(92,70,43,0.25)",color:"#3d2b1a",background:"#fff"}}>
+            <option value="All">All programs</option>
+            <option value="needs-attention">Needs data check ⚠</option>
+            <option value="clean">Complete data only</option>
+          </select>
+        </label>
+        {(filterArea!=="All"||filterCat!=="All"||filterFlag!=="All")&&(
+          <button onClick={()=>{setFilterArea("All");setFilterCat("All");setFilterFlag("All");}}
             className="text-xs font-bold px-2 py-1 rounded"
             style={{background:"rgba(227,82,5,0.08)",color:"#E35205",border:"1px solid rgba(227,82,5,0.2)"}}>
             Clear
           </button>
         )}
         {/* Legend */}
-        <div className="ml-auto flex gap-3 text-xs" style={{color:"#6B5744"}}>
+        <div className="ml-auto flex flex-wrap gap-3 text-xs" style={{color:"#6B5744"}}>
           <span><span style={{color:"#E35205",fontWeight:700}}>●</span> Raise to floor</span>
           <span><span style={{color:"#007A99",fontWeight:700}}>●</span> 3% increase</span>
           <span><span style={{color:"#4A6B00",fontWeight:700}}>●</span> Hold</span>
+          <span><span style={{color:"#8A5E00",fontWeight:700}}>●</span> Subsidized</span>
           <span><span style={{color:"#D0C8C0",fontWeight:700}}>●</span> No actuals</span>
         </div>
       </div>
@@ -6418,28 +6702,37 @@ function FeeReportTab({programs}) {
                 No programs match.  Try clearing filters.
               </td></tr>
             )}
-            {rows.map(({p,hasActuals,revPerPart,crPct,target,gap,currentFee,suggestedFee,sugReason,dollarChange},i)=>{
+            {rows.map((row,i)=>{
+              const {p,cr,hasActuals,revPerPart,crPct,target,currentFee,feeBase,suggestedFee,sugReason,dollarChange,flags,warnCount}=row;
               // Row accent color based on situation
               const accentColor =
                 sugReason==="no-data"       ? "#D0C8C0" :
                 sugReason==="below-floor"   ? "#E35205" :
                 sugReason==="in-range"      ? "#007A99" :
-                sugReason==="above-ceiling" ? "#4A6B00" : "#A09080";
+                sugReason==="above-ceiling" ? "#4A6B00" :
+                sugReason==="subsidy"       ? "#8A5E00" : "#A09080";
 
               const changeLabel =
                 !hasActuals                                        ? "—" :
-                dollarChange==null && sugReason==="above-ceiling"  ? "Hold" :
-                dollarChange==null                                  ? "—" :
+                sugReason==="above-ceiling"                        ? "Hold" :
+                sugReason==="subsidy"                              ? "Subsidized" :
+                dollarChange==null                                 ? "—" :
                 (dollarChange>=0?"+":"")+fmt$(dollarChange);
 
               const noDataCell = <span style={{color:"#C8B8A8",fontStyle:"italic",fontSize:"11px"}}>No data</span>;
+              const isOpen = expanded===p.id;
 
               return (
-                <tr key={p.id} style={{background:i%2===0?"#ffffff":"#fafaf8",borderBottom:"1px solid rgba(92,70,43,0.06)"}}>
+                <React.Fragment key={p.id}>
+                <tr style={{background:isOpen?"#F2F9FB":i%2===0?"#ffffff":"#fafaf8",borderBottom:isOpen?"none":"1px solid rgba(92,70,43,0.06)"}}>
                   {/* Program name with colored left border indicating action */}
-                  <td style={{padding:"7px 8px",fontWeight:600,color:"#3d2b1a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderLeft:`3px solid ${accentColor}`}} title={p.name}>
+                  <td style={{padding:"7px 8px",fontWeight:600,color:"#3d2b1a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderLeft:`3px solid ${accentColor}`,cursor:"pointer"}}
+                      title={isOpen?"Hide the math":"Show the math behind this row"}
+                      onClick={()=>setExpanded(isOpen?null:p.id)}>
+                    <span style={{color:"#00A9CE",fontSize:"10px",marginRight:4}}>{isOpen?"▼":"▶"}</span>
                     {p.name}
-                    {target&&<div style={{fontSize:"10px",fontWeight:400,color:"#A09080"}}>{target.label}</div>}
+                    {warnCount>0&&<span title={`${warnCount} data issue${warnCount>1?"s":""} — open the row`} style={{marginLeft:6,fontSize:"10px",fontWeight:700,color:"#8A5E00"}}>⚠{warnCount}</span>}
+                    <div style={{fontSize:"10px",fontWeight:400,color:"#A09080",paddingLeft:14}}>{[p.season,target?target.label:null].filter(Boolean).join(" · ")}</div>
                   </td>
                   <td style={{padding:"7px 8px",color:"#5C462B",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.area||"—"}</td>
                   <td style={{padding:"4px 6px",fontFamily:"monospace",color:"#3d2b1a"}}>
@@ -6467,15 +6760,30 @@ function FeeReportTab({programs}) {
                       </span>
                     )}
                   </td>
-                  <td style={{padding:"7px 8px",fontFamily:"monospace",color:"#00A9CE",fontWeight:600}}>{hasActuals ? fmt$(revPerPart) : noDataCell}</td>
-                  <td style={{padding:"7px 8px",fontFamily:"monospace",fontWeight:700,color:!hasActuals?"#C8B8A8":crPct>=1?"#4A6B00":"#E35205"}}>{hasActuals ? fmtPct(crPct) : noDataCell}</td>
-                  <td style={{padding:"7px 8px",fontFamily:"monospace",fontWeight:700,color:accentColor}}>
-                    {!hasActuals ? noDataCell : suggestedFee!=null ? fmt$(suggestedFee) : <span style={{color:"#A09080",fontWeight:400}}>Hold</span>}
+                  <td style={{padding:"7px 8px",fontFamily:"monospace",color:"#00A9CE",fontWeight:600}}>{revPerPart!=null ? fmt$(revPerPart) : noDataCell}</td>
+                  <td style={{padding:"7px 8px",fontFamily:"monospace",fontWeight:700,color:!hasActuals?"#C8B8A8":(target?(crPct>=target.lo?"#4A6B00":"#E35205"):(crPct>=1?"#4A6B00":"#E35205"))}}>{hasActuals ? fmtPct(crPct) : noDataCell}</td>
+                  <td style={{padding:"7px 8px",fontFamily:"monospace",fontWeight:700,color:accentColor,fontStyle:warnCount>0?"italic":"normal"}}>
+                    {!hasActuals ? noDataCell : suggestedFee!=null ? fmt$(suggestedFee) : <span style={{color:"#A09080",fontWeight:400}}>{sugReason==="subsidy"?"Subsidized":"Hold"}</span>}
+                    {warnCount>0&&suggestedFee!=null&&<span style={{fontSize:"9px",color:"#8A5E00",marginLeft:4,fontWeight:400}}>verify</span>}
                   </td>
                   <td style={{padding:"7px 8px",fontFamily:"monospace",fontWeight:700,color:dollarChange!=null&&dollarChange>0?"#E35205":dollarChange!=null&&dollarChange<0?"#4A6B00":"#A09080"}}>
                     {changeLabel}
+                    {dollarChange!=null&&!(currentFee>0)&&<div style={{fontSize:"9px",fontWeight:400,color:"#A09080"}}>vs rev/part</div>}
                   </td>
                 </tr>
+                {isOpen&&(
+                  <tr style={{borderBottom:"1px solid rgba(92,70,43,0.12)"}}>
+                    <td colSpan={7} style={{padding:0}}>
+                      <FeeMathPanel p={p} cr={cr} target={target} currentFee={currentFee} revPerPart={revPerPart} suggestedFee={suggestedFee} sugReason={sugReason} flags={flags}/>
+                      {onOpenProgram&&(
+                        <div className="px-4 pb-3" style={{background:"#FBFAF7"}}>
+                          <button onClick={()=>onOpenProgram(p)} className="text-xs font-bold" style={{color:"#00A9CE",background:"none",border:"none",padding:0,cursor:"pointer"}}>Open program → fix the data or see the 3 year fee path on the Pricing tab</button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
               );
             })}
           </tbody>
@@ -6484,17 +6792,19 @@ function FeeReportTab({programs}) {
 
       {/* Footer */}
       <div className="text-xs space-y-1" style={{color:"#A09080"}}>
-        <div>Showing all active programs in FY {currentFY}.  Programs without actuals entered yet appear as "No data" and cannot receive a fee suggestion until revenue and enrollment are recorded.</div>
-        <div>Current Fee is editable — click any fee cell to update it.  Changes save directly to the program record.  Rev/Part is actual revenue divided by actual enrollment.  For flat-rate programs they should match.</div>
-        <div>Suggested Fee logic: below target floor → raise to floor.  Within target range → 3% increase capped at the ceiling.  Above ceiling → hold (no increase).</div>
-        <div>Dollar change shows the difference between suggested and current fee.  Only appears when a current fee is set on the program.</div>
+        <div>Showing all active programs in FY {currentFY}.  Programs without actuals appear as "No data" and cannot receive a fee suggestion until enrollment and costs are recorded.</div>
+        <div>Current Fee is editable — click any fee cell to update it.  Changes save directly to the program record.  Rev/Part is actual revenue divided by actual enrollment.  For flat rate programs they should match; a gap means discounts, multiple price points, or a stale fee.</div>
+        <div>Suggested Fee rule: below the target floor → the fee that reaches the floor.  Inside the band → 3% inflation increase, capped at the ceiling.  Above the ceiling → hold.  Subsidized categories (Open Access, Community Events) never get an increase.</div>
+        <div>Change is suggested fee minus the entered fee, or minus revenue per participant when no fee has been entered.  Umbrella programs with no actuals of their own use the totals from their individual classes.</div>
       </div>
     </div>
   );
 }
 
-function Reference({isManager,db,programs,staffName}) {
-  const [sec,setSec] = useState("start");
+function Reference({isManager,db,programs,staffName,reviewTarget=null,onOpenProgram=null}) {
+  const [sec,setSec] = useState(reviewTarget?"review":"start");
+  // Jumped here from a program's "Program Reviews" link → open the review section
+  useEffect(()=>{ if(reviewTarget) setSec("review"); },[reviewTarget]);
   const workload = [
     {activity:"Program planning & management", pct:"50-60%"},
     {activity:"Meetings / admin",              pct:"15-20%"},
@@ -7366,7 +7676,7 @@ function Reference({isManager,db,programs,staffName}) {
         </div>
       )}
       {sec==="review"&&(
-        <ProgramReviewSection db={db} programs={programs} staffName={staffName} isManager={isManager}/>
+        <ProgramReviewSection db={db} programs={programs} staffName={staffName} isManager={isManager} targetProgram={reviewTarget} onOpenProgram={onOpenProgram}/>
       )}
       {sec==="capacity"&&(
         <div className="p-5 space-y-4">
@@ -7434,7 +7744,7 @@ function Reference({isManager,db,programs,staffName}) {
         <ClubhouseAllocationTool db={db} programs={programs} staffName={staffName}/>
       )}
       {sec==="feereport"&&(
-        <FeeReportTab programs={programs}/>
+        <FeeReportTab programs={programs} onOpenProgram={onOpenProgram}/>
       )}
       {sec==="fyconfig"&&isManager&&(
         <FYConfigPanel db={db} isManager={isManager}/>
@@ -8658,13 +8968,17 @@ function CapacityCalculator() {
   );
 }
 
-export default function App() {
+// ErrorBoundary wraps the whole app so a runtime error shows a message instead of a blank screen
+export default function App(){ return <ErrorBoundary><AppInner/></ErrorBoundary>; }
+
+function AppInner() {
   const [tab,setTab]                       = useState("dashboard");
   const [programs,setPrograms]             = useState([]);
   const [editingProgram,setEditingProgram] = useState(null);
   const [addingProgram,setAddingProgram]   = useState(false);
   const [dupProgram,setDupProgram]         = useState(null);
   const [showBulkDup,setShowBulkDup]       = useState(false);
+  const [reviewTarget,setReviewTarget]     = useState(null);   // program whose reviews to show after "Program Reviews →"
   // Persisted Programs list filters — survive program open/close
   const currentFY = (()=>{const d=new Date();const y=d.getMonth()>=DISTRICT_CONFIG.fyStartMonth?d.getFullYear():d.getFullYear()-1;return `${String(y).slice(-2)}-${String(y+1).slice(-2)}`;})();
   const [plFilters,setPlFilters]           = useState({staff:new Set(),area:new Set(),season:new Set(),year:new Set([currentFY])});
@@ -8764,11 +9078,15 @@ export default function App() {
     setSaving(false);
   };
 
+  // Soft delete, same as bulk delete — keeps the decision log and lets a manager restore it
   const handleDeleteProgram = async id => {
     setSaving(true);
-    const {error:de}=await supabase.from("programs").delete().eq("id",id);
+    const yr=toFY(programs.find(p=>p.id===id)?.year||"");
+    const {error:de}=await supabase.from("programs").update({
+      is_deleted:true, deleted_by:staffName, deleted_at:new Date().toISOString(), is_archived:true
+    }).eq("id",id);
     if(de) setError("Failed to delete program: "+de.message);
-    else { await fetchAll(); if(id) setReturnToYear(toFY(programs.find(p=>p.id===id)?.year||"")); setEditingProgram(null); setAddingProgram(false); setTab("programs"); }
+    else { await fetchAll(); if(yr) setReturnToYear(yr); setEditingProgram(null); setAddingProgram(false); setTab("programs"); }
     setSaving(false);
   };
 
@@ -8887,7 +9205,7 @@ export default function App() {
       <nav style={{backgroundColor:"#ffffff",borderBottom:"1px solid rgba(92,70,43,0.10)"}}>
         <div className="max-w-5xl mx-auto flex gap-0 px-4 overflow-x-auto">
           {tabs.map(t=>(
-            <button key={t.id} onClick={()=>{setTab(t.id);setEditingProgram(null);setAddingProgram(false);}}
+            <button key={t.id} onClick={()=>{setTab(t.id);setEditingProgram(null);setAddingProgram(false);setReviewTarget(null);}}
               className="px-4 py-3 text-xs font-bold whitespace-nowrap transition"
               style={{
                 letterSpacing:"0.10em",
@@ -8940,13 +9258,16 @@ export default function App() {
                 onDelete={handleDeleteProgram}
                 onArchive={handleArchiveProgram}
                 onDuplicate={p=>setDupProgram(p)}
+                onOpenReviews={p=>{setReviewTarget(p);setEditingProgram(null);setAddingProgram(false);setTab("kpi");}}
                 onCancel={()=>{if(editingProgram?.year) setReturnToYear(toFY(editingProgram.year));setEditingProgram(null);setAddingProgram(false);}}
                 saving={saving}/>
             )}
             {tab==="history"&&(
               <MultiSeasonView programs={programs} onEdit={p=>{setEditingProgram(p);setTab("programs");}} staffName={staffName} isManager={effectiveManager}/>
             )}
-            {tab==="kpi"&&<Reference isManager={effectiveManager} db={supabase} programs={programs} staffName={staffName}/>}
+            {tab==="kpi"&&<Reference isManager={effectiveManager} db={supabase} programs={programs} staffName={staffName}
+              reviewTarget={reviewTarget}
+              onOpenProgram={p=>{setReviewTarget(null);setEditingProgram(p);setAddingProgram(false);setTab("programs");}}/>}
             {tab==="access"&&effectiveManager&&(
               <StaffPinAdmin db={supabase} staffName={staffName} programs={programs}/>
             )}
