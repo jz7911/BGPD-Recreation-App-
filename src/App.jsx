@@ -160,13 +160,44 @@ function cleanForDB(p) {
 // ─── Calculations ─────────────────────────────────────────────────────────────
 // FY Config lookup — populated from Supabase fy_config table on load
 let _fyConfig = {};
-function getFyConfig(fy) {
+// mode "current" = the rates every screen uses today.
+// mode "proposed" = the side by side preview a manager can turn on in Formula Config;
+// each proposed value falls back to the current one when blank.
+function getFyConfig(fy, mode="current") {
   const cfg = _fyConfig[fy] || {};
-  return {
+  const cur = {
     ftSalary:      cfg.ft_salary      || FT_ANNUAL_SALARY,
     facilityRate:  cfg.facility_rate  || FACILITY_COST_PER_HR,
     adminOverhead: cfg.admin_overhead || ADMIN_OVERHEAD_RATE,
+    // Infrastructure reinvestment (capital) charge per facility hour — Dundee's
+    // "with capital" view.  0 until a manager sets it in Formula Config.
+    capitalRate:   parseFloat(cfg.capital_rate_per_hr)||0,
+    // When true, the capital charge is part of total cost, so CR, targets and
+    // suggested fees all include it.  When false it is shown alongside only.
+    capitalInTotal:!!cfg.capital_in_total,
+    // Loaded cost per staff member replaces the default salary only when adopted
+    useStaffCosts: !!cfg.use_staff_costs,
+    compareEnabled:!!cfg.compare_enabled,
   };
+  if (mode!=="proposed") return cur;
+  const num = v => (v===null||v===undefined||v==="") ? null : parseFloat(v);
+  return {
+    ...cur,
+    adminOverhead: num(cfg.proposed_admin_overhead) ?? cur.adminOverhead,
+    facilityRate:  num(cfg.proposed_facility_rate)  ?? cur.facilityRate,
+    capitalRate:   num(cfg.proposed_capital_rate_per_hr) ?? cur.capitalRate,
+    capitalInTotal:true,
+    useStaffCosts: cfg.proposed_use_staff_costs!==false,
+    proposed:true,
+  };
+}
+// Loaded cost (salary + benefits) per FT staff member — populated from staff_costs on load.
+// When a program's staff member has a record here, it replaces the district default salary.
+let _staffCosts = {};
+const staffKey = n => String(n||"").toLowerCase().trim();
+function getStaffCost(name, fallback) {
+  const r = _staffCosts[staffKey(name)];
+  return r && parseFloat(r.loaded_cost) > 0 ? parseFloat(r.loaded_cost) : fallback;
 }
 
 // Umbrella programs: when the parent record has no actuals of its own, roll up the
@@ -211,9 +242,9 @@ function withUmbrellaActuals(p){
   return out;
 }
 
-function calcCR(p0, px) {
+function calcCR(p0, px, mode="current") {
   const p = px==="act_" ? withUmbrellaActuals(p0) : p0;
-  const {ftSalary, facilityRate, adminOverhead} = getFyConfig(p.year);
+  const {ftSalary, facilityRate, adminOverhead, capitalRate, capitalInTotal, useStaffCosts} = getFyConfig(p.year, mode);
   const personnel    = p[px+"personnel"]      || 0;
   const commodities  = p[px+"commodities"]    || 0;
   const contractuals = p[px+"contractuals"]   || 0;
@@ -234,11 +265,23 @@ function calcCR(p0, px) {
       : 0;
   const direct   = personnel + commodities + contractuals + other1 + other2 + clubhouseFee;
   const ao       = direct * adminOverhead;
-  const ftStaff  = ftSalary * wlPct;
+  // FT staff: the program's workload % is split between primary and co-staff, each
+  // costed at their own loaded cost when one is on file, else the district default.
+  const coPct    = Math.min(wlPct, Math.max(0, (parseFloat(p.co_staff_workload_pct)||0)/100));
+  const priPct   = wlPct - (p.co_staff_name ? coPct : 0);
+  const priCost  = useStaffCosts ? getStaffCost(p.staff_name, ftSalary) : ftSalary;
+  const coCost   = useStaffCosts ? getStaffCost(p.co_staff_name, ftSalary) : ftSalary;
+  const ftStaff  = priCost * priPct + (p.co_staff_name ? coCost * coPct : 0);
   const facility = facilityRate * facHrs;
-  const total    = direct + ao + ftStaff + facility;
+  const capital  = capitalRate * facHrs;
+  const operating= direct + ao + ftStaff + facility;
+  const total    = capitalInTotal ? operating + capital : operating;
+  const totalWithCapital = operating + capital;
   return {
-    direct, ao, ftStaff, facility, total, revenue,
+    direct, ao, ftStaff, facility, capital, operating, totalWithCapital, capitalInTotal,
+    crPctOperating: operating > 0 ? revenue / operating : 0,
+    crPctWithCapital: totalWithCapital > 0 ? revenue / totalWithCapital : 0,
+    total, revenue,
     crPct:    total > 0 ? revenue / total : 0,
     subPct:   1 - (total > 0 ? revenue / total : 0),
     profit:   revenue - total,
@@ -3713,6 +3756,17 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                 <div><div className="text-xs text-slate-700">Net Profit/(Loss)</div><div className={`text-xl font-bold ${k.profitLoss>=0?"text-green-700":"text-red-600"}`}>{dollar(k.profitLoss)}</div></div>
                 <div><div className="text-xs text-slate-700">Status</div><div className="mt-1"><Badge status={k.status}/></div></div>
               </div>
+              {isManager&&getFyConfig(p.year).compareEnabled&&hasActuals&&(()=>{
+                const cur=calcCR(p,"act_"), prop=calcCR(p,"act_","proposed");
+                return (
+                  <div className="rounded px-4 py-2.5 text-xs flex flex-wrap gap-x-4 gap-y-1 items-center" style={{background:"#FBF4E6",border:"1px solid rgba(138,94,0,0.2)",color:"#6B5744"}}>
+                    <span className="font-bold" style={{color:"#8A5E00"}}>Proposed method (preview):</span>
+                    <span>total cost {dollar(Math.round(prop.total))} vs {dollar(Math.round(cur.total))} today</span>
+                    <span>CR <b>{pct(prop.crPct)}</b> vs {pct(cur.crPct)} today</span>
+                    <span className="text-slate-500">Managers only.  Nothing else in the app uses it yet.</span>
+                  </div>
+                );
+              })()}
               {/* Read-only CR status for all users on Summary tab */}
               {svcTarget&&(hasActuals||p.fee>0)&&(()=>{
                 const onTarget=svcTarget.onTarget;
@@ -3833,6 +3887,9 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                     <span>revenue {dollar(Math.round(basisRevenue))}</span>
                     <span>total cost {dollar(Math.round(basisCost))}</span>
                     <span>CR {pct(basisCRPct)}</span>
+                    {basisCR.capital>0&&!basisCR.capitalInTotal&&<span>· with capital charge {dollar(Math.round(basisCR.totalWithCapital))}, CR {pct(basisCR.crPctWithCapital)}</span>}
+                    {basisCR.capital>0&&basisCR.capitalInTotal&&<span>· includes {dollar(Math.round(basisCR.capital))} infrastructure reinvestment</span>}
+                    {getFyConfig(p.year).compareEnabled&&(()=>{const pr=calcCR(p,usingActuals?"act_":"ant_","proposed");return <span style={{color:"#8A5E00"}}>· proposed method: cost {dollar(Math.round(pr.total))}, CR {pct(pr.crPct)}</span>;})()}
                     {currentFeeImplied&&<span>· no fee entered, using revenue ÷ enrollment ({dollar(currentFee)}) as the current fee</span>}
                     {!usingActuals&&<span className="font-semibold">· enter actual enrollment and costs on the Actuals tab for a real read</span>}
                   </div>
@@ -4395,7 +4452,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false,targe
     // Innovation
     is_pilot:false,is_adaptation:false,pilot_goal:"",met_enrollment:false,met_financial:false,adaptation_made:"",future_potential:"",innovation_notes:"",
     // Decision
-    decision:"Continue",decision_reason:"",action_items:"",next_review:"",pillars_met:"",redesign_strategies:"",
+    decision:"Continue",decision_reason:"",action_items:"",next_review:"",pillars_met:"",redesign_strategies:"",gap_actions:"",
     // Quarterly / umbrella
     is_quarterly:false,review_quarter:"",
   };
@@ -4433,6 +4490,15 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false,targe
   const AREAS=["Adult General","Adult Sports","Aquatics","Camps","Clubhouse","Dance","Fitness","Golf Dome","Museum","Performing Arts","Seniors","Special Events","Youth General","Youth Sports","Other"];
   const SEASONS_LIST=["Spring","Summer","Fall","Winter","Annual","Year-Round"];
   const DECISIONS=["Continue","Adjust","Redesign","Expand","Pilot Again","Sunset Review"];
+  // 110% gap actions (Dundee Township fiscal sustainability plan), in the order they are tried
+  const GAP_ACTIONS=[
+    {id:"metrics",   label:"1. Analyze the metrics",            detail:"Check enrollment, capacity, satisfaction and impact before touching price.  Is the gap a volume problem or a price problem?"},
+    {id:"costs",     label:"2. Analyze direct vs indirect cost", detail:"Can direct cost come down (instructor rate, supplies, hours) without hurting the program?  Indirect cost is a district decision, not a program one."},
+    {id:"market",    label:"3. Market based fee increase",       detail:"Raise the fee toward the target floor over up to three years, checked against what neighboring districts charge."},
+    {id:"sponsor",   label:"4. Sponsorship",                     detail:"Find a sponsor or grant to cover part of the cost so participants do not carry all of it."},
+    {id:"partner",   label:"5. Partnership",                     detail:"Share delivery or space with a school, club or another district to cut cost or grow enrollment."},
+    {id:"divest",    label:"6. Divest",                          detail:"After four seasons below target with the steps above tried, stop offering it or hand it to a partner."},
+  ];
   const CLASSIFICATIONS=["Community Driven","Both","Revenue Driven"];
   const TRENDS=["Growing","Stable","Declining","New"];
   const PRIME=["Strong","Moderate","Underutilized"];
@@ -4683,6 +4749,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false,targe
       next_review:form.next_review||null,
       pillars_met:pillarsStr,
       redesign_strategies:form.redesign_strategies||"",
+      gap_actions:form.gap_actions||"",
       is_quarterly:!!form.is_quarterly,
       review_quarter:form.review_quarter||"",
     };
@@ -5151,6 +5218,36 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false,targe
                 Progress check-in: these are the period figures entered by hand for {r.review_quarter||"the quarter"}.  They are kept as written and are not refreshed from the program record.
               </div>
             )}
+            {/* Success metrics scorecard — the four tests from the 110% plan */}
+            {(()=>{
+              const svc=liveProg?.service_category||"";
+              const tgt=svc?getSvcTarget(svc,(parseFloat(r.cost_recovery)||0)/100):null;
+              const fill=parseFloat(r.fill_rate)||0, pfill=parseFloat(r.prior_fill_rate)||0;
+              const nps=r.nps!==""&&r.nps!=null?parseFloat(r.nps):null;
+              const pillars=(r.pillars_met||"").split(",").filter(Boolean).length;
+              const tests=[
+                {label:"Financial viability",test:tgt?(tgt.onTarget?"pass":"fail"):"na",why:tgt?`CR ${r.cost_recovery||0}% vs ${tgt.label}`:"No service category target"},
+                {label:"Operational efficiency",test:fill>=75?"pass":(pfill>0&&fill-pfill>=10?"pass":(fill>0?"fail":"na")),why:fill>0?`Fill ${fill}%${pfill>0?` (prior ${pfill}%)`:""} · passes at 75% or +10 pts`:"No fill rate"},
+                {label:"Satisfaction",test:nps==null?"na":(nps>=50?"pass":"fail"),why:nps==null?"No NPS recorded":`NPS ${nps} · passes at 50`},
+                {label:"Impact",test:(r.community_benefit&&r.documented_need)||pillars>=3?"pass":"fail",why:`${pillars}/5 pillars${r.community_benefit?" · benefit documented":""}${r.documented_need?" · need documented":""}`},
+              ];
+              const col={pass:"#4A6B00",fail:"#E35205",na:"#A09080"};
+              const bg={pass:"#EEF5E0",fail:"#FDF0E6",na:"#F5F3EE"};
+              return (
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-widest text-slate-700 mb-2">Success metrics (110% plan)</div>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {tests.map(t=>(
+                      <div key={t.label} className="rounded-lg p-2.5 border" style={{background:bg[t.test],borderColor:col[t.test]+"33"}}>
+                        <div className="text-xs font-bold" style={{color:col[t.test]}}>{t.test==="pass"?"✓":t.test==="fail"?"✗":"–"} {t.label}</div>
+                        <div className="text-xs text-slate-600 mt-0.5">{t.why}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Key metrics row */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
@@ -5242,6 +5339,14 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false,targe
                 {r.next_review&&<span className="text-xs text-white opacity-80">Next review: {r.next_review}</span>}
               </div>
               {r.decision_reason&&<div className="px-4 py-3 text-sm text-slate-700 border-b border-slate-50"><span className="font-semibold text-slate-800">Reason: </span>{r.decision_reason}</div>}
+              {r.gap_actions&&(
+                <div className="px-4 py-3 text-sm text-slate-700 border-b border-slate-50">
+                  <span className="font-semibold text-slate-800">Gap actions: </span>
+                  {GAP_ACTIONS.filter(g=>(r.gap_actions||"").split(",").includes(g.id)).map(g=>(
+                    <span key={g.id} className="inline-block text-xs font-bold px-2 py-0.5 rounded mr-1.5 mb-1" style={{background:"#E6F6FB",color:"#007A99"}}>{g.label}</span>
+                  ))}
+                </div>
+              )}
               {r.action_items&&<div className="px-4 py-3 text-sm text-slate-700"><span className="font-semibold text-slate-800">Action Items: </span>{r.action_items}</div>}
             </div>
 
@@ -5777,6 +5882,42 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false,targe
                 ))}
               </div>
             </div>
+
+            {/* Four season rule */}
+            {(parseInt(form.seasons_below_threshold)||0)>=4&&form.decision!=="Sunset Review"&&(
+              <div className="rounded-lg px-4 py-3 text-xs" style={{background:"#FEF4DC",border:"1px solid rgba(138,94,0,0.25)",color:"#8A5E00"}}>
+                <b>Four seasons below threshold.</b>  Under the 110% gap process a program that has not reached its target after four consecutive seasons moves to Sunset Review unless the reason to keep it is written down in the decision rationale.
+              </div>
+            )}
+
+            {/* Gap actions — 110% process.  Shown when the program is below its target or the decision is not Continue/Expand */}
+            {(()=>{
+              const svc=matchedProgram?.service_category||"";
+              const tgt=svc?getSvcTarget(svc,(parseFloat(form.cost_recovery)||0)/100):null;
+              const below=tgt?!tgt.onTarget&&!tgt.expectSubsidy:false;
+              if(!below&&["Continue","Expand"].includes(form.decision)) return null;
+              const selected=new Set((form.gap_actions||"").split(",").filter(Boolean));
+              return (
+                <div className="rounded-lg border border-slate-200 overflow-hidden">
+                  <div className="px-4 py-2.5 border-b border-slate-100" style={{background:"#E6F6FB",borderLeft:"3px solid #00A9CE"}}>
+                    <div className="text-xs font-bold uppercase" style={{letterSpacing:"0.10em",color:"#007A99"}}>Gap actions</div>
+                    <div className="text-xs text-slate-500 mt-0.5">{below?`Cost recovery ${form.cost_recovery||0}% is below the ${tgt.label} target.  `:""}Work the steps in order and check the ones this review commits to.  They save with the review.</div>
+                  </div>
+                  <div className="divide-y divide-slate-50">
+                    {GAP_ACTIONS.map(g=>(
+                      <label key={g.id} className="flex items-start gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-50">
+                        <input type="checkbox" className="mt-0.5 shrink-0" checked={selected.has(g.id)}
+                          onChange={e=>{const next=new Set(selected);e.target.checked?next.add(g.id):next.delete(g.id);s("gap_actions",[...next].join(","));}}/>
+                        <div>
+                          <div className="text-sm font-semibold text-slate-700">{g.label}</div>
+                          <div className="text-xs text-slate-500 mt-0.5 leading-relaxed">{g.detail}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Redesign suggestions — shown when decision = Redesign */}
             {["Redesign","Adjust","Pilot Again","Sunset Review"].includes(form.decision)&&(()=>{
@@ -6423,6 +6564,16 @@ function FeeMathPanel({p, cr, target, currentFee, revPerPart, suggestedFee, sugR
   const customWL = parseFloat(pa.act_custom_workload)||0;
   const progType = pa.act_program_type||"";
   const wlPct = customWL>0 ? customWL/100 : (progType&&progType!=="Custom" ? (PROGRAM_TYPES.find(t=>t.label===progType)?.pct||0) : 0);
+  const coPct = p.co_staff_name ? Math.min(wlPct, Math.max(0,(parseFloat(p.co_staff_workload_pct)||0)/100)) : 0;
+  const priPct = wlPct - coPct;
+  const priCost = cfg.useStaffCosts ? getStaffCost(p.staff_name, cfg.ftSalary) : cfg.ftSalary;
+  const coCost  = cfg.useStaffCosts ? getStaffCost(p.co_staff_name, cfg.ftSalary) : cfg.ftSalary;
+  const priOnFile = cfg.useStaffCosts && _staffCosts[staffKey(p.staff_name)]?.loaded_cost>0;
+  const prop = cfg.compareEnabled ? calcCR(p,"act_","proposed") : null;
+  const pcfg = cfg.compareEnabled ? getFyConfig(p.year,"proposed") : null;
+  const ftCalc = wlPct>0
+    ? `${p.staff_name||"staff"} ${priOnFile?"loaded cost":"default"} $${Math.round(priCost).toLocaleString()} × ${(priPct*100).toFixed(1)}%${coPct>0?` + ${p.co_staff_name} $${Math.round(coCost).toLocaleString()} × ${(coPct*100).toFixed(1)}%`:""} (${customWL>0?"custom":progType})`
+    : "no Program Type selected → 0%";
   const d = {
     personnel:pa.act_personnel||0, commodities:pa.act_commodities||0, contractuals:pa.act_contractuals||0,
     other1:pa.act_other1||0, other2:pa.act_other2||0, clubhouse:pa.act_clubhouse_fee||0,
@@ -6465,9 +6616,11 @@ function FeeMathPanel({p, cr, target, currentFee, revPerPart, suggestedFee, sugR
           <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{color:"#5C462B"}}>Total program cost</div>
           <Line label="Direct costs" calc={`personnel ${$(d.personnel)} + commodities ${$(d.commodities)} + contractuals ${$(d.contractuals)}${d.other1?` + other ${$(d.other1)}`:""}${d.other2?` + other 2 ${$(d.other2)}`:""}${d.clubhouse?` + clubhouse ${$(d.clubhouse)}`:""}`} value={$(cr.direct)}/>
           <Line label={`+ Admin overhead (${pc(cfg.adminOverhead).replace(".0","")})`} calc={`${$(cr.direct)} × ${cfg.adminOverhead}`} value={$(cr.ao)}/>
-          <Line label="+ FT staff allocation" calc={wlPct>0?`${$(cfg.ftSalary)} × ${(wlPct*100).toFixed(1)}% (${customWL>0?"custom":progType})`:"no Program Type selected → 0%"} value={$(cr.ftStaff)}/>
+          <Line label="+ FT staff allocation" calc={ftCalc} value={$(cr.ftStaff)}/>
           <Line label="+ Facility charge" calc={`${pa.act_facility_hours||0} hrs × $${cfg.facilityRate}/hr`} value={$(cr.facility)}/>
-          <Line label="= Total cost" value={$(cr.total)} bold/>
+          {cfg.capitalRate>0&&<Line label={cr.capitalInTotal?"+ Infrastructure reinvestment":"Infrastructure reinvestment (shown, not in total)"} calc={`${pa.act_facility_hours||0} hrs × $${cfg.capitalRate}/hr`} value={$(cr.capital)}/>}
+          <Line label={cfg.capitalRate>0&&!cr.capitalInTotal?"= Total operating cost":"= Total cost"} value={$(cr.total)} bold/>
+          {cfg.capitalRate>0&&!cr.capitalInTotal&&<Line label="With capital" calc={`CR with capital ${pc(cr.crPctWithCapital)}`} value={$(cr.totalWithCapital)}/>}
         </div>
         <div className="space-y-0.5">
           <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{color:"#5C462B"}}>Revenue and cost recovery</div>
@@ -6482,6 +6635,19 @@ function FeeMathPanel({p, cr, target, currentFee, revPerPart, suggestedFee, sugR
       <div className="rounded px-3 py-2 text-xs" style={{background:"#fff",border:"1px solid rgba(92,70,43,0.12)",color:"#3d2b1a"}}>
         <span className="font-bold" style={{color:"#007A99"}}>Suggested fee: </span>{feeStory}
       </div>
+      {prop&&(
+        <div className="rounded px-3 py-2 text-xs" style={{background:"#FBF4E6",border:"1px solid rgba(138,94,0,0.2)",color:"#3d2b1a"}}>
+          <div className="font-bold mb-1" style={{color:"#8A5E00"}}>Proposed method (preview, not in use)</div>
+          <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+            <span>Overhead {pc(pcfg.adminOverhead).replace(".0","")}: <b>{$(prop.ao)}</b></span>
+            <span>FT staff{pcfg.useStaffCosts?" at loaded cost":""}: <b>{$(prop.ftStaff)}</b></span>
+            <span>Facility ${pcfg.facilityRate}/hr: <b>{$(prop.facility)}</b></span>
+            {pcfg.capitalRate>0&&<span>Infrastructure ${pcfg.capitalRate}/hr: <b>{$(prop.capital)}</b></span>}
+            <span>Total: <b>{$(prop.total)}</b></span>
+            <span>CR: <b>{pc(prop.crPct)}</b> vs {pc(cr.crPct)} today</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -6558,7 +6724,8 @@ function FeeReportTab({programs, onOpenProgram}) {
       const dollarChange = (suggestedFee!=null && feeBase!=null && feeBase>0) ? suggestedFee - feeBase : null;
       const flags      = hasActuals ? feeRowFlags(p, cr, revPerPart, currentFee) : [];
       const warnCount  = flags.filter(f=>f.warn).length;
-      return {p, cr, hasActuals, revPerPart, crPct, target, currentFee, feeBase, suggestedFee, sugReason, dollarChange, flags, warnCount};
+      const propCR     = hasActuals && getFyConfig(p.year).compareEnabled ? calcCR(p,"act_","proposed").crPct : null;
+      return {p, cr, hasActuals, revPerPart, crPct, target, currentFee, feeBase, suggestedFee, sugReason, dollarChange, flags, warnCount, propCR};
     });
     const filtered = filterFlag==="needs-attention" ? built.filter(r=>r.warnCount>0)
                    : filterFlag==="clean"           ? built.filter(r=>r.hasActuals&&r.warnCount===0)
@@ -6582,6 +6749,7 @@ function FeeReportTab({programs, onOpenProgram}) {
     else {setSortCol(col); setSortDir("asc");}
   }
 
+  const compareOn     = rows.some(r=>r.propCR!=null);
   const belowFloor    = rows.filter(r=>r.sugReason==="below-floor").length;
   const aboveCeiling  = rows.filter(r=>r.sugReason==="above-ceiling").length;
   const noData        = rows.filter(r=>r.sugReason==="no-data").length;
@@ -6744,7 +6912,7 @@ function FeeReportTab({programs, onOpenProgram}) {
               <th style={thSt("area")}      onClick={()=>toggleSort("area")}>Area<Arr col="area"/></th>
               <th style={thSt("currentFee")}onClick={()=>toggleSort("currentFee")}>Current Fee<Arr col="currentFee"/></th>
               <th style={thSt("revPerPart")}onClick={()=>toggleSort("revPerPart")}>Rev/Part<Arr col="revPerPart"/></th>
-              <th style={thSt("cr")}        onClick={()=>toggleSort("cr")}>CR%<Arr col="cr"/></th>
+              <th style={thSt("cr")}        onClick={()=>toggleSort("cr")}>CR%{compareOn&&<span style={{fontWeight:400,color:"#8A5E00"}}> / proposed</span>}<Arr col="cr"/></th>
               <th style={thSt("suggested")} onClick={()=>toggleSort("suggested")}>Suggested Fee<Arr col="suggested"/></th>
               <th style={thSt("dollarChange")} onClick={()=>toggleSort("dollarChange")}>Change<Arr col="dollarChange"/></th>
             </tr>
@@ -6814,7 +6982,10 @@ function FeeReportTab({programs, onOpenProgram}) {
                     )}
                   </td>
                   <td style={{padding:"7px 8px",fontFamily:"monospace",color:"#00A9CE",fontWeight:600}}>{revPerPart!=null ? fmt$(revPerPart) : noDataCell}</td>
-                  <td style={{padding:"7px 8px",fontFamily:"monospace",fontWeight:700,color:!hasActuals?"#C8B8A8":(target?(crPct>=target.lo?"#4A6B00":"#E35205"):(crPct>=1?"#4A6B00":"#E35205"))}}>{hasActuals ? fmtPct(crPct) : noDataCell}</td>
+                  <td style={{padding:"7px 8px",fontFamily:"monospace",fontWeight:700,color:!hasActuals?"#C8B8A8":(target?(crPct>=target.lo?"#4A6B00":"#E35205"):(crPct>=1?"#4A6B00":"#E35205"))}}>
+                    {hasActuals ? fmtPct(crPct) : noDataCell}
+                    {row.propCR!=null&&<div style={{fontSize:"10px",fontWeight:600,color:"#8A5E00"}} title="Proposed method">{fmtPct(row.propCR)}</div>}
+                  </td>
                   <td style={{padding:"7px 8px",fontFamily:"monospace",fontWeight:700,color:accentColor,fontStyle:warnCount>0?"italic":"normal"}}>
                     {!hasActuals ? noDataCell : suggestedFee!=null ? fmt$(suggestedFee) : <span style={{color:"#A09080",fontWeight:400}}>{sugReason==="subsidy"?"Subsidized":"Hold"}</span>}
                     {warnCount>0&&suggestedFee!=null&&<span style={{fontSize:"9px",color:"#8A5E00",marginLeft:4,fontWeight:400}}>verify</span>}
@@ -6849,12 +7020,13 @@ function FeeReportTab({programs, onOpenProgram}) {
         <div>Current Fee is editable — click any fee cell to update it.  Changes save directly to the program record.  Rev/Part is actual revenue divided by actual enrollment.  For flat rate programs they should match; a gap means discounts, multiple price points, or a stale fee.</div>
         <div>Suggested Fee rule: below the target floor → the fee that reaches the floor.  Inside the band → 3% inflation increase, capped at the ceiling.  Above the ceiling → hold.  Subsidized categories (Open Access, Community Events) never get an increase.</div>
         <div>Change is suggested fee minus the entered fee, or minus revenue per participant when no fee has been entered.  Umbrella programs with no actuals of their own use the totals from their individual classes.</div>
+        {compareOn&&<div style={{color:"#8A5E00"}}>The smaller amber figure under CR% is the proposed method (Formula Config → Proposed rates).  It is a preview only; targets, suggested fees and every other screen still use the current method until a manager adopts it.</div>}
       </div>
     </div>
   );
 }
 
-function Reference({isManager,db,programs,staffName,reviewTarget=null,onOpenProgram=null}) {
+function Reference({isManager,db,programs,staffName,reviewTarget=null,onOpenProgram=null,onConfigChanged=null}) {
   const [sec,setSec] = useState(reviewTarget?"review":"start");
   // Jumped here from a program's "Program Reviews" link → open the review section
   useEffect(()=>{ if(reviewTarget) setSec("review"); },[reviewTarget]);
@@ -7800,7 +7972,7 @@ function Reference({isManager,db,programs,staffName,reviewTarget=null,onOpenProg
         <FeeReportTab programs={programs} onOpenProgram={onOpenProgram}/>
       )}
       {sec==="fyconfig"&&isManager&&(
-        <FYConfigPanel db={db} isManager={isManager}/>
+        <FYConfigPanel db={db} isManager={isManager} programs={programs} staffName={staffName} onChanged={onConfigChanged}/>
       )}
 
       {sec==="training"&&(
@@ -8508,53 +8680,191 @@ const BGPD_FACILITIES = {
   "Community Arts Center": {"Atrium":948,"Stage":2608,"Theater":4304,"3":1022,"4":925,"5":1033,"6":1021,"7":684,"18":539,"19":1435,"20":1980,"21":1404,"20-21 (Full MPR)":3384},
   "Raupp Museum": {"Lower Gallery":1115,"Main Gallery":2211,"Crossroads Gallery":966}
 };
-function FYConfigPanel({db,isManager}){
+// Workload % a program carries (budget basis, falling back to actuals), split primary / co-staff
+function programWorkload(p){
+  const pick=(px)=>{
+    const custom=parseFloat(p[px+"custom_workload"])||0;
+    if(custom>0) return custom;
+    const t=p[px+"program_type"];
+    return t&&t!=="Custom"?(PROGRAM_TYPES.find(x=>x.label===t)?.pct||0)*100:0;
+  };
+  const total=pick("ant_")||pick("act_");
+  const co=p.co_staff_name?Math.min(total,Math.max(0,parseFloat(p.co_staff_workload_pct)||0)):0;
+  return {total, primary:total-co, co};
+}
+
+function FYConfigPanel({db,isManager,programs=[],staffName="",onChanged}){
   const [rows,setRows]=useState([]);
   const [saving,setSaving]=useState(null);
   const [loaded,setLoaded]=useState(false);
+  const [fySel,setFySel]=useState("");
+  const [msg,setMsg]=useState("");
+  // staff costs
+  const [staffRows,setStaffRows]=useState({});   // key → {staff_name, loaded_cost, program_share_pct, notes}
+  const [savingStaff,setSavingStaff]=useState(null);
 
   useEffect(()=>{
-    db.from("fy_config").select("*").order("fiscal_year",{ascending:false}).then(({data})=>{
+    Promise.all([
+      db.from("fy_config").select("*").order("fiscal_year",{ascending:false}),
+      db.from("staff_costs").select("*"),
+    ]).then(([{data},{data:sc}])=>{
       setRows(data||[]);
+      const m={};(sc||[]).forEach(r=>{m[staffKey(r.staff_name)]=r;});
+      setStaffRows(m);
+      if(data&&data.length&&!fySel) setFySel(data[0].fiscal_year);
       setLoaded(true);
     });
   },[]);
 
   const availableYears=YEARS.filter(y=>!rows.find(r=>r.fiscal_year===y));
+  const fyRow=rows.find(r=>r.fiscal_year===fySel)||null;
+  const flash=(t)=>{setMsg(t);setTimeout(()=>setMsg(""),3500);};
 
   function addYear(fy){
     if(!fy||rows.find(r=>r.fiscal_year===fy)) return;
-    setRows(prev=>[{fiscal_year:fy,ft_salary:97700,facility_rate:3,admin_overhead:0.1,updated_by:"",_isNew:true},...prev]);
+    setRows(prev=>[{fiscal_year:fy,ft_salary:97700,facility_rate:3,admin_overhead:0.1,capital_rate_per_hr:0,capital_in_total:false,use_staff_costs:false,compare_enabled:false,proposed_admin_overhead:null,proposed_facility_rate:null,proposed_capital_rate_per_hr:null,proposed_use_staff_costs:true,overhead_worksheet:[],facility_worksheet:{},updated_by:"",_isNew:true},...prev]);
+    setFySel(fy);
   }
   function cancelRow(fy){setRows(prev=>prev.filter(r=>r.fiscal_year!==fy));}
+  function updateRow(fy,field,val){setRows(prev=>prev.map(r=>r.fiscal_year===fy?{...r,[field]:val}:r));}
 
-  function updateRow(fy,field,val){
-    setRows(prev=>prev.map(r=>r.fiscal_year===fy?{...r,[field]:val}:r));
-  }
-
-  async function saveRow(row){
+  async function saveRow(row,extra={}){
     setSaving(row.fiscal_year);
-    const payload={fiscal_year:row.fiscal_year,ft_salary:parseFloat(row.ft_salary)||97700,facility_rate:parseFloat(row.facility_rate)||3,admin_overhead:parseFloat(row.admin_overhead)||0.1};
+    const merged={...row,...extra};
+    const payload={
+      fiscal_year:merged.fiscal_year,
+      ft_salary:parseFloat(merged.ft_salary)||97700,
+      facility_rate:parseFloat(merged.facility_rate)||3,
+      admin_overhead:parseFloat(merged.admin_overhead)||0.1,
+      capital_rate_per_hr:parseFloat(merged.capital_rate_per_hr)||0,
+      capital_in_total:!!merged.capital_in_total,
+      use_staff_costs:!!merged.use_staff_costs,
+      compare_enabled:!!merged.compare_enabled,
+      proposed_admin_overhead:merged.proposed_admin_overhead===""||merged.proposed_admin_overhead==null?null:parseFloat(merged.proposed_admin_overhead),
+      proposed_facility_rate:merged.proposed_facility_rate===""||merged.proposed_facility_rate==null?null:parseFloat(merged.proposed_facility_rate),
+      proposed_capital_rate_per_hr:merged.proposed_capital_rate_per_hr===""||merged.proposed_capital_rate_per_hr==null?null:parseFloat(merged.proposed_capital_rate_per_hr),
+      proposed_use_staff_costs:merged.proposed_use_staff_costs!==false,
+      overhead_worksheet:Array.isArray(merged.overhead_worksheet)?merged.overhead_worksheet:[],
+      facility_worksheet:merged.facility_worksheet&&typeof merged.facility_worksheet==="object"?merged.facility_worksheet:{},
+      updated_by:staffName||"",
+    };
     const{error}=await db.from("fy_config").upsert(payload,{onConflict:"fiscal_year"});
-    if(!error){
+    if(error){flash("Save failed: "+error.message);}
+    else{
       setRows(prev=>prev.map(r=>r.fiscal_year===row.fiscal_year?{...r,...payload,_isNew:false}:r));
-      // Refresh global config
-      const{data}=await db.from("fy_config").select("*");
-      if(data) data.forEach(cfg=>{_fyConfig[cfg.fiscal_year]=cfg;});
+      _fyConfig[payload.fiscal_year]={...(_fyConfig[payload.fiscal_year]||{}),...payload};
+      flash(`FY ${payload.fiscal_year} saved`);
+      if(onChanged) onChanged();
     }
     setSaving(null);
   }
 
+  // ── Programs in the selected FY (budget basis) ──
+  const fyProgs=useMemo(()=>programs.filter(p=>!p.is_archived&&!p.is_deleted&&String(p.year||"")===String(fySel||"")),[programs,fySel]);
+  const directBudget=useMemo(()=>fyProgs.reduce((s,p)=>s+calcCR(p,"ant_").direct,0),[fyProgs]);
+  const directActual=useMemo(()=>fyProgs.reduce((s,p)=>s+calcCR(p,"act_").direct,0),[fyProgs]);
+  const facHoursBudget=useMemo(()=>fyProgs.reduce((s,p)=>s+(parseFloat(p.ant_facility_hours)||0),0),[fyProgs]);
+
+  // ── Workload sum test per staff member ──
+  const staffAlloc=useMemo(()=>{
+    const map={};
+    const add=(name,pct,prog)=>{
+      const k=staffKey(name); if(!k) return;
+      if(!map[k]) map[k]={name,pct:0,programs:[]};
+      map[k].pct+=pct; map[k].programs.push({name:prog.name,pct});
+    };
+    fyProgs.forEach(p=>{
+      const w=programWorkload(p);
+      if(p.staff_name) add(p.staff_name,w.primary,p);
+      if(p.co_staff_name&&w.co>0) add(p.co_staff_name,w.co,p);
+    });
+    // include staff on file with no programs this FY
+    Object.values(staffRows).forEach(r=>{const k=staffKey(r.staff_name); if(!map[k]) map[k]={name:r.staff_name,pct:0,programs:[]};});
+    const cfg=getFyConfig(fySel);
+    return Object.values(map).map(m=>{
+      const sc=staffRows[staffKey(m.name)]||{};
+      const loaded=parseFloat(sc.loaded_cost)||0;
+      const share=sc.program_share_pct!=null&&sc.program_share_pct!==""?parseFloat(sc.program_share_pct):100;
+      const costBasis=loaded>0?loaded:cfg.ftSalary;
+      const allocated$=costBasis*m.pct/100;
+      const unalloc$=Math.max(0,costBasis*(share-m.pct)/100);
+      const flag=share<=0?"excluded":m.pct>share+0.5?"over":m.pct<share*0.7?"under":"ok";
+      return {...m,loaded,share,costBasis,allocated$,unalloc$,flag,onFile:loaded>0,notes:sc.notes||""};
+    })
+    // Program share 0 = not program staff (superintendents, directors): their cost belongs in the overhead pool, not here
+    .filter(r=>!(r.share<=0&&r.pct<=0.001))
+    .sort((a,b)=>b.pct-a.pct);
+  },[fyProgs,staffRows,fySel,rows]);
+  const totals=useMemo(()=>staffAlloc.filter(r=>r.share>0).reduce((t,r)=>({loaded:t.loaded+r.costBasis,alloc:t.alloc+r.allocated$,unalloc:t.unalloc+r.unalloc$}),{loaded:0,alloc:0,unalloc:0}),[staffAlloc]);
+
+  function editStaff(name,field,val){
+    const k=staffKey(name);
+    setStaffRows(prev=>({...prev,[k]:{...(prev[k]||{staff_name:name}),staff_name:prev[k]?.staff_name||name,[field]:val,_dirty:true}}));
+  }
+  async function saveStaff(name){
+    const k=staffKey(name); const r=staffRows[k]; if(!r) return;
+    setSavingStaff(k);
+    const payload={staff_name:r.staff_name||name,loaded_cost:parseFloat(r.loaded_cost)||0,program_share_pct:r.program_share_pct===""||r.program_share_pct==null?100:parseFloat(r.program_share_pct),notes:r.notes||"",updated_by:staffName||"",updated_at:new Date().toISOString()};
+    const {error}=await db.from("staff_costs").upsert(payload,{onConflict:"staff_name"});
+    if(error) flash("Save failed: "+error.message);
+    else{
+      _staffCosts[k]=payload;
+      setStaffRows(prev=>({...prev,[k]:{...payload}}));
+      flash(`${payload.staff_name} saved`);
+      if(onChanged) onChanged();
+    }
+    setSavingStaff(null);
+  }
+
+  // ── Overhead worksheet (indirect pool → rate) ──
+  const ws=Array.isArray(fyRow?.overhead_worksheet)?fyRow.overhead_worksheet:[];
+  const setWs=(next)=>updateRow(fySel,"overhead_worksheet",next);
+  const poolTotal=ws.reduce((s,l)=>s+(parseFloat(l.amount)||0),0);
+  const poolBase=directBudget>0?directBudget:directActual;
+  const poolRate=poolBase>0?poolTotal/poolBase:0;
+  const DEFAULT_LINES=[
+    "Recreation administration salaries and benefits (director, superintendents, admin assistants)",
+    "Unallocated FT program staff salary (from the workload table below)",
+    "Marketing and communications allocated to recreation",
+    "Registration software and credit card fees",
+    "Finance, HR and IT services allocated to recreation",
+    "Insurance, legal, audit allocated to recreation",
+    "Training, memberships, conferences",
+  ];
+
+  // ── Facility worksheet ──
+  const fw=fyRow?.facility_worksheet&&typeof fyRow.facility_worksheet==="object"?fyRow.facility_worksheet:{};
+  const setFw=(k,v)=>updateRow(fySel,"facility_worksheet",{...fw,[k]:v});
+  const fwHours=parseFloat(fw.program_hours)||facHoursBudget||0;
+  const fwOpRate=fwHours>0?(parseFloat(fw.operating_cost)||0)/fwHours:0;
+  const fwCapRate=fwHours>0?(parseFloat(fw.capital_cost)||0)/fwHours:0;
+
+  const $=n=>"$"+Math.round(n||0).toLocaleString();
+  const inputCls="text-sm rounded border border-slate-200 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-300";
+  const Section=({title,sub,children,right})=>(
+    <div className="rounded border border-slate-200 bg-white">
+      <div className="px-4 py-3 border-b border-slate-100 flex items-start justify-between gap-3 flex-wrap" style={{background:"#F8F6F2"}}>
+        <div>
+          <div className="text-xs font-bold uppercase tracking-widest" style={{color:"#5C462B"}}>{title}</div>
+          {sub&&<div className="text-xs mt-0.5" style={{color:"#8A7A6A"}}>{sub}</div>}
+        </div>
+        {right}
+      </div>
+      <div className="p-4">{children}</div>
+    </div>
+  );
+
   if(!loaded) return <div className="p-6 text-sm text-slate-500">Loading formula config…</div>;
 
   return(
-    <div className="p-5 space-y-4">
+    <div className="p-5 space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <div className="text-xs font-bold uppercase tracking-widest" style={{color:"#5C462B"}}>Formula Configuration</div>
-          <div className="text-xs mt-0.5" style={{color:"#A09080"}}>Set FT salary, facility rate, and overhead % per fiscal year. Used in all cost recovery calculations.</div>
+          <div className="text-xs mt-0.5" style={{color:"#A09080"}}>Every cost recovery number in the app is built from these rates.  Set them once a year, in May, from the adopted budget.</div>
         </div>
         <div className="flex items-center gap-2">
+          {msg&&<span className="text-xs font-bold px-2 py-1 rounded" style={{background:"#EEF5E0",color:"#4A6B00"}}>{msg}</span>}
           {availableYears.length>0
             ?<select defaultValue="" onChange={e=>{if(e.target.value){addYear(e.target.value);e.target.value="";}}}
                 className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white" style={{color:"#5C462B"}}>
@@ -8564,56 +8874,516 @@ function FYConfigPanel({db,isManager}){
             :<span className="text-xs" style={{color:"#A09080"}}>All years configured</span>}
         </div>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
-              <th className="px-4 py-2.5 text-left">Fiscal Year</th>
-              <th className="px-4 py-2.5 text-left">FT Annual Salary ($)</th>
-              <th className="px-4 py-2.5 text-left">Facility Rate ($/hr)</th>
-              <th className="px-4 py-2.5 text-left">Admin Overhead (%)</th>
-              <th className="px-4 py-2.5 text-left">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(row=>(
-              <tr key={row.fiscal_year} className="border-t border-slate-100 hover:bg-slate-50">
-                <td className="px-4 py-2.5 font-semibold" style={{color:"#5C462B"}}>
-                  FY {row.fiscal_year}
-                  {row._isNew&&<span className="ml-1.5 text-xs font-normal px-1.5 py-0.5 rounded" style={{background:"#E6F6FB",color:"#00A9CE"}}>New</span>}
-                </td>
-                <td className="px-4 py-2.5">
-                  <input type="number" value={row.ft_salary||""} onChange={e=>updateRow(row.fiscal_year,"ft_salary",e.target.value)}
-                    className="w-28 text-sm rounded border border-slate-200 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-300"/>
-                </td>
-                <td className="px-4 py-2.5">
-                  <input type="number" value={row.facility_rate||""} onChange={e=>updateRow(row.fiscal_year,"facility_rate",e.target.value)}
-                    className="w-20 text-sm rounded border border-slate-200 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-300"/>
-                </td>
-                <td className="px-4 py-2.5">
-                  <input type="number" value={row.admin_overhead!==undefined?parseFloat((row.admin_overhead*100).toFixed(1)):""} onChange={e=>updateRow(row.fiscal_year,"admin_overhead",(parseFloat(e.target.value)||0)/100)}
-                    className="w-20 text-sm rounded border border-slate-200 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-300"/>
-                </td>
-                <td className="px-4 py-2.5">
-                  <div className="flex items-center gap-2">
-                    <button onClick={()=>saveRow(row)} disabled={saving===row.fiscal_year}
-                      className="text-xs font-bold px-3 py-1.5 transition disabled:opacity-50"
-                      style={{background:"#84BD00",color:"#fff",borderRadius:"2px",border:"none"}}>
-                      {saving===row.fiscal_year?"Saving...":"Save"}
-                    </button>
-                    {row._isNew&&(
-                      <button onClick={()=>cancelRow(row.fiscal_year)}
-                        className="text-xs font-bold px-2 py-1.5 transition"
-                        style={{background:"none",border:"1px solid #E35205",color:"#E35205",borderRadius:"2px"}}>✕</button>
-                    )}
-                  </div>
-                </td>
+
+      {/* 1. Rates per FY */}
+      <Section title="Rates by fiscal year (current method)" sub="These are the rates every screen uses today.  Facility is the utility cost per program hour.  Infrastructure reinvestment is Dundee's capital charge, a per hour amount set aside for building renewal; it is manager only and off until you set it.  Loaded staff costs are ignored until the switch is on.">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+                <th className="px-3 py-2 text-left">Fiscal Year</th>
+                <th className="px-3 py-2 text-left">Default FT Salary ($)</th>
+                <th className="px-3 py-2 text-left">Facility ($/hr)</th>
+                <th className="px-3 py-2 text-left">Overhead (%)</th>
+                <th className="px-3 py-2 text-left">Infrastructure ($/hr)</th>
+                <th className="px-3 py-2 text-left">Capital in total cost</th>
+                <th className="px-3 py-2 text-left">Loaded staff costs</th>
+                <th className="px-3 py-2 text-left"></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        {rows.length===0&&<div className="py-8 text-center text-sm text-slate-400">No fiscal years configured yet. Add one above.</div>}
+            </thead>
+            <tbody>
+              {rows.map(row=>(
+                <tr key={row.fiscal_year} className={`border-t border-slate-100 ${row.fiscal_year===fySel?"bg-blue-50":"hover:bg-slate-50"}`} onClick={()=>setFySel(row.fiscal_year)}>
+                  <td className="px-3 py-2 font-semibold cursor-pointer" style={{color:"#5C462B"}}>
+                    FY {row.fiscal_year}
+                    {row._isNew&&<span className="ml-1.5 text-xs font-normal px-1.5 py-0.5 rounded" style={{background:"#E6F6FB",color:"#00A9CE"}}>New</span>}
+                  </td>
+                  <td className="px-3 py-2"><input type="number" value={row.ft_salary||""} onChange={e=>updateRow(row.fiscal_year,"ft_salary",e.target.value)} className={inputCls+" w-28"}/></td>
+                  <td className="px-3 py-2"><input type="number" step="0.01" value={row.facility_rate??""} onChange={e=>updateRow(row.fiscal_year,"facility_rate",e.target.value)} className={inputCls+" w-20"}/></td>
+                  <td className="px-3 py-2"><input type="number" step="0.1" value={row.admin_overhead!==undefined&&row.admin_overhead!==null?parseFloat((row.admin_overhead*100).toFixed(1)):""} onChange={e=>updateRow(row.fiscal_year,"admin_overhead",(parseFloat(e.target.value)||0)/100)} className={inputCls+" w-20"}/></td>
+                  <td className="px-3 py-2"><input type="number" step="0.01" value={row.capital_rate_per_hr??""} onChange={e=>updateRow(row.fiscal_year,"capital_rate_per_hr",e.target.value)} className={inputCls+" w-20"}/></td>
+                  <td className="px-3 py-2">
+                    <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                      <input type="checkbox" checked={!!row.capital_in_total} onChange={e=>updateRow(row.fiscal_year,"capital_in_total",e.target.checked)}/>
+                      {row.capital_in_total?"Included in CR and fees":"Shown alongside only"}
+                    </label>
+                  </td>
+                  <td className="px-3 py-2">
+                    <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                      <input type="checkbox" checked={!!row.use_staff_costs} onChange={e=>updateRow(row.fiscal_year,"use_staff_costs",e.target.checked)}/>
+                      {row.use_staff_costs?"In use":"Off (default salary)"}
+                    </label>
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <button onClick={e=>{e.stopPropagation();saveRow(row);}} disabled={saving===row.fiscal_year}
+                        className="text-xs font-bold px-3 py-1.5 transition disabled:opacity-50"
+                        style={{background:"#84BD00",color:"#fff",borderRadius:"2px",border:"none"}}>
+                        {saving===row.fiscal_year?"Saving...":"Save"}
+                      </button>
+                      {row._isNew&&<button onClick={e=>{e.stopPropagation();cancelRow(row.fiscal_year);}} className="text-xs font-bold px-2 py-1.5" style={{background:"none",border:"1px solid #E35205",color:"#E35205",borderRadius:"2px"}}>✕</button>}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {rows.length===0&&<div className="py-8 text-center text-sm text-slate-400">No fiscal years configured yet.  Add one above.</div>}
+        </div>
+        <div className="text-xs mt-2" style={{color:"#8A7A6A"}}>Click a year to work on its worksheets below.  Working on: <b>FY {fySel||"—"}</b></div>
+      </Section>
+
+      {fyRow&&(
+        <>
+          {/* 1b. Proposed method — side by side preview */}
+          <Section title={`Proposed method · FY ${fySel} (side by side preview)`}
+            sub="Enter the rates you are considering.  Blank = same as current.  With the preview on, managers see the proposed cost recovery next to today's on the Fee Report, each program's Summary tab and the Pricing tab.  Staff screens, targets and suggested fees are unchanged until you adopt.">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 items-end">
+              <label className="text-xs text-slate-700">Overhead (%)
+                <input type="number" step="0.1" value={fyRow.proposed_admin_overhead==null||fyRow.proposed_admin_overhead===""?"":parseFloat((fyRow.proposed_admin_overhead*100).toFixed(1))} placeholder={((parseFloat(fyRow.admin_overhead)||0)*100).toFixed(1)} onChange={e=>updateRow(fySel,"proposed_admin_overhead",e.target.value===""?"":(parseFloat(e.target.value)||0)/100)} className={inputCls+" w-full mt-1"}/></label>
+              <label className="text-xs text-slate-700">Facility ($/hr)
+                <input type="number" step="0.01" value={fyRow.proposed_facility_rate??""} placeholder={String(fyRow.facility_rate??3)} onChange={e=>updateRow(fySel,"proposed_facility_rate",e.target.value)} className={inputCls+" w-full mt-1"}/></label>
+              <label className="text-xs text-slate-700">Infrastructure ($/hr)
+                <input type="number" step="0.01" value={fyRow.proposed_capital_rate_per_hr??""} placeholder={String(fyRow.capital_rate_per_hr??0)} onChange={e=>updateRow(fySel,"proposed_capital_rate_per_hr",e.target.value)} className={inputCls+" w-full mt-1"}/></label>
+              <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer pb-2">
+                <input type="checkbox" checked={fyRow.proposed_use_staff_costs!==false} onChange={e=>updateRow(fySel,"proposed_use_staff_costs",e.target.checked)}/>
+                Use loaded staff costs
+              </label>
+              <label className="flex items-center gap-2 text-xs font-bold cursor-pointer pb-2" style={{color:fyRow.compare_enabled?"#8A5E00":"#5C462B"}}>
+                <input type="checkbox" checked={!!fyRow.compare_enabled} onChange={e=>updateRow(fySel,"compare_enabled",e.target.checked)}/>
+                Show preview to managers
+              </label>
+            </div>
+            {(()=>{
+              const cur=fyProgs.reduce((t,p)=>{const c=calcCR(p,"act_");return {rev:t.rev+c.revenue,cost:t.cost+c.total};},{rev:0,cost:0});
+              const pr=fyProgs.reduce((t,p)=>{const c=calcCR(p,"act_","proposed");return {cost:t.cost+c.total};},{cost:0});
+              const withAct=fyProgs.filter(p=>calcCR(p,"act_").total>0).length;
+              if(!withAct) return null;
+              return (
+                <div className="mt-3 rounded px-3 py-2 text-xs grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-4" style={{background:"#FBF4E6",color:"#3d2b1a"}}>
+                  <div><div className="text-slate-500">Programs with actuals</div><div className="font-mono font-bold">{withAct}</div></div>
+                  <div><div className="text-slate-500">Total cost, current method</div><div className="font-mono font-bold">{$(cur.cost)}</div></div>
+                  <div><div className="text-slate-500">Total cost, proposed</div><div className="font-mono font-bold" style={{color:"#8A5E00"}}>{$(pr.cost)}</div></div>
+                  <div><div className="text-slate-500">Overall CR, current → proposed</div><div className="font-mono font-bold">{cur.cost>0?(cur.rev/cur.cost*100).toFixed(1):"0"}% → <span style={{color:"#8A5E00"}}>{pr.cost>0?(cur.rev/pr.cost*100).toFixed(1):"0"}%</span></div></div>
+                </div>
+              );
+            })()}
+            <div className="flex items-center gap-2 mt-3 flex-wrap">
+              <button onClick={()=>saveRow(fyRow)} disabled={saving===fySel} className="text-xs font-bold px-3 py-1.5 disabled:opacity-50" style={{background:"#84BD00",color:"#fff",borderRadius:"2px",border:"none"}}>Save proposed rates</button>
+              <button onClick={()=>{
+                  if(!window.__adoptConfirm||window.__adoptConfirm!==fySel){window.__adoptConfirm=fySel;flash("Click Adopt again to make the proposed rates the current method for FY "+fySel);return;}
+                  window.__adoptConfirm=null;
+                  const pc=getFyConfig(fySel,"proposed");
+                  saveRow(fyRow,{admin_overhead:pc.adminOverhead,facility_rate:pc.facilityRate,capital_rate_per_hr:pc.capitalRate,capital_in_total:pc.capitalRate>0?true:!!fyRow.capital_in_total,use_staff_costs:pc.useStaffCosts,compare_enabled:false,proposed_admin_overhead:null,proposed_facility_rate:null,proposed_capital_rate_per_hr:null});
+                }} disabled={saving===fySel} className="text-xs font-bold px-3 py-1.5 disabled:opacity-50" style={{background:"#fff",color:"#E35205",borderRadius:"2px",border:"1px solid #E35205"}}>Adopt proposed as current method</button>
+              <span className="text-xs" style={{color:"#8A7A6A"}}>Adopting replaces the current rates for this FY and turns the preview off.  Every program recalculates.</span>
+            </div>
+          </Section>
+
+          {/* 2. Staff loaded cost and workload sum test */}
+          <Section title={`FT staff loaded cost and workload check · FY ${fySel}`}
+            sub="Loaded cost = salary + IMRF + FICA + health, per person.  Program share = the portion of their year that is program work (the rest is general administration).  Set superintendents and directors to 0 to leave them out; their cost belongs in the overhead pool.  Allocated = what the Program Type and custom percentages on their programs add up to.">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-500 uppercase tracking-wider">
+                    <th className="px-2 py-2 text-left">Staff</th>
+                    <th className="px-2 py-2 text-right">Loaded cost ($)</th>
+                    <th className="px-2 py-2 text-right">Program share (%)</th>
+                    <th className="px-2 py-2 text-right">Allocated (%)</th>
+                    <th className="px-2 py-2 text-right">Allocated ($)</th>
+                    <th className="px-2 py-2 text-right">Unallocated ($)</th>
+                    <th className="px-2 py-2 text-left">Status</th>
+                    <th className="px-2 py-2 text-left">Programs</th>
+                    <th className="px-2 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {staffAlloc.map(r=>{
+                    const k=staffKey(r.name); const sr=staffRows[k]||{};
+                    const color=r.flag==="over"?"#E35205":r.flag==="under"?"#8A5E00":r.flag==="excluded"?"#A09080":"#4A6B00";
+                    const text=r.flag==="excluded"?"Not program staff (share 0) — cost goes to the overhead pool":r.flag==="over"?`Over by ${(r.pct-r.share).toFixed(1)} pts`:r.flag==="under"?`${(r.share-r.pct).toFixed(1)} pts of program time not on any program`:"Adds up";
+                    return (
+                      <tr key={k} className="border-t border-slate-100 align-top">
+                        <td className="px-2 py-2 font-semibold text-slate-800">{r.name}{!r.onFile&&<div className="font-normal" style={{color:"#A09080"}}>using default salary</div>}</td>
+                        <td className="px-2 py-2 text-right"><input type="number" value={sr.loaded_cost??""} placeholder={String(Math.round(getFyConfig(fySel).ftSalary))} onChange={e=>editStaff(r.name,"loaded_cost",e.target.value)} className={inputCls+" w-24 text-right"}/></td>
+                        <td className="px-2 py-2 text-right"><input type="number" value={sr.program_share_pct??""} placeholder="100" onChange={e=>editStaff(r.name,"program_share_pct",e.target.value)} className={inputCls+" w-16 text-right"}/></td>
+                        <td className="px-2 py-2 text-right font-mono font-bold" style={{color}}>{r.pct.toFixed(1)}%</td>
+                        <td className="px-2 py-2 text-right font-mono">{$(r.allocated$)}</td>
+                        <td className="px-2 py-2 text-right font-mono" style={{color:r.unalloc$>0?"#8A5E00":"#A09080"}}>{$(r.unalloc$)}</td>
+                        <td className="px-2 py-2 font-semibold" style={{color}}>{text}</td>
+                        <td className="px-2 py-2 text-slate-600" title={r.programs.map(p=>`${p.name}: ${p.pct.toFixed(1)}%`).join("\n")}>{r.programs.length} program{r.programs.length!==1?"s":""}</td>
+                        <td className="px-2 py-2">{sr._dirty&&<button onClick={()=>saveStaff(r.name)} disabled={savingStaff===k} className="text-xs font-bold px-2 py-1 disabled:opacity-50" style={{background:"#84BD00",color:"#fff",borderRadius:"2px",border:"none"}}>{savingStaff===k?"…":"Save"}</button>}</td>
+                      </tr>
+                    );
+                  })}
+                  <tr className="border-t-2 border-slate-200 font-bold text-slate-800">
+                    <td className="px-2 py-2">Total ({staffAlloc.length} staff)</td>
+                    <td className="px-2 py-2 text-right font-mono">{$(totals.loaded)}</td>
+                    <td></td><td></td>
+                    <td className="px-2 py-2 text-right font-mono">{$(totals.alloc)}</td>
+                    <td className="px-2 py-2 text-right font-mono" style={{color:"#8A5E00"}}>{$(totals.unalloc)}</td>
+                    <td colSpan={3} className="px-2 py-2 font-normal text-slate-600">Unallocated salary is real cost that no program carries.  Put it in the overhead pool below, or raise the workload percentages until the column is near zero.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </Section>
+
+          {/* 3. Overhead worksheet */}
+          <Section title={`Overhead worksheet · FY ${fySel}`}
+            sub="Indirect cost pool divided by direct program cost.  Every $450K in the pool is about 10 points on $4.5M of direct cost."
+            right={<button onClick={()=>setWs([...ws,...DEFAULT_LINES.filter(l=>!ws.find(x=>x.label===l)).map(l=>({label:l,amount:""}))])} className="text-xs font-bold px-2 py-1 rounded" style={{background:"#E6F6FB",color:"#007A99",border:"1px solid rgba(0,169,206,0.35)"}}>Add standard lines</button>}>
+            <div className="space-y-1.5">
+              {ws.map((l,i)=>(
+                <div key={i} className="flex items-center gap-2">
+                  <input value={l.label||""} onChange={e=>setWs(ws.map((x,j)=>j===i?{...x,label:e.target.value}:x))} placeholder="Cost line" className={inputCls+" flex-1"}/>
+                  <span className="text-xs text-slate-500">$</span>
+                  <input type="number" value={l.amount??""} onChange={e=>setWs(ws.map((x,j)=>j===i?{...x,amount:e.target.value}:x))} className={inputCls+" w-32 text-right"}/>
+                  {l.label===DEFAULT_LINES[1]&&totals.unalloc>0&&<button onClick={()=>setWs(ws.map((x,j)=>j===i?{...x,amount:Math.round(totals.unalloc)}:x))} className="text-xs font-bold" style={{color:"#007A99",background:"none",border:"none",cursor:"pointer"}}>use {$(totals.unalloc)}</button>}
+                  <button onClick={()=>setWs(ws.filter((_,j)=>j!==i))} className="text-xs" style={{color:"#E35205",background:"none",border:"none",cursor:"pointer"}}>✕</button>
+                </div>
+              ))}
+              <button onClick={()=>setWs([...ws,{label:"",amount:""}])} className="text-xs font-bold" style={{color:"#007A99",background:"none",border:"none",cursor:"pointer",padding:0}}>+ Add line</button>
+            </div>
+            <div className="mt-3 rounded px-3 py-2 text-xs grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-4" style={{background:"#F8F6F2",color:"#3d2b1a"}}>
+              <div><div className="text-slate-500">Indirect pool</div><div className="font-mono font-bold">{$(poolTotal)}</div></div>
+              <div><div className="text-slate-500">Direct program cost ({directBudget>0?"budget":"actuals"})</div><div className="font-mono font-bold">{$(poolBase)}</div></div>
+              <div><div className="text-slate-500">Computed overhead rate</div><div className="font-mono font-bold" style={{color:"#007A99"}}>{(poolRate*100).toFixed(1)}%</div></div>
+              <div><div className="text-slate-500">Rate in use now</div><div className="font-mono font-bold">{((parseFloat(fyRow.admin_overhead)||0)*100).toFixed(1)}%</div></div>
+            </div>
+            <div className="flex items-center gap-2 mt-3">
+              <button onClick={()=>saveRow(fyRow,{proposed_admin_overhead:poolRate})} disabled={!poolBase||saving===fySel} className="text-xs font-bold px-3 py-1.5 disabled:opacity-50" style={{background:"#00A9CE",color:"#fff",borderRadius:"2px",border:"none"}}>Set {(poolRate*100).toFixed(1)}% as the proposed FY {fySel} overhead rate</button>
+              <button onClick={()=>saveRow(fyRow)} disabled={saving===fySel} className="text-xs font-bold px-3 py-1.5 disabled:opacity-50" style={{background:"#fff",color:"#5C462B",borderRadius:"2px",border:"1px solid rgba(92,70,43,0.3)"}}>Save worksheet only</button>
+            </div>
+          </Section>
+
+          {/* 4. Facility worksheet */}
+          <Section title={`Facility and infrastructure worksheet · FY ${fySel}`}
+            sub="The current $3/hr is the utility cost per program hour and stays as is.  Use this worksheet only if you want to test a fuller facility charge (custodial, maintenance, parks staff time) or to work out the infrastructure reinvestment rate: annual capital set aside divided by scheduled program hours.">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <label className="text-xs text-slate-700">Facility operating cost for programs ($/yr)
+                <input type="number" value={fw.operating_cost??""} onChange={e=>setFw("operating_cost",e.target.value)} className={inputCls+" w-full mt-1"}/></label>
+              <label className="text-xs text-slate-700">Annual capital set aside ($/yr)
+                <input type="number" value={fw.capital_cost??""} onChange={e=>setFw("capital_cost",e.target.value)} className={inputCls+" w-full mt-1"}/></label>
+              <label className="text-xs text-slate-700">Program hours per year
+                <input type="number" value={fw.program_hours??""} placeholder={String(Math.round(facHoursBudget))} onChange={e=>setFw("program_hours",e.target.value)} className={inputCls+" w-full mt-1"}/>
+                <span className="text-slate-500">Blank = {Math.round(facHoursBudget).toLocaleString()} budgeted hours across FY {fySel} programs</span></label>
+            </div>
+            <div className="mt-3 rounded px-3 py-2 text-xs grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-4" style={{background:"#F8F6F2",color:"#3d2b1a"}}>
+              <div><div className="text-slate-500">Computed facility rate</div><div className="font-mono font-bold" style={{color:"#007A99"}}>${fwOpRate.toFixed(2)}/hr</div></div>
+              <div><div className="text-slate-500">In use now</div><div className="font-mono font-bold">${(parseFloat(fyRow.facility_rate)||0).toFixed(2)}/hr</div></div>
+              <div><div className="text-slate-500">Computed infrastructure rate</div><div className="font-mono font-bold" style={{color:"#007A99"}}>${fwCapRate.toFixed(2)}/hr</div></div>
+              <div><div className="text-slate-500">In use now</div><div className="font-mono font-bold">${(parseFloat(fyRow.capital_rate_per_hr)||0).toFixed(2)}/hr</div></div>
+            </div>
+            <div className="flex items-center gap-2 mt-3 flex-wrap">
+              <button onClick={()=>saveRow(fyRow,{proposed_facility_rate:Math.round(fwOpRate*100)/100,proposed_capital_rate_per_hr:Math.round(fwCapRate*100)/100})} disabled={!fwHours||saving===fySel} className="text-xs font-bold px-3 py-1.5 disabled:opacity-50" style={{background:"#00A9CE",color:"#fff",borderRadius:"2px",border:"none"}}>Set these as the proposed FY {fySel} rates</button>
+              <button onClick={()=>saveRow(fyRow)} disabled={saving===fySel} className="text-xs font-bold px-3 py-1.5 disabled:opacity-50" style={{background:"#fff",color:"#5C462B",borderRadius:"2px",border:"1px solid rgba(92,70,43,0.3)"}}>Save worksheet only</button>
+              <span className="text-xs" style={{color:"#8A7A6A"}}>Nothing here changes the current method.  Proposed rates show up only in the side by side preview below.</span>
+            </div>
+          </Section>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Staff time allocation survey ──────────────────────────────────────────
+// Each FT staff member splits 100% of a fiscal year across the programs they run
+// plus general administration, facility duty and other.  Surveys save on their
+// own and change nothing until a manager chooses to apply one to the programs.
+const SURVEY_BUCKETS=[
+  {key:"admin_pct",label:"General administration",hint:"Meetings, email, budget, reports, training, district events, anything not tied to one program"},
+  {key:"facility_pct",label:"Facility or front desk duty",hint:"Building supervision, front desk shifts, rentals support"},
+  {key:"other_pct",label:"Other",hint:"Anything else; say what in the notes"},
+];
+
+function surveyPrograms(programs,name,fy){
+  const k=staffKey(name);
+  return programs
+    .filter(p=>!p.is_archived&&!p.is_deleted&&String(p.year||"")===String(fy||""))
+    .filter(p=>staffKey(p.staff_name)===k||staffKey(p.co_staff_name)===k)
+    .map(p=>({program_id:p.id,program_name:p.name,season:p.season||"",area:p.area||"",role:staffKey(p.staff_name)===k?"primary":"co",
+      current_pct:(()=>{const w=programWorkload(p);return staffKey(p.staff_name)===k?w.primary:w.co;})()}))
+    .sort((a,b)=>a.program_name.localeCompare(b.program_name));
+}
+
+function TimeSurveyTab({db,programs=[],staffName="",isManager=false,onApplied}){
+  const latestFY=useMemo(()=>{
+    const yrs=[...new Set(programs.filter(p=>!p.is_archived&&!p.is_deleted).map(p=>String(p.year||"")).filter(Boolean))].sort();
+    return yrs[yrs.length-1]||YEARS[2];
+  },[programs]);
+  const [fy,setFy]=useState("");
+  const [surveys,setSurveys]=useState([]);
+  const [loaded,setLoaded]=useState(false);
+  const [who,setWho]=useState("");          // staff member whose survey is open
+  const [draft,setDraft]=useState(null);    // {allocations:{program_id:pct}, admin_pct, facility_pct, other_pct, other_label, notes, status}
+  const [saving,setSaving]=useState(false);
+  const [msg,setMsg]=useState("");
+  const [applyPreview,setApplyPreview]=useState(null);
+  const effFY=fy||latestFY;
+  const flash=t=>{setMsg(t);setTimeout(()=>setMsg(""),4000);};
+
+  async function load(){
+    const {data}=await db.from("staff_time_surveys").select("*").order("updated_at",{ascending:false});
+    setSurveys(data||[]); setLoaded(true);
+  }
+  useEffect(()=>{load();},[]);
+  useEffect(()=>{ if(!who&&staffName) setWho(staffName); },[staffName]);
+
+  // Everyone who has programs this FY, plus anyone who already has a survey
+  const people=useMemo(()=>{
+    const m={};
+    programs.filter(p=>!p.is_archived&&!p.is_deleted&&String(p.year||"")===String(effFY)).forEach(p=>{
+      [p.staff_name,p.co_staff_name].forEach(n=>{const k=staffKey(n); if(k&&!m[k]) m[k]=n;});
+    });
+    surveys.filter(s=>s.fiscal_year===effFY).forEach(s=>{const k=staffKey(s.staff_name); if(k&&!m[k]) m[k]=s.staff_name;});
+    return Object.values(m).sort((a,b)=>a.localeCompare(b));
+  },[programs,surveys,effFY]);
+
+  const mySurvey=surveys.find(s=>staffKey(s.staff_name)===staffKey(who)&&s.fiscal_year===effFY)||null;
+  const progList=useMemo(()=>surveyPrograms(programs,who,effFY),[programs,who,effFY]);
+
+  // Open the draft for the selected person/FY
+  useEffect(()=>{
+    if(!who) return;
+    const alloc={};
+    (mySurvey?.allocations||[]).forEach(a=>{alloc[a.program_id]=a.pct;});
+    setDraft({
+      allocations:alloc,
+      admin_pct:mySurvey?.admin_pct??"",facility_pct:mySurvey?.facility_pct??"",other_pct:mySurvey?.other_pct??"",
+      other_label:mySurvey?.other_label||"",notes:mySurvey?.notes||"",status:mySurvey?.status||"draft",
+    });
+    setApplyPreview(null);
+  },[who,effFY,mySurvey?.id,mySurvey?.updated_at]);
+
+  const num=v=>parseFloat(v)||0;
+  const progTotal=draft?progList.reduce((s,p)=>s+num(draft.allocations[p.program_id]),0):0;
+  const bucketTotal=draft?SURVEY_BUCKETS.reduce((s,b)=>s+num(draft[b.key]),0):0;
+  const total=progTotal+bucketTotal;
+  const totalOk=Math.abs(total-100)<0.05;
+  const canEdit=isManager||staffKey(who)===staffKey(staffName);
+  const isApplied=draft?.status==="applied";
+
+  function setAlloc(id,v){setDraft(d=>({...d,allocations:{...d.allocations,[id]:v},status:d.status==="applied"?"draft":d.status}));}
+  function setField(k,v){setDraft(d=>({...d,[k]:v,status:d.status==="applied"?"draft":d.status}));}
+
+  async function save(status){
+    if(!draft||!who) return;
+    if(status==="submitted"&&!totalOk){flash("The total has to be 100% before you submit");return;}
+    setSaving(true);
+    const payload={
+      staff_name:mySurvey?.staff_name||who,fiscal_year:effFY,status,
+      allocations:progList.map(p=>({program_id:p.program_id,program_name:p.program_name,season:p.season,role:p.role,pct:num(draft.allocations[p.program_id])})).filter(a=>a.pct>0),
+      admin_pct:num(draft.admin_pct),facility_pct:num(draft.facility_pct),other_pct:num(draft.other_pct),
+      other_label:draft.other_label||"",notes:draft.notes||"",
+      submitted_at:status==="submitted"?new Date().toISOString():(mySurvey?.submitted_at||null),
+      updated_at:new Date().toISOString(),
+    };
+    const {error}=await db.from("staff_time_surveys").upsert(payload,{onConflict:"staff_name,fiscal_year"});
+    setSaving(false);
+    if(error){flash("Save failed: "+error.message);return;}
+    flash(status==="submitted"?"Survey submitted":"Draft saved");
+    await load();
+  }
+
+  // ── Manager: apply a survey to the programs ──
+  function buildApplyPreview(){
+    if(!mySurvey) return;
+    const changes=[];
+    const k=staffKey(mySurvey.staff_name);
+    (mySurvey.allocations||[]).forEach(a=>{
+      const p=programs.find(x=>x.id===a.program_id); if(!p) return;
+      const w=programWorkload(p);
+      const isPrimary=staffKey(p.staff_name)===k;
+      let newTotal, newCo=null;
+      if(isPrimary){ newTotal=a.pct+w.co; }
+      else { newCo=a.pct; newTotal=w.primary+a.pct; }
+      changes.push({program:p,name:p.name,season:p.season,role:isPrimary?"primary":"co",from:isPrimary?w.primary:w.co,to:a.pct,newTotal:Math.round(newTotal*100)/100,newCo});
+    });
+    // programs they run that the survey left at 0
+    progList.filter(pl=>!(mySurvey.allocations||[]).find(a=>a.program_id===pl.program_id)&&pl.current_pct>0).forEach(pl=>{
+      const p=programs.find(x=>x.id===pl.program_id); if(!p) return;
+      const w=programWorkload(p); const isPrimary=pl.role==="primary";
+      changes.push({program:p,name:p.name,season:p.season,role:pl.role,from:pl.current_pct,to:0,newTotal:isPrimary?w.co:w.primary,newCo:isPrimary?null:0});
+    });
+    const share=100-num(mySurvey.admin_pct)-num(mySurvey.facility_pct)-num(mySurvey.other_pct);
+    setApplyPreview({changes,share});
+  }
+  async function applySurvey(){
+    if(!applyPreview||!mySurvey) return;
+    setSaving(true);
+    let failed=0;
+    for(const c of applyPreview.changes){
+      const patch={ant_custom_workload:c.newTotal,act_custom_workload:c.newTotal};
+      if(c.newCo!=null) patch.co_staff_workload_pct=c.newCo;
+      const {error}=await db.from("programs").update(patch).eq("id",c.program.id);
+      if(error) failed++;
+    }
+    await db.from("staff_costs").upsert({staff_name:mySurvey.staff_name,program_share_pct:Math.max(0,applyPreview.share),updated_by:staffName,updated_at:new Date().toISOString()},{onConflict:"staff_name"});
+    await db.from("staff_time_surveys").update({status:"applied",applied_at:new Date().toISOString(),applied_by:staffName}).eq("id",mySurvey.id);
+    setSaving(false);
+    flash(failed?`Applied with ${failed} error(s)`:`Applied to ${applyPreview.changes.length} program(s)`);
+    setApplyPreview(null);
+    await load();
+    if(onApplied) onApplied();
+  }
+
+  const statusChip=s=>{
+    const c=s==="applied"?["#EEF5E0","#4A6B00","Applied"]:s==="submitted"?["#E6F6FB","#007A99","Submitted"]:["#F5F3EE","#8A7A6A","Draft"];
+    return <span className="text-xs font-bold px-2 py-0.5 rounded" style={{background:c[0],color:c[1]}}>{c[2]}</span>;
+  };
+  const inputCls="text-sm rounded border border-slate-200 px-2 py-1 text-right focus:outline-none focus:ring-1 focus:ring-blue-300";
+
+  if(!loaded||!draft) return <div className="p-6 text-sm text-slate-500">Loading…</div>;
+
+  return (
+    <div className="p-5 space-y-5">
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <div className="text-xs font-bold uppercase tracking-widest" style={{color:"#5C462B"}}>Staff Time Survey</div>
+          <div className="text-xs mt-0.5 max-w-2xl" style={{color:"#8A7A6A"}}>
+            Split 100% of your year across the programs you run and the three buckets below.  Think in whole weeks: a six week class with setup and wrap up is about 2% of a year; a summer camp you direct is 15% to 25%.
+            Save a draft any time.  Submitting sends it to your supervisor.  Nothing changes on any program until a manager applies it.
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {msg&&<span className="text-xs font-bold px-2 py-1 rounded" style={{background:"#EEF5E0",color:"#4A6B00"}}>{msg}</span>}
+          <select value={effFY} onChange={e=>setFy(e.target.value)} className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white" style={{color:"#5C462B"}}>
+            {YEARS.map(y=><option key={y} value={y}>FY {y}</option>)}
+          </select>
+          {isManager&&(
+            <select value={who} onChange={e=>setWho(e.target.value)} className="text-xs rounded border border-slate-200 px-2 py-1.5 bg-white" style={{color:"#5C462B"}}>
+              {!people.find(n=>staffKey(n)===staffKey(who))&&who&&<option value={who}>{who}</option>}
+              {people.map(n=>{const sv=surveys.find(s=>staffKey(s.staff_name)===staffKey(n)&&s.fiscal_year===effFY);return <option key={n} value={n}>{n}{sv?` · ${sv.status}`:""}</option>;})}
+            </select>
+          )}
+        </div>
       </div>
+
+      {/* Manager overview */}
+      {isManager&&(
+        <div className="rounded border border-slate-200 bg-white">
+          <div className="px-4 py-2.5 border-b border-slate-100 text-xs font-bold uppercase tracking-widest" style={{background:"#F8F6F2",color:"#5C462B"}}>FY {effFY} · {people.length} staff with programs</div>
+          <div className="flex flex-wrap gap-2 p-3">
+            {people.map(n=>{
+              const sv=surveys.find(s=>staffKey(s.staff_name)===staffKey(n)&&s.fiscal_year===effFY);
+              const active=staffKey(n)===staffKey(who);
+              return (
+                <button key={n} onClick={()=>setWho(n)} className="text-xs px-2.5 py-1.5 rounded flex items-center gap-2" style={{background:active?"#E6F6FB":"#fff",border:`1px solid ${active?"#00A9CE":"rgba(92,70,43,0.2)"}`,color:"#3d2b1a"}}>
+                  <span className="font-semibold">{n}</span>{sv?statusChip(sv.status):<span className="text-xs" style={{color:"#A09080"}}>not started</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* The survey */}
+      <div className="rounded border border-slate-200 bg-white">
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2" style={{background:"#F8F6F2"}}>
+          <div>
+            <div className="text-sm font-bold text-slate-800">{who} · FY {effFY}</div>
+            <div className="text-xs" style={{color:"#8A7A6A"}}>{mySurvey?`Last saved ${new Date(mySurvey.updated_at).toLocaleString()}${mySurvey.applied_at?` · applied ${new Date(mySurvey.applied_at).toLocaleDateString()} by ${mySurvey.applied_by}`:""}`:"Not started"}</div>
+          </div>
+          <div className="flex items-center gap-3">
+            {statusChip(draft.status)}
+            <div className="text-right">
+              <div className="text-xs" style={{color:"#8A7A6A"}}>Total</div>
+              <div className="text-lg font-black" style={{color:totalOk?"#4A6B00":total>100?"#E35205":"#8A5E00"}}>{total.toFixed(1)}%</div>
+            </div>
+          </div>
+        </div>
+        <div className="p-4 space-y-4">
+          {progList.length===0&&<div className="text-sm text-slate-500">No programs are assigned to {who} for FY {effFY}.</div>}
+          {progList.length>0&&(
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs text-slate-500 uppercase tracking-wider">
+                  <th className="px-2 py-1.5 text-left">Program</th>
+                  <th className="px-2 py-1.5 text-left">Season</th>
+                  <th className="px-2 py-1.5 text-left">Role</th>
+                  <th className="px-2 py-1.5 text-right">On the program now</th>
+                  <th className="px-2 py-1.5 text-right">% of your year</th>
+                </tr>
+              </thead>
+              <tbody>
+                {progList.map(p=>(
+                  <tr key={p.program_id} className="border-t border-slate-100">
+                    <td className="px-2 py-1.5 font-semibold text-slate-800">{p.program_name}<span className="font-normal text-slate-400"> · {p.area}</span></td>
+                    <td className="px-2 py-1.5 text-slate-600">{p.season}</td>
+                    <td className="px-2 py-1.5 text-slate-600">{p.role==="primary"?"Lead":"Co-staff"}</td>
+                    <td className="px-2 py-1.5 text-right font-mono text-slate-500">{p.current_pct.toFixed(1)}%</td>
+                    <td className="px-2 py-1.5 text-right"><input type="number" min={0} max={100} step="0.5" disabled={!canEdit} value={draft.allocations[p.program_id]??""} placeholder="0" onChange={e=>setAlloc(p.program_id,e.target.value)} className={inputCls+" w-20"}/></td>
+                  </tr>
+                ))}
+                <tr className="border-t border-slate-200 font-bold text-slate-800"><td className="px-2 py-1.5" colSpan={4}>Programs subtotal</td><td className="px-2 py-1.5 text-right font-mono">{progTotal.toFixed(1)}%</td></tr>
+              </tbody>
+            </table>
+          )}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {SURVEY_BUCKETS.map(b=>(
+              <label key={b.key} className="text-xs text-slate-700 rounded border border-slate-100 p-3" style={{background:"#FBFAF7"}}>
+                <div className="font-semibold text-slate-800">{b.label}</div>
+                <div className="text-slate-500 mb-2">{b.hint}</div>
+                <div className="flex items-center gap-2">
+                  <input type="number" min={0} max={100} step="0.5" disabled={!canEdit} value={draft[b.key]??""} placeholder="0" onChange={e=>setField(b.key,e.target.value)} className={inputCls+" w-20"}/>
+                  <span>% of your year</span>
+                </div>
+                {b.key==="other_pct"&&<input disabled={!canEdit} value={draft.other_label} onChange={e=>setField("other_label",e.target.value)} placeholder="What is it?" className="mt-2 w-full text-sm rounded border border-slate-200 px-2 py-1"/>}
+              </label>
+            ))}
+          </div>
+          <label className="block text-xs text-slate-700">Notes for your supervisor
+            <textarea disabled={!canEdit} value={draft.notes} onChange={e=>setField("notes",e.target.value)} rows={2} className="mt-1 w-full text-sm rounded border border-slate-200 px-2 py-1.5" placeholder="Anything that changed this year, programs you share, seasons that are unusually heavy"/>
+          </label>
+          {!totalOk&&<div className="text-xs font-semibold" style={{color:total>100?"#E35205":"#8A5E00"}}>{total>100?`Over by ${(total-100).toFixed(1)} points`:`${(100-total).toFixed(1)} points still to place`}</div>}
+          {canEdit&&(
+            <div className="flex items-center gap-2 flex-wrap">
+              <button onClick={()=>save("draft")} disabled={saving} className="text-xs font-bold px-3 py-1.5 disabled:opacity-50" style={{background:"#fff",color:"#5C462B",borderRadius:"2px",border:"1px solid rgba(92,70,43,0.3)"}}>Save draft</button>
+              <button onClick={()=>save("submitted")} disabled={saving||!totalOk} className="text-xs font-bold px-3 py-1.5 disabled:opacity-50" style={{background:"#84BD00",color:"#fff",borderRadius:"2px",border:"none"}}>Submit to supervisor</button>
+              {isApplied&&<span className="text-xs" style={{color:"#4A6B00"}}>Applied to programs.  Editing starts a new draft; it changes nothing until applied again.</span>}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Manager: apply */}
+      {isManager&&mySurvey&&mySurvey.status!=="draft"&&(
+        <div className="rounded border bg-white" style={{borderColor:"rgba(0,169,206,0.4)"}}>
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2" style={{background:"#E6F6FB"}}>
+            <div>
+              <div className="text-xs font-bold uppercase tracking-widest" style={{color:"#007A99"}}>Apply to programs (manager)</div>
+              <div className="text-xs" style={{color:"#5C462B"}}>Writes this survey's percentages into the custom workload on each of {mySurvey.staff_name}'s programs and sets their program share to {Math.max(0,100-num(mySurvey.admin_pct)-num(mySurvey.facility_pct)-num(mySurvey.other_pct)).toFixed(1)}%.  Optional.  Nothing moves until you confirm.</div>
+            </div>
+            {!applyPreview&&<button onClick={buildApplyPreview} className="text-xs font-bold px-3 py-1.5 rounded text-white" style={{background:"#00A9CE",border:"none"}}>Preview changes</button>}
+          </div>
+          {applyPreview&&(
+            <div className="p-4 space-y-3">
+              <table className="w-full text-xs">
+                <thead><tr className="text-slate-500 uppercase tracking-wider"><th className="px-2 py-1 text-left">Program</th><th className="px-2 py-1 text-left">Role</th><th className="px-2 py-1 text-right">Now</th><th className="px-2 py-1 text-right">Survey</th><th className="px-2 py-1 text-right">Program total after</th></tr></thead>
+                <tbody>
+                  {applyPreview.changes.map((c,i)=>(
+                    <tr key={i} className="border-t border-slate-100">
+                      <td className="px-2 py-1 font-semibold text-slate-800">{c.name}<span className="text-slate-400 font-normal"> · {c.season}</span></td>
+                      <td className="px-2 py-1 text-slate-600">{c.role==="primary"?"Lead":"Co-staff"}</td>
+                      <td className="px-2 py-1 text-right font-mono">{c.from.toFixed(1)}%</td>
+                      <td className="px-2 py-1 text-right font-mono font-bold" style={{color:c.to>c.from?"#E35205":c.to<c.from?"#4A6B00":"#3d2b1a"}}>{c.to.toFixed(1)}%</td>
+                      <td className="px-2 py-1 text-right font-mono">{c.newTotal.toFixed(1)}%</td>
+                    </tr>
+                  ))}
+                  {applyPreview.changes.length===0&&<tr><td colSpan={5} className="px-2 py-2 text-slate-500">No program percentages would change.</td></tr>}
+                </tbody>
+              </table>
+              <div className="flex items-center gap-2">
+                <button onClick={applySurvey} disabled={saving} className="text-xs font-bold px-3 py-1.5 disabled:opacity-50" style={{background:"#E35205",color:"#fff",borderRadius:"2px",border:"none"}}>{saving?"Applying…":"Apply these changes"}</button>
+                <button onClick={()=>setApplyPreview(null)} className="text-xs font-bold px-3 py-1.5" style={{background:"#fff",color:"#5C462B",borderRadius:"2px",border:"1px solid rgba(92,70,43,0.3)"}}>Cancel</button>
+                <span className="text-xs" style={{color:"#8A7A6A"}}>Program total = this person's share plus any co-staff share already on the program.  Cost recovery on these programs will change.</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -9051,10 +9821,11 @@ function AppInner() {
     setError(null);
     const timeout = new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout")),10000));
     try {
-      const [{data:p, error:fe}, {data:cfgData}] = await Promise.race([
+      const [{data:p, error:fe}, {data:cfgData}, {data:scData}] = await Promise.race([
         Promise.all([
           supabase.from("programs").select("*").order("created_at",{ascending:false}),
           supabase.from("fy_config").select("*"),
+          supabase.from("staff_costs").select("*"),
         ]),
         timeout.then(()=>{ throw new Error("timeout"); })
       ]);
@@ -9062,6 +9833,10 @@ function AppInner() {
       if(cfgData) {
         _fyConfig = {};
         cfgData.forEach(row=>{ _fyConfig[row.fiscal_year] = row; });
+      }
+      if(scData) {
+        _staffCosts = {};
+        scData.forEach(row=>{ _staffCosts[staffKey(row.staff_name)] = row; });
       }
       const normalized=(p||[])
         .filter(prog=>!prog.is_deleted)
@@ -9206,6 +9981,7 @@ function AppInner() {
     {id:"programs",label:"Programs"},
     {id:"history",label:"Multi-Season"},
     {id:"kpi",label:"Guide & Resources"},
+    {id:"survey",label:"Time Survey"},
     ...(effectiveManager?[
       {id:"access",label:"Staff Access"},
       {id:"config",label:"Formula Config"},
@@ -9320,12 +10096,16 @@ function AppInner() {
             )}
             {tab==="kpi"&&<Reference isManager={effectiveManager} db={supabase} programs={programs} staffName={staffName}
               reviewTarget={reviewTarget}
+              onConfigChanged={()=>fetchAll()}
               onOpenProgram={p=>{setReviewTarget(null);setEditingProgram(p);setAddingProgram(false);setTab("programs");}}/>}
             {tab==="access"&&effectiveManager&&(
               <StaffPinAdmin db={supabase} staffName={staffName} programs={programs}/>
             )}
             {tab==="config"&&effectiveManager&&(
-              <FYConfigPanel db={supabase} isManager={effectiveManager}/>
+              <FYConfigPanel db={supabase} isManager={effectiveManager} programs={programs} staffName={staffName} onChanged={()=>fetchAll()}/>
+            )}
+            {tab==="survey"&&(
+              <TimeSurveyTab db={supabase} programs={programs} staffName={staffName} isManager={effectiveManager} onApplied={()=>fetchAll()}/>
             )}
           </>
         )}
