@@ -6,7 +6,13 @@ const AREAS = ["Adult General","Adult Sports","Aquatics","Camps","Clubhouse","Da
 const SEASONS = ["Spring","Summer","Fall","Winter","All Year"];
 /* inject no-spinner CSS */
 if(typeof document!=="undefined"){const s=document.createElement("style");s.textContent="input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield}";document.head.appendChild(s);}
-const YEARS = ["24-25","25-26","26-27","27-28","28-29","29-30"];
+// Fiscal years offered everywhere (May 1 start).  Runs from 24-25 through three years
+// past the current fiscal year, so new years appear on their own each May.
+const YEARS = (()=>{
+  const now=new Date(); const fyStart=now.getMonth()>=4?now.getFullYear():now.getFullYear()-1;
+  const out=[]; for(let y=2024;y<=fyStart+3;y++) out.push(`${String(y).slice(-2)}-${String(y+1).slice(-2)}`);
+  return out;
+})();
 const YEAR_DISPLAY = {"24-25":"FY 24-25","25-26":"FY 25-26","26-27":"FY 26-27","27-28":"FY 27-28","28-29":"FY 28-29","29-30":"FY 29-30"};
 
 // Convert FY string or 4-digit year → calendar year number for sorting
@@ -169,7 +175,7 @@ function getFyConfig(fy, mode="current") {
     ftSalary:      cfg.ft_salary      || FT_ANNUAL_SALARY,
     facilityRate:  cfg.facility_rate  || FACILITY_COST_PER_HR,
     adminOverhead: cfg.admin_overhead || ADMIN_OVERHEAD_RATE,
-    // Infrastructure reinvestment (capital) charge per facility hour — Dundee's
+    // Infrastructure reinvestment (capital) charge per facility hour — the 110% model's
     // "with capital" view.  0 until a manager sets it in Formula Config.
     capitalRate:   parseFloat(cfg.capital_rate_per_hr)||0,
     // When true, the capital charge is part of total cost, so CR, targets and
@@ -3663,7 +3669,10 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <Inp label="Participation Trend" value={p.trend||"New"} onChange={setField("trend")} options={TRENDS}/>
                   <div className="sm:col-span-3 mt-2">
-                    <div className="text-xs font-bold text-slate-700 uppercase tracking-widest mb-3">NPS — Net Promoter Score</div>
+                    {!(p._showNps||p.nps||p.nps_promoters>0||p.nps_passives>0||p.nps_detractors>0)?(
+                      <button type="button" onClick={()=>setField("_showNps")(true)} className="text-xs font-bold" style={{color:"#007A99",background:"none",border:"none",padding:0,cursor:"pointer"}}>+ Add survey results (NPS) — optional</button>
+                    ):(<>
+                    <div className="text-xs font-bold text-slate-700 uppercase tracking-widest mb-3">NPS — Net Promoter Score <span className="font-normal normal-case text-slate-500">(optional)</span></div>
                     {isManager?(
                       <div className="space-y-4">
                         {/* Toggle */}
@@ -3736,16 +3745,19 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                         <p className="text-xs text-slate-700">Enter the NPS score from your survey results. The score ranges from −100 to +100 — positive is good, 50+ is excellent.</p>
                       </div>
                     )}
+                    </>)}
                   </div>
                   <Inp label="Waitlist" type="number" value={p.waitlist!=null?p.waitlist:""} onChange={v=>setField("waitlist")(v===""?null:Math.max(0,parseInt(v)||0))} min={0} hint="Enter 0 to confirm no waitlist, or leave blank if unknown"/>
                 </div>
               </div>
               
-              <SubProgramTracker
-                programs={Array.isArray(p.sub_programs)?p.sub_programs:[]}
-                onChange={v=>setField("sub_programs")(v)}
-                umbrellaRevenue={p.act_revenue||p.ant_revenue||0}
-                umbrellaCost={calcCR(p,"act_").total||calcCR(p,"ant_").total||0}/>
+              {p.is_umbrella&&(
+                <SubProgramTracker
+                  programs={Array.isArray(p.sub_programs)?p.sub_programs:[]}
+                  onChange={v=>setField("sub_programs")(v)}
+                  umbrellaRevenue={p.act_revenue||p.ant_revenue||0}
+                  umbrellaCost={calcCR(p,"act_").total||calcCR(p,"ant_").total||0}/>
+              )}
             </div>
           )}
           {sec==="summary"&&(
@@ -3833,7 +3845,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
             const onTarget=svcTarget?(svcTarget.expectSubsidy?basisCRPct<=svcTarget.max+0.01:basisCRPct>=svcTarget.min):true;
             const oodBelowID=p.fee_ood>0&&p.fee>0&&p.fee_ood<p.fee;
             const showGapFields=svcTarget&&!onTarget&&gap>0;
-            // Three year fee path (110% / Dundee method): grow expenses 3%/yr, set the
+            // Three year fee path (110% method): grow expenses 3%/yr, set the
             // revenue goal at the target floor of year 3 cost, spread the fee change evenly.
             const EXP_GROWTH=0.03;
             const threeYear=(()=>{
@@ -3997,7 +4009,7 @@ function ProgramForm({initial,staffName,isManager,programs=[],onSave,onSaveAndSt
                   </div>
                 );})()}
 
-                {/* Three year fee path — the 110% / Dundee method */}
+                {/* Three year fee path — the 110% method */}
                 {threeYear&&(
                   <div className="rounded border border-slate-200 overflow-hidden">
                     <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between" style={{background:"#F5F3EE"}}>
@@ -4411,8 +4423,9 @@ function ProgramsList({programs,isManager,staffName,onEdit,onAdd,onBulkDup,onDup
   );
 }
 
-const ADMIN_FYS = ["2021-2022","2022-2023","2023-2024","2024-2025","2025-2026","2026-2027"];
 const ADMIN_CUR = (()=>{const d=new Date();const y=d.getMonth()>=DISTRICT_CONFIG.fyStartMonth?d.getFullYear():d.getFullYear()-1;return `${y}-${y+1}`;})();
+// Review fiscal years: 2021-2022 through two years past the current one, so the list grows on its own
+const ADMIN_FYS = (()=>{const cur=parseInt(ADMIN_CUR.slice(0,4));const out=[];for(let y=2021;y<=cur+2;y++) out.push(`${y}-${y+1}`);return out;})();
 
 // ─── Program Review Checklist ─────────────────────────────────────────────────
 function ProgramReviewSection({db,programs=[],staffName="",isManager=false,targetProgram=null,onOpenProgram=null}){
@@ -4490,7 +4503,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false,targe
   const AREAS=["Adult General","Adult Sports","Aquatics","Camps","Clubhouse","Dance","Fitness","Golf Dome","Museum","Performing Arts","Seniors","Special Events","Youth General","Youth Sports","Other"];
   const SEASONS_LIST=["Spring","Summer","Fall","Winter","Annual","Year-Round"];
   const DECISIONS=["Continue","Adjust","Redesign","Expand","Pilot Again","Sunset Review"];
-  // 110% gap actions (Dundee Township fiscal sustainability plan), in the order they are tried
+  // 110% gap actions, in the order they are tried
   const GAP_ACTIONS=[
     {id:"metrics",   label:"1. Analyze the metrics",            detail:"Check enrollment, capacity, satisfaction and impact before touching price.  Is the gap a volume problem or a price problem?"},
     {id:"costs",     label:"2. Analyze direct vs indirect cost", detail:"Can direct cost come down (instructor rate, supplies, hours) without hurting the program?  Indirect cost is a district decision, not a program one."},
@@ -4511,8 +4524,7 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false,targe
     {label:"Financial",icon:"💰"},
     {label:"Data",icon:"📊"},
     {label:"Community",icon:"🤝"},
-    {label:"Space",icon:"🏢"},
-    {label:"Innovation",icon:"💡"},
+    {label:"Space & Innovation",icon:"🏢"},
     {label:"Decision",icon:"✅"},
   ];
 
@@ -5819,13 +5831,8 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false,targe
             </div>
             {ta("Facility Barriers or Constraints","facility_barriers",2,"Any issues with space availability, setup time, equipment access, or scheduling conflicts…")}
             {ta("Space & Operations Notes","space_notes",2,"Scheduling opportunities, ratio adjustments, facility improvements that would help…")}
-          </>
-        )}
 
-        {/* ── STEP 5: Innovation ── */}
-        {activeStep===5&&(
-          <>
-            <div className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">💡 Innovation & Responsiveness</div>
+            <div className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 pt-4">💡 Innovation & Responsiveness</div>
             <div className="space-y-2 mb-4">
               {chk("This is a new or pilot program","is_pilot","New offering within the last 2 seasons")}
               {chk("An adaptation or change was made this season","is_adaptation","Format, pricing, timing, instructor, or audience was intentionally adjusted")}
@@ -5846,8 +5853,8 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false,targe
           </>
         )}
 
-        {/* ── STEP 6: Decision ── */}
-        {activeStep===6&&(
+        {/* ── STEP 5: Decision ── */}
+        {activeStep===5&&(
           <>
             <div className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">✅ Final Decision</div>
 
@@ -5897,6 +5904,11 @@ function ProgramReviewSection({db,programs=[],staffName="",isManager=false,targe
               const below=tgt?!tgt.onTarget&&!tgt.expectSubsidy:false;
               if(!below&&["Continue","Expand"].includes(form.decision)) return null;
               const selected=new Set((form.gap_actions||"").split(",").filter(Boolean));
+              if(!form._showGap&&selected.size===0) return (
+                <button type="button" onClick={()=>s("_showGap",true)} className="text-xs font-bold" style={{color:"#007A99",background:"none",border:"none",padding:0,cursor:"pointer"}}>
+                  {below?`+ Below the ${tgt.label} target — show gap actions`:"+ Show gap actions"}
+                </button>
+              );
               return (
                 <div className="rounded-lg border border-slate-200 overflow-hidden">
                   <div className="px-4 py-2.5 border-b border-slate-100" style={{background:"#E6F6FB",borderLeft:"3px solid #00A9CE"}}>
@@ -7026,10 +7038,8 @@ function FeeReportTab({programs, onOpenProgram}) {
   );
 }
 
-function Reference({isManager,db,programs,staffName,reviewTarget=null,onOpenProgram=null,onConfigChanged=null}) {
-  const [sec,setSec] = useState(reviewTarget?"review":"start");
-  // Jumped here from a program's "Program Reviews" link → open the review section
-  useEffect(()=>{ if(reviewTarget) setSec("review"); },[reviewTarget]);
+function Reference({isManager,db,programs,staffName,onOpenProgram=null,onConfigChanged=null}) {
+  const [sec,setSec] = useState("start");
   const workload = [
     {activity:"Program planning & management", pct:"50-60%"},
     {activity:"Meetings / admin",              pct:"15-20%"},
@@ -7094,7 +7104,6 @@ function Reference({isManager,db,programs,staffName,reviewTarget=null,onOpenProg
           {id:"guide",label:"Dashboard Guide"},
           {id:"training",label:"📋 Training Guide"},
           {id:"setup",label:"📐 How to Set Up Programs"},
-          {id:"review",label:"📋 Program Review"},
           {id:"capacity",label:"🧮 Capacity Calculator"},
           {id:"redesign",label:"🔄 Redesign Ideas"},
           {id:"allocation",label:"💰 Allocation Calculator"},
@@ -7899,9 +7908,6 @@ function Reference({isManager,db,programs,staffName,reviewTarget=null,onOpenProg
           </div>
 
         </div>
-      )}
-      {sec==="review"&&(
-        <ProgramReviewSection db={db} programs={programs} staffName={staffName} isManager={isManager} targetProgram={reviewTarget} onOpenProgram={onOpenProgram}/>
       )}
       {sec==="capacity"&&(
         <div className="p-5 space-y-4">
@@ -8876,7 +8882,7 @@ function FYConfigPanel({db,isManager,programs=[],staffName="",onChanged}){
       </div>
 
       {/* 1. Rates per FY */}
-      <Section title="Rates by fiscal year (current method)" sub="These are the rates every screen uses today.  Facility is the utility cost per program hour.  Infrastructure reinvestment is Dundee's capital charge, a per hour amount set aside for building renewal; it is manager only and off until you set it.  Loaded staff costs are ignored until the switch is on.">
+      <Section title="Rates by fiscal year (current method)" sub="These are the rates every screen uses today.  Facility is the utility cost per program hour.  Infrastructure reinvestment is a capital charge, a per hour amount set aside for building renewal; it is manager only and off until you set it.  Loaded staff costs are ignored until the switch is on.">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -9088,22 +9094,77 @@ function FYConfigPanel({db,isManager,programs=[],staffName="",onChanged}){
   );
 }
 
-// ─── Staff time allocation survey ──────────────────────────────────────────
-// Each FT staff member splits 100% of a fiscal year across the programs they run
-// plus general administration, facility duty and other.  Surveys save on their
-// own and change nothing until a manager chooses to apply one to the programs.
-const SURVEY_BUCKETS=[
-  {key:"admin_pct",label:"General administration",hint:"Meetings, email, budget, reports, training, district events, anything not tied to one program"},
-  {key:"facility_pct",label:"Facility or front desk duty",hint:"Building supervision, front desk shifts, rentals support"},
-  {key:"other_pct",label:"Other",hint:"Anything else; say what in the notes"},
+// ─── Staff time survey (activity based) ────────────────────────────────────
+// Staff count things (sessions set up, hires, registrations, weeks, meetings).
+// The app multiplies each count by a time standard that is the same for everyone.
+// Each person may also say how long one unit takes them; managers see the
+// district average next to the standard and can adopt it.  Surveys save as their
+// own records and change nothing on any program until a manager applies one.
+const SURVEY_HOURS_DEFAULT=1900;   // 2,080 paid hours less holidays and leave
+const SURVEY_WEEKS_PER_YEAR=48;
+// mode: count = count × hours per unit · perweek = count × weeks × hours per unit
+//       hpw = hours a week × weeks (no standard) · hours = hours entered directly · fixed = hours per program
+const PROGRAM_DRIVERS=[
+  {key:"sessions",   label:"Classes or sessions set up",          hint:"Each class, session or event built in SmartRec this year",            mode:"count",   std:1.5, unit:"hrs each"},
+  {key:"hires",      label:"Instructors or part time staff hired or renewed", hint:"Posting, interview, paperwork, first day", mode:"count",   std:3,   unit:"hrs each"},
+  {key:"weeks",      label:"Weeks it ran",                        hint:"All sessions in this fiscal year added together",                     mode:"weeks"},
+  {key:"onsite_hpw", label:"Your hours a week while it ran",      hint:"Supervision, visits, instructor and parent contact, problems",        mode:"hpw"},
+  {key:"pt_supervised",label:"Part time staff supervised while it ran",hint:"Headcount; charged per person per week",                       mode:"perweek", std:0.5, unit:"hrs per person per week"},
+  {key:"enrollment", label:"Participants enrolled",               hint:"Prefilled from the program record; change if wrong",                   mode:"count",   std:0.05,unit:"hrs each (3 min)"},
+  {key:"marketing",  label:"Flyers, posts, emails created",       hint:"Pieces you made or had made for this program",                        mode:"count",   std:1,   unit:"hrs each"},
+  {key:"purchases",  label:"Purchase orders, invoices, contracts", hint:"Each one you prepared or approved",                                   mode:"count",   std:0.5, unit:"hrs each"},
+  {key:"bookings",   label:"Facility bookings or setups arranged", hint:"Rooms, fields, pool time, setups",                                    mode:"count",   std:0.5, unit:"hrs each"},
+  {key:"vendors",    label:"Vendors, sponsors or partners coordinated", hint:"Each outside party you worked with",                            mode:"count",   std:1.5, unit:"hrs each"},
+  {key:"volunteers", label:"Volunteers coordinated",              hint:"Headcount",                                                           mode:"count",   std:0.5, unit:"hrs each"},
+  {key:"extra_hours",label:"Other hours on this program",         hint:"Anything the counts above miss; say what in the notes",               mode:"hours"},
 ];
-
+const PROGRAM_FIXED={key:"program_fixed",label:"Evaluation, report and budget line per program",std:3};
+const BUCKET_DRIVERS=[
+  {key:"meetings_hpw",     label:"Staff and department meetings",       hint:"Hours a week, across the year",                              mode:"hpw"},
+  {key:"admin_hpw",        label:"Email and general administration",    hint:"Hours a week not tied to one program",                       mode:"hpw"},
+  {key:"mod_shifts",       label:"Building coverage or manager on duty shifts", hint:"Shifts per year",                                   mode:"count", std:4,   unit:"hrs each"},
+  {key:"district_events",  label:"District wide events worked",         hint:"BG Days, holiday events, another area's event",              mode:"count", std:10,  unit:"hrs each"},
+  {key:"brochure_cycles",  label:"Brochure cycles",                     hint:"Seasonal brochure rounds you contribute to",                 mode:"count", std:12,  unit:"hrs each"},
+  {key:"pt_hiring_general",label:"Part time staff hired outside a program", hint:"Front desk, seasonal pools, general hires",             mode:"count", std:3,   unit:"hrs each"},
+  {key:"training_days",    label:"Training, conference and certification days", hint:"IPRA, IAPD, CPR, safety",                           mode:"count", std:8,   unit:"hrs each"},
+  {key:"community_meetings",label:"Community, partner and committee meetings", hint:"Schools, the Village, associations, advisory groups", mode:"count", std:1.5, unit:"hrs each"},
+  {key:"other_hours",      label:"Other",                               hint:"Hours per year; say what in the notes",                      mode:"hours"},
+];
+const ALL_DRIVERS=[...PROGRAM_DRIVERS.filter(d=>d.std!=null),PROGRAM_FIXED,...BUCKET_DRIVERS.filter(d=>d.std!=null)];
+let _timeStandards={};   // key → hours, loaded from time_standards; falls back to the defaults above
+function stdHours(key){
+  const v=_timeStandards[key]; if(v!=null&&!isNaN(parseFloat(v))) return parseFloat(v);
+  const d=ALL_DRIVERS.find(x=>x.key===key); return d?d.std:0;
+}
+// Hours for one driver given its count, the weeks (for per week drivers) and the estimates a person gave
+function driverHours(d,counts,estimates){
+  const n=parseFloat(counts?.[d.key])||0;
+  const per=estimates&&estimates[d.key]!==""&&estimates[d.key]!=null&&!isNaN(parseFloat(estimates[d.key]))?parseFloat(estimates[d.key]):stdHours(d.key);
+  if(d.mode==="count") return n*per;
+  if(d.mode==="perweek") return n*(parseFloat(counts?.weeks)||0)*per;
+  if(d.mode==="hpw") return n*(d.key==="onsite_hpw"?(parseFloat(counts?.weeks)||0):SURVEY_WEEKS_PER_YEAR);
+  if(d.mode==="hours") return n;
+  return 0;
+}
+function programHours(counts,estimates){
+  const any=PROGRAM_DRIVERS.some(d=>(parseFloat(counts?.[d.key])||0)>0);
+  if(!any) return 0;
+  const est=estimates||{};
+  const fixedPer=est[PROGRAM_FIXED.key]!=null&&est[PROGRAM_FIXED.key]!==""?parseFloat(est[PROGRAM_FIXED.key]):stdHours(PROGRAM_FIXED.key);
+  return PROGRAM_DRIVERS.reduce((s,d)=>s+driverHours(d,counts,est),0)+fixedPer;
+}
+function bucketHoursAll(buckets,estimates){
+  return BUCKET_DRIVERS.reduce((s,d)=>s+driverHours(d,buckets,estimates||{}),0);
+}
 function surveyPrograms(programs,name,fy){
   const k=staffKey(name);
   return programs
     .filter(p=>!p.is_archived&&!p.is_deleted&&String(p.year||"")===String(fy||""))
     .filter(p=>staffKey(p.staff_name)===k||staffKey(p.co_staff_name)===k)
-    .map(p=>({program_id:p.id,program_name:p.name,season:p.season||"",area:p.area||"",role:staffKey(p.staff_name)===k?"primary":"co",
+    .map(p=>({program_id:p.id,program_name:p.name,season:p.season||"",area:p.area||"",is_umbrella:!!p.is_umbrella,
+      program_type:p.ant_program_type||p.act_program_type||"",
+      prefill:{enrollment:withUmbrellaActuals(p).act_enrollment||p.ant_enrollment||0,sessions:p.is_umbrella&&Array.isArray(p.sub_programs)&&p.sub_programs.length?p.sub_programs.length:1},
+      role:staffKey(p.staff_name)===k?"primary":"co",
       current_pct:(()=>{const w=programWorkload(p);return staffKey(p.staff_name)===k?w.primary:w.co;})()}))
     .sort((a,b)=>a.program_name.localeCompare(b.program_name));
 }
@@ -9116,22 +9177,39 @@ function TimeSurveyTab({db,programs=[],staffName="",isManager=false,onApplied}){
   const [fy,setFy]=useState("");
   const [surveys,setSurveys]=useState([]);
   const [loaded,setLoaded]=useState(false);
-  const [who,setWho]=useState("");          // staff member whose survey is open
-  const [draft,setDraft]=useState(null);    // {allocations:{program_id:pct}, admin_pct, facility_pct, other_pct, other_label, notes, status}
+  const [who,setWho]=useState("");
+  const [draft,setDraft]=useState(null);
+  const [openProg,setOpenProg]=useState(null);   // program id whose counts are expanded
   const [saving,setSaving]=useState(false);
   const [msg,setMsg]=useState("");
   const [applyPreview,setApplyPreview]=useState(null);
+  const [mgrView,setMgrView]=useState("people");  // people | standards | types
+  const [stdEdits,setStdEdits]=useState({});
+  const [stdTick,setStdTick]=useState(0);
   const effFY=fy||latestFY;
   const flash=t=>{setMsg(t);setTimeout(()=>setMsg(""),4000);};
+  const [surveyOpenFY,setSurveyOpenFY]=useState(!!_fyConfig[effFY]?.survey_open);
+  useEffect(()=>{setSurveyOpenFY(!!_fyConfig[effFY]?.survey_open);},[effFY]);
+  async function toggleSurveyOpen(open){
+    const {error}=await db.from("fy_config").upsert({fiscal_year:effFY,survey_open:open},{onConflict:"fiscal_year"});
+    if(error){flash("Could not change: "+error.message);return;}
+    _fyConfig[effFY]={...(_fyConfig[effFY]||{fiscal_year:effFY}),survey_open:open};
+    setSurveyOpenFY(open); flash(open?"Survey opened to staff":"Survey closed to staff");
+    if(onApplied) onApplied();
+  }
 
   async function load(){
-    const {data}=await db.from("staff_time_surveys").select("*").order("updated_at",{ascending:false});
-    setSurveys(data||[]); setLoaded(true);
+    const [{data},{data:ts}]=await Promise.all([
+      db.from("staff_time_surveys").select("*").order("updated_at",{ascending:false}),
+      db.from("time_standards").select("*"),
+    ]);
+    setSurveys(data||[]);
+    if(ts){_timeStandards={};ts.forEach(r=>{_timeStandards[r.key]=parseFloat(r.hours);});setStdTick(t=>t+1);}
+    setLoaded(true);
   }
   useEffect(()=>{load();},[]);
   useEffect(()=>{ if(!who&&staffName) setWho(staffName); },[staffName]);
 
-  // Everyone who has programs this FY, plus anyone who already has a survey
   const people=useMemo(()=>{
     const m={};
     programs.filter(p=>!p.is_archived&&!p.is_deleted&&String(p.year||"")===String(effFY)).forEach(p=>{
@@ -9142,40 +9220,65 @@ function TimeSurveyTab({db,programs=[],staffName="",isManager=false,onApplied}){
   },[programs,surveys,effFY]);
 
   const mySurvey=surveys.find(s=>staffKey(s.staff_name)===staffKey(who)&&s.fiscal_year===effFY)||null;
+  const priorSurvey=useMemo(()=>{
+    const i=YEARS.indexOf(effFY); const prior=i>0?YEARS[i-1]:null;
+    return prior?surveys.find(s=>staffKey(s.staff_name)===staffKey(who)&&s.fiscal_year===prior)||null:null;
+  },[surveys,who,effFY]);
   const progList=useMemo(()=>surveyPrograms(programs,who,effFY),[programs,who,effFY]);
 
-  // Open the draft for the selected person/FY
-  useEffect(()=>{
-    if(!who) return;
+  function draftFrom(sv){
     const alloc={};
-    (mySurvey?.allocations||[]).forEach(a=>{alloc[a.program_id]=a.pct;});
-    setDraft({
-      allocations:alloc,
-      admin_pct:mySurvey?.admin_pct??"",facility_pct:mySurvey?.facility_pct??"",other_pct:mySurvey?.other_pct??"",
-      other_label:mySurvey?.other_label||"",notes:mySurvey?.notes||"",status:mySurvey?.status||"draft",
-    });
-    setApplyPreview(null);
-  },[who,effFY,mySurvey?.id,mySurvey?.updated_at]);
+    (sv?.allocations||[]).forEach(a=>{alloc[a.program_id]={...(a.counts||{})};});
+    // prefill enrollment and sessions for programs with nothing entered yet
+    progList.forEach(p=>{ if(!alloc[p.program_id]) alloc[p.program_id]={enrollment:p.prefill.enrollment||"",sessions:p.prefill.sessions||""}; });
+    const buckets={}; BUCKET_DRIVERS.forEach(b=>{buckets[b.key]=sv?.buckets?.[b.key]??"";});
+    const estimates={}; ALL_DRIVERS.forEach(d=>{estimates[d.key]=sv?.estimates?.[d.key]??"";});
+    return {allocations:alloc,buckets,estimates,hours_per_year:sv?.hours_per_year||SURVEY_HOURS_DEFAULT,other_label:sv?.other_label||"",notes:sv?.notes||"",status:sv?.status||"draft"};
+  }
+  useEffect(()=>{ if(!who) return; setDraft(draftFrom(mySurvey)); setApplyPreview(null); setOpenProg(null); },[who,effFY,mySurvey?.id,mySurvey?.updated_at,progList.length]);
+
+  function startFromPrior(){
+    if(!priorSurvey) return;
+    const d=draftFrom(priorSurvey); d.status="draft";
+    const byName={}; (priorSurvey.allocations||[]).forEach(a=>{byName[(a.program_name||"").toLowerCase().trim()]=a;});
+    const alloc={};
+    progList.forEach(p=>{const a=byName[p.program_name.toLowerCase().trim()]; alloc[p.program_id]=a?{...(a.counts||{})}:{enrollment:p.prefill.enrollment||"",sessions:p.prefill.sessions||""};});
+    d.allocations=alloc; setDraft(d); flash("Copied from last year; check every line");
+  }
 
   const num=v=>parseFloat(v)||0;
-  const progTotal=draft?progList.reduce((s,p)=>s+num(draft.allocations[p.program_id]),0):0;
-  const bucketTotal=draft?SURVEY_BUCKETS.reduce((s,b)=>s+num(draft[b.key]),0):0;
-  const total=progTotal+bucketTotal;
-  const totalOk=Math.abs(total-100)<0.05;
+  const hoursYear=draft?num(draft.hours_per_year)||SURVEY_HOURS_DEFAULT:SURVEY_HOURS_DEFAULT;
+  const progHoursTotal=draft?progList.reduce((s,p)=>s+programHours(draft.allocations[p.program_id],draft.estimates),0):0;
+  const bucketTotal=draft?bucketHoursAll(draft.buckets,draft.estimates):0;
+  const totalHours=progHoursTotal+bucketTotal;
+  const coverage=hoursYear>0?totalHours/hoursYear:0;
+  const withinRange=coverage>=0.95&&coverage<=1.05;
   const canEdit=isManager||staffKey(who)===staffKey(staffName);
   const isApplied=draft?.status==="applied";
+  const pctOf=h=>hoursYear>0?h/hoursYear*100:0;
+  const estGiven=draft?ALL_DRIVERS.filter(d=>draft.estimates[d.key]!==""&&draft.estimates[d.key]!=null).length:0;
 
-  function setAlloc(id,v){setDraft(d=>({...d,allocations:{...d.allocations,[id]:v},status:d.status==="applied"?"draft":d.status}));}
-  function setField(k,v){setDraft(d=>({...d,[k]:v,status:d.status==="applied"?"draft":d.status}));}
+  const touch=d=>({...d,status:d.status==="applied"?"draft":d.status});
+  function setCount(id,key,v){setDraft(d=>touch({...d,allocations:{...d.allocations,[id]:{...(d.allocations[id]||{}),[key]:v}}}));}
+  function setBucket(k,v){setDraft(d=>touch({...d,buckets:{...d.buckets,[k]:v}}));}
+  function setEst(k,v){setDraft(d=>touch({...d,estimates:{...d.estimates,[k]:v}}));}
+  function setField(k,v){setDraft(d=>touch({...d,[k]:v}));}
 
   async function save(status){
     if(!draft||!who) return;
-    if(status==="submitted"&&!totalOk){flash("The total has to be 100% before you submit");return;}
+    if(status==="submitted"&&!withinRange){flash("Hours need to land within 5% of your working year before you submit");return;}
     setSaving(true);
+    const estimates={}; ALL_DRIVERS.forEach(d=>{const v=draft.estimates[d.key]; if(v!==""&&v!=null&&!isNaN(parseFloat(v))) estimates[d.key]=parseFloat(v);});
     const payload={
       staff_name:mySurvey?.staff_name||who,fiscal_year:effFY,status,
-      allocations:progList.map(p=>({program_id:p.program_id,program_name:p.program_name,season:p.season,role:p.role,pct:num(draft.allocations[p.program_id])})).filter(a=>a.pct>0),
-      admin_pct:num(draft.admin_pct),facility_pct:num(draft.facility_pct),other_pct:num(draft.other_pct),
+      hours_per_year:hoursYear,
+      allocations:progList.map(p=>{
+        const counts={}; PROGRAM_DRIVERS.forEach(d=>{const v=draft.allocations[p.program_id]?.[d.key]; if(v!==""&&v!=null) counts[d.key]=num(v);});
+        const h=programHours(counts,estimates);
+        return {program_id:p.program_id,program_name:p.program_name,season:p.season,role:p.role,program_type:p.program_type,counts,hours:Math.round(h*10)/10,pct:Math.round(pctOf(h)*100)/100};
+      }).filter(a=>a.hours>0),
+      buckets:Object.fromEntries(BUCKET_DRIVERS.map(b=>[b.key,num(draft.buckets[b.key])])),
+      estimates,
       other_label:draft.other_label||"",notes:draft.notes||"",
       submitted_at:status==="submitted"?new Date().toISOString():(mySurvey?.submitted_at||null),
       updated_at:new Date().toISOString(),
@@ -9187,33 +9290,30 @@ function TimeSurveyTab({db,programs=[],staffName="",isManager=false,onApplied}){
     await load();
   }
 
-  // ── Manager: apply a survey to the programs ──
+  // ── Manager: apply ──  Program % = program hours ÷ total hours entered
   function buildApplyPreview(){
     if(!mySurvey) return;
-    const changes=[];
-    const k=staffKey(mySurvey.staff_name);
+    const total=(mySurvey.allocations||[]).reduce((s,a)=>s+num(a.hours),0)+bucketHoursAll(mySurvey.buckets||{},mySurvey.estimates||{});
+    if(total<=0) return;
+    const changes=[]; const k=staffKey(mySurvey.staff_name);
     (mySurvey.allocations||[]).forEach(a=>{
       const p=programs.find(x=>x.id===a.program_id); if(!p) return;
-      const w=programWorkload(p);
-      const isPrimary=staffKey(p.staff_name)===k;
-      let newTotal, newCo=null;
-      if(isPrimary){ newTotal=a.pct+w.co; }
-      else { newCo=a.pct; newTotal=w.primary+a.pct; }
-      changes.push({program:p,name:p.name,season:p.season,role:isPrimary?"primary":"co",from:isPrimary?w.primary:w.co,to:a.pct,newTotal:Math.round(newTotal*100)/100,newCo});
+      const pct=Math.round(num(a.hours)/total*100*100)/100;
+      const w=programWorkload(p); const isPrimary=staffKey(p.staff_name)===k;
+      const newTotal=isPrimary?pct+w.co:w.primary+pct;
+      changes.push({program:p,name:p.name,season:p.season,role:isPrimary?"primary":"co",hours:num(a.hours),from:isPrimary?w.primary:w.co,to:pct,newTotal:Math.round(newTotal*100)/100,newCo:isPrimary?null:pct});
     });
-    // programs they run that the survey left at 0
     progList.filter(pl=>!(mySurvey.allocations||[]).find(a=>a.program_id===pl.program_id)&&pl.current_pct>0).forEach(pl=>{
       const p=programs.find(x=>x.id===pl.program_id); if(!p) return;
       const w=programWorkload(p); const isPrimary=pl.role==="primary";
-      changes.push({program:p,name:p.name,season:p.season,role:pl.role,from:pl.current_pct,to:0,newTotal:isPrimary?w.co:w.primary,newCo:isPrimary?null:0});
+      changes.push({program:p,name:p.name,season:p.season,role:pl.role,hours:0,from:pl.current_pct,to:0,newTotal:isPrimary?w.co:w.primary,newCo:isPrimary?null:0});
     });
-    const share=100-num(mySurvey.admin_pct)-num(mySurvey.facility_pct)-num(mySurvey.other_pct);
-    setApplyPreview({changes,share});
+    const progShare=(mySurvey.allocations||[]).reduce((s,a)=>s+num(a.hours),0)/total*100;
+    setApplyPreview({changes,share:Math.round(progShare*10)/10,total});
   }
   async function applySurvey(){
     if(!applyPreview||!mySurvey) return;
-    setSaving(true);
-    let failed=0;
+    setSaving(true); let failed=0;
     for(const c of applyPreview.changes){
       const patch={ant_custom_workload:c.newTotal,act_custom_workload:c.newTotal};
       if(c.newCo!=null) patch.co_staff_workload_pct=c.newCo;
@@ -9224,16 +9324,72 @@ function TimeSurveyTab({db,programs=[],staffName="",isManager=false,onApplied}){
     await db.from("staff_time_surveys").update({status:"applied",applied_at:new Date().toISOString(),applied_by:staffName}).eq("id",mySurvey.id);
     setSaving(false);
     flash(failed?`Applied with ${failed} error(s)`:`Applied to ${applyPreview.changes.length} program(s)`);
-    setApplyPreview(null);
-    await load();
-    if(onApplied) onApplied();
+    setApplyPreview(null); await load(); if(onApplied) onApplied();
   }
+
+  // ── Manager: district averages per standard (weighted by how many units each person handles) ──
+  const districtAvg=useMemo(()=>{
+    const done=surveys.filter(s=>s.fiscal_year===effFY&&s.status!=="draft");
+    const out={};
+    ALL_DRIVERS.forEach(d=>{
+      let wsum=0,w=0,n=0;
+      done.forEach(s=>{
+        const est=s.estimates?.[d.key]; if(est==null||est==="") return;
+        let units=0;
+        if(d.key===PROGRAM_FIXED.key) units=(s.allocations||[]).length;
+        else if(PROGRAM_DRIVERS.find(x=>x.key===d.key)) units=(s.allocations||[]).reduce((t,a)=>t+(d.mode==="perweek"?(num(a.counts?.[d.key])*num(a.counts?.weeks)):num(a.counts?.[d.key])),0);
+        else units=num(s.buckets?.[d.key]);
+        if(units<=0) units=1;
+        wsum+=parseFloat(est)*units; w+=units; n++;
+      });
+      out[d.key]={avg:w>0?wsum/w:null,n};
+    });
+    return out;
+  },[surveys,effFY,stdTick]);
+  async function saveStandard(key,hours,note){
+    const {error}=await db.from("time_standards").upsert({key,hours,note:note||"",updated_by:staffName,updated_at:new Date().toISOString()},{onConflict:"key"});
+    if(error){flash("Save failed: "+error.message);return;}
+    _timeStandards[key]=hours; setStdTick(t=>t+1); setStdEdits(e=>{const n={...e};delete n[key];return n;});
+    flash("Standard saved");
+  }
+
+  // ── Manager: average hours by program type across submitted surveys ──
+  const typeAverages=useMemo(()=>{
+    const done=surveys.filter(s=>s.fiscal_year===effFY&&s.status!=="draft");
+    const m={};
+    done.forEach(s=>(s.allocations||[]).forEach(a=>{
+      const t=a.program_type||"(none)"; if(!m[t]) m[t]={hours:[],pcts:[]};
+      m[t].hours.push(num(a.hours)); m[t].pcts.push(num(a.hours)/(num(s.hours_per_year)||SURVEY_HOURS_DEFAULT)*100);
+    }));
+    return Object.entries(m).map(([t,v])=>({type:t,n:v.hours.length,avgHours:v.hours.reduce((a,b)=>a+b,0)/v.hours.length,avgPct:v.pcts.reduce((a,b)=>a+b,0)/v.pcts.length,
+      preset:(PROGRAM_TYPES.find(x=>x.label===t)?.pct||0)*100})).sort((a,b)=>b.avgPct-a.avgPct);
+  },[surveys,effFY]);
 
   const statusChip=s=>{
     const c=s==="applied"?["#EEF5E0","#4A6B00","Applied"]:s==="submitted"?["#E6F6FB","#007A99","Submitted"]:["#F5F3EE","#8A7A6A","Draft"];
     return <span className="text-xs font-bold px-2 py-0.5 rounded" style={{background:c[0],color:c[1]}}>{c[2]}</span>;
   };
   const inputCls="text-sm rounded border border-slate-200 px-2 py-1 text-right focus:outline-none focus:ring-1 focus:ring-blue-300";
+  const hrs=h=>Math.round(h).toLocaleString();
+  const fmtStd=d=>d.mode==="hpw"?"hrs a week":d.mode==="hours"?"hours":d.mode==="weeks"?"weeks":`${stdHours(d.key)} ${d.unit}`;
+
+  // One driver row: count box, standard hint, optional own estimate
+  const DriverRow=({d,value,onChange,estValue,onEst,hoursOut})=>(
+    <div className="flex items-center gap-2 py-1.5 border-t border-slate-50 flex-wrap">
+      <div className="flex-1 min-w-[220px]">
+        <div className="text-sm text-slate-800">{d.label}</div>
+        <div className="text-xs text-slate-500">{d.hint}</div>
+      </div>
+      <input type="number" min={0} step={d.mode==="hpw"?"0.5":"1"} disabled={!canEdit} value={value??""} placeholder="0" onChange={e=>onChange(e.target.value)} className={inputCls+" w-20"}/>
+      <span className="text-xs text-slate-500 w-36">{fmtStd(d)}</span>
+      {d.std!=null?(
+        <span className="flex items-center gap-1 text-xs text-slate-500" title="Optional: how long does one of these take you?  Leave blank to use the standard.">
+          mine: <input type="number" min={0} step="0.25" disabled={!canEdit} value={estValue??""} placeholder={String(stdHours(d.key))} onChange={e=>onEst(e.target.value)} className={inputCls+" w-16"}/>
+        </span>
+      ):<span className="w-24"/>}
+      <span className="font-mono text-sm w-16 text-right" style={{color:"#007A99"}}>{hoursOut!=null?hrs(hoursOut):""}</span>
+    </div>
+  );
 
   if(!loaded||!draft) return <div className="p-6 text-sm text-slate-500">Loading…</div>;
 
@@ -9241,10 +9397,9 @@ function TimeSurveyTab({db,programs=[],staffName="",isManager=false,onApplied}){
     <div className="p-5 space-y-5">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <div className="text-xs font-bold uppercase tracking-widest" style={{color:"#5C462B"}}>Staff Time Survey</div>
-          <div className="text-xs mt-0.5 max-w-2xl" style={{color:"#8A7A6A"}}>
-            Split 100% of your year across the programs you run and the three buckets below.  Think in whole weeks: a six week class with setup and wrap up is about 2% of a year; a summer camp you direct is 15% to 25%.
-            Save a draft any time.  Submitting sends it to your supervisor.  Nothing changes on any program until a manager applies it.
+          <div className="text-xs font-bold uppercase tracking-widest" style={{color:"#5C462B"}}>Staff Time Survey · FY {effFY}</div>
+          <div className="text-xs mt-0.5 max-w-3xl" style={{color:"#8A7A6A"}}>
+            Count things; the app does the hours.  Open each program and enter how many sessions you set up, people you hired, weeks it ran and so on.  Each count is multiplied by a district time standard (shown in grey).  If one of those takes you longer or shorter than the standard, put your own number in the "mine" box.  Then the work that is not tied to one program.  The total needs to land within 5% of your working year.  Nothing changes on any program until a manager applies the survey.
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -9261,121 +9416,194 @@ function TimeSurveyTab({db,programs=[],staffName="",isManager=false,onApplied}){
         </div>
       </div>
 
-      {/* Manager overview */}
       {isManager&&(
         <div className="rounded border border-slate-200 bg-white">
-          <div className="px-4 py-2.5 border-b border-slate-100 text-xs font-bold uppercase tracking-widest" style={{background:"#F8F6F2",color:"#5C462B"}}>FY {effFY} · {people.length} staff with programs</div>
-          <div className="flex flex-wrap gap-2 p-3">
-            {people.map(n=>{
-              const sv=surveys.find(s=>staffKey(s.staff_name)===staffKey(n)&&s.fiscal_year===effFY);
-              const active=staffKey(n)===staffKey(who);
-              return (
-                <button key={n} onClick={()=>setWho(n)} className="text-xs px-2.5 py-1.5 rounded flex items-center gap-2" style={{background:active?"#E6F6FB":"#fff",border:`1px solid ${active?"#00A9CE":"rgba(92,70,43,0.2)"}`,color:"#3d2b1a"}}>
-                  <span className="font-semibold">{n}</span>{sv?statusChip(sv.status):<span className="text-xs" style={{color:"#A09080"}}>not started</span>}
-                </button>
-              );
-            })}
+          <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2" style={{background:"#F8F6F2"}}>
+            <div className="flex items-center gap-1">
+              {[["people",`${people.length} staff`],["standards","Time standards"],["types","Averages by program type"]].map(([k,l])=>(
+                <button key={k} onClick={()=>setMgrView(k)} className="text-xs font-bold px-2.5 py-1 rounded" style={{background:mgrView===k?"#5C462B":"transparent",color:mgrView===k?"#fff":"#5C462B",border:"none",cursor:"pointer"}}>{l}</button>
+              ))}
+            </div>
+            <label className="flex items-center gap-2 text-xs font-bold cursor-pointer" style={{color:surveyOpenFY?"#4A6B00":"#5C462B"}}>
+              <input type="checkbox" checked={surveyOpenFY} onChange={e=>toggleSurveyOpen(e.target.checked)}/>
+              {surveyOpenFY?"Open to staff — they see this tab":"Closed — staff do not see this tab yet"}
+            </label>
           </div>
+          {mgrView==="people"&&(
+            <div className="flex flex-wrap gap-2 p-3">
+              {people.map(n=>{
+                const sv=surveys.find(s=>staffKey(s.staff_name)===staffKey(n)&&s.fiscal_year===effFY);
+                const active=staffKey(n)===staffKey(who);
+                const nEst=sv?Object.keys(sv.estimates||{}).length:0;
+                return (
+                  <button key={n} onClick={()=>setWho(n)} className="text-xs px-2.5 py-1.5 rounded flex items-center gap-2" style={{background:active?"#E6F6FB":"#fff",border:`1px solid ${active?"#00A9CE":"rgba(92,70,43,0.2)"}`,color:"#3d2b1a"}}>
+                    <span className="font-semibold">{n}</span>{sv?statusChip(sv.status):<span className="text-xs" style={{color:"#A09080"}}>not started</span>}
+                    {sv&&sv.status!=="draft"&&nEst===0&&<span title="Gave no estimates of their own; all standards accepted as is" style={{color:"#8A5E00"}}>no estimates</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {mgrView==="standards"&&(
+            <div className="p-3 overflow-x-auto">
+              <div className="text-xs text-slate-600 mb-2">Standards are the same for everyone.  The district average is each person's own estimate weighted by how many of that thing they handle, from submitted surveys this year.  Nothing changes unless you adopt.</div>
+              <table className="w-full text-xs">
+                <thead><tr className="text-slate-500 uppercase tracking-wider"><th className="px-2 py-1 text-left">Activity</th><th className="px-2 py-1 text-right">Standard (hrs)</th><th className="px-2 py-1 text-right">District average</th><th className="px-2 py-1 text-right">Estimates</th><th className="px-2 py-1 text-right">Set standard</th><th className="px-2 py-1"></th></tr></thead>
+                <tbody>
+                  {ALL_DRIVERS.map(d=>{
+                    const da=districtAvg[d.key]||{}; const editing=stdEdits[d.key];
+                    return (
+                      <tr key={d.key} className="border-t border-slate-100">
+                        <td className="px-2 py-1.5 text-slate-800">{d.label}<div className="text-slate-400">{d.unit||"hrs each"}</div></td>
+                        <td className="px-2 py-1.5 text-right font-mono font-bold">{stdHours(d.key)}</td>
+                        <td className="px-2 py-1.5 text-right font-mono" style={{color:da.avg!=null?"#007A99":"#A09080"}}>{da.avg!=null?da.avg.toFixed(2):"—"}</td>
+                        <td className="px-2 py-1.5 text-right text-slate-500">{da.n||0}</td>
+                        <td className="px-2 py-1.5 text-right"><input type="number" min={0} step="0.25" value={editing??""} placeholder={String(stdHours(d.key))} onChange={e=>setStdEdits(s=>({...s,[d.key]:e.target.value}))} className={inputCls+" w-20"}/></td>
+                        <td className="px-2 py-1.5">
+                          <div className="flex gap-1">
+                            {editing!=null&&editing!==""&&<button onClick={()=>saveStandard(d.key,parseFloat(editing),"set by manager")} className="text-xs font-bold px-2 py-1" style={{background:"#84BD00",color:"#fff",borderRadius:"2px",border:"none"}}>Save</button>}
+                            {da.avg!=null&&Math.abs(da.avg-stdHours(d.key))>0.001&&<button onClick={()=>saveStandard(d.key,Math.round(da.avg*100)/100,`district average FY ${effFY}, ${da.n} estimates`)} className="text-xs font-bold px-2 py-1" style={{background:"#fff",color:"#007A99",borderRadius:"2px",border:"1px solid rgba(0,169,206,0.4)"}}>Adopt average</button>}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {mgrView==="types"&&(
+            <div className="p-3 overflow-x-auto">
+              <div className="text-xs text-slate-600 mb-2">Average hours and share of a year per program, by program type, across every program in a submitted survey this year.  Compare with the preset the app uses today.  Presets do not change from here.</div>
+              {typeAverages.length===0?<div className="text-xs text-slate-500">No submitted surveys yet for FY {effFY}.</div>:(
+                <table className="w-full text-xs">
+                  <thead><tr className="text-slate-500 uppercase tracking-wider"><th className="px-2 py-1 text-left">Program type</th><th className="px-2 py-1 text-right">Programs surveyed</th><th className="px-2 py-1 text-right">Avg hours</th><th className="px-2 py-1 text-right">Avg % of year</th><th className="px-2 py-1 text-right">Preset today</th></tr></thead>
+                  <tbody>
+                    {typeAverages.map(t=>(
+                      <tr key={t.type} className="border-t border-slate-100">
+                        <td className="px-2 py-1.5 text-slate-800">{t.type}</td>
+                        <td className="px-2 py-1.5 text-right">{t.n}</td>
+                        <td className="px-2 py-1.5 text-right font-mono">{hrs(t.avgHours)}</td>
+                        <td className="px-2 py-1.5 text-right font-mono font-bold" style={{color:"#007A99"}}>{t.avgPct.toFixed(1)}%</td>
+                        <td className="px-2 py-1.5 text-right font-mono text-slate-500">{t.preset?t.preset.toFixed(1)+"%":"—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
         </div>
       )}
 
-      {/* The survey */}
       <div className="rounded border border-slate-200 bg-white">
-        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2" style={{background:"#F8F6F2"}}>
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-3" style={{background:"#F8F6F2"}}>
           <div>
-            <div className="text-sm font-bold text-slate-800">{who} · FY {effFY}</div>
-            <div className="text-xs" style={{color:"#8A7A6A"}}>{mySurvey?`Last saved ${new Date(mySurvey.updated_at).toLocaleString()}${mySurvey.applied_at?` · applied ${new Date(mySurvey.applied_at).toLocaleDateString()} by ${mySurvey.applied_by}`:""}`:"Not started"}</div>
+            <div className="text-sm font-bold text-slate-800">{who}</div>
+            <div className="text-xs" style={{color:"#8A7A6A"}}>{mySurvey?`Last saved ${new Date(mySurvey.updated_at).toLocaleString()}${mySurvey.applied_at?` · applied ${new Date(mySurvey.applied_at).toLocaleDateString()} by ${mySurvey.applied_by}`:""}`:"Not started"}{estGiven>0?` · ${estGiven} of your own time estimates`:""}</div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4 flex-wrap">
+            {canEdit&&priorSurvey&&!mySurvey&&<button onClick={startFromPrior} className="text-xs font-bold" style={{color:"#007A99",background:"none",border:"none",cursor:"pointer"}}>Start from last year's survey</button>}
+            <label className="text-xs text-slate-700 flex items-center gap-2">Working hours in your year
+              <input type="number" disabled={!canEdit} value={draft.hours_per_year} onChange={e=>setField("hours_per_year",e.target.value)} className={inputCls+" w-20"}/>
+            </label>
             {statusChip(draft.status)}
             <div className="text-right">
-              <div className="text-xs" style={{color:"#8A7A6A"}}>Total</div>
-              <div className="text-lg font-black" style={{color:totalOk?"#4A6B00":total>100?"#E35205":"#8A5E00"}}>{total.toFixed(1)}%</div>
+              <div className="text-xs" style={{color:"#8A7A6A"}}>Hours accounted for</div>
+              <div className="text-lg font-black" style={{color:withinRange?"#4A6B00":coverage>1.05?"#E35205":"#8A5E00"}}>{hrs(totalHours)} <span className="text-xs font-semibold">of {hrs(hoursYear)} ({(coverage*100).toFixed(0)}%)</span></div>
             </div>
           </div>
         </div>
-        <div className="p-4 space-y-4">
-          {progList.length===0&&<div className="text-sm text-slate-500">No programs are assigned to {who} for FY {effFY}.</div>}
-          {progList.length>0&&(
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-xs text-slate-500 uppercase tracking-wider">
-                  <th className="px-2 py-1.5 text-left">Program</th>
-                  <th className="px-2 py-1.5 text-left">Season</th>
-                  <th className="px-2 py-1.5 text-left">Role</th>
-                  <th className="px-2 py-1.5 text-right">On the program now</th>
-                  <th className="px-2 py-1.5 text-right">% of your year</th>
-                </tr>
-              </thead>
-              <tbody>
-                {progList.map(p=>(
-                  <tr key={p.program_id} className="border-t border-slate-100">
-                    <td className="px-2 py-1.5 font-semibold text-slate-800">{p.program_name}<span className="font-normal text-slate-400"> · {p.area}</span></td>
-                    <td className="px-2 py-1.5 text-slate-600">{p.season}</td>
-                    <td className="px-2 py-1.5 text-slate-600">{p.role==="primary"?"Lead":"Co-staff"}</td>
-                    <td className="px-2 py-1.5 text-right font-mono text-slate-500">{p.current_pct.toFixed(1)}%</td>
-                    <td className="px-2 py-1.5 text-right"><input type="number" min={0} max={100} step="0.5" disabled={!canEdit} value={draft.allocations[p.program_id]??""} placeholder="0" onChange={e=>setAlloc(p.program_id,e.target.value)} className={inputCls+" w-20"}/></td>
-                  </tr>
-                ))}
-                <tr className="border-t border-slate-200 font-bold text-slate-800"><td className="px-2 py-1.5" colSpan={4}>Programs subtotal</td><td className="px-2 py-1.5 text-right font-mono">{progTotal.toFixed(1)}%</td></tr>
-              </tbody>
-            </table>
-          )}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {SURVEY_BUCKETS.map(b=>(
-              <label key={b.key} className="text-xs text-slate-700 rounded border border-slate-100 p-3" style={{background:"#FBFAF7"}}>
-                <div className="font-semibold text-slate-800">{b.label}</div>
-                <div className="text-slate-500 mb-2">{b.hint}</div>
-                <div className="flex items-center gap-2">
-                  <input type="number" min={0} max={100} step="0.5" disabled={!canEdit} value={draft[b.key]??""} placeholder="0" onChange={e=>setField(b.key,e.target.value)} className={inputCls+" w-20"}/>
-                  <span>% of your year</span>
-                </div>
-                {b.key==="other_pct"&&<input disabled={!canEdit} value={draft.other_label} onChange={e=>setField("other_label",e.target.value)} placeholder="What is it?" className="mt-2 w-full text-sm rounded border border-slate-200 px-2 py-1"/>}
-              </label>
-            ))}
+        <div className="p-4 space-y-5">
+          {/* Programs */}
+          <div>
+            <div className="text-xs font-bold uppercase tracking-widest text-slate-700 mb-2">Your programs · {hrs(progHoursTotal)} hours · {pctOf(progHoursTotal).toFixed(1)}% of your year</div>
+            {progList.length===0&&<div className="text-sm text-slate-500">No programs are assigned to {who} for FY {effFY}.  Programs are matched by the Staff and Co-staff names on each program record.</div>}
+            <div className="divide-y divide-slate-100 rounded border border-slate-100">
+              {progList.map(p=>{
+                const counts=draft.allocations[p.program_id]||{}; const h=programHours(counts,draft.estimates); const open=openProg===p.program_id;
+                const filled=PROGRAM_DRIVERS.filter(d=>(parseFloat(counts[d.key])||0)>0).length;
+                return (
+                  <div key={p.program_id}>
+                    <button type="button" onClick={()=>setOpenProg(open?null:p.program_id)} className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-gray-50" style={{background:open?"#F2F9FB":"transparent",border:"none",cursor:"pointer"}}>
+                      <span style={{color:"#00A9CE",fontSize:"10px"}}>{open?"▼":"▶"}</span>
+                      <span className="font-semibold text-sm text-slate-800 flex-1">{p.program_name}<span className="font-normal text-slate-400"> · {p.season}{p.is_umbrella?" · umbrella":""} · {p.role==="primary"?"Lead":"Co-staff"}</span></span>
+                      <span className="text-xs text-slate-500">{filled} of {PROGRAM_DRIVERS.length} entered</span>
+                      <span className="font-mono text-sm font-bold w-20 text-right text-slate-800">{hrs(h)} hrs</span>
+                      <span className="font-mono text-sm w-16 text-right" style={{color:"#007A99"}}>{pctOf(h).toFixed(1)}%</span>
+                      <span className="font-mono text-xs w-20 text-right text-slate-400" title="On the program record today">now {p.current_pct.toFixed(1)}%</span>
+                    </button>
+                    {open&&(
+                      <div className="px-4 pb-3" style={{background:"#FBFDFE"}}>
+                        <div className="flex items-center gap-2 text-xs text-slate-500 pt-2 pb-1 flex-wrap"><span className="flex-1 min-w-[220px]">How many this year</span><span className="w-20 text-right">count</span><span className="w-36">standard</span><span className="w-24">yours</span><span className="w-16 text-right">hours</span></div>
+                        {PROGRAM_DRIVERS.map(d=>(
+                          <DriverRow key={d.key} d={d} value={counts[d.key]} onChange={v=>setCount(p.program_id,d.key,v)} estValue={draft.estimates[d.key]} onEst={v=>setEst(d.key,v)} hoursOut={d.mode==="weeks"?null:driverHours(d,counts,draft.estimates)}/>
+                        ))}
+                        <div className="flex items-center gap-2 py-1.5 border-t border-slate-50 text-xs text-slate-600"><span className="flex-1">{PROGRAM_FIXED.label}</span><span className="w-36">{stdHours(PROGRAM_FIXED.key)} hrs</span><span className="flex items-center gap-1 w-24">mine: <input type="number" min={0} step="0.5" disabled={!canEdit} value={draft.estimates[PROGRAM_FIXED.key]??""} placeholder={String(stdHours(PROGRAM_FIXED.key))} onChange={e=>setEst(PROGRAM_FIXED.key,e.target.value)} className={inputCls+" w-16"}/></span><span className="font-mono w-16 text-right" style={{color:"#007A99"}}>{h>0?hrs(draft.estimates[PROGRAM_FIXED.key]!==""&&draft.estimates[PROGRAM_FIXED.key]!=null?parseFloat(draft.estimates[PROGRAM_FIXED.key]):stdHours(PROGRAM_FIXED.key)):""}</span></div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
+
+          {/* Buckets */}
+          <div>
+            <div className="text-xs font-bold uppercase tracking-widest text-slate-700 mb-2">Work not tied to one program · {hrs(bucketTotal)} hours · {pctOf(bucketTotal).toFixed(1)}% of your year</div>
+            <div className="rounded border border-slate-100 px-4 pb-2">
+              <div className="flex items-center gap-2 text-xs text-slate-500 pt-2 pb-1 flex-wrap"><span className="flex-1 min-w-[220px]">How many this year</span><span className="w-20 text-right">count</span><span className="w-36">standard</span><span className="w-24">yours</span><span className="w-16 text-right">hours</span></div>
+              {BUCKET_DRIVERS.map(d=>(
+                <DriverRow key={d.key} d={d} value={draft.buckets[d.key]} onChange={v=>setBucket(d.key,v)} estValue={draft.estimates[d.key]} onEst={v=>setEst(d.key,v)} hoursOut={driverHours(d,draft.buckets,draft.estimates)}/>
+              ))}
+              <input disabled={!canEdit} value={draft.other_label} onChange={e=>setField("other_label",e.target.value)} placeholder="What is the other work?" className="mt-1 w-full text-sm rounded border border-slate-200 px-2 py-1"/>
+            </div>
+            <div className="text-xs mt-2 text-slate-500">Leave and holidays are already out of the working year, so do not list them.</div>
+          </div>
+
           <label className="block text-xs text-slate-700">Notes for your supervisor
-            <textarea disabled={!canEdit} value={draft.notes} onChange={e=>setField("notes",e.target.value)} rows={2} className="mt-1 w-full text-sm rounded border border-slate-200 px-2 py-1.5" placeholder="Anything that changed this year, programs you share, seasons that are unusually heavy"/>
+            <textarea disabled={!canEdit} value={draft.notes} onChange={e=>setField("notes",e.target.value)} rows={2} className="mt-1 w-full text-sm rounded border border-slate-200 px-2 py-1.5" placeholder="What changed this year, programs you share, seasons that are unusually heavy, what the other hours are"/>
           </label>
-          {!totalOk&&<div className="text-xs font-semibold" style={{color:total>100?"#E35205":"#8A5E00"}}>{total>100?`Over by ${(total-100).toFixed(1)} points`:`${(100-total).toFixed(1)} points still to place`}</div>}
+          {!withinRange&&<div className="text-xs font-semibold" style={{color:coverage>1.05?"#E35205":"#8A5E00"}}>{coverage>1.05?`${hrs(totalHours-hoursYear)} hours over your working year`:`${hrs(hoursYear-totalHours)} hours still to account for`}</div>}
           {canEdit&&(
             <div className="flex items-center gap-2 flex-wrap">
               <button onClick={()=>save("draft")} disabled={saving} className="text-xs font-bold px-3 py-1.5 disabled:opacity-50" style={{background:"#fff",color:"#5C462B",borderRadius:"2px",border:"1px solid rgba(92,70,43,0.3)"}}>Save draft</button>
-              <button onClick={()=>save("submitted")} disabled={saving||!totalOk} className="text-xs font-bold px-3 py-1.5 disabled:opacity-50" style={{background:"#84BD00",color:"#fff",borderRadius:"2px",border:"none"}}>Submit to supervisor</button>
+              <button onClick={()=>save("submitted")} disabled={saving||!withinRange} className="text-xs font-bold px-3 py-1.5 disabled:opacity-50" style={{background:"#84BD00",color:"#fff",borderRadius:"2px",border:"none"}}>Submit to supervisor</button>
               {isApplied&&<span className="text-xs" style={{color:"#4A6B00"}}>Applied to programs.  Editing starts a new draft; it changes nothing until applied again.</span>}
             </div>
           )}
         </div>
       </div>
 
-      {/* Manager: apply */}
       {isManager&&mySurvey&&mySurvey.status!=="draft"&&(
         <div className="rounded border bg-white" style={{borderColor:"rgba(0,169,206,0.4)"}}>
           <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2" style={{background:"#E6F6FB"}}>
             <div>
               <div className="text-xs font-bold uppercase tracking-widest" style={{color:"#007A99"}}>Apply to programs (manager)</div>
-              <div className="text-xs" style={{color:"#5C462B"}}>Writes this survey's percentages into the custom workload on each of {mySurvey.staff_name}'s programs and sets their program share to {Math.max(0,100-num(mySurvey.admin_pct)-num(mySurvey.facility_pct)-num(mySurvey.other_pct)).toFixed(1)}%.  Optional.  Nothing moves until you confirm.</div>
+              <div className="text-xs" style={{color:"#5C462B"}}>Each program's share of {mySurvey.staff_name}'s hours becomes its custom workload percentage, and their program share in Formula Config is set to match.  Optional.  The survey stays on file as entered.</div>
             </div>
             {!applyPreview&&<button onClick={buildApplyPreview} className="text-xs font-bold px-3 py-1.5 rounded text-white" style={{background:"#00A9CE",border:"none"}}>Preview changes</button>}
           </div>
           {applyPreview&&(
             <div className="p-4 space-y-3">
+              <div className="text-xs text-slate-600">{hrs(applyPreview.total)} hours accounted for; {applyPreview.share.toFixed(1)}% of them on programs.</div>
               <table className="w-full text-xs">
-                <thead><tr className="text-slate-500 uppercase tracking-wider"><th className="px-2 py-1 text-left">Program</th><th className="px-2 py-1 text-left">Role</th><th className="px-2 py-1 text-right">Now</th><th className="px-2 py-1 text-right">Survey</th><th className="px-2 py-1 text-right">Program total after</th></tr></thead>
+                <thead><tr className="text-slate-500 uppercase tracking-wider"><th className="px-2 py-1 text-left">Program</th><th className="px-2 py-1 text-left">Role</th><th className="px-2 py-1 text-right">Hours</th><th className="px-2 py-1 text-right">Now</th><th className="px-2 py-1 text-right">Survey</th><th className="px-2 py-1 text-right">Program total after</th></tr></thead>
                 <tbody>
                   {applyPreview.changes.map((c,i)=>(
                     <tr key={i} className="border-t border-slate-100">
                       <td className="px-2 py-1 font-semibold text-slate-800">{c.name}<span className="text-slate-400 font-normal"> · {c.season}</span></td>
                       <td className="px-2 py-1 text-slate-600">{c.role==="primary"?"Lead":"Co-staff"}</td>
+                      <td className="px-2 py-1 text-right font-mono">{hrs(c.hours)}</td>
                       <td className="px-2 py-1 text-right font-mono">{c.from.toFixed(1)}%</td>
                       <td className="px-2 py-1 text-right font-mono font-bold" style={{color:c.to>c.from?"#E35205":c.to<c.from?"#4A6B00":"#3d2b1a"}}>{c.to.toFixed(1)}%</td>
                       <td className="px-2 py-1 text-right font-mono">{c.newTotal.toFixed(1)}%</td>
                     </tr>
                   ))}
-                  {applyPreview.changes.length===0&&<tr><td colSpan={5} className="px-2 py-2 text-slate-500">No program percentages would change.</td></tr>}
+                  {applyPreview.changes.length===0&&<tr><td colSpan={6} className="px-2 py-2 text-slate-500">No program percentages would change.</td></tr>}
                 </tbody>
               </table>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button onClick={applySurvey} disabled={saving} className="text-xs font-bold px-3 py-1.5 disabled:opacity-50" style={{background:"#E35205",color:"#fff",borderRadius:"2px",border:"none"}}>{saving?"Applying…":"Apply these changes"}</button>
                 <button onClick={()=>setApplyPreview(null)} className="text-xs font-bold px-3 py-1.5" style={{background:"#fff",color:"#5C462B",borderRadius:"2px",border:"1px solid rgba(92,70,43,0.3)"}}>Cancel</button>
                 <span className="text-xs" style={{color:"#8A7A6A"}}>Program total = this person's share plus any co-staff share already on the program.  Cost recovery on these programs will change.</span>
@@ -9821,11 +10049,12 @@ function AppInner() {
     setError(null);
     const timeout = new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout")),10000));
     try {
-      const [{data:p, error:fe}, {data:cfgData}, {data:scData}] = await Promise.race([
+      const [{data:p, error:fe}, {data:cfgData}, {data:scData}, {data:tsData}] = await Promise.race([
         Promise.all([
           supabase.from("programs").select("*").order("created_at",{ascending:false}),
           supabase.from("fy_config").select("*"),
           supabase.from("staff_costs").select("*"),
+          supabase.from("time_standards").select("*"),
         ]),
         timeout.then(()=>{ throw new Error("timeout"); })
       ]);
@@ -9837,6 +10066,10 @@ function AppInner() {
       if(scData) {
         _staffCosts = {};
         scData.forEach(row=>{ _staffCosts[staffKey(row.staff_name)] = row; });
+      }
+      if(tsData) {
+        _timeStandards = {};
+        tsData.forEach(row=>{ _timeStandards[row.key] = parseFloat(row.hours); });
       }
       const normalized=(p||[])
         .filter(prog=>!prog.is_deleted)
@@ -9976,12 +10209,15 @@ function AppInner() {
     setSaving(false);
   };
 
+  // Staff see the Time Survey only once a manager has opened it for a fiscal year
+  const surveyOpen = Object.values(_fyConfig).some(r=>r&&r.survey_open);
   const tabs = [
     {id:"dashboard",label:"Dashboard"},
     {id:"programs",label:"Programs"},
+    {id:"review",label:"Program Review"},
+    ...(effectiveManager||surveyOpen?[{id:"survey",label:"Time Survey"}]:[]),
     {id:"history",label:"Multi-Season"},
     {id:"kpi",label:"Guide & Resources"},
-    {id:"survey",label:"Time Survey"},
     ...(effectiveManager?[
       {id:"access",label:"Staff Access"},
       {id:"config",label:"Formula Config"},
@@ -10087,7 +10323,7 @@ function AppInner() {
                 onDelete={handleDeleteProgram}
                 onArchive={handleArchiveProgram}
                 onDuplicate={p=>setDupProgram(p)}
-                onOpenReviews={p=>{setReviewTarget(p);setEditingProgram(null);setAddingProgram(false);setTab("kpi");}}
+                onOpenReviews={p=>{setReviewTarget(p);setEditingProgram(null);setAddingProgram(false);setTab("review");}}
                 onCancel={()=>{if(editingProgram?.year) setReturnToYear(toFY(editingProgram.year));setEditingProgram(null);setAddingProgram(false);}}
                 saving={saving}/>
             )}
@@ -10095,9 +10331,13 @@ function AppInner() {
               <MultiSeasonView programs={programs} onEdit={p=>{setEditingProgram(p);setTab("programs");}} staffName={staffName} isManager={effectiveManager}/>
             )}
             {tab==="kpi"&&<Reference isManager={effectiveManager} db={supabase} programs={programs} staffName={staffName}
-              reviewTarget={reviewTarget}
               onConfigChanged={()=>fetchAll()}
               onOpenProgram={p=>{setReviewTarget(null);setEditingProgram(p);setAddingProgram(false);setTab("programs");}}/>}
+            {tab==="review"&&(
+              <ProgramReviewSection db={supabase} programs={programs} staffName={staffName} isManager={effectiveManager}
+                targetProgram={reviewTarget}
+                onOpenProgram={p=>{setReviewTarget(null);setEditingProgram(p);setAddingProgram(false);setTab("programs");}}/>
+            )}
             {tab==="access"&&effectiveManager&&(
               <StaffPinAdmin db={supabase} staffName={staffName} programs={programs}/>
             )}
